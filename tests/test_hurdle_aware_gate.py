@@ -174,22 +174,58 @@ def _judge_source() -> str:
     return inspect.getsource(evolve_race._judge_candidate)
 
 
-def test_the_gate_list_matches_the_number_of_decision_points_in_the_code():
-    """`GATE_NAMES` 与代码里的实际否决点必须一致。
+def _judge_lines() -> list[str]:
+    import inspect
 
-    这是**唯一**能挡住上述漂移的东西：名单是唯一真相源，
-    加闸时不改名单（或不改代码），这条就会红。
-    不靠数关键词——数的是 `promote: False` 的返回点，
-    其中「候选即现任」是短路而非闸，所以减去一。"""
-    from aplus.evolve_race import GATE_NAMES, N_GATES
+    from aplus import evolve_race
+    return inspect.getsource(evolve_race._judge_candidate).splitlines()
 
-    n_returns = _judge_source().count('"promote": False')
-    assert len(GATE_NAMES) == n_returns, (
-        f"GATE_NAMES 有 {len(GATE_NAMES)} 项，但 _judge_candidate 里 "
-        f"有 {n_returns} 个 promote=False 返回点——"
-        f"**加闸时必须同步补名单**，否则判决理由里的数字会撒谎"
+
+def test_every_listed_gate_actually_blocks_promotion():
+    """**名单里每一项都必须在源码里指出它的 `return`。**
+
+    第一版我只数「`promote: False` 的返回点数」== 名单长度，于是绿灯——
+    但我把 `breadth_t 显著` 写进了名单，而那一行**只拼警告、没有 return**。
+    它是披露，不是闸。判决对外宣称「12 道闸全过」，其中一道不否决。
+
+    第二版仍然会数出同样的 12 个 return——因为 `breadth_t` 分支本来就没有
+    return，而我的名单写成了 11 项 + 1 项误登记。**长度对了，语义错了。**
+    所以这条测试不数长度，改成**逐项验证语义**。
+    """
+    from aplus.evolve_race import GATE_NAMES, GATE_WARNINGS
+
+    src = "\n".join(_judge_lines())
+    # 判优闸与可测性守卫都必须真的 return
+    assert src.count('"promote": False') == len(GATE_NAMES), (
+        f"否决返回点 {src.count(chr(34) + 'promote' + chr(34) + ': False')} "
+        f"个 vs 名单 {len(GATE_NAMES)} 项——加闸时必须同步补名单"
     )
-    assert N_GATES == len(GATE_NAMES)
+    # 警告项**不得**出现在否决名单里（这是本条测试真正要防的那件事）
+    overlap = set(GATE_NAMES) & set(GATE_WARNINGS)
+    assert not overlap, (
+        f"{overlap} 同时出现在否决名单和警告名单里——"
+        f"**只披露不否决的检查混进否决名单，会让判决对外虚报闸数**"
+    )
+    for name in GATE_WARNINGS:
+        assert name not in GATE_NAMES, f"{name} 是警告项，不得计入 N_GATES"
+
+
+def test_a_warning_only_check_cannot_be_reported_as_a_passed_gate():
+    """**端到端钉住这条语义**：`breadth_t` 不显著时判决仍然是 promote=True，
+    所以它绝不能出现在「N 道闸全过」之外还占一个名额。"""
+    from aplus.evolve_race import GATE_WARNINGS, N_GATES, oos_decision
+
+    # breadth_t = -9.0，远低于临界 → 必然触发警告
+    race = _race({"turn20": -1.0}, every=21, daily_excess=0.0015)
+    race["table"][0]["test"]["stats"]["breadth_t"] = -9.0
+    d = oos_decision(race, CHAMP)
+    assert d["promote"] is True, "breadth_t 不显著但**不否决**——这是既定政策"
+    assert "⚠️" in d["reason"] or "广度" in d["reason"], "警告必须出现在理由里"
+    assert d["reason"].startswith(f"{N_GATES} 道闸全过")
+    # 关键：声称的闸数**不含**这个警告项
+    assert N_GATES == len(__import__("aplus.evolve_race",
+                                     fromlist=["x"]).GATE_NAMES)
+    assert "breadth_t 显著" in GATE_WARNINGS
 
 
 def test_the_verdict_reason_says_how_many_gates_actually_passed():
