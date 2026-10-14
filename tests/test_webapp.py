@@ -155,7 +155,12 @@ def test_weights_endpoint_reports_current_strategy(tmp_path):
     app = create_app(tmp_path, llm=FakeLLM())
     body = TestClient(app).get("/api/weights").json()
     assert body["weights"]["mom20"] == 1.0  # 未进化过 → 默认 v1
-    assert body["source"] in ("default", "evolved")
+    # `source` 于 2026-10-14 从 `default` 改成 `fallback`。
+    # 原值把「weights.json 不存在、什么都没跑过」显示成 `default`，
+    # 读起来像「一份已知的默认配置」——而 `load_weights` 自己区分得更准。
+    # 前端据此展示 caveat（「已知的坏配置」），语义必须对得上。
+    assert body["source"] in ("fallback", "evolved")
+    assert body["source"] == "fallback", "tmp_path 没有 weights.json，必须是 fallback"
 
 
 def test_predictions_history_endpoint(tmp_path):

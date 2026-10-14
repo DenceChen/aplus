@@ -21,17 +21,60 @@ const MIN_DAYS_FOR_CAGR = 30;
 const TARGET_CAGR = 0.20;
 
 /**
+ * caveat 里的 Markdown 记号 → HTML。
+ *
+ * ## 为什么只处理 `**`，且必须先转义
+ *
+ * caveat 是 `load_weights` 里写死的**内部常量**，可信——但它经 JSON
+ * 传到前端，仍不能直接当 HTML 插入。所以这里的顺序是
+ * 「先转义 `<>&"'`，再把 `**x**` 换成 `<b>x</b>`」，而不是反过来。
+ * 顺序反了就是 XSS。
+ *
+ * ## 为什么不给全站引入 Markdown 渲染
+ *
+ * 因为这里只需要加粗。不引入渲染器意味着多一个依赖、少一处
+ * 「用户输入被当 HTML 解析」的入口。加粗是唯一的诉求，
+ * 值得的实现就是这一行。
+ */
+function renderCaveat(text) {
+  const escaped = String(text ?? '')
+    .replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return escaped.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+}
+
+/**
  * @param {object|null} stats  `/api/status` 的 stats（含 cagr/arith_ann/n_days）
  * @param {object|null} evo    `/api/evolution/summary`（含 champion_falsified/health）
- * @returns {{level: string, headline: string, detail: string}|null}
+ * @param {object|null} weights `/api/weights`（含 source/caveat/execution）
+ * @returns {{level: string, headline: string, detail: string, detailHtml: string}|null}
  *          null = 无警示，判决板维持原样。
  */
-function docketWarning(stats, evo) {
+function docketWarning(stats, evo, weights) {
   const falsified = evo?.champion_falsified === true;
   const cagr = stats?.cagr ?? null;
   const nDays = stats?.n_days ?? 0;
 
-  // ── 最高优先级：现任权重已被证伪 ──
+  // ── 最高优先级：跑的是一个已测量的坏配置 ──
+  //
+  // `load_weights` 在回落时返回的 caveat 写得很准：
+  //   「回落默认权重：……在 730 天赛马里排第 81/87 名，测试段超额 −0.74%、
+  //     t=−3.03 —— 这是**已知的坏配置**，不是「中性起点」。日频执行它的
+  //     年成本量级 351%。」
+  //
+  // 这条排在「已被证伪」之前：它比证伪更根本——证伪说的是「这组权重
+  // 在独立窗口里被判负」，而这里说的是「线上根本没在跑任何经过赛马的
+  // 权重，跑的是一个已知排倒数第 6 的默认值」。用户据此建仓亏钱，
+  // 责任在配置本身。
+  if (weights?.caveat) {
+    return {
+      level: 'danger',
+      headline: '当前跑的是已知的坏配置',
+      detail: weights.caveat,
+      detailHtml: renderCaveat(weights.caveat),
+    };
+  }
+
+  // ── 次高：现任权重已被证伪 ──
   // 进化页早就红字写着这件事，概览页却完全看不到。用户第一眼看到的是
   // 「命中率 49%，与抛硬币无异」——那句话没错，但它掩盖了更严重的事实：
   // 这组权重已经被独立窗口一致判负，是**待替换**的，不是「待观察」的。
@@ -124,5 +167,5 @@ if (typeof require !== 'undefined' && require.main === module) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { docketWarning, MIN_DAYS_FOR_CAGR, TARGET_CAGR };
+  module.exports = { docketWarning, renderCaveat, MIN_DAYS_FOR_CAGR, TARGET_CAGR };
 }

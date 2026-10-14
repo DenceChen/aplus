@@ -640,12 +640,19 @@ async function loadChrome() {
     /* 警示接在这里而不是 loadOverview：判决板属于**外壳**，任何 tab 都会调
        loadChrome()。原先 `champion_falsified` 只在进化页取，于是深链进任何
        非进化页时概览顶部都看不到「现任已被证伪」。
-       独立取一次，`evo` 取不到时降级为 null（`docketWarning` 会静默）。 */
-    const [status, evo] = await Promise.all([
+
+       `w` 是 `/api/weights`：它的 `caveat` 写着「回落默认权重是**已知的坏
+       配置**（81/87 名、t=−3.03），日频执行年成本量级 351%」。这句话此前
+       只经由进化页显示，而概览页把它说成了「未经赛马验收」——
+       「没测过」与「测过、是坏的」方向完全相反。
+
+       取不到时降级为 null（`docketWarning` 会静默）。 */
+    const [status, evo, weights] = await Promise.all([
       jget('/api/status'),
       jget('/api/evolution/summary').catch(() => null),
+      jget('/api/weights').catch(() => null),
     ]);
-    renderDocket(status.stats, evo);
+    renderDocket(status.stats, evo, weights);
   } catch {
     $('docket-word').textContent = '平台状态未知';
     $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
@@ -658,9 +665,10 @@ async function loadOverview() {
        所以 loadOverview 若只传 stats，会把 loadChrome 已经渲染好的
        警示**抹掉**（表现为：深链进概览时警示消失，回到其它 tab 又出现）。
        两处都传同一个 evo，渲染结果一致且幂等。 */
-    const [status, pred, evo] = await Promise.all([
+    const [status, pred, evo, weights] = await Promise.all([
       jget('/api/status'), jget('/api/predictions/latest'),
       jget('/api/evolution/summary').catch(() => null),
+      jget('/api/weights').catch(() => null),
     ]);
     state.predictions = pred;
     $('universe-sub').textContent = `股票池 ${status.universe_size} 只`;
@@ -671,7 +679,7 @@ async function loadOverview() {
     renderRows($('pred-rows-down'), pred.down, 'down');
     $('up-count').textContent = `${pred.up.length} 只`;
     $('down-count').textContent = `${pred.down.length} 只`;
-    renderDocket(status.stats, evo);
+    renderDocket(status.stats, evo, weights);
   } catch (e) { $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`; }
   try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
 }
@@ -680,7 +688,7 @@ async function loadOverview() {
    3 笔是硬门槛，与转债纸面账户「调仓期不足 3 次不给年化判决」同一条规矩：
    两三天的命中率是噪音，报出来会被读成信号。 */
 const MIN_JUDGED = 3;
-function renderDocket(stats, evo) {
+function renderDocket(stats, evo, weights) {
   const judged = stats?.judged ?? 0;
   const has = judged >= MIN_JUDGED;
   const rate = stats?.overall_hit_rate ?? null;
@@ -722,11 +730,15 @@ function renderDocket(stats, evo) {
      测试在 `tests/test_docket_warning.py`。留在这层是为了让每条分支都可测——
      「打开浏览器看一眼」验证不了分支覆盖。 */
   const warn = $('docket-warn');
-  const w = docketWarning(stats, evo);
-  warn.hidden = !w;
-  if (w) {
-    warn.className = 'docket-warn ' + w.level;
-    warn.innerHTML = `<b>${esc(w.headline)}</b><span>${esc(w.detail)}</span>`;
+  const warnOut = docketWarning(stats, evo, weights);
+  warn.hidden = !warnOut;
+  if (warnOut) {
+    warn.className = 'docket-warn ' + warnOut.level;
+    /* `detailHtml` 只在 caveat 分支存在（由 verdict.js 的 renderCaveat 生成：
+       先转义 HTML 再还原 `**` 加粗）。其它分支一律走 `esc(detail)`——
+       两条路径都在 verdict.js 里由数据本身决定，不接受调用方传入 HTML。 */
+    warn.innerHTML = `<b>${esc(warnOut.headline)}</b>`
+      + `<span>${warnOut.detailHtml ?? esc(warnOut.detail)}</span>`;
   }
 
   /* 跌篮子与多空价差（2026-10-11 新增）。此前判决板只有涨腿，而平台每天输出的是

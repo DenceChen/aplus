@@ -258,10 +258,24 @@ def create_app(data_root, llm=None) -> FastAPI:
         from .evolve import load_weights
 
         loaded = load_weights(reports_dir)
+        # `caveat` / `execution` 必须原样递出去（2026-10-14）。
+        #
+        # 原实现只回 weights/evidence/source，把两句关键信息都丢了：
+        #   · `caveat` —— 「回落默认权重是**已知的坏配置**（81/87 名、t=−3.03）」。
+        #     丢掉它之后前端写「未经赛马验收的默认值」，把「测过、是坏的」
+        #     说成了「没测过」。方向完全相反。
+        #   · `execution` —— 回落固定 K=1，而台账第 19 条实测 K=1 与 K=63
+        #     差 **276 个百分点**（−168.9% vs +105.7%）。前端看不到 K，
+        #     用户以为每天出一次单是免费的。
+        #
+        # `source` 也不再压成 `default`：`fallback` 才说得清「没落盘」，
+        # `default` 读起来像「一份已知的默认配置」。
         return {
             "weights": loaded["weights"],
             "evidence": loaded["evidence"],
-            "source": "evolved" if loaded["evidence"] else "default",
+            "execution": loaded["execution"],
+            "caveat": loaded.get("caveat"),
+            "source": "evolved" if loaded["evidence"] else loaded["source"],
         }
 
     @app.get("/api/predictions/history")

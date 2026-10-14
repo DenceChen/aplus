@@ -39,17 +39,17 @@ pytestmark = pytest.mark.skipif(
     shutil.which("node") is None, reason="需要 node 才能测前端纯逻辑")
 
 
-def _call(fn: str, stats, evo) -> dict:
-    """在 node 里调 `docketWarning(stats, evo)`，把结果转回 python。
+def _call(fn: str, stats, evo, weights=None) -> dict:
+    """在 node 里调 `docketWarning(stats, evo, weights)`，把结果转回 python。
 
     返回 `{}` 表示函数返回了 null（无警示）——JSON 里 null 与「函数不存在」
     必须能区分，否则一条「函数写错了名字」的测试会伪装成「判定正确」。
     """
-    payload = json.dumps({"stats": stats, "evo": evo})
+    payload = json.dumps({"stats": stats, "evo": evo, "weights": weights})
     script = (
         f"const {{docketWarning}} = require({json.dumps(str(VERDICT_JS.resolve()))});"
         f"const p = {payload};"
-        "const r = docketWarning(p.stats, p.evo);"
+        "const r = docketWarning(p.stats, p.evo, p.weights);"
         "console.log(JSON.stringify({exists: true, warn: r}));"
     )
     out = subprocess.run(
@@ -229,3 +229,172 @@ def test_warn_container_has_a_dom_node():
     """
     html = Path("aplus/web/index.html").read_text(encoding="utf-8")
     assert 'id="docket-warn"' in html, "判决板缺少警示条容器"
+
+
+# ---------- 回落权重的警示也必须上概览页 ----------
+
+def test_fallback_caveat_is_fed_into_the_docket():
+    """概览页的判决板必须能拿到 `/api/weights` 的 `caveat` 并显示。
+
+    ## 为什么这条不能省
+
+    `load_weights` 早就写好了这段警告——
+
+        回落默认权重：……这是**已知的坏配置**，不是「中性起点」。
+        日频执行它的年成本量级 351%。
+
+    但它此前只在**进化页**、且经由一个被路由丢掉了 caveat 的接口。
+    于是概览页（用户第一屏）显示「未经赛马验收的默认值」——
+    这句话在字面上没错，但它把「**测过、是坏的**」说成了「没测过」。
+
+    判决板本来就是讲结论的地方，而「现在跑的是已知坏配置」是本平台
+    最该被讲出来的结论之一。
+    """
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    body = html.split("async function loadChrome(")[1].split("\n}")[0]
+    assert "/api/weights" in body, (
+        "loadChrome 没取 /api/weights —— 概览页不知道当前跑的是回落配置")
+    assert "caveat" in body, "取到了 /api/weights 却没有读 caveat"
+
+# ---------- 回落配置：比证伪更根本 ----------
+
+BAD_CONFIG_CAVEAT = (
+    "回落默认权重：未经任何赛马测量。它是 DEFAULT_WEIGHTS="
+    "{mom20:1.0,rev5:0.3,vol20:0.5,vsur:0.5}，在 2026-10-14 的 730 天赛马里"
+    "排第 81/87 名，测试段超额 -0.74%、t=-3.03 —— 这是**已知的坏配置**，"
+    "不是「中性起点」。日频执行它的年成本量级 351%。")
+
+
+def test_fallback_bad_config_warns_on_the_overview_page():
+    """线上跑着已知坏配置时，概览页必须喊出来。"""
+    r = _call("docketWarning",
+              {"cagr": None, "n_days": 1, "overall_hit_rate": 0.2, "judged": 20},
+              {"champion_falsified": True, "champion_windows": 2},
+              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT})
+    assert r["warn"] is not None, "跑着已知坏配置却没有任何警示"
+    assert r["warn"]["level"] == "danger"
+    assert "坏配置" in r["warn"]["headline"]
+    # 必须逐字显示 caveat 全文——那是实测记录，不是文案
+    assert r["warn"]["detail"] == BAD_CONFIG_CAVEAT
+
+
+def test_bad_config_outranks_falsification():
+    """「跑的是没赛马过的坏配置」比「赛马判它为负」更根本。
+
+    证伪说的是「这组权重被判负」，而回落说的是「线上根本没跑任何
+    赛马过的权重」。后者是前者的上游——它连被判负的机会都没有。
+    """
+    r = _call("docketWarning", {"cagr": None, "n_days": 1},
+              {"champion_falsified": True, "champion_windows": 4},
+              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT})
+    assert "坏配置" in r["warn"]["headline"], "回落配置必须排在证伪之前"
+
+
+def test_promoted_weights_have_no_caveat_so_no_false_alarm():
+    """权重一旦落盘，caveat 为空 —— 不得对好配置也喊「坏配置」。
+
+    防的是「把所有情形都标成警告」这种让警示退化成背景噪音的实现。
+    """
+    r = _call("docketWarning", {"cagr": 0.24, "n_days": 483},
+              {"champion_falsified": False},
+              {"source": "evolved", "caveat": None,
+               "evidence": {"promoted_on": "2026-10-14"}})
+    assert r["warn"]["level"] == "ok", "落盘且达标时不得报 danger"
+
+
+def test_empty_string_caveat_must_not_trigger_the_bad_config_branch():
+    """`caveat: ''` 与 `caveat: null` 都必须视作「没有警告」。"""
+    for c in ("", None):
+        r = _call("docketWarning", {"cagr": 0.24, "n_days": 483},
+                  {"champion_falsified": False}, {"source": "evolved", "caveat": c})
+        assert "坏配置" not in r["warn"]["headline"], (
+            f"caveat={c!r} 不该触发坏配置警示")
+
+
+def test_fallback_caveat_is_fed_into_the_docket():
+    """概览页的判决板必须能拿到 /api/weights 的 caveat 并显示。
+
+    此前 caveat 只经由进化页显示，而概览页写的是「未经赛马验收的默认值」——
+    那句话把「**测过、是坏的**」说成了「没测过」，方向完全相反。
+    """
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    for fn in ("loadChrome", "loadOverview"):
+        body = html.split(f"async function {fn}(")[1].split("\n}")[0]
+        assert "/api/weights" in body, (
+            f"{fn} 没取 /api/weights —— 概览页不知道当前跑的是回落配置")
+
+
+def test_both_docket_call_sites_must_pass_all_three_arguments():
+    """两个调用点都必须传齐 stats / evo / weights。"""
+    import re
+
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    calls = re.findall(r"renderDocket\(([^)]*)\)", html)
+    assert len(calls) >= 2, f"预期至少 2 个调用点，实得 {len(calls)}"
+    for arg in calls:
+        for name in ("stats", "evo", "weights"):
+            assert name in arg, f"调用点 renderDocket({arg}) 缺 {name}"
+
+
+# ---------- caveat 的 Markdown 加粗：必须先转义再还原 ----------
+
+def _render_caveat(text: str) -> str:
+    out = subprocess.run(
+        ["node", "-e",
+         "const {renderCaveat} = require(%s);"
+         "console.log(JSON.stringify(renderCaveat(%s)));"
+         % (json.dumps(str(VERDICT_JS.resolve())), json.dumps(text))],
+        capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def test_caveat_bold_markers_become_real_bold():
+    """`**已知的坏配置**` 要显示成加粗，而不是把星号原样打印。"""
+    out = _render_caveat("这是**已知的坏配置**，不是中性起点。")
+    assert out == "这是<b>已知的坏配置</b>，不是中性起点。"
+    assert "**" not in out
+
+
+def test_caveat_html_must_be_escaped_before_rendering():
+    """先转义再还原加粗 —— 顺序反了就是 XSS。"""
+    out = _render_caveat("<img src=x onerror=alert(1)>**粗**")
+    assert "<img" not in out, f"标签必须被转义：{out}"
+    assert "&lt;img" in out
+    assert "<b>粗</b>" in out, "转义不影响加粗"
+
+
+def test_caveat_script_tags_must_be_escaped():
+    out = _render_caveat("<script>alert(1)</script>")
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+
+
+def test_caveat_bold_does_not_swallow_html_injection():
+    """`**<b>x**` 也不能变成真的 `<b>` 标签 —— 转义先于加粗。"""
+    out = _render_caveat("**<script>alert(1)</script>**")
+    assert "<script>" not in out
+    assert out.count("<b>") == 1, "只应有加粗产生的那一个 <b>"
+
+
+def test_caveat_with_no_bold_passes_through_escaped():
+    out = _render_caveat("a & b")
+    assert out == "a &amp; b"
+
+
+def test_docket_must_use_detail_html_only_when_present():
+    """只有 caveat 分支带 `detailHtml`；其它分支一律 `esc(detail)`。
+
+    钉住「HTML 只能由 verdict.js 生成」——调用方不许自造 HTML。
+    """
+    import re
+
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    assert "warnOut.detailHtml ?? esc(warnOut.detail)" in html, (
+        "渲染必须对 detailHtml 缺失时回退到 esc(detail)")
+
+
+def test_bad_config_branch_is_the_only_one_carrying_html():
+    r = _call("docketWarning", {"cagr": -0.847, "n_days": 483},
+              {"champion_falsified": False}, None)
+    assert "detailHtml" not in r["warn"], (
+        "非 caveat 分支不得携带 HTML —— 它们的内容不是可信常量")
