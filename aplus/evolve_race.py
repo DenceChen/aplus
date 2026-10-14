@@ -357,6 +357,13 @@ def bonferroni_t(n_comparisons: int, df: int, alpha: float = 0.05) -> float:
     return float(t_crit_two_sided(alpha / n, df))
 
 
+def _expected_false_positives(n_comparisons: int, alpha: float = 0.05) -> float:
+    """见 `race_reason.expected_false_positives`——恒等于 alpha。"""
+    from .race_reason import expected_false_positives
+
+    return expected_false_positives(n_comparisons, alpha)
+
+
 def oos_decision(race_result: dict, champion_weights: dict, min_train_gain: float = 0.05,
                  min_test_edge: float = 0.0, min_test_excess: float = 0.0,
                  max_test_down_return: float = 0.0,
@@ -538,7 +545,9 @@ def _judge_candidate(best: dict, champ: dict, champ_key: tuple, race_result: dic
                            f"低于 {n_cmp} 次比较的 Bonferroni 临界 {t_crit:.2f}"
                            f"（双侧 p = {_t_p(float(te_t), te_days):.1e} ≥ {0.05 / n_cmp:.1e}）"
                            f"——与 0 不可区分。"
-                           f"实测随机权重也能过这道闸（30 组里 1 组），故判为噪音")}
+                           f"本轮 {n_cmp} 次比较的期望假阳性只有 "
+                           f"{_expected_false_positives(n_cmp):.2f} 组，"
+                           f"闸门本身没有漏；缺的是样本量或效果，不是证据标准")}
 
     test_best = best["test"]["objective"]
     test_champ = champ["test"]["objective"]
