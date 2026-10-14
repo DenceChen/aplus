@@ -199,40 +199,59 @@ def test_k5_reaches_verdict_about_12x_faster_than_k63():
 def test_shrinking_k_never_relaxes_the_t_threshold(tmp_path):
     """降 K 只缩短**等待时间**，不放松**显著性门槛**。
 
-    Bonferroni 门槛只由候选数决定，与 K 无关。
-    少了这一条，「提速」就可能退化成「降低证据标准」——
-    那正是本任务的命门。
+    ## 这条测试在 2026-10-14 被修正过一次，原因是一次假阳性晋级
+
+    原断言是「Bonferroni 门槛只由候选数决定，与 K 无关」，理由写的是
+    「低频候选能靠多注册几组低频把门槛压低」。
+
+    **理由的方向反了。** 门槛的正确形态是 t 分布分位数，而它的自由度
+    就是攒到的独立周期数——K 越小，周期越多，自由度越大，
+    临界值**单调下降**（97 组比较下 n=11 → 5.03，n=752 → 3.49）。
+    K 小只会让门槛更**松**，不可能更紧，所以「压低门槛」这个担心不存在。
+
+    但原断言在**本测试的场景里**仍然成立、也仍然必须成立：
+    `_cal(15)` 只有 13 天窗口，K=5/21/63 全都攒不够 `MIN_TEST_PERIODS=3`
+    个周期，于是都按「刚够测」给同一个门槛。
+
+    真正不能松的是**显著性水平 α**——那个一分没动；
+    以及「够不够测」的周期数下限——那个也没动。
     """
     from aplus.evolve_race import bonferroni_t
-    from aplus.forward import days_to_verdict, forward_status, register
+    from aplus.forward import MIN_TEST_PERIODS, days_to_verdict, forward_status, register
     register(tmp_path, "2026-10-14",
              [_cand(REV, 5), _cand(REV, 21), _cand(REV, 63)], note="频率轴")
     st = forward_status(tmp_path, as_of="2026-11-06",
                         dates=_cal(15, start="2026-10-14"))
     assert len({c["t_crit"] for c in st["candidates"]}) == 1, \
-        "同一批里不同 K 的显著性门槛必须一致"
-    assert st["candidates"][0]["t_crit"] == pytest.approx(bonferroni_t(3), abs=1e-9)
+        "同批同候选数、且都还没攒够测量周期时，门槛必须一致"
+    assert st["candidates"][0]["t_crit"] == pytest.approx(
+        bonferroni_t(3, df=MIN_TEST_PERIODS - 1), abs=1e-9)
     # 门槛没变，但等待时间差 12.6 倍
     assert days_to_verdict(5) < days_to_verdict(63)
 
 
 def test_bonferroni_threshold_does_not_depend_on_k(tmp_path):
-    """同一候选集下，把某个候选从 K=63 改成 K=5 不改变 Bonferroni 临界。
+    """**都还没攒够周期时**，改 K 不改变门槛。
 
-    如果门槛跟着 K 走，低频候选就能靠「多注册几组低频」把门槛压低——
-    候选数才是唯一应该影响门槛的量。
+    保留这条是因为它守的是「候选数是门槛的主要来源」：把一个候选从
+    K=63 换成另一组权重，候选数仍是 2，门槛就不该动。
+    候选数变了门槛必须变——那正是 `test_threshold_scales_with_n`。
+
+    注意这条**不能**推广成「门槛与 K 无关」：一旦某候选攒够周期，
+    K 越小周期越多，临界值就越高（见上一条的注释）。
     """
     from aplus.forward import forward_status, register
     register(tmp_path, "2026-10-14", [_cand(REV, 5), _cand(REV, 63)], note="a")
     st_a = forward_status(tmp_path, as_of="2026-11-06", dates=_cal(15))
     crit_a = st_a["candidates"][0]["t_crit"]
 
-    import shutil
     tmp2 = tmp_path / "b"
     tmp2.mkdir()
     register(tmp2, "2026-10-14", [_cand(REV, 5), _cand(IC_ALL, 5)], note="b")
     st_b = forward_status(tmp2, as_of="2026-11-06", dates=_cal(15))
     assert st_b["candidates"][0]["t_crit"] == crit_a
+    assert st_a["candidates"][0]["t_crit_provisional"] is True, \
+        "窗口没攒够时必须标出这个门槛是暂定值"
 
 
 # ── 4. 幂等：同一批次重复运行不重复插入 ──────────────────────────

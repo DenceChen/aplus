@@ -144,7 +144,8 @@ def _dec_table(include_champ_daily=True, include_champ_monthly=False):
         "weights": {"mom20": 1.0}, "rebalance_every": 1, "buffer_multiple": None,
         "train": {"objective": 0.50, "stats": {"n_ranked": 100}},
         "test": {"objective": 0.50, "stats": {"up_excess_vs_market": 0.001,
-                                              "excess_t": 1.0, "n_ranked": 100}},
+                                              "excess_t": 1.0, "excess_days": 250,
+                                              "n_ranked": 100}},
     }]
     if include_champ_monthly:
         rows.append({
@@ -152,7 +153,9 @@ def _dec_table(include_champ_daily=True, include_champ_monthly=False):
             "train": {"objective": 0.90, "stats": {"n_ranked": 100}},
             "test": {"objective": 0.90, "stats": {"up_excess_vs_market": 0.01,
                                                   "avg_down_return": -0.001,
-                                                  "excess_t": 9.0, "n_ranked": 100}},
+                                                  "excess_t": 9.0,
+                                                  "excess_days": 30,
+                                                  "n_ranked": 100}},
         })
     return sorted(rows, key=lambda r: r["train"]["objective"], reverse=True)
 
@@ -190,7 +193,9 @@ def test_weights_only_legacy_tables_still_work():
              "train": {"objective": 1.0, "stats": {"n_ranked": 100}},
              "test": {"objective": 1.0, "stats": {"up_excess_vs_market": 0.01,
                                                    "avg_down_return": -0.001,
-                                                   "excess_t": 5.0, "n_ranked": 100}}}]
+                                                   "excess_t": 5.0,
+                                                   "excess_days": 250,
+                                                   "n_ranked": 100}}}]
     d = oos_decision({"table": rows}, {"mom20": 1.0})
     assert d["promote"] is False
     assert "现任" in d["reason"]

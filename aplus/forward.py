@@ -60,9 +60,18 @@ def days_to_verdict(rebalance_every) -> int:
 
     ## 这是「提速只能靠降低 K」那句话的全部数学
 
-    降低 K 缩短的是**等待时间**，
-    不改变显著性门槛——门槛只由候选数经 Bonferroni 决定。
-    两者由不同的函数管，物理上无法互相冒充。
+    降低 K 缩短的是**等待时间**。它**不会**削弱证据标准——
+    需要的独立周期数恒为 `MIN_TEST_PERIODS`，不足就不给结论（`measurable=False`）。
+
+    降 K 确实会让显著性**门槛数值**变松（同为 97 组比较）：
+    周期数变多 → t 自由度变大 → 临界值下降（n=11 的 5.03 → n=150 的 3.55）。
+    这是 t 分布的正确行为，不是放水：**检验的显著性水平 α 一分没变**，
+    变的是同一 α 在不同样本量下对应的 t 阈值。
+    同一段日历窗口里，K 小的一方能切出更多个**互不重叠**的块，
+    证据是真的更多，不是同一份证据被重复数。
+
+    两者由不同的函数管：`MIN_TEST_PERIODS` 管「够不够测」，
+    `bonferroni_t` 管「测出来够不够显著」。物理上无法互相冒充。
     """
     k = max(int(rebalance_every or 1), 1)
     return MIN_TEST_PERIODS * k
@@ -279,14 +288,23 @@ def forward_status(reports_dir, as_of: str, dates=None) -> dict:
         reg_on = rec.get("registered_on") or ""
         win = forward_window(days, reg_on)
         raw = rec.get("candidates") or []
-        # Bonferroni 门槛按**本份注册的候选数**校正——
-        # 每份注册是一次独立的预注册，候选池各自独立。
-        # 它只数候选数，**与 K 无关**：降 K 不会、也不该动这个门槛。
-        t_crit = bonferroni_t(len(raw))
         cands = []
         for c in raw:
             periods = candidate_periods(c, len(win))
             every = int(c.get("rebalance_every") or 1)
+            # Bonferroni 门槛按**本份注册的候选数**校正——
+            # 每份注册是一次独立的预注册，候选池各自独立。
+            #
+            # 门槛同时依赖**样本量**（2026-10-14 修）：分块后的观测数就是
+            # t 分布的自由度。同一份注册里候选数相同，但各候选的 K 不同、
+            # 攒到的周期数不同，于是临界值不同：
+            #
+            #     97 组比较下   n=11 → 5.03     n=150 → 3.55     n=752 → 3.49
+            #
+            # 不可测时按 `MIN_TEST_PERIODS`（刚够测）给门槛，并标 `provisional`
+            # ——窗口变长后这个数只会**下降**（观测变多、临界值变松）。
+            n_for_crit = max(periods, MIN_TEST_PERIODS)
+            t_crit = bonferroni_t(len(raw), df=n_for_crit - 1)
             cands.append({"weights": c.get("weights"),
                           "rebalance_every": every,
                           "buffer_multiple": c.get("buffer_multiple"),
@@ -294,9 +312,13 @@ def forward_status(reports_dir, as_of: str, dates=None) -> dict:
                           "test_periods": periods,
                           "measurable": periods >= MIN_TEST_PERIODS,
                           "needed_periods": MIN_TEST_PERIODS,
+                          # 判决时用多少个不重叠观测判显著性
+                          "t_crit_n": n_for_crit,
                           # 攒够判决力还需多少个交易日（= MIN_TEST_PERIODS × K）
                           "days_to_verdict": days_to_verdict(every),
-                          "t_crit": t_crit})
+                          "t_crit": t_crit,
+                          # 窗口还没攒够时这个门槛是暂定值，别当最终口径引用
+                          "t_crit_provisional": periods < MIN_TEST_PERIODS})
         total += len(cands)
         out_regs.append({"registered_on": reg_on, "note": rec.get("note", ""),
                          "evidence": rec.get("evidence", ""),

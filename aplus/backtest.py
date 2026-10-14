@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .adjust import hfq_close
-from .panel import MAX_PLAUSIBLE_RETURN, build_panel
+from .panel import MAX_PLAUSIBLE_RETURN, build_panel, can_buy, can_sell
 from .factor import composite_score
 from .predict import PRED_COLUMNS, build_predictions, filter_universe
 from .rebalance import buffer_hold, fill_to_top_n, is_rebalance_day
@@ -70,9 +70,43 @@ def cost_drag(prev_codes, cur_codes, top_n: int,
     return float((n_in + n_out) / denom * cost)
 
 
+# 成交窗口闸门的拦截原因。**分原因**计数，不是单一桶：合成后只知道
+# 「少了 N 条」时，无法判断是闸门太严还是数据出了问题。
+EXEC_GATE_REASONS = ("buy_unfillable", "sell_extended", "sell_void", "price_implausible")
+
+# `_raw_bars(full=True)` 的行序。`can_buy`/`can_sell` 的签名就是
+# (o, h, l, c, volume, amount, prev_close)，少一列就只能整体降级。
+RAW_ROW_NAMES = ("open", "high", "low", "close", "volume", "amount", "prev_close")
+
+
+def _exec_stats() -> dict:
+    """成交窗口闸门的拦截计数。`codes` 记到**代码**粒度，便于定位是哪几只。"""
+    return {**{reason: 0 for reason in EXEC_GATE_REASONS}, "codes": {}}
+
+
+def _note_exec(stats: dict | None, reason: str, code: str) -> None:
+    """记一笔拦截。`stats` 为 None 时静默跳过（调用方不关心计数）。"""
+    if not isinstance(stats, dict) or reason not in stats:
+        return
+    stats[reason] = int(stats[reason]) + 1
+    codes = stats.get("codes")
+    if isinstance(codes, dict):
+        codes[code] = codes.get(code, 0) + 1
+
+
+def _direction_of(directions, code: str):
+    """逐股解析方向：`None` = 旧路径，`"up"/"down"` = 整批，`dict` = 逐股。"""
+    if directions is None:
+        return None
+    if isinstance(directions, str):
+        return directions
+    return directions.get(code)
+
+
 def _next_bars(daily_map: dict, codes: list, after_date: str,
                entry_lag: int = ENTRY_LAG, factors_map: dict | None = None,
-               adj_cache: dict | None = None) -> pd.DataFrame:
+               adj_cache: dict | None = None, directions=None,
+               exec_stats: dict | None = None) -> pd.DataFrame:
     """成交窗口：信号日之后的第 `entry_lag` 根收盘买入，再下一根收盘卖出。
 
     ## 为什么默认 entry_lag = 1（而不是旧口径的 0）
@@ -103,29 +137,57 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
     返回列 `adjusted` 自报本次是否真的用上了因子表：无因子表时降级为不复权，
     但必须**可见**，否则数值看着正常、实际混着除权跳空，无从发现。
 
-    ## 成交窗口内的可交易性闸门：**只判停牌**
+    ## 成交窗口内的可交易性闸门：**按方向分流**
 
-    信号日那一侧由 `filter_universe` 用 `panel.buyable_series` 管住
-    （一字板 / 涨停收盘 / 停牌，见 `aplus.panel.can_buy`）。成交窗口内部
-    这里**只判停牌**，不判涨停/跌停——这不是遗漏，是口径：
+    信号日那一侧由 `filter_universe` 用 `panel.buyable_series` 管住。成交窗口
+    **内部**此前一道闸都没有：`close` 从不参与成交价判定，于是
 
-    本函数记录的收益走的是**后复权价**（`hfq_close`），而涨跌停限价只对
-    **不复权价**成立。在不复权价上判涨跌停，会把除权除息日当成限价：
+        D+1 收盘封涨停 → 收盘挂单排不进队 → 回测却记成「买进了」
+        D+2 收盘封跌停 → 跌停价上全是卖单 → 回测却记成「卖掉了」
 
-        10 送 10   → 不复权 −50%，看起来像「跌停价以下」
-        每 10 股派 1 元（20 → 19）→ 不复权 −5%，**恰好等于 ST 的跌停价**
+    买卖两端同时偏乐观，而 `panel.can_sell` 在生产代码里**零调用点**。
 
-    `tests/test_exrights_return.py` 钉死了这两笔必须照常成交
-    （它们当天都在正常交易），`tests/test_implausible_return.py` 也钉死了
-    「创业板 +20% 的涨停必须保留」。用错误的理由得到正确的结论同样是 bug。
+    `directions` 决定判谁：
 
-    停牌是唯一与价格口径无关的判据：`volume == 0` 时**根本没有价格**，
-    买进卖出都没有标的物。实测停牌次日收益均值 −1.02%（复牌跳空），
-    把停牌日按上一日收盘价记一笔持仓是凭空造出来的。
+    - `"up"`（**真持仓**）：进场 bar 须 `can_buy`，出场 bar 须 `can_sell`。
+      出场 bar **停牌**时持有到复牌首根可卖 bar（见下）；封跌停/一字板
+      则**不成交**。
+    - `"down"`（**回避清单**，平台从不持有）：维持原样，**只判停牌**。
+      对跌腿判 `can_sell` 等于凭空惩罚一笔没做过的交易；更糟的是，一只票
+      在 D+2 一字跌停只说明**预测对了**，把它当「卖不掉」删掉等于删掉最准
+      的样本——方向恰好与「闸门要更严」相反。
+    - `None`：旧路径（只判停牌）。`aplus/factor_ic.py` 的
+      `test_forward_returns_matches_next_bars` 把默认口径钉成逐位相等。
 
-    `panel.can_buy` / `can_sell` 里的涨停、跌停、封板三条规则在
-    `tests/test_tradability.py` 有逐条测试，并在信号日路径上生效；
-    **D+1 / D+2 当天才封板的成交尚未拦截**——已知缺口，见交付报告。
+    ### 停牌卖出为什么是「持有到复牌」而不是「删掉」
+
+    旧代码对停牌是 `continue`，那一行从 `rows` 里消失 →
+    `verify.py` 的 `merge(how="left")` 给出 `actual_pct=NaN` →
+    `judge` 记 `no_data` → `rolling_stats` 的 `.mean()` 静默跳过。
+    **停牌卖出的亏损就这么凭空蒸发了**，而篮子里少一只股票这件事没人看得见。
+
+    复牌后再无任何可卖 bar（退市 / 永久停牌）才整笔作废，且必须计数——
+    那笔亏损无上界，连一个负号都没记下。
+
+    ### 涨跌停必须判在**除权还原后**的前收盘价上
+
+    交易所的涨停价按当日「前收盘价」算，而除权日的前收是**除权后**的：
+    10 送 10 那天的前收是 10.1/2 而不是 10.1。拿不复权的前一根 close 当
+    基准会把每一个除权日打成跌停（见 `_prev_reference`）。本节此前写着
+    「收益走复权价所以不判涨跌停」——**理由是错的，结论恰好是对的**，
+    已由 `tests/test_execution_window_tradability.py` 钉成新的正确路径。
+
+    ## 已知缺口：ST 的 ±5% 价格笼子没接上
+
+    `panel.price_limit(code)` 只吃代码前缀，**判不出 ST**，所以
+    `can_buy`/`can_sell` 里的涨跌停一律按 10%/20%/30% 算，一只封在 ±5%
+    的 ST 一字板会被当成「没封板」而漏放。`panel.py` 的注释写着
+    「`price_limit` 仍要认它」——**那句话不成立**。
+
+    修它要改 `aplus/panel.py`（ST 状态得进 `price_limit` 的签名），
+    不在本文件的改动范围内。影响面有限：`filter_universe` 的
+    `isST != 1` + 名称前缀双信号在**进篮子之前**就剔掉了 ST，
+    只有「信号日摘帽、D+1 复牌成 ST」这类窄缝会漏。
     """
     if entry_lag < 0:
         raise ValueError(f"entry_lag 不得为负，收到 {entry_lag}")
@@ -140,22 +202,22 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
         key = (code, id(df))
         hit = adj_cache.get(key)
         if hit is None:
-            events = factors_map.get(code)
-            has_adj = events is not None and len(events) > 0
-            sorted_df = df.sort_values("date", kind="stable")
-            closes = (hfq_close(sorted_df, events).to_numpy(float) if has_adj
-                      else sorted_df["close"].to_numpy(float))
-            hit = (sorted_df["date"].to_numpy(dtype="U10"), closes, has_adj,
-                   _raw_bars(sorted_df))
+            hit = _build_bar_cache(code, df, factors_map.get(code))
             adj_cache[key] = hit
-        dates, closes, has_adj, raw = hit
+        dates, closes, has_adj, raw, buyable, sellable = hit
         pos = int(np.searchsorted(dates, after_date, side="right"))   # 首根 > D
         entry = pos + entry_lag - 1
         exit_i = entry + 1
         if entry < 0 or exit_i >= len(dates):
             continue                            # 卖价不存在 → 不成交，不拿更早的凑
-        if not _bars_tradable(raw, entry, exit_i):
-            continue                            # 买入或卖出那根停牌 → 不成交
+        if _direction_of(directions, code) == "up":
+            exit_i, blocked = _up_leg_exit(raw, buyable, sellable,
+                                           entry, exit_i, len(dates))
+            if blocked:
+                _note_exec(exec_stats, blocked, code)
+                continue
+        elif not _bars_tradable(raw, entry, exit_i):
+            continue                            # 跌腿/旧路径：买入或卖出那根停牌 → 不成交
         entry_px, exit_px = float(closes[entry]), float(closes[exit_i])
         # 价格不可信 → 不成交。详见 MAX_PLAUSIBLE_RETURN 的事故记录。
         # 先查价格有效性再做除法：0 或负价会让比值变成 inf/负数，比算出来
@@ -163,24 +225,177 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
         if entry_px <= 0 or exit_px <= 0:
             continue
         if abs(exit_px / entry_px - 1.0) > MAX_PLAUSIBLE_RETURN:
+            _note_exec(exec_stats, "price_implausible", code)
             continue                            # ±40% 之外不存在合法单日收益
         rows.append({"code": code, "close": exit_px,
                      "prev_close": entry_px, "adjusted": has_adj})
     return pd.DataFrame(rows)
 
 
-def _raw_bars(sorted_df: pd.DataFrame) -> np.ndarray:
-    """单只股票的 (volume, amount) 矩阵——成交闸门唯一需要的两列。
+def _build_bar_cache(code: str, df: pd.DataFrame, events) -> tuple:
+    """每股一次的成交闸门缓存：`dates, closes, has_adj, raw, buyable, sellable`。
 
-    刻意**不**缓存 OHLC：涨跌停判断在不复权价上不成立（见 `_next_bars`
-    的「成交窗口内的可交易性闸门」），留在这里只会诱使后来者把它接上。
-    全市场每只多缓存 5 列 float64 会让 adj_cache 凭空多占 ~190 MB。
+    ## 内存：为什么缓存的是**布尔标记**而不是 7 列 OHLC
+
+    实测全库 5460 个 parquet、共 **8,716,724 行**日线（`backtest.py` 的
+    adj_cache 覆盖全部时）。float64 每列每行 8 字节：
+
+        2 列（volume/amount，既有）  8,716,724 × 2 × 8 = 139.47 MB
+        7 列（full OHLC + prev）     8,716,724 × 7 × 8 = 488.14 MB
+        差额                          = **348.67 MB**
+
+    （原 `_raw_bars` 注释写的是「~190 MB」，**实测错了**，差 1.8 倍。）
+
+    348 MB 不算致命但也不该白付——这些列在整段回测里**只被读一次**
+    （建缓存时算一遍标记），之后就再也不碰了。所以这里缓存的是
+    `buyable`/`sellable` 两个**布尔数组**：
+
+        8,716,724 × 2 × 1 字节 = 16.64 MB
+
+    即省下约 332 MB，代价只是「缓存里拿不回原始 OHLC」——而闸门本来
+    也只在建缓存时判一次。完整 7 列仍以 `full=True` 提供，供需要逐根
+    OHLC 的调用方使用（测试、`_bar_flags` 独立调用）。
+
+    复权基准未知（`attach_factor` 把首段置 NaN）时 `_prev_reference`
+    退回不复权前收，理由见该函数。
+    """
+    has_adj = events is not None and len(events) > 0
+    sorted_df = df.sort_values("date", kind="stable")
+    closes = (hfq_close(sorted_df, events).to_numpy(float) if has_adj
+              else sorted_df["close"].to_numpy(float))
+    prev_ref = _prev_reference(sorted_df, closes)
+    flags = _bar_flags(code, sorted_df, _raw_bars(sorted_df, full=True), prev_ref)
+    buyable, sellable = flags if flags else (None, None)
+    return (sorted_df["date"].to_numpy(dtype="U10"), closes, has_adj,
+            _raw_bars(sorted_df), buyable, sellable)
+
+
+def _prev_reference(sorted_df: pd.DataFrame, closes: np.ndarray) -> np.ndarray:
+    """**除权还原后**的前收盘价序列——涨跌停价就是按它算的。
+
+    交易所的涨停价 = 当日「前收盘价」×(1+limit)，而除权日的前收是除权后的
+    价格：10 送 10 那天按 10.1 算涨停会得到 11.11，而交易所认的是
+    10.1/2 = 5.05 → 5.55。用不复权的前一根 close 当基准，会把每一个除权日
+    都打成「低于跌停价」，而那一天**照常交易**。
+
+    推导：`closes` 是后复权价（`hfq_close`），`factor = closes / raw_close`，
+    于是除权还原后的前收 = `hfq_prev / factor[当日]`。
+
+    复权基准未知（`attach_factor` 在首个因子 > `UNKNOWN_SCALE_MIN_FACTOR`
+    且晚于日线首根时把前面整段置 NaN）时**退回不复权前收**而不是判成
+    「买不进」——信号缺失不等于这笔交易不可成交，静默 fail-closed 会在
+    摘帽/新上市那段窗口里凭空杀掉整池。
+    """
+    n = len(closes)
+    out = np.full(n, np.nan)
+    if n < 2:
+        return out
+    raw_close = (np.asarray(sorted_df["close"].astype(float))
+                 if "close" in sorted_df.columns
+                 else np.full(n, np.nan))
+    raw_prev = np.full(n, np.nan)
+    raw_prev[1:] = raw_close[:-1]
+    factor = np.divide(closes, raw_close, out=np.full(n, np.nan),
+                       where=raw_close > 0)
+    out[1:] = closes[:-1] / factor[1:]
+    bad = ~np.isfinite(out)
+    out[bad] = raw_prev[bad]
+    return out
+
+
+def _raw_bars(sorted_df: pd.DataFrame, full: bool = False) -> np.ndarray:
+    """单只股票的成交闸门原始列矩阵。
+
+    默认 `(volume, amount)` 两行——**逐位保持改动前的形状**，因为
+    `aplus/factor_ic.py` 直接 `from aplus.backtest import _raw_bars` 并调用
+    `_raw_bars(s)`，且 `tests/test_factor_ic.py` 把它的快路径与 `_next_bars`
+    钉成逐位相等。改默认形状会连 IC 诊断一起改掉。
+
+    `full=True` 返回 `RAW_ROW_NAMES` 的完整 7 行，够 `can_buy`/`can_sell`
+    逐根判定（少一列就只能整体降级成「只判停牌」）。
+
+    内存取舍见 `_build_bar_cache`：全库 8,716,724 行时 full 矩阵比 2 行
+    多 **348.67 MB**（8,716,724 × 5 × 8），所以**不缓存它**，
+    建完布尔标记就丢。
     """
     def col(name):
         return (np.asarray(sorted_df[name].astype(float)) if name in sorted_df.columns
                 else np.full(len(sorted_df), np.nan))
 
-    return np.vstack([col("volume"), col("amount")])
+    if not full:
+        return np.vstack([col("volume"), col("amount")])
+    prev = np.full(len(sorted_df), np.nan)
+    if len(sorted_df) > 1:
+        prev[1:] = col("close")[:-1]
+    return np.vstack([*(col(name) for name in RAW_ROW_NAMES[:-1]), prev])
+
+
+def _bar_flags(code: str, sorted_df: pd.DataFrame, raw: np.ndarray,
+               prev_close=None):
+    """逐根算 `can_buy` / `can_sell`（向量化），返回 `(buyable, sellable)`。
+
+    与逐根标量调用**逐位一致**（`tests/test_execution_window_tradability.py`
+    有对照测试）——否则横截面过滤和回测会是两套口径。
+
+    OHLC 缺列 / 帧为空 / raw 不是 full 形状 → 返回 `None`，由调用方退回
+    「只判停牌」。**不是**默认放行涨跌停：没有 `high`/`low` 就判不出一字板，
+    此时假装「买得进」等于把闸门悄悄关掉还不留痕迹。
+
+    `prev_close` 默认取 raw 里 shift(1) 后的收盘；`_build_bar_cache` 会把
+    **除权还原后**的前收传进来（见 `_prev_reference`）。
+    """
+    if raw is None or len(raw) < len(RAW_ROW_NAMES):
+        return None
+    if len(sorted_df) == 0:
+        return None
+    if any(name not in sorted_df.columns
+           for name in ("open", "high", "low", "close")):
+        return None
+    idx = {name: i for i, name in enumerate(RAW_ROW_NAMES)}
+    o, high, low, close = (raw[idx[name]] for name in ("open", "high", "low", "close"))
+    vol, amt = raw[idx["volume"]], raw[idx["amount"]]
+    prev = raw[idx["prev_close"]] if prev_close is None \
+        else np.asarray(prev_close, dtype=float)
+    return (np.asarray(can_buy(code, o, high, low, close, vol, amt, prev), dtype=bool),
+            np.asarray(can_sell(code, o, high, low, close, vol, amt, prev), dtype=bool))
+
+
+def _up_leg_exit(raw: np.ndarray, buyable, sellable, entry: int, exit_i: int,
+                 n_bars: int):
+    """涨腿成交窗口的闸门。返回 `(实际卖出的 bar 下标 或 -1, 拦截原因 或 None)`。
+
+    - 进场 bar 买不进 → 不成交（`buy_unfillable`）。没有「等复牌再买」这回事。
+    - 出场 bar 停牌 → **持有到复牌首根可卖 bar**（`sell_extended`），
+      而不是删掉这笔观测——删掉会让这笔亏损从统计里凭空蒸发。
+    - 出场 bar 封跌停 / 一字板 → 卖不掉，不成交（`sell_void`）。
+    - 复牌后再无任何可卖 bar（退市 / 永久停牌）→ 整笔作废（`sell_void`），
+      且必须由调用方计数：亏损无上界，不留痕就等于从统计里消失。
+    """
+    if buyable is None:                    # OHLC 缺列 → 退回只判停牌
+        return (exit_i, None) if _bars_tradable(raw, entry, exit_i) else (-1, None)
+    if not buyable[entry]:
+        return -1, "buy_unfillable"
+    if sellable[exit_i]:
+        return exit_i, None
+    if not _bar_suspended(raw, exit_i):
+        # 不是停牌 —— 是跌停收盘 / 一字板。买不进卖不掉即不成交，
+        # 这是「表观超额里有一块来自无法执行的交易」的那一块。
+        return -1, "sell_void"
+    for j in range(exit_i + 1, n_bars):
+        if sellable[j]:
+            return j, "sell_extended"
+    return -1, "sell_void"
+
+
+def _bar_suspended(raw: np.ndarray, i: int) -> bool:
+    """第 i 根是否停牌——`_bars_tradable` 的单 bar 版本（含缺失列的放行行为）。"""
+    try:
+        if float(raw[0][i]) <= 0:
+            return True
+        amt = float(raw[1][i])
+        return bool(np.isfinite(amt) and amt <= 0)
+    except (IndexError, ValueError, TypeError):
+        return False
 
 
 def _bars_tradable(raw: np.ndarray, entry: int, exit_i: int) -> bool:
@@ -335,10 +550,28 @@ def _held_predictions(universe: pd.DataFrame, held_up: list, held_down: list):
     return up.reindex(columns=cols), down.reindex(columns=cols)
 
 
+def _attach_exec_attrs(result: pd.DataFrame, exec_stats: dict) -> pd.DataFrame:
+    """把成交窗口闸门的拦截计数写进 `attrs`——与既有 `unfillable` 同一套机制。
+
+    「一笔观测从统计里消失」和「这笔观测因为不可成交而被剔除」在报告里必须
+    **长得不一样**：前者是 bug（亏损凭空蒸发），后者是必须被看见的口径。
+    分原因计数是为了区分「闸门太严」和「数据出了问题」。
+
+    注意 `price_implausible` 也在这里：那道闸门一直存在，但它拦掉的样本
+    此前是完全不可见的。
+    """
+    by = {reason: int(exec_stats.get(reason, 0)) for reason in EXEC_GATE_REASONS}
+    result.attrs["unfillable_execution"] = int(sum(by.values()))
+    result.attrs["unfillable_execution_by"] = by
+    result.attrs["unfillable_execution_codes"] = len(exec_stats.get("codes") or {})
+    return result
+
+
 def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
                      bottom_n: int = 10, dates: list | None = None,
                      rebalance_every: int = 1,
-                     buffer_multiple: float | None = None) -> pd.DataFrame:
+                     buffer_multiple: float | None = None,
+                     execution_gate: bool = True) -> pd.DataFrame:
     """在**已算好的**横截面上跑一组权重（与 walk_forward 逐行等价）。
 
     dates 可限定子区间——样本外验证（训练段选权重、测试段验收）就靠它，
@@ -359,6 +592,16 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
     5 元最低佣金是主导项，一次往返 12.60 元 = 0.2520%；
     实测日频换手 27.50% → 年成本 **16.91%**，而所有已测因子效应都在 ±1% 以内。
     书的 3.1.4 口径是**每月末调仓**——只跑日频，就永远在验证一件书没声称过的事。
+
+    ## `execution_gate`（默认 True）
+
+    打开后，成交窗口内部（D+1 买 / D+2 卖）按 `panel.can_buy` / `can_sell`
+    判定可成交性，只作用于**涨腿**；跌腿维持原样（见 `_next_bars`）。
+    被拦下的观测按原因计数写进 `attrs["unfillable_execution*"]`——
+    **不计数等于从统计里彻底消失且不留任何痕迹**。
+
+    `False` 是 A/B 对照用的旧口径，生产路径不得传。默认值是 True：
+    fail-open 的默认值会让「忘了传闸门」和「闸门生效」在报告里长得一模一样。
     """
     daily_map = cross_sections.get("_daily_map") or {}
     market = cross_sections.get("_market") or {}
@@ -368,6 +611,7 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
     adj_cache = cross_sections.setdefault("_adj_cache", {})
     unadjusted = cross_sections.setdefault("_unadjusted", {})
     use_dates = dates if dates is not None else cross_sections.get("_dates", [])
+    exec_stats = _exec_stats()
     out = []
     prev_up: list | None = None          # 上一期的涨篮子，用于算换手
     held_up: list | None = None          # 跨调仓周期持有的篮子
@@ -403,8 +647,16 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
         preds = pd.concat([up, down], ignore_index=True)
         if preds.empty:
             continue
-        bars = _next_bars(daily_map, preds["code"].tolist(), day, entry_lag=entry_lag,
-                          factors_map=factors_map, adj_cache=adj_cache)
+        codes = list(dict.fromkeys(preds["code"].tolist()))
+        directions = None
+        if execution_gate:
+            # 同股同时出现在涨跌两榜时（小池子 top_n+bottom_n > 池子）按
+            # **涨腿**判——那才是真实持仓，它买不进/卖不掉才是真问题。
+            up_codes = set(up["code"])
+            directions = {c: ("up" if c in up_codes else "down") for c in codes}
+        bars = _next_bars(daily_map, codes, day, entry_lag=entry_lag,
+                          factors_map=factors_map, adj_cache=adj_cache,
+                          directions=directions, exec_stats=exec_stats)
         if bars.empty:
             continue
         # 缺因子表 → 走不复权回退。记进 `_unadjusted` 让调用方能看见，
@@ -432,9 +684,11 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
         out.append(res)
 
     if not out:
-        return pd.DataFrame(columns=["pred_date", "code", "direction", "actual_pct",
-                                     "result", "market_pct", "cost"])
+        empty = pd.DataFrame(columns=["pred_date", "code", "direction", "actual_pct",
+                                      "result", "market_pct", "cost"])
+        return _attach_exec_attrs(empty, exec_stats)
     result = pd.concat(out, ignore_index=True)
+    result = _attach_exec_attrs(result, exec_stats)
     # 逐日记录可打分股票数（跨候选的池子差异必须可见，见 scoreable_count）
     # ——它统计的是**剔除买不进之后**的横截面，否则这个数虚高。
     unfillable = cross_sections.get("_unfillable") or {}

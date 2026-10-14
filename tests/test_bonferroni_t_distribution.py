@@ -120,3 +120,45 @@ def test_t_far_above_the_bar_still_passes_on_a_small_sample():
     """n=11 但 t=6.5（p=3.5e-4）真显著 —— 证明不是「低频一律否」。"""
     d = oos_decision(_race_with(0.0012, 6.5, 11), CHAMP, significance_lookup=97)
     assert d["promote"] is True, f"n=11 t=6.5 应放行，实得 {d}"
+
+
+# ---------- 前瞻注册：门槛随攒到的周期数变化 ----------
+
+def test_forward_threshold_rises_as_the_window_stays_short():
+    """前瞻注册里，窗口攒的周期越少，门槛越高——不是恒为 3.47。
+
+    `forward_status` 按每个候选自己的 `test_periods` 给门槛，
+    并对还没攒够的标 `t_crit_provisional`。少了 `provisional` 标记，
+    一个暂定门槛会被当成最终口径引用。
+    """
+    import datetime as _dt
+    from aplus.forward import forward_status, register
+
+    def _cal(days):
+        d = _dt.date(2026, 10, 14)
+        out, seen = [], 0
+        while seen < days:
+            if d.weekday() < 5:
+                out.append(d.isoformat())
+                seen += 1
+            d += _dt.timedelta(days=1)
+        return out
+
+    tmp = "/tmp/_bfwd_test"
+    import shutil
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp_path = __import__("pathlib").Path(tmp)
+    tmp_path.mkdir(parents=True)
+    register(tmp_path, "2026-10-14", [{"weights": {"mom20": -0.5}, "rebalance_every": 1}],
+             note="频率轴")
+    short = forward_status(tmp_path, as_of="2026-11-06", dates=_cal(5))["candidates"][0]
+    long = forward_status(tmp_path, as_of="2026-12-31", dates=_cal(40))["candidates"][0]
+
+    assert short["test_periods"] < long["test_periods"]
+    assert short["t_crit"] > long["t_crit"], (
+        f"周期少({short['test_periods']})时门槛必须更严："
+        f"{short['t_crit']:.2f} vs {long['t_crit']:.2f}")
+    assert short["measurable"] is False and short["t_crit_provisional"] is True, \
+        "窗口没攒够时必须标出这个门槛是暂定值"
+    assert long["measurable"] is True and long["t_crit_provisional"] is False
+    shutil.rmtree(tmp, ignore_errors=True)
