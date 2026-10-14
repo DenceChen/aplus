@@ -27,7 +27,12 @@
 ```bash
 .venv/bin/python scripts/factor_attribution.py                 # 5 档全跑
 .venv/bin/python scripts/factor_attribution.py --arms 21       # 只跑 k=21
+.venv/bin/python scripts/factor_attribution.py --data-root /path/to/reports
 ```
+
+⚠️ `--data-root` 指的是**逐日 parquet 所在的报告目录**，
+**不是** `factor_width_mde.py` 那个指向 `LocalStore` 的面板根。
+两个同名参数不是同一个量，别把一个字符串同时喂给两个脚本。
 """
 from __future__ import annotations
 
@@ -35,6 +40,7 @@ import argparse
 import json
 import math
 import sys
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
@@ -42,6 +48,32 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
+# ★ 导入期依赖必须**自足**（形状 24）：脚本从 `scripts/` 直接跑时，
+#   `sys.path[0]` 是 `scripts/` 而**不是**仓库根 ⇒ 下一行必然
+#   `ModuleNotFoundError: No module named 'aplus'`（实测 2026-10-15）。
+#   它此前仍能出产物，是因为**别的运行器已经替它把仓库根放好了** ——
+#   测试按路径导入、或某个已 import 过 aplus 的驱动脚本，都会顺手补上。
+#   守卫：`tests/test_script_entrypoint_imports_are_satisfiable.py`
+sys.path.insert(0, str(ROOT))
+from aplus import provenance  # noqa: E402
+
+# ── 数据根 ──────────────────────────────────────────────────────────
+# 改前这个目录是 `ROOT / "data" / "reports"` 这个**字面量直接长在
+# `parquet_path` 里**，没有开关、也不走 argparse —— 与 `factor_width_mde.py`
+# 并排跑同一个快照时，它只能读这一个根。现在提成常量并接到 `--data-root`，
+# **默认值逐位等于改动前**（下面这条由 `tests/test_factor_attribution.py`
+# 钉死，不许顺手改）。
+#
+# ⚠️ 它与 `factor_width_mde.py` 的 `--data-root` **不是同一个量**：
+#     本脚本的 = **报告目录**（放 `wf_weights_backtest_k*.daily.parquet`）
+#     那一个的 = **面板根**（`LocalStore` 根：含 `master/daily`、`quarantine`）
+#   ⇒ **把同一个字符串同时传给两个脚本不成立**：快照
+#     `/tmp/aplus_snap_1012/reports/` 里没有逐日 parquet，
+#     照传会让本脚本一档都读不到并 **rc=2 拒判** ——
+#     这是响亮失败，不是悄悄换口径（拒判这条是预注册 §5 的既有行为）。
+DEFAULT_DATA_ROOT = ROOT / "data" / "reports"
+# `parquet_path` 真正读的那一个；`_data_root()` 在跑批期间临时换掉它。
+DATA_ROOT = DEFAULT_DATA_ROOT
 
 # ── 预注册常量（全部来自 docs/TODO_factor_attribution_2026-10-15.md）──
 Y_COL = "gross_excess"
@@ -79,7 +111,12 @@ THRESHOLDS = {
 
 
 def parquet_path(k: int) -> Path:
-    return ROOT / "data" / "reports" / f"wf_weights_backtest_k{k}.daily.parquet"
+    """第 k 档的逐日表。数据根从 `DATA_ROOT` 读，换根不必动这个函数。
+
+    ★ 签名（只收 `k`）是**对外契约**：`tests/test_factor_attribution.py`
+      的两条守卫 monkeypatch 的就是它 —— 所以换根绝不能改成往这里加参数。
+    """
+    return DATA_ROOT / f"wf_weights_backtest_k{k}.daily.parquet"
 
 
 # ── 回归 ──────────────────────────────────────────────────────────────
@@ -106,6 +143,24 @@ def _ols(X: np.ndarray, y: np.ndarray) -> dict:
         "sigma2": sigma2, "r2": float(r2), "XtX_inv": XtX_inv,
         "dof": dof, "n": n,
     }
+
+
+def joint_F(r2: float, sse: float, sst: float, k: int, n: int):
+    """联合 F 统计量，**分母直接取 SSE**，不经过 `1 − R²`。
+
+    数学上与 `(r2/k) / ((1−r2)/(n−k−1))` 等价（恒等式 `1 − R² = SSE/SST`），
+    但**不再做那个减法** —— 它在 R² 落进 1 的邻域时会把分母抵消成
+    **恰好 0.0**（实测触发例 SSE=2.57e-27 ⇒ `sse/sst ≈ 1e-30`）。
+
+    ★ **观测侧与零分布侧必须调同一个函数**，这才是「同口径」的**结构保证**：
+      两处各写一遍公式，早晚会有人只改一处 —— 而 p 值是两侧比较出来的，
+      两把尺子量的比较**没有意义**。
+    ⇒ 守卫：`test_both_sides_of_the_F_formula_come_from_one_function`（AST 钉死）。
+
+    判据与边界：docs/TODO_factor_attribution_2026-10-15.md §7
+    （⚠️ 补记于动手当日，不是事前登记）。
+    """
+    return (r2 * (n - k - 1) * sst) / (k * sse)
 
 
 def wild_bootstrap(X: np.ndarray, y: np.ndarray, B: int, seed: int) -> dict:
@@ -143,10 +198,29 @@ def wild_bootstrap(X: np.ndarray, y: np.ndarray, B: int, seed: int) -> dict:
                        out=np.full((B, p), np.nan), where=se_star > 0)  # (B, p)
 
     # 联合 F = (R²_u/k) / ((1−R²_u)/(n−k−1))，k 为斜率个数
-    R2_star = 1.0 - ((R ** 2).sum(axis=1) / ((y - ybar) ** 2).sum())   # (B,)
+    # ★ 分母取 SSE 而非 `1 − R²`：**与 `analyze` 侧同一个 `joint_F`**（§7.2）。
+    #   SSE 为 0 的重抽（全对数完全被残差解释）在 H0 下是合法的退化事件，
+    #   那时 F 是 +∞，而 `np.isfinite` 会把它判成 NaN 剔除 ——
+    #   **这是从零分布里悄悄丢样本**，所以下面按 SSE>0 显式处理：
+    #   分母趋 0 ⇒ F 趋 ∞，不是「无效」。
+    sst = float(((y - ybar) ** 2).sum())
+    SSE_star = (R ** 2).sum(axis=1)                  # (B,)
+    R2_star = 1.0 - SSE_star / sst
     k = p - 1
-    F_star = np.divide((R2_star / k), (1.0 - R2_star) / (n - k - 1))
-    F_star = np.where(np.isfinite(F_star) & (F_star >= 0), F_star, np.nan)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        F_star = joint_F(R2_star, SSE_star, np.full_like(SSE_star, sst), k, n)
+    # ★ 三类重抽必须**分开**，不能一律塞进同一个桶：
+    #   ① F 有限且 ≥ 0        → 用它
+    #   ② SSE 真的是 0（+∞）  → H0 下受限模型完美解释 y，F **真的是无穷大**，
+    #                          它比任何有限的 F_obs 都极端 ⇒ 保留 +∞
+    #   ③ SSE/分母是 NaN（数值崩溃）→ **未定义**，不是「更极端」。
+    #     ⚠️ 第一版把 ③ 也映成 +∞ —— 那等于把「算崩了」翻译成「极显著」，
+    #        是形状 16。③ 保持 NaN，在 p 值里算「未达到」，
+    #        宁可**高估** p（难否证），不可**低估**。
+    legit = np.isfinite(SSE_star) & (SSE_star >= 0) & (sst > 0) & (R2_star >= 0)
+    exact_fit = legit & (SSE_star == 0.0)
+    F_star = np.where(legit & np.isfinite(F_star) & (F_star >= 0), F_star, np.nan)
+    F_star = np.where(exact_fit, np.inf, F_star)
 
     return {"t_star": t_star, "F_star": F_star, "B": B}
 
@@ -168,8 +242,47 @@ def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
     # 不是「所有斜率同时为零」。两侧口径不同 ⇒ p 值是拿两把尺子量的。
     # 这条与「成本被扣两次」同源：**判断量与被判断量必须用同一个公式。**
     k = p - 1
-    F_obs = (fit["r2"] / k) / ((1.0 - fit["r2"]) / (n - k - 1))
+    # ★ `1 − R²` 是**灾难性抵消**：R² 一旦落进 1 的邻域（float64 的 eps/2
+    #   ≈ 1.1e-16），`1.0 − r2` 不是「很小的数」而是**恰好 0.0** ——
+    #   即使 SSE 本身不为 0（实测触发例 SSE=2.57e-27，R² 打印为 1.0）。
+    #   触发条件不是「R² == 1」而是 `SSE/SST < 1.1e-16`：**近乎完美的
+    #   拟合就足以触发**，而这在真实数据里并不罕见。
+    #
+    #   恒等式 `1 − R² = SSE/SST` ⇒ 分母**直接取 SSE**：
+    #       F = R²_u · (n−k−1) · SST / (k · SSE_u)
+    #   ★ **两侧一起改**（`wild_bootstrap` 里同一个恒等式），只改一侧
+    #     等于用两把尺子量。处置与判据：TODO_factor_attribution_2026-10-15.md §7
+    #     （⚠️ 该节写于动手当日，**不是事前登记**；§7.2 是纪律不是技巧）。
+    #
+    # ⚠️ §7.4 的边界：改成 SSE 只消掉了**数值抵消**，没有让这段测量变可信。
+    #   近完美拟合现在给出一个**诚实的巨大 F**，但结论仍不成立 ——
+    #   所以下面必须把「共线性」提示带进输出，且**不许被当成冗余删掉**
+    #   （守卫 `test_the_collinearity_warning_survives_in_the_payload`）。
+    sst = float(((y - y.mean()) ** 2).sum())
+    sse = float(fit["resid"] @ fit["resid"])
+    if not (sst > 0.0 and np.isfinite(sse) and sse >= 0.0) or (n - k - 1) <= 0:
+        # ★ 这一条才是「真的无定义」：不是「太接近 1」，而是分母的构成量坏了。
+        raise ValueError(
+            f"{label}: SST={sst!r} SSE={sse!r} dof={n - k - 1!r} ⇒ 联合 F 无定义。"
+            f"\n⚠️ 这与「R² 太接近 1」是**两回事**（后者现在会被如实算成巨大 F）。"
+            f"\n⇒ 去查上游：{Y_COL} 是否退化为常数（⇒SST=0）或那一段序列本身坏了。"
+            f"   不回落成 inf/p=0 —— 那样会凭空造出一个「极显著」的判决。"
+        )
+    F_obs = joint_F(fit["r2"], sse, sst, k, n)
     joint_p = float(np.mean(boot["F_star"] >= F_obs))
+    # ★ §7.3 判据 3：B 个重抽 ⇒ 最小的非零 p 是 1/B。
+    #   报「p ≤ 1/B」而不是「p = 0」，更不是「极显著」——
+    #   0.0 与 1/B 在这一栏**不可区分**，写成 0 就是编精度。
+    p_floor = 1.0 / boot["B"]
+    joint_p_note = ("" if joint_p > 0 else
+                    f"（无一次重抽达到 F_obs ⇒ 报 p ≤ 1/{boot['B']}，非 p=0）")
+    # ★ §7.3 判据 4 + §7.4 安全带：近完美拟合必须**说清楚**。
+    collinear = sse / sst < 1e-8
+    collinear_note = (
+        f"\n⚠️ 共线性告警：SSE/SST={sse / sst:.3e} 已接近 0 ⇒ "
+        f"{Y_COL} 与某列因子近乎完全共线。此时 F 变大是**真的巨大**，"
+        f"但**结论不成立**（F 的渐近性在残差退化时不适用）。"
+        f"\n   该看的是上游共线性诊断，不是这个 p 值。" if collinear else "")
 
     factors = {}
     for i, c in enumerate(factor_cols, start=1):
@@ -191,6 +304,13 @@ def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
         },
         "joint_F": float(np.nanmax(F_obs)),
         "joint_p": joint_p,
+        # ★ §7.3 判据 3/4：两条**必须留在产物里**的说明。
+        #   守卫会断言它们出现在 JSON 里 —— 因为它们**一旦只活在终端打印里，
+        #   下一个人读 JSON 时就看不见**，于是会把「p ≤ 1/B」读成「p=0」。
+        "joint_p_floor": p_floor,
+        "joint_p_note": joint_p_note,
+        "collinear": bool(collinear),
+        "collinear_note": collinear_note,
         "factors": factors,
         "_beta": {c: float(fit["beta"][i]) for i, c in enumerate(factor_cols, start=1)},
     }
@@ -366,13 +486,45 @@ def decide(primary: dict, cross: dict) -> tuple[str | None, str]:
 
 
 def main(argv=None) -> int:
+    """薄包装：把真正的活放进 `with _data_root(args.data_root)`。
+
+    ★ 还原必须写死：`DATA_ROOT` 是**模块级全局量**（`parquet_path` 在读它），
+      不在 `finally` 里还回去，同进程里之后跑的任何一次 `main()`
+      （别的守卫、别的调用方）都会静默沿用上一轮的数据根 ——
+      参数「看起来能调」，实际一次调用污染后面所有人。
+      与 `factor_width_mde.py` 对 `verify.MIN_BASKET` 的 `finally` 还原同源。
+    """
+    args = _parse_args(argv)
+    with _data_root(args.data_root):
+        return _run(args)
+
+
+def _parse_args(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--arms", type=str, default=None,
                     help="逗号分隔，如 21 或 5,21；默认全部 5 档")
+    ap.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT,
+                    help="★ 逐日 parquet 所在目录；默认 <repo>/data/reports。"
+                         "⚠️ 与 factor_width_mde.py 的同名参数**不是同一个量**"
+                         "（那一个是 LocalStore 的面板根，含 master/daily）")
     ap.add_argument("--out", type=str,
                     default=str(ROOT / "data/reports/factor_attribution.json"))
-    args = ap.parse_args(argv)
+    return ap.parse_args(argv)
 
+
+@contextmanager
+def _data_root(root: Path):
+    """把 `parquet_path` 读的数据根临时换成 `root`，退出时**无条件还原**。"""
+    global DATA_ROOT
+    previous = DATA_ROOT
+    DATA_ROOT = Path(root)
+    try:
+        yield DATA_ROOT
+    finally:
+        DATA_ROOT = previous
+
+
+def _run(args) -> int:
     arms = REQUIRED_ARMS if not args.arms else [int(x) for x in args.arms.split(",")]
 
     loaded, missing = {}, []
@@ -549,6 +701,15 @@ def main(argv=None) -> int:
     }
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    # ★ 溯源章。`DEFAULT_GENERATORS` 里有这个名字**不等于**真有 sidecar ——
+    #   两者之间没有自动通路（第 6 种形状）。
+    # ⚠️ `daily_subdir=""`：本脚本的 `--data-root` 指**上游 parquet 所在目录**
+    #   （`wf_weights_backtest_k*.daily.parquet` 就是它的输入），不是主库根 ——
+    #   同名参数两种布局（见 `provenance.resolve_data_dir` 的表）。
+    #   照 `master/daily` 硬套会算出一个**不存在**的目录 ⇒ 指纹 None ⇒
+    #   永远 `unknown`。那个方向安全，但它是**蒙对的**。
+    provenance.stamp(Path(args.out), "scripts/factor_attribution.py", root=ROOT,
+                     data_root=args.data_root, daily_subdir="")
     print(f"\n→ {args.out}")
     return 0 if verdict else 3
 

@@ -60,6 +60,7 @@ from aplus.factor import FACTOR_NAMES  # noqa: E402
 from aplus.costs import annual_friction  # noqa: E402
 from aplus.hurdle import COST_REAL_50K, DAYS_PER_YEAR, hurdle_rate, rounds_per_year  # noqa: E402
 from aplus.snapshot import load_factors_map  # noqa: E402
+from aplus import provenance  # noqa: E402
 from aplus.store import LocalStore  # noqa: E402
 
 # ★ 权重也**从主回测 import**，不自己写一份。
@@ -325,7 +326,7 @@ def _parse_args(argv=None):
     ap.add_argument("--start", default="2021-01-01",
                     help="★ 必须与判决窗口一致（2021-01-01），不得改成 2019")
     ap.add_argument("--end", default="")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--matrices", type=Path, default=Path("data/reports/ic_matrices.parquet"))
     ap.add_argument("--widths", default=",".join(str(w) for w in WIDTHS))
     ap.add_argument("--out", type=Path, default=Path("data/reports/factor_width_mde.json"))
@@ -452,6 +453,12 @@ def _run(args) -> int:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    # ★ 溯源章。`DEFAULT_GENERATORS` 里有这个名字**不等于**真有 sidecar ——
+    #   两者之间没有自动通路（第 6 种形状：看起来接好了，实际焊死）。
+    #   守卫 `test_registered_is_not_enough_the_writer_must_actually_stamp`
+    #   用 AST 核这一行，不核子串。
+    provenance.stamp(args.out, "scripts/factor_width_mde.py", root=ROOT,
+                     data_root=args.data_root)
     print(f"\n→ {args.out}｜总耗时 {time.time() - t0:.0f}s")
     return 0
 

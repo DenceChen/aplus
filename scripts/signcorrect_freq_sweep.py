@@ -157,7 +157,7 @@ def sweep(xs, start: str, end: str, label: str) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_final"))
+    ap.add_argument("--data-root", type=Path, default=Path("data"))
     ap.add_argument("--start", default="2019-01-02")
     ap.add_argument("--end", default="2023-12-31")
     ap.add_argument("--confirm-start", default=None,

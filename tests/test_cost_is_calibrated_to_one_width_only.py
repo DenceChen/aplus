@@ -369,3 +369,62 @@ def test_the_artifact_is_not_older_than_the_script_that_writes_it():
         "**修完 P0 一律重跑，重跑前绝对收益数字不可引用。**\n"
         "重跑命令：.venv/bin/python scripts/factor_width_mde.py --start 2021-01-01"
     )
+
+
+def test_mtime_alone_cannot_tell_a_fresh_artifact_from_an_in_flight_one():
+    """★ 第 21 种形状：**产物比脚本新，仍可能是旧代码跑出来的。**
+
+    ## 实测（2026-10-15）
+
+    `factor_width_mde.py` 那次跑耗时 **553s**。我在这条跑的**最后 0.31 秒**
+    给脚本加上了 `provenance.stamp(...)`：
+
+    ```
+    03:06:46.62  scripts/factor_width_mde.py        ← 我改的
+    03:06:46.93  data/reports/factor_width_mde.json ← 跑完落盘
+    gap = +0.31 s   ⇒ 上面那条 mtime 守卫判「绿」
+    ```
+
+    产物**没有 sidecar** ⇒ 它出自**盖章之前**的代码。
+    因为 Python 的模块级代码在**进程 import 时就绑定了**，
+    跑的过程中改磁盘上的文件，对在飞的进程**毫无影响**。
+
+    ⇒ `产物 mtime ≥ 脚本 mtime` 证明的只是「写盘发生在改动之后」，
+      **不是**「写盘用的就是改动之后的代码」。中间隔着 import 那一刻。
+
+    ## 为什么 mtime 守不住
+
+    mtime 是**文件层**的代理信号，而绑定发生在 **import 层**。
+    任何「长跑 + 期间改源码」的组合，都能让这两层的先后关系**脱钩**。
+
+    ## 那这条守什么
+
+    它守的是更常见、更贵的那一半：**改完源码忘了重跑**。
+    上面那个 0.31 秒窗口是它**证不出来**的部分，必须由 sidecar 兜底：
+    章是**跑的时候**写的，所以「章里没有本次新增的字段」
+    = 「产物早于那次改动」，与 mtime 无关。
+
+    ⇒ 正控：mtime 绿 + sidecar 缺 ⇒ 必须喊。
+      恒真的写法（只查 mtime）就是上面那条，它在这个状态下是绿的。
+    """
+    from aplus import provenance as P
+
+    art = _ROOT / "data" / "reports" / "factor_width_mde.json"
+    rec = P.read_stamp(art)
+    assert rec is not None, (
+        f"{art.name} 没有 sidecar ⇒ 它出自盖章之前的代码。\n"
+        f"（文件 mtime 能证明「先后顺序」，证明不了「用的是哪份代码」——\n"
+        f"  模块级代码在 import 时就绑定，跑的过程中改磁盘文件对它无效。）\n"
+        f"重跑命令：.venv/bin/python scripts/factor_width_mde.py "
+        f"--start 2021-01-01")
+
+    assert rec["generator"] == "scripts/factor_width_mde.py", \
+        f"★ 章记的生成器不对：{rec['generator']!r}"
+    assert rec.get("data_fp"), (
+        "★ 章里没有数据指纹 ⇒ 代码侧新鲜但数据侧不可知，"
+        "这正是 02:22 归因判决早于 02:25 数据修复 77 秒的那类失效")
+
+    # ★ 章必须与产物**同一次写入**：章比产物新 ⇒ 有人替换过产物，章描述的不是它
+    gap = P.sidecar_path(art).stat().st_mtime - art.stat().st_mtime
+    assert gap >= 0, (
+        f"★ 章比产物新 {gap:.0f} 秒 ⇒ 产物被替换过，这份章描述的是另一个文件")

@@ -23,6 +23,7 @@ import pandas as pd
 from .adjust import attach_factor
 from .factor import compute_factors
 from .panel import market_return_series
+from .panel import market_date_axis
 from .panel import buyable_series
 
 FACTOR_WINDOW_MIN = 41  # mom20 需要 21 天 + vol20 需要 21 天，取交集上限
@@ -179,8 +180,9 @@ def build_cross_section(
         return pd.DataFrame(columns=COLUMNS)
     factors_map = load_factors_map(store)
 
-    ref = max(daily_map.values(), key=lambda d: len(d) if d is not None else 0)
-    all_dates = sorted(ref["date"].astype(str).unique())
+    all_dates = market_date_axis(daily_map)
+    if not all_dates:
+        return pd.DataFrame(columns=COLUMNS)
     if as_of is None:
         as_of = all_dates[-1]
     start, end = panel_window_for(all_dates, as_of)

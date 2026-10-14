@@ -157,7 +157,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2019-01-02")
     ap.add_argument("--end", default="")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--out", default="candidate_block_audit.json")
     args = ap.parse_args()
 

@@ -70,6 +70,9 @@ from aplus.factor import FACTOR_NAMES, robust_z
 from aplus.hurdle import COST_REAL_50K, DAYS_PER_YEAR, hurdle_rate, rounds_per_year
 from aplus.snapshot import load_factors_map
 from aplus.store import LocalStore
+from aplus import provenance
+
+ROOT = Path(__file__).resolve().parents[1]
 
 #: 与判决的 K=21 同一口径：月频调仓。
 K = 21
@@ -440,7 +443,7 @@ def main() -> int:
     ap.add_argument("--factors", default="")
     ap.add_argument("--start", default="2021-01-01")
     ap.add_argument("--end", default="")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/wf_weights_backtest.json"))
     ap.add_argument("--top-n", type=int, default=10)
@@ -589,6 +592,10 @@ def main() -> int:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
+    # ★ 溯源章。逐档文件名走 `PATTERN_GENERATORS`（不是逐条登记），
+    #   而**登记 ≠ 盖章** —— 两者之间没有自动通路（第 6 种形状）。
+    provenance.stamp(args.out, "scripts/backtest_walk_forward_weights.py", root=ROOT,
+                     data_root=args.data_root)
     print(f"\n→ {args.out}\n总耗时 {time.time() - t0:.0f}s")
     return 0
 

@@ -96,7 +96,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2024-10-01")
     ap.add_argument("--end", default="")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_final"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--out", default="race_composite_v1.json")
     ap.add_argument("--promote", action="store_true", help="达标才写 weights.json")
     ap.add_argument("--top-n", type=int, default=10)

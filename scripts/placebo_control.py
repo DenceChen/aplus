@@ -507,7 +507,7 @@ def _parse_args(argv=None):
                     help="主档榜宽；预注册钉死 200，不是自由参数")
     ap.add_argument("--reps", type=int, default=N_PLACEBO_REPS,
                     help="每个安慰剂臂的重复次数；预注册钉死 20")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--matrices", type=Path, default=Path("data/reports/ic_matrices.parquet"))
     ap.add_argument("--width-report", type=Path,
                     default=Path("data/reports/factor_width_mde.json"),

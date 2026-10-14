@@ -42,7 +42,7 @@ from aplus.panel import (MIN_TURN_COVERAGE, TURN_RATIO_LONG, TURN_RATIO_SHORT)
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=Path("data"))
     ap.add_argument("--sample", type=int, default=0, help="0 = 全池")
     args = ap.parse_args()
 

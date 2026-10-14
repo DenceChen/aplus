@@ -15,7 +15,9 @@ import sys
 import numpy as np
 import pandas as pd
 
-ROOT = "/Users/airboom/opencode/aplus"
+# ★ 从 __file__ 推导，不再硬编码绝对路径：硬编码带用户名且换机即失效。
+#   三次 dirname：scripts/audit_tradeability/x.py → 仓库根
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 
 SAMPLE_N = 800

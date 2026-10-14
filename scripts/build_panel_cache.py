@@ -55,7 +55,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_final"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--start", default="2024-01-01")
     ap.add_argument("--end", default="2026-12-31")
     ap.add_argument("--out", type=Path, default=Path("/tmp/panel_confirm.pkl"))

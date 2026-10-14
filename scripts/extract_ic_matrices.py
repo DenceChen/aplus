@@ -162,7 +162,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2019-01-02")
     ap.add_argument("--end", default="")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=Path("data"))
     ap.add_argument("--out", default="data/reports/ic_matrices.parquet")
     ap.add_argument("--factors", default="", help="逗号分隔，默认全部 8 个")
     ap.add_argument("--window", default="lag1_real")

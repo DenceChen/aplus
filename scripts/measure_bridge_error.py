@@ -273,7 +273,7 @@ def main() -> int:
     ap.add_argument("--factors", default="")
     ap.add_argument("--start", default="2021-01-01")
     ap.add_argument("--end", default="")
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=Path("data"))
     ap.add_argument("--out", type=Path, default=Path("data/reports/bridge_error.json"))
     ap.add_argument("--sigma-r", type=float, default=0.02656)
     ap.add_argument("--tail-qs", default="0.2,0.05,0.01,0.002",

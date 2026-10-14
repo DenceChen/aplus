@@ -645,6 +645,81 @@ class FactorPanel:
         return rows
 
 
+def market_date_axis(daily_map: dict) -> list:
+    """全市场日期轴 = **全体股票日期的并集**（已排序、已去重）。
+
+    ★ 这是日期轴的**唯一**实现。`window_dates`（回测窗口裁剪）与
+      `snapshot.live_cross_section`（实盘 `as_of`）都调它 ——
+      同一个语义不许做第二遍（CLAUDE.md 形状 17：做了 N 次必有 N−1 次是漏的）。
+
+    并集里的每一天都**至少有一只票真的有数据**，所以都是真交易日。
+    """
+    axis: set = set()
+    for df in daily_map.values():
+        if df is None or len(df) == 0 or "date" not in df.columns:
+            continue
+        axis.update(str(d) for d in df["date"].dropna().unique())
+    return sorted(axis)
+
+
+def window_dates(daily_map: dict, start: str, end: str) -> list:
+    """全市场日期轴 = `market_date_axis` 再裁到 `[start, end)`。
+
+    ## 为什么不能拿「一只票」代表全体
+
+    原实现是 `ref = max(daily_map.values(), key=len)` ——
+    取**行数最多的那一只**的日期当全市场日期轴。
+    在 1883 行全体齐平的数据集上它与真实并集逐位相同，
+    所以它能活过无数轮测试：**不是碰巧对，是在「全体等长」这个
+    不变量下必然对**。
+
+    2026-10-15 数据修复把这个不变量打破了：`000043.SZ` 从 221 行补到
+    6127 行（1994-09-28 起），`300114.SZ` 从 640 行补到 3511 行（2010-08-27 起），
+    其余 5458 只仍是 2019-01-02 起的 1883 行。
+    ⇒ `max(key=len)` 选中 `000043.SZ`，而它的**整段历史都在判决窗口之前**
+    ⇒ 裁到 `[2021-01-01, 2026-10-12)` **剩 0 天**
+    ⇒ 面板空 → 上层一路飘到「🚨 没有任何判决年份」，
+    **看起来像没数据，而数据完好无损**。
+
+    同一个坑在 `scripts/audit_calendar/ref_risk.py` 里**已经被识别并量化过**
+    （它担心的形态是「被选中那只自身停牌 ⇒ 那天从整个回测消失」），
+    但它只量化了「区间内缺几天」，**没有量化「选中那只的首根/末根落在哪」**
+    —— 而后者才是炸掉的那一半。⇒ 问题被写下、被量化、被写成审计脚本，
+    然后**从未被修**，直到数据变更把它引爆。
+
+    ## 为什么并集是严格更正确的
+
+    并集里的每一天都**至少有一只票真的有数据**，所以都是真交易日。
+    而单只票的轴会漏掉「别的票在交易、唯独它停牌」的日子 ——
+    那正是 `ref_risk.py` 担心的方向。
+
+    ## 唯一的边界
+
+    某天可能只剩极少股票（其余全退市/长期停牌），于是那天进轴但池子很小。
+    这**由既有的 `MIN_BASKET` / `scoreable_count` 机制过滤**，不归这里管。
+
+    ## 空轴必须当场炸
+
+    并集非空而窗口内为空，说明窗口本身选错了（数据不在这个区间）。
+    返回 `[]` 会让实盘横截面静默变成 0 行（2026-10-11 事故的形态），
+    所以这里把真实轴的长度一并报出来。
+    """
+    axis = market_date_axis(daily_map)
+    dates = [d for d in axis if start <= d < end]
+    if not dates:
+        lo = axis[0] if axis else "（无）"
+        hi = axis[-1] if axis else "（无）"
+        raise ValueError(
+            f"面板窗口 [{start}, {end}) 内没有任何交易日。"
+            f"全市场真实日期轴是 [{lo}, {hi}]，共 {len(axis)} 天 —— "
+            f"窗口选在了数据之外，或数据根指错了快照。\n"
+            f"⚠️ 这里以前是 `max(daily_map.values(), key=len)`（拿一只票代表全体），"
+            f"全体等长时它与并集相同，于是这个错误能潜伏任意久；"
+            f"一旦有票的历史长度离群，它会让整个面板静默变空。"
+        )
+    return dates
+
+
 def build_panel(store, start: str, end: str, names_map: dict | None = None,
                 daily_map: dict | None = None, factors_map: dict | None = None) -> FactorPanel:
     """构建窗口面板。daily_map / factors_map 传入可复用（赛马只建一次）。
@@ -683,8 +758,7 @@ def build_panel(store, start: str, end: str, names_map: dict | None = None,
             f"build_panel 的窗口是半开区间 [start, end)，要求 start < end，"
             f"收到 start={start!r} end={end!r}（相等时窗口为空 → 上层 IndexError）。"
         )
-    ref = max(daily_map.values(), key=len)
-    dates = [d for d in sorted(ref["date"].unique()) if start <= d < end]
+    dates = window_dates(daily_map, start, end)
 
     # 第一趟：收集个股日收益 → 等权市场收益序列（IVOL 的回归基准）
     ret_map: dict = {}

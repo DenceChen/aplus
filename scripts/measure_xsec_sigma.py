@@ -184,7 +184,7 @@ def build_pool(panel: pd.DataFrame, start: str, end: str,
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_1012"))
+    ap.add_argument("--data-root", type=Path, default=Path("data"))
     ap.add_argument("--start", default="2019-01-02")
     ap.add_argument("--end", default="")
     ap.add_argument("--out", default="xsec_sigma_r.json")

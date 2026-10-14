@@ -40,6 +40,7 @@ HEAD 每动一次就全盘报红，红色很快会变成背景噪声——和「
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -91,6 +92,12 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
     "market_benchmark_audit.json": "aplus/backtest.py",
+    # 2026-10-15 登记：我曾断言「这份报告全仓没有生成器」，那是**错的** ——
+    # `scripts/k_sweep_extract.py` 一直在写它（提交 aef0a8a）。
+    # 错因：输出文件名**不绑在脚本上**（来自调用者的 `--json-out`），
+    # 所以 `grep k_sweep` 匹配不到源文件，grep 的空被读成了「不存在」。
+    # ⇒ 「用字面量 grep 找生成器」是探针陷阱，不是捷径。
+    "k_sweep_summary.json": "scripts/k_sweep_extract.py",
     # 赛马报告的判决逻辑在 evolve_race.oos_decision，不在驱动脚本
     "ic_guided_race_7y.json": "aplus/evolve_race.py",
     "ic_guided_race_v1.json": "aplus/evolve_race.py",
@@ -179,7 +186,37 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "sweep_factor_count.json": "scripts/sweep_factor_count.py",
     "financial_annual_cache.parquet": "aplus/financial.py",
     "evolution_ledger.json": "aplus/ledger.py",
+    # 2026-10-15 补登记。此前这两份**未登记也不盖章** ⇒ `freshness` 报
+    # `unknown`，而按本模块自己的规矩 `unknown` = **不许引用** ——
+    # 也就是说，全仓最要害的两份判决（榜宽、归因）当时是「不可引用」的。
+    # 登记只是第一步：**还得由写它的脚本真的调 `stamp()`**，
+    # 否则登记表有名字、sidecar 仍然是空的（见 `test_registered_is_not_enough`）。
+    "factor_width_mde.json": "scripts/factor_width_mde.py",
+    "factor_attribution.json": "scripts/factor_attribution.py",
 }
+
+#: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；
+#: 写成 5 条具体名字的话，**新增一档就又漏登记**（CLAUDE.md 形状 17：
+#: 同一语义被处理 N−1 次）。基名走 `DEFAULT_GENERATORS`，逐档走这里。
+PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"^wf_weights_backtest_k\d+\.json$"),
+     "scripts/backtest_walk_forward_weights.py"),
+]
+
+
+def resolve_generator(name: str) -> str | None:
+    """报告文件名 → 生成模块。先查精确表，再查模式表。
+
+    ⚠️ 表外的返回 `None`（⇒ `unknown` ⇒ 不许引用）。
+      **不回落猜测**：猜错生成器会让 `commits_touching` 去查一个无关文件，
+      得出一个「看起来判定过、其实判定的是别的东西」的结论。
+    """
+    if name in DEFAULT_GENERATORS:
+        return DEFAULT_GENERATORS[name]
+    for pat, gen in PATTERN_GENERATORS:
+        if pat.match(name):
+            return gen
+    return None
 
 
 # ── git ────────────────────────────────────────────────────────────
@@ -208,6 +245,81 @@ def is_dirty(root: Path = ".") -> bool:
     return bool(out)
 
 
+#: 数据根。默认取主库日线——**全部回测/实验读的都是它**。
+DATA_DIR = "data/master/daily"
+
+
+def data_fingerprint(root: Path | str = ".", data_dir: str = DATA_DIR) -> str | None:
+    """数据指纹 = `(文件数, 最大 mtime)`。目录不存在返回 `None`。
+
+    ★ 为什么**只**盖章而不折进 `freshness()`：`freshness` 的语义是
+      「相对生成模块还新不新」，它的守卫有 15 条、结论已经写进文档；
+      把数据条件折进去会让**全部 20 个已登记报告**一次性翻红，
+      而它们大多只是没带这个新字段 —— 那是**引入新问题**，不是修问题。
+      ⇒ 拆成并列的一条 `data_freshness()`，各自独立判。
+
+    ⚠️ **已知边界（不是猜测，`require_run_completed` 已经撞过一次）**：
+      mtime 认不出「改了又改回」——`cp` 还原也会刷新 mtime，
+      于是指纹**保持不变**，而数据其实变过。
+      ⇒ 这个指纹证明「**数据没在报告之后被动过**」，
+      **不**证明「报告用的就是现在这份数据」。
+      后者只有内容哈希能给，而 GB 级每次盖章跑不动。
+      ⇒ 所以它是**必要条件**，不是充分条件；别把它的 `fresh` 读成「数据对」。
+
+    取不到就返回 `None`（同 `code_sha`）——**不做降级猜测**。
+    """
+    d = Path(root) / data_dir
+    if not d.is_dir():
+        return None
+    n = 0
+    newest = 0.0
+    for p in d.glob("*.parquet"):
+        try:
+            m = p.stat().st_mtime
+        except OSError:
+            continue
+        n += 1
+        newest = max(newest, m)
+    if n == 0:
+        return None
+    return f"{n}:{newest:.6f}"
+
+
+def data_freshness(report_path: Path | str, root: Path | str = ".",
+                   data_dir: str | None = None) -> dict:
+    """报告的数据新鲜度，与 `freshness()`（代码）**并列**。
+
+    返回 `verdict` ∈ {`fresh`, `stale`, `unknown`}，语义与 `freshness` 一致：
+    `unknown` = **不许引用**，不是「大概没事」。
+
+    ★ `data_dir` 缺省时**用章里记的那个**（`data_dir` 字段）——
+      拿仓库那份去比一份用 `/tmp` 快照跑出来的报告，比出来的 `fresh`
+      是**假的**（2026-10-15 实测：`snap_1015` 与仓库差 5217/5460 只）。
+      章里没有该字段（旧章）才回落到调用方给的路径。
+    """
+    name = Path(report_path).name
+    st = read_stamp(report_path)
+    if data_dir is None:
+        data_dir = (st or {}).get("data_dir") or DATA_DIR
+    now = data_fingerprint(root, data_dir)
+    if st is None:
+        return {"report": name, "verdict": "unknown",
+                "problems": ["没有溯源 sidecar——数据指纹无从得知"]}
+    got = st.get("data_fp")
+    if got is None:
+        return {"report": name, "verdict": "unknown",
+                "problems": ["溯源章里没有 data_fp（盖章时还没有这个字段）"]}
+    if now is None:
+        return {"report": name, "verdict": "unknown",
+                "problems": [f"数据根 {data_dir} 不存在或为空，指纹算不出"]}
+    if got != now:
+        return {"report": name, "verdict": "stale",
+                "problems": ["数据在报告之后被动过"],
+                "stamped_data_fp": got, "current_data_fp": now}
+    return {"report": name, "verdict": "fresh",
+            "stamped_data_fp": got, "current_data_fp": now}
+
+
 def commits_touching(root: Path, path: str, since: str | None) -> list[str]:
     """`since` 之后动过 `path` 的 commit（短 sha + 摘要）。
 
@@ -227,16 +339,76 @@ def sidecar_path(report_path: Path | str) -> Path:
     return p.with_name(p.name + SIDECAR_SUFFIX)
 
 
+def resolve_data_dir(root: Path | str = ".", data_root: Path | str | None = None,
+                     daily_subdir: str = "master/daily") -> str:
+    """算出**这次跑真正读的那份日线**的路径。
+
+    ★ 为什么必须显式：脚本的 `--data-root` 默认是
+      `/tmp/aplus_snap_1012`（一个**几天前的快照**），而 `data_fp`
+      一律按仓库里的 `data/master/daily` 算 ——
+      于是章里记的指纹**描述的不是这份产物用的数据**。
+
+      实测代价（2026-10-15）：`snap_1015` 与仓库差 **5217/5460 只**
+      （`000001.SZ` 仓库 1885 行 vs 快照 1883 行），而当时**所有**产物
+      都是 `--data-root /tmp/aplus_snap_1015` 跑出来的
+      ⇒ 指纹会读成 `fresh`，而它量的压根是另一份数据。
+
+    ⇒ 两种情形都记**真实路径**，不静默回落到默认值：
+      `data_root` 给了就记它；没给就记仓库那份。
+      ⚠️「静默回落到默认值」正是这个 bug 的原型。
+
+    ## ⚠️ 同名参数，两种布局 —— 今天第四个「口径」级别的坑
+
+    `--data-root` 在**三个**脚本里指的不是同一个东西：
+
+    | 脚本 | 指的是 | 数据在哪 |
+    |---|---|---|
+    | `factor_width_mde.py` / `backtest_walk_forward_weights.py` | **主库根** | `<root>/master/daily` |
+    | `factor_attribution.py` | **上游 parquet 所在目录** | 就是它本身 |
+
+    ⇒ 调用方必须说清自己的布局（`daily_subdir=""` = 目录本身就是数据）。
+    **同名不等于同义** —— 照 `master/daily` 硬套会算出**不存在的目录**，
+    指纹变成 `None`，而 `None` 在这个模块里的语义是 `unknown`（不许引用）。
+    那个方向是安全的，但它是**蒙对的**，不是对的。
+
+    落在仓库之外（`/tmp/aplus_snap_*`）时记**绝对路径** ——
+    否则 `data_freshness` 会拿仓库那份来比，比出来的 `fresh` 是假的。
+    """
+    if data_root is None:
+        return DATA_DIR
+    dr = Path(data_root)
+    target = dr if not daily_subdir else dr / daily_subdir
+    try:
+        return str(target.resolve().relative_to(Path(root).resolve()))
+    except ValueError:
+        return str(target)
+
+
 def stamp(report_path: Path | str, generator: str, root: Path = ".",
-          extra: dict | None = None) -> Path:
+          extra: dict | None = None,
+          data_root: Path | str | None = None,
+          daily_subdir: str = "master/daily") -> Path:
     """给一份刚生成的报告盖上溯源章。
 
     写在**报告旁边**而不是报告内部：报告的 schema 是下游在读的，
     往里塞字段会污染它，也会在 `sha256` 比对时炸掉。
+
+    ★ `data_root` 必须是**这次跑真正读的**那个根（通常直接传 `--data-root`），
+      `daily_subdir` 必须是这个脚本的布局（见 `resolve_data_dir`）。
+      不传就退回仓库那份 —— 那正是 2026-10-15
+      「指纹读成 fresh 而数据是 `/tmp` 快照」的成因。
     """
+    data_dir = resolve_data_dir(root, data_root, daily_subdir)
     rec = {
         "code_sha": code_sha(root),
         "code_dirty": is_dirty(root),
+        # ★ 数据指纹**默认写入**，不做成可选参数：可选 = 下一个报告会忘，
+        #   而「忘了」这件事没有任何守卫会报（形状 17：同一语义被处理 N−1 次）。
+        #   2026-10-15 的实测代价：`factor_attribution.json` 比数据修复早 77 秒，
+        #   而 `code_sha` 一直是「新鲜」的 —— **代码没变，数据变了**，
+        #   而章里没有字段能表达这件事。
+        "data_fp": data_fingerprint(root, data_dir),
+        "data_dir": data_dir,
         "generator": generator,
         "stamped_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
@@ -279,7 +451,7 @@ def freshness(report_path: Path | str, generator: str | None = None,
     """
     root = Path(root)
     name = Path(report_path).name
-    gen = generator or DEFAULT_GENERATORS.get(name)
+    gen = generator or resolve_generator(name)
     st = read_stamp(report_path)
 
     # **所有原因一次报全，不在第一个就 return。**

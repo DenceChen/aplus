@@ -56,7 +56,7 @@ DAYS_PER_YEAR = 244
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", type=Path, default=Path("/tmp/aplus_snap_final"))
+    ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--start", default="2019-01-02")
     ap.add_argument("--end", default="2023-12-31")
     ap.add_argument("--out", type=Path,

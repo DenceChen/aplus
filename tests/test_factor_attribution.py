@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import importlib
 import json
 import subprocess
 import sys
@@ -109,6 +110,179 @@ def test_observed_and_bootstrapped_F_use_the_same_formula():
     # max(t²) 不会等于联合 F（除非极特殊），证明守卫抓的是真差异
     t = fa._ols(X, df["gross_excess"].to_numpy(float))["t"][1:]
     assert abs(r["joint_F"] - np.max(t ** 2)) > 1e-6
+
+
+def test_a_near_perfect_fit_now_yields_a_huge_finite_F_instead_of_collapsing():
+    """★ `1 − R²` 是**灾难性抵消**，而崩溃不是「R² 恰好等于 1」那么窄。
+
+    实测触发条件：SSE = 2.57e-27（**不是 0**），`sse/sst ≈ 1e-30`，
+    于是 `1.0 − r2` 在 float64 里**恰好**是 0.0 ⇒ `ZeroDivisionError`。
+    ⇒ 真正的条件是**相对** SSE < eps/2 ≈ 1.1e-16，也就是「拟合到机器精度
+    最后一比特」——**近**完美拟合就够了，完美不是必要条件。
+
+    ## 契约变更（2026-10-15，处置见 TODO_factor_attribution §7）
+
+    第一版把这里做成「抛错」。现在改成**两侧同口径地取 SSE**
+    （恒等式 `1 − R² = SSE/SST`），于是这个 case **不再崩溃**，
+    而是给出一个**有限且巨大**的 F。
+
+    ⚠️ 两种做法都不许**编**：
+      回落成 `F=inf` ⇒ `joint_p = 0.0` ⇒ 凭空造出「极显著」（形状 16）
+      回落成 `p=1.0`  ⇒ 凭空造出「无杠杆」（形状 16）
+    ⇒ 现在这条守卫钉的是第三种：**如实算，并标出「结论不成立」**。
+
+    这条守卫守的**不是**「这个 p 值可信」（它不可信，见 §7.4），
+    是「它没有假装」。
+    """
+    df = _frame(seed=11)
+    df = df.copy()
+    # 让 gross_excess 恰好是某列因子的仿射变换 ⇒ 完美拟合
+    df["gross_excess"] = 2.0 * df[FACTORS[0]] + 1.0
+
+    X = np.column_stack([np.ones(len(df))] + [df[c].to_numpy(float) for c in FACTORS])
+    r2 = fa._ols(X, df["gross_excess"].to_numpy(float))["r2"]
+    assert r2 == 1.0, f"★ 正控前提：本构造必须真的把 R² 顶到 1.0，实得 {r2!r}"
+
+    # ★ 不再抛错 —— 抛错才是「崩溃被藏起来」，而这里 F 是可算的
+    r = fa.analyze(df, FACTORS, "退化")
+
+    assert np.isfinite(r["joint_F"]), f"★ F 应当是有限的大数：{r['joint_F']!r}"
+    assert r["joint_F"] > 1e6, \
+        f"★ 完美拟合的 F 应极大，实得 {r['joint_F']:.3e} —— 分母口径没换成 SSE？"
+    assert r["collinear"] is True, "★ 近完美拟合必须被标为共线，否则读者会当真"
+
+
+def test_the_collinearity_warning_survives_in_the_payload():
+    """★ **大 F 本身就是最容易被误读的东西。**
+
+    数字没有错，但「F=1e30 ⇒ 极显著」是一个**错误推论**：
+    残差退化时 F 分布的渐近性不适用（TODO §7.4）。
+    ⇒ 这条告警必须**活在产物里**，不能只打在终端 ——
+      否则下一个读 JSON 的人只看到 `joint_F: 1e30`，没有告警。
+
+    守卫存在的理由与「p≤1/B 必须留在 JSON」相同：**终端会滚走，产物不会。**
+    """
+    df = _frame(seed=11).copy()
+    df["gross_excess"] = 2.0 * df[FACTORS[0]] + 1.0
+    r = fa.analyze(df, FACTORS, "退化")
+
+    # ⚠️ 用 `.get` 而不是 `[...]`：键整个消失时，`r["collinear_note"]` 抛
+    #   `KeyError`，红的原因就变成「字典没这个键」而不是「告警被删了」——
+    #   两者都红，但只有后者是这个守卫要守的东西（红的原因要对）。
+    note = r.get("collinear_note")
+    assert note, "★ 共线时产物里必须有告警原文"
+    assert "结论不成立" in note, note
+    assert "共线性" in note, note
+
+    # 反向：普通噪声**不得**带这条告警（否则它会退化成背景噪声）
+    ok = fa.analyze(_frame(seed=12, noise=0.008), FACTORS, "普通噪声")
+    assert ok["collinear"] is False and ok.get("collinear_note", "") == "", \
+        f"★ 普通输入被误报警，告警就废了：{ok.get('collinear_note')!r}"
+
+
+def test_a_zero_p_is_reported_as_at_most_one_over_B_not_as_zero():
+    """★ B 个重抽 ⇒ 最小的非零 p 是 `1/B`。`p == 0` 与 `p ≤ 1/B`
+    在这一栏**不可区分**，写 0 就是**编精度**。
+
+    与形状 16 同源：一个编出来的数和一个真数长得一模一样。
+    ⇒ 产物里必须同时给出 `joint_p_floor` 和说明文字。
+    """
+    df = _frame(seed=11).copy()
+    df["gross_excess"] = 2.0 * df[FACTORS[0]] + 1.0   # ⇒ 没有一次重抽够得着
+    r = fa.analyze(df, FACTORS, "退化")
+
+    assert r["joint_p"] == 0.0, "★ 正控前提：这个构造必须真的把 p 压到 0"
+    assert r["joint_p_floor"] == pytest.approx(1.0 / fa.BOOTSTRAP_B)
+    assert "1/" in r["joint_p_note"] and "非 p=0" in r["joint_p_note"], \
+        f"★ p=0 必须说明它其实是 p ≤ 1/B：{r['joint_p_note']!r}"
+
+
+def test_the_collapse_guard_does_not_fire_on_ordinary_noise():
+    """★ 正控：新的真·无定义守卫（只对 SST≤0 / SSE 坏掉生效）
+    不能变成「见 R² 高就抛错」的噪音源。
+
+    与第 87 层同族 —— 只有零假设臂的守卫会把真数据也判死。
+    """
+    for noise in (0.008, 1e-4):
+        df = _frame(seed=12, noise=noise)
+        r = fa.analyze(df, FACTORS, f"普通噪声{noise}")
+        assert r.get("joint_p") is not None, \
+            f"★ noise={noise} 属正常输入，守卫误伤了：{r}"
+
+
+def test_both_sides_of_the_F_formula_come_from_one_function():
+    """★ 「同口径」必须是**结构保证**，不是两条注释的承诺。
+
+    两处各写一遍公式，早晚会有人只改一侧 —— 而 p 值是两侧**比较**出来的，
+    两把尺子量的比较没有意义（与「成本被扣两次」同源）。
+
+    ⇒ 用 **AST 钉死**：`analyze` 与 `wild_bootstrap` 都在调 `joint_F`，
+      且 `joint_F` 体内**不得**出现 `1.0 -`（抵消就在那一步）。
+      子串会被注释满足（第 13 种形状），所以不能写 `"joint_F" in src`。
+    """
+    import ast
+    src = ast.parse(Path(fa.__file__).read_text(encoding="utf-8"))
+
+    def calls(name):
+        tree = next(n for n in ast.walk(src)
+                    if isinstance(n, ast.FunctionDef) and n.name == name)
+        out = []
+        for c in ast.walk(tree):
+            if not isinstance(c, ast.Call):
+                continue
+            f = c.func
+            # ⚠️ **必须同时收 `ast.Name` 和 `ast.Attribute`。**
+            #   第一版只收 `ast.Attribute`，而模块内 `analyze` 调的是**裸名**
+            #   `joint_F(...)`（ast.Name）⇒ 守卫报红，报的还是一句假话。
+            #   同族已犯两次：另一处只收 `args[0]`，而真实首参是路径不是常量。
+            if isinstance(f, ast.Attribute):
+                out.append(f.attr)
+            elif isinstance(f, ast.Name):
+                out.append(f.id)
+        return out
+
+    for fn in ("analyze", "wild_bootstrap"):
+        assert "joint_F" in calls(fn), (
+            f"★ {fn} 没有调 joint_F —— 两侧各写一遍公式 = 迟早口径错分")
+
+    jf = next(n for n in ast.walk(src)
+              if isinstance(n, ast.FunctionDef) and n.name == "joint_F")
+    # ⚠️ 判据必须**精确到那一处减法**，不能粗到「不许有减法」：
+    #   `n - k - 1`（自由度）本来就是减法，粗判据会逼着人把 dof 也改掉 ——
+    #   **守卫过严和守卫恒真一样有害**：它会把人推向错误的修法。
+    # ⇒ 只禁「对 r2 的减法」，那才是抵消发生的地方。
+    bad = []
+    for node in ast.walk(jf):
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Sub):
+            names = {x.id for x in ast.walk(node) if isinstance(x, ast.Name)}
+            if "r2" in names:
+                bad.append(ast.dump(node))
+    assert not bad, (
+        f"★ joint_F 里对 r2 做了减法（{bad}）—— `1.0 - r2` 就是抵消发生的那一步，"
+        f"分母必须直接取 SSE")
+
+
+def test_the_new_formula_equals_the_old_one_wherever_the_old_one_was_stable():
+    """★ 换公式必须证明**没换错**，而不是证明「新公式不崩」。
+
+    在**旧公式还稳定**的区间（普通噪声）两者应当一致；
+    若不一致 ⇒ 代数写错了，而「不崩」这种守卫完全看不出来。
+    """
+    df = _frame(seed=13)
+    n = len(df)
+    X = np.column_stack([np.ones(n)] + [df[c].to_numpy(float) for c in FACTORS])
+    y = df["gross_excess"].to_numpy(float)
+    k = len(FACTORS)
+
+    fit = fa._ols(X, y)
+    resid = y - X @ fit["beta"]
+    sse = float(resid @ resid)
+    sst = float(((y - y.mean()) ** 2).sum())
+    old = (fit["r2"] / k) / ((1.0 - fit["r2"]) / (n - k - 1))
+    new = fa.joint_F(fit["r2"], sse, sst, k, n)
+
+    assert new == pytest.approx(old, rel=1e-9), \
+        f"★ SSE 口径与原公式在稳定区间不等价：{new:.12g} vs {old:.12g}"
 
 
 def test_bonferroni_threshold_is_derived_not_typed():
@@ -559,3 +733,170 @@ def test_mutating_the_branch_order_back_to_the_good_news_first_kills_it():
     finally:
         fa._BRANCH_ORDER = real
     assert list(fa._BRANCH_ORDER) == list(real), "变异后没还原干净"
+
+
+# ══════════════════════════════════════════════════════════════════
+# 数据根 `--data-root`（2026-10-15）
+#
+# 改之前这个目录是 `ROOT / "data" / "reports"` 这个字面量直接长在
+# `parquet_path` 里 —— **没有任何开关能改它**。而并排的
+# `factor_width_mde.py` 有 `--data-root` ⇒ 两个脚本跑同一个快照时，
+# 一个能指定数据根、一个不能，看起来"同一个参数两边都有"，
+# 实际上只有一边生效。
+# ══════════════════════════════════════════════════════════════════
+
+# 变异点：`_data_root()` 里那个把入参写进模块全局量的语句。
+# 4 空格缩进 + 唯一字面量 ⇒ 全文件恰好命中 1 处（守卫里会实测这一点）。
+_WIRING_SITE = "    DATA_ROOT = Path(root)\n"
+_WIRING_CUT = "    DATA_ROOT = DEFAULT_DATA_ROOT  # APLUS_MUTATION_PROBE_dataroot_cut\n"
+
+
+def _plant_reports_dir(root: Path, n_rows: int, n_factors: int, seed: int) -> Path:
+    """在 `root` 下种一份**形状可辨认**的 k21 逐日表。
+
+    ★ 形状刻意与仓库里的真产物不同（真产物 n=1394、8 个因子、5 档齐全），
+      所以「到底读到哪个根」只看产物里的数字就能分辨 ——
+      **不需要去猜脚本碰过哪个路径**（读路径是被测行为，不是被测契约）。
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(seed)
+    idx = pd.date_range("2021-01-04", periods=n_rows, freq="B").strftime("%Y-%m-%d")
+    cols = [f"expo_p{i}" for i in range(n_factors)]
+    X = rng.normal(size=(n_rows, n_factors))
+    df = pd.DataFrame(X, columns=cols, index=idx).assign(
+        gross_excess=X[:, 0] * 0.002 + rng.normal(0, 0.008, size=n_rows))
+    df.to_parquet(root / "wf_weights_backtest_k21.daily.parquet")
+    return root
+
+
+def _run_against(mod, data_root: Path, out: Path) -> dict:
+    """只传 `--data-root` 与 `--out` 跑一次，返回产物。
+
+    ★ 刻意**不传** `--arms`：若靠 `--arms` 也能改变读到的内容，
+      那这条守卫就分不清是哪个参数在起作用。
+    """
+    rc = mod.main(["--data-root", str(data_root), "--out", str(out)])
+    assert out.is_file(), f"产物没落盘（rc={rc}）"
+    return json.loads(out.read_text(encoding="utf-8"))
+
+
+def _assert_data_root_is_honoured(mod, tmp_path: Path) -> None:
+    """共享实现：守卫与变异自测跑**同一个**函数。
+
+    ⇒ 变异探针不许持有自己的副本（否则它验的是副本而不是被测接线）。
+    """
+    a = _plant_reports_dir(tmp_path / "A", n_rows=200, n_factors=3, seed=41)
+    b = _plant_reports_dir(tmp_path / "B", n_rows=137, n_factors=5, seed=42)
+
+    # 根 A ⇒ 只可能是 A 的形状
+    pa = _run_against(mod, a, tmp_path / "a.json")
+    assert pa.get("n_obs") == 200, (
+        f"指定了 A 却在别的数据根上读的：n_obs={pa.get('n_obs')}，"
+        f"A 里那份是 200 行 / 3 个因子 ⇒ --data-root 根本没进到构造点")
+    assert pa.get("n_factors") == 3, f"A 里只有 3 个因子，实得 {pa.get('n_factors')}"
+    assert pa.get("arms_run") == [21], f"A 里只有 k21，实得 {pa.get('arms_run')}"
+
+    # 根 B ⇒ 换成 B 的形状。**两点才排得掉「读了某个固定的别处」**：
+    # 一条守卫只要一个点，「恰好读了默认值」也能骗过它。
+    pb = _run_against(mod, b, tmp_path / "b.json")
+    assert pb.get("n_obs") == 137, (
+        f"换了个 --data-root 读到的东西一模一样：n_obs={pb.get('n_obs')} ⇒ "
+        "参数是摆设")
+    assert pb.get("n_factors") == 5, f"B 里只有 5 个因子，实得 {pb.get('n_factors')}"
+
+    # 反混淆：`--out` 与 `--data-root` 指的是**两件事** ——
+    # 产物落在 tmp，样本却来自 root。两者混了这条守卫就白跑了。
+    assert (tmp_path / "b.json").is_file()
+
+
+def test_the_data_root_argument_decides_which_files_get_read(tmp_path):
+    """★ 新参数必须**真的**被用到（argparse 接受了就丢掉 = 第 6 种形状）。
+
+    判定逻辑：种两份**形状不同**的逐日表，传 A 读到的必须是 A 的行数与因子数，
+    传 B 读到的必须是 B 的。默认那份（仓库 `data/reports`，n=1394 / 8 因子 / 5 档）
+    两组都匹配不上 ⇒ 走默认路径会当场红。
+    """
+    _assert_data_root_is_honoured(fa, tmp_path)
+
+
+def test_cutting_the_data_root_wiring_makes_the_guard_go_red(tmp_path):
+    """★ **守卫只有变异后算数**（本仓铁律）。
+
+    变异：`--data-root` 的入参不再被写进模块全局量（构造点断开），
+    它就退回默认根。要求上一条守卫**必须红**。
+
+    ⚠️ 顺序不能颠倒：先确认变异**真的落进文件**再看测试结果，
+      否则「全绿」会被读成「守卫有洞」，而真相是变异压根没生效。
+      写入确认用**与旧串无子串关系**的标记串 + 恰好 1 次计数，
+      不用「新串 in 文件」（那是第 14 种形状的假确认）。
+    """
+    src = ROOT / "scripts" / "factor_attribution.py"
+    original = src.read_text(encoding="utf-8")
+    marker = "APLUS_MUTATION_PROBE_dataroot_cut"
+
+    assert marker not in original, "探针标记串本来就在文件里 ⇒ 写入确认不可信"
+    assert original.count(_WIRING_SITE) == 1, (
+        f"变异模式匹配 {original.count(_WIRING_SITE)} 处（必须恰好 1）"
+        " ⇒ 变异是空操作，绿灯什么也不证明")
+
+    mutated = original.replace(_WIRING_SITE, _WIRING_CUT)
+    assert mutated != original and mutated.count(marker) == 1
+
+    src.write_text(mutated, encoding="utf-8")
+    try:
+        on_disk = src.read_text(encoding="utf-8")
+        assert on_disk.count(marker) == 1 and _WIRING_SITE not in on_disk, (
+            "变异已核验落地失败 ⇒ 下面的红灯没有任何意义")
+        importlib.reload(fa)
+        with pytest.raises(AssertionError):
+            _assert_data_root_is_honoured(fa, tmp_path)
+    finally:
+        src.write_text(original, encoding="utf-8")
+        importlib.reload(fa)
+
+    # 还原后必须重新变绿 —— 否则「变异后变红」可能是因为别的坏理由
+    _assert_data_root_is_honoured(fa, tmp_path)
+    assert src.read_text(encoding="utf-8") == original, "变异后没还原干净"
+
+
+def test_without_the_flag_the_data_root_is_still_the_one_from_before(tmp_path):
+    """★ 不传 `--data-root` 时行为**与改动前一致** —— 默认路径不许被顺手换掉。
+
+    判定逻辑：默认值必须逐位等于改前那个字面量拼出来的路径；
+    再真跑一次不传参的 `main()`，产物里的样本量与因子数必须等于
+    默认根上那份真 parquet 的形状（从文件现读，不写死 1394 ——
+    写死会让真产物一重生成就假红）。
+    """
+    root = ROOT / "data" / "reports"
+    assert fa.DEFAULT_DATA_ROOT == root
+    assert fa.DATA_ROOT == fa.DEFAULT_DATA_ROOT
+    assert fa.parquet_path(21) == root / "wf_weights_backtest_k21.daily.parquet"
+    assert fa._parse_args([]).data_root == root
+    assert fa._parse_args(["--data-root", "/tmp/x"]).data_root == Path("/tmp/x")
+
+    expected = root / "wf_weights_backtest_k21.daily.parquet"
+
+    real = pd.read_parquet(expected)
+    rc = fa.main(["--arms", "21", "--out", str(tmp_path / "r.json")])
+    payload = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
+    assert payload.get("arms_run") == [21], f"默认路径下没读到 k21：{payload.get('arms_run')}"
+    assert payload.get("n_obs") == len(real), (
+        f"默认根读到的样本量 {payload.get('n_obs')} ≠ 真文件 {len(real)} ⇒ "
+        "默认路径被换过了")
+    assert payload.get("n_factors") == len(
+        [c for c in real.columns if c.startswith("expo_")])
+    assert rc in (0, 3), f"默认路径下跑出了意外的退出码 {rc}"
+
+
+def test_the_data_root_is_restored_after_the_run(tmp_path):
+    """★ `DATA_ROOT` 是模块级全局量，**必须**在 `finally` 里还原。
+
+    与 `factor_width_mde.py` 对 `verify.MIN_BASKET` 的处理同源：不还原的话，
+    同一个进程里之后跑的任何一次 `main()`（别的守卫、每日任务）都会静默
+    沿用上一轮的数据根 —— 那正是"参数看起来能调、实际污染后面所有人"。
+    """
+    before = fa.DATA_ROOT
+    _run_against(fa, _plant_reports_dir(tmp_path / "R", 200, 3, seed=43),
+                 tmp_path / "r.json")
+    assert fa.DATA_ROOT == before == fa.DEFAULT_DATA_ROOT, (
+        f"跑完之后数据根变成了 {fa.DATA_ROOT} ⇒ 全局量没还原")
