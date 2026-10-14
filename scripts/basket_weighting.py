@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -53,8 +54,13 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from aplus import verify as verify_mod                     # noqa: E402
-from aplus.backtest import build_cross_sections, evaluate_weights  # noqa: E402
+from aplus.backtest import (                                 # noqa: E402
+    RESULT_COLUMNS, build_cross_sections, evaluate_weights)
 from aplus.costs import annual_friction                    # noqa: E402
+# ★ `SD_WORKS` 的门槛由外部锚推导，而这三个常数是那个推导的输入 ——
+#   单一真相源在 `factor_attribution`（`math.erf` 二分反解，无查表）。
+#   本模块**不许**再定义一份，也**不许**打 1.96 / 2.80 的字面量。
+from factor_attribution import T_POWER_TARGET              # noqa: E402
 from backtest_walk_forward_weights import (                # noqa: E402
     ENTRY_LAG, FACTOR_NAMES, _daily, _t, at_cost, real_cost_for,
     rounds_per_year, weights_by_year,
@@ -63,12 +69,32 @@ from backtest_walk_forward_weights import (                # noqa: E402
 # ── 预注册 §4：写死，不许事后调 ────────────────────────────────
 WINDOW = 60                 # σ 的交易日窗口（K=21 的 3 倍）
 MIN_SIGMA = 1e-4            # 防 1/σ 爆炸
-MAX_DROP = 0.20             # σ 不可用的票超过 20% ⇒ 该臂作废
-MAIN_N = 100                # 主档榜宽（唯一已测出显著 t=2.42 的档）
+MAX_DROP = 0.20             # σ 不可用的票超过 20% ⇒ 该臂作废（这是**剔除比例**，不是降幅门槛）
 MAIN_K = 21                 # 实盘换仓周期
 JUDGED_FROM = "2021-01-01"  # 必须与判决窗口一致
+DAYS_PER_YEAR = 244         # 与 `power_floor` / `rounds_per_year` 同一份口径
+
+# 🚨 主档榜宽 100 → **200**（预注册 §6-修订1.3，2026-10-15，**在实验开跑之前**）。
+#   ⚠️ 原值 `100` 的行尾注释写着「唯一已测出显著 t=2.42 的档」——
+#   **那个数已作废**：它出自无 sidecar 的化石产物；当前带 sidecar 的
+#   `factor_width_mde.json` 实测 N=100 的 `t_blocked` 是 **1.549**，
+#   且**五档无一显著**（最大 N=546 的 1.988）。⇒「唯一」是假的。
+#   （这正是第 79 层：预注册判据的前提没核实。）
+#   ⇒ 改判的三条理由：① `verdict` 与 `cap_weighted_benchmark` 读的都是 N=200，
+#     要改进的尺子必须是判决用的那把；② 原理由已作废；
+#     ③ §1.4 的判别式在高分重叠处信息量最大。
+#   ⇒ 那个作废的 `t=2.42` 被**删掉**而不是改写 ——
+#     留着它就是第二个真相源，会以行尾注释的形态活过这次修正。
+MAIN_N = 200
 
 ARMS = ("A0_equal", "A1_inv_total", "A2_inv_excess")
+
+# `_weighted_daily` 真正会读的列。**从权威清单派生**，不是手打的一遍：
+# 差集 = 逐行结果的全部列 − 本函数用到的列。
+# `result` 不读（涨跌方向已由 `direction` 切好），`cost` 读（净超额必须扣一次）。
+_NEEDED_COLUMNS = tuple(
+    c for c in RESULT_COLUMNS if c in {"pred_date", "code", "actual_pct",
+                                       "market_pct", "cost"})
 
 #: 本金。`factor_width_mde.py` 里也有一个同值的常量 ——
 #: 那是脚本级常量不是 `aplus.costs` 的，两处独立持有是**故意的**：
@@ -175,17 +201,40 @@ def _weighted_daily(leg: pd.DataFrame, mode: str, daily_map: dict,
       ③ 成分不足 `min_basket` 的日子**丢掉**
     否则臂间不可比，而表格看上去完全正常。
     """
+    # ★ 缺档必须**响**，不许悄悄换口径。
+    #   这一段是被一次真实的 5 分 20 秒跑废逼出来的（2026-10-15）：
+    #   `evaluate_weights` 的返回里**根本没有 `date` 列**，而这里照着想象写了
+    #   `"d": pd.to_datetime(leg["date"])` ⇒ 面板载入完、六个年份都跑完，
+    #   才在第一行加权处抛 `KeyError: 'date'`。
+    #
+    #   ★ 而那一列 `d` **从头到尾没有任何消费者** —— 它既崩了，又没人用。
+    #   ⇒ 修法**不是**把它换成 `pred_date`（那是拿信号日冒充成交日，
+    #     而 `pred_date`/`date` 不可互替正是本模块的纪律），
+    #     **而是删掉它**，并把契约显式化。
+    #
+    #   契约从 `aplus.backtest.RESULT_COLUMNS` **导入**，不许在这里重打一遍 ——
+    #   两份字面量必然漂移（第 17 种形状：同一个语义处理 N 次，第 N+1 处几乎必然漏）。
+    missing = [c for c in _NEEDED_COLUMNS if c not in leg.columns]
+    if missing:
+        raise KeyError(
+            f"逐行结果缺列 {missing}；实际列为 {list(leg.columns)}。\n"
+            f"⇒ 权威清单是 aplus.backtest.RESULT_COLUMNS = {list(RESULT_COLUMNS)}\n"
+            f"  **缺列不许回落**：拿 `pred_date` 顶替成交日、或跳过 `cost` 的扣减，"
+            f"  都会让判决在报告上完全看不出来地换掉口径。"
+        )
     leg = leg.dropna(subset=["actual_pct"])
     if leg.empty:
         return pd.Series(dtype=float), {"days": 0}
     net = leg["actual_pct"].to_numpy(dtype=float)
-    if "cost" in leg.columns:
-        net = net - leg["cost"].to_numpy(dtype=float)
+    # ★ 不再 `if "cost" in leg.columns`：那是**形状 6 的「假装能调」**——
+    #   `cost` 是权威列清单里**恒在**的一列，那个 `if` 永远为真，
+    #   于是读代码的人以为「成本可以不带」，而它带了就是恒扣、不带就是恒不扣，
+    #   **两条分支产出的净超额差一整个成本量级，而表格看上去完全正常**。
+    net = net - leg["cost"].to_numpy(dtype=float)
     work = pd.DataFrame({"pred_date": leg["pred_date"].to_numpy(),
                          "code": leg["code"].to_numpy(),
                          "net": net,
-                         "mkt": leg["market_pct"].to_numpy(dtype=float),
-                         "d": pd.to_datetime(leg["date"]).to_numpy()})
+                         "mkt": leg["market_pct"].to_numpy(dtype=float)})
     work = work.dropna(subset=["net"])
 
     daily, held = [], {}
@@ -223,6 +272,40 @@ def _weighted_daily(leg: pd.DataFrame, mode: str, daily_map: dict,
 
 
 # ───────────────────────── 判决 ─────────────────────────
+def required_sd_drop(base_mean: float, base_sd: float, n_days: int) -> float:
+    """**`SD_WORKS` 的门槛，由外部锚推导，不许写成字面量**（预注册 §6-修订1.4）。
+
+    推导链（每一环都不来自本模块）：
+
+    ```
+    MDE   = t_power × SE_年                      # factor_attribution.power_floor:387
+    SE_年 = sd_年 / √年数                          # 同上
+    ⇒ 可测 ⟺ 毛超额 > MDE ⟺ 夏普 > t_power/√年数
+    ⇒ 只降 sd（毛超额不变）：sd' ≤ 毛超额 × √年数 / t_power
+    ⇒ 降幅 ≥ 1 − sd'/sd
+    ```
+
+    `t_power` 从 `factor_attribution` import（`math.erf` 二分反解，无查表）。
+
+    ## 🚨 为什么不能只是把 `0.20` 换成 `0.33`
+    预注册原本写的是字面量 `0.20`。那个数**不是推出来的**，是拍的 ——
+    而它比外部锚松：`降幅 0.20` 只能把夏普从 0.785 抬到 **0.981**，
+    **仍在可测门槛 1.171 之下** ⇒ 按它判 `SD_WORKS`，
+    等于通过一次**并没有买到可测性**的实验。
+    ⇒ 换成字面量 `0.33` 只是把同一个缺陷再犯一遍（下一个改数字的人还会犯）。
+
+    ## `base_mean ≤ 0` ⇒ `inf`（门槛不可达）
+    毛超额本身 ≤ 0 时，**把 sd 降到 0 也测不出**（t 的分子是 0 或负）。
+    ⇒ 返回 `inf` 而不是负门槛：负门槛会让「任何正降幅」都判过，
+    那正是本实验最该防的错误结论。
+    """
+    if not (base_mean > 0) or not (base_sd > 0) or n_days <= 0:
+        return math.inf
+    n_years = n_days / DAYS_PER_YEAR
+    sd_needed = base_mean * math.sqrt(n_years) / T_POWER_TARGET
+    return 1.0 - sd_needed / base_sd
+
+
 def decide(arms: dict, per_year: dict) -> tuple[str, str]:
     """**判决函数**——预注册 §6，看到任何数据之前写死。
 
@@ -230,14 +313,29 @@ def decide(arms: dict, per_year: dict) -> tuple[str, str]:
     `per_year`: `{臂名: {年: drop_pct}}`（逐年降幅，用于一致性硬要求）
 
     分支：
-      SD_WORKS    降幅 ≥0.20 且 均值代价 ≤ 降幅/2，且逐年 ≥4/6 为正
+      SD_WORKS    降幅 ≥**推导门槛** 且 均值代价 ≤ 降幅/2，且逐年 ≥4/6 为正
       SD_NEUTRAL  最好一臂 降幅 < 0.10
-      SD_TRADEOFF 降幅 ≥0.10 但 均值代价 > 降幅/2
+      SD_TRADEOFF 降幅 ≥0.10 但 均值代价 > 降幅/2（或降幅 < 推导门槛）
       SD_MIXED    逐年方向不一致
+
+    ★ `SD_WORKS` 的门槛由 `required_sd_drop` **从外部锚推导**
+      （`t_power` 与 `MDE = t_power·SE_年` 的代数），本函数里**没有** 0.20 / 0.33
+      这样的字面量。原来的 `0.20` 是拍的，且比外部锚松 ——
+      它只能把夏普抬到 0.981，仍在可测门槛 1.171 之下。
+    ⇒ 门槛**依赖样本长度**，所以 `A0_equal.n_days` 缺失时**拒绝出判决**，
+      而不是回落到某个默认值（缺档必须报错，绝不回落）。
     """
     base_sd = arms["A0_equal"]["sd"]
     if not base_sd or not np.isfinite(base_sd):
         return None, "基线臂 sd 不可用，拒绝出判决"
+    n_days = arms["A0_equal"].get("n_days")
+    if not n_days:
+        return None, ("基线臂 n_days 缺失 ⇒ 推导门槛算不出来，"
+                      "拒绝出判决（门槛依赖样本长度，不许回落到默认值）")
+    base_mean = arms["A0_equal"].get("mean")
+    if base_mean is None or not np.isfinite(base_mean):
+        return None, "基线臂 mean 不可用，拒绝出判决"
+    threshold = required_sd_drop(base_mean, base_sd, n_days)
     rows = {}
     for name in ARMS:
         a = arms[name]
@@ -270,20 +368,27 @@ def decide(arms: dict, per_year: dict) -> tuple[str, str]:
     if bd < 0.10:
         return "SD_NEUTRAL", (
             f"最好一臂 {best} 的 sd 降幅只有 {bd:+.1%}（< 10%）"
-            f"⇒ ρ≈1，持仓≈一个赌注。"
+            f"⇒ 1/σ 与等权在本档几乎等价。"
             f"⚠️ 这**不等于**「低波动没用」——那是另一个量、另一个问题。"
-            f"下一步：停止一切「靠分散化降 sd」的路。")
+            f"⚠️ 也不等于「ρ≈1」：榜宽实验已用两套独立论证排除 ρ≈1"
+            f"（拟合 ρ≈0.065；且 ρ=1 下 σ 只能持平或上升，实测降 39.1%）。"
+            f"⇒ 下一步：查各股 σ 的**离散度**是否太小，而不是宣布分散化无效。")
     if bc > bd / 2:
         return "SD_TRADEOFF", (
             f"最好一臂 {best} 降幅 {bd:+.1%}，但均值代价 {bc:+.3f} sd 单位 "
             f"> 降幅的一半 ⇒ 降噪要赔收益。本项目的约束是要**测量能力**"
             f"而不是要好看 ⇒ 记为取舍，不采用。")
-    if bd < 0.20:
+    if bd < threshold:
         return "SD_TRADEOFF", (
-            f"最好一臂 {best} 降幅 {bd:+.1%}，未达 0.20 的 SD_WORKS 门槛"
-            f"（但已 >0.10，不是 NEUTRAL）⇒ 记为取舍，不采用。")
+            f"最好一臂 {best} 降幅 {bd:+.1%}，未达 SD_WORKS 门槛 "
+            f"{threshold:.1%}（由 MDE = t_power·SE_年 推导，"
+            f"主档夏普 {base_mean / base_sd:.3f}、{n_days} 个交易日）"
+            f"（但已 >0.10，不是 NEUTRAL）⇒ 记为取舍，不采用。"
+            f"⚠️ 注意：降到门槛以下**不算失败**，"
+            f"只说明它没有买到可测性 —— 这不是「降噪没用」。")
     return "SD_WORKS", (
-        f"最好一臂 {best} 降幅 {bd:+.1%} ≥ 0.20，且均值代价 {bc:+.3f} sd 单位 "
+        f"最好一臂 {best} 降幅 {bd:+.1%} ≥ 推导门槛 {threshold:.1%}，"
+        f"且均值代价 {bc:+.3f} sd 单位 "
         f"≤ 降幅的一半，逐年 {bpos}/{bn} 年为正 ⇒ 仪器真的变好了。"
         f"★ 注意：sd 降只说明**仪器**变好，不说明 alpha 变大。")
 

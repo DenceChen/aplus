@@ -194,6 +194,7 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 否则登记表有名字、sidecar 仍然是空的（见 `test_registered_is_not_enough`）。
     "factor_width_mde.json": "scripts/factor_width_mde.py",
     "factor_attribution.json": "scripts/factor_attribution.py",
+    "cap_weighted_benchmark.json": "scripts/cap_weighted_benchmark.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；

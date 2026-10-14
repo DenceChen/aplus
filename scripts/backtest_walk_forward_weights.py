@@ -168,15 +168,19 @@ def at_cost(results: pd.DataFrame, cost: float) -> pd.DataFrame:
     return out
 
 
-def _daily(results: pd.DataFrame, direction: str = "up"):
+def _daily(results: pd.DataFrame, direction: str = "up",
+           weights_col: str | None = None):
     """逐日单腿净超额序列 —— **复用 `evolve_race` 的那一份**，不自己写。
 
     它已经处理了三件容易错的事：逐日先聚合再检验、
     成分不足 `MIN_BASKET` 的日子丢掉、只有实际建仓的涨腿付成本。
     自己重写一遍就是第 22 层静默失效。
+
+    `weights_col` 是市值加权实验（预注册 `TODO_cap_weighted_benchmark`）的入口 ——
+    基准相减就发生在 `_daily_series` 里，所以端点只能在那里加。
     """
     from aplus.evolve_race import _daily_series
-    return _daily_series(results, direction)
+    return _daily_series(results, direction, weights_col=weights_col)
 
 
 def _t(daily, block: int):
@@ -365,7 +369,9 @@ def _daily_frame(chunks: list, factors) -> "pd.DataFrame":
 
 def run_year(xs, weights, dates, top_n: int, bottom_n: int,
              rebalance_every: int, daily_out: list | None = None,
-             score_transform=None) -> dict:
+             score_transform=None,
+             benchmark_cap: bool = False, portfolio_cap: bool = False,
+             cap_ctx=None) -> dict:
     """跑一个年份，返回三个口径的逐年数字。
 
     `daily_out` 非空时，把**毛超额逐日序列 + 逐日因子暴露**追加进去。
@@ -383,18 +389,29 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
     （预注册 `docs/TODO_placebo_control_2026-10-15.md` §4）。
     它只往 `evaluate_weights` 透传，**不在这里加任何分支** ——
     这一层一旦长出自己的逻辑，安慰剂与 P0 的差就分不清是信号还是这段代码。
+
+    ## `benchmark_cap` / `portfolio_cap`（市值加权，默认全关）
+
+    预注册 `docs/TODO_cap_weighted_benchmark_2026-10-15.md`：口径两端都要换。
+    本函数是三处实验（P0 / 安慰剂 / 榜宽）与市值加权实验的**同一个**入口 ——
+    三臂只许在这里分叉，分叉点之后不许有第二段逻辑。
+    全关时逐位等于 2026-10-15 之前的行为（守卫：
+    `test_market_by_day_with_cap_table_off_is_bitwise_unchanged` 等）。
     """
     res = evaluate_weights(xs, weights=weights, top_n=top_n, bottom_n=bottom_n,
                            dates=dates, rebalance_every=rebalance_every,
-                           execution_gate=True, score_transform=score_transform)
+                           execution_gate=True, score_transform=score_transform,
+                           portfolio_cap=portfolio_cap, cap_ctx=cap_ctx,
+                           benchmark_cap=benchmark_cap)
     if res is None or res.empty:
         return {"n_rows": 0, "n_days": 0}
 
-    gross = _daily(res.assign(cost=0.0))
+    wcol = "cap" if portfolio_cap else None
+    gross = _daily(res.assign(cost=0.0), weights_col=wcol)
     out = {"n_rows": int(len(res)), "n_days": int(len(dates))}
     for tag, c in (("bt003", STOCK_COST_DEFAULT),
                    ("real", real_cost_for(top_n, rebalance_every))):
-        daily = _daily(at_cost(res, c))
+        daily = _daily(at_cost(res, c), weights_col=wcol)
         t, n_obs = _t(daily, block=rebalance_every)
         mean = float(daily.mean()) if daily is not None and len(daily) else float("nan")
         sd = float(daily.std(ddof=1)) if daily is not None and len(daily) > 1 else float("nan")
@@ -433,6 +450,7 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
         for k, v in getattr(res, "attrs", {}).items()
         if k.startswith("unfillable_execution")}
     out["unadjusted_touch"] = dict(getattr(res, "attrs", {}).get("unadjusted", {}) or {})
+    out["cap_fallback_days"] = int(getattr(res, "attrs", {}).get("cap_fallback_days", 0))
     return out
 
 

@@ -226,7 +226,8 @@ def excess_tstat(results, rebalance_every: int = 1) -> tuple[float | None, int]:
     return _tstat(daily, block=rebalance_every)
 
 
-def _daily_series(results, direction: str, negate: bool = False):
+def _daily_series(results, direction: str, negate: bool = False,
+                  weights_col: str | None = None):
     """逐日的单腿超额序列（t 检验的输入单位）。
 
     **必须逐日先聚合再检验**：逐笔样本的 t 值会把同一天 10 只股票当成 10 个
@@ -237,6 +238,16 @@ def _daily_series(results, direction: str, negate: bool = False):
     于是一天里 10 只成分有 9 只没有次日 bar 时，「篮子超额」实际是
     剩下那一只的收益。实测 2026-06-04 就是这样把多空价差顶到 +9.84%
     的（2026-10-11）。`min_basket` 之内的一天衡量的不是篮子，是运气。
+
+    ## `weights_col`（市值加权，默认 None ⇒ **逐位**等于老行为）
+
+    预注册 `docs/TODO_cap_weighted_benchmark_2026-10-15.md`：
+    组合端也要按 `close × a_shares` 归一化。基准相减就发生在**这一行**
+    ——所以端点只能加在这里，不能另写一份。
+
+    ⚠️ 成分下限在加权口径下必须数**有市值的成分**，不是数行数。
+      仍按行数计的话，200 只持仓只有 5 只有市值那天，「篮子超额」
+      实际是 5 只票的收益 —— 正是上面那段 docstring 要拦的事。
     """
     from .verify import MIN_BASKET
 
@@ -248,8 +259,26 @@ def _daily_series(results, direction: str, negate: bool = False):
     net = leg["actual_pct"]
     if direction == "up" and "cost" in leg.columns:
         net = net - leg["cost"]        # 只有实际建仓的涨腿付成本
-    daily = net.groupby(leg["pred_date"]).mean() - leg.groupby(leg["pred_date"])["market_pct"].mean()
-    count = net.groupby(leg["pred_date"]).count()
+    days = leg["pred_date"]
+    market = leg.groupby(days)["market_pct"].mean()
+    if weights_col is None or weights_col not in leg.columns:
+        daily = net.groupby(days).mean() - market
+        count = net.groupby(days).count()
+    else:
+        w = leg[weights_col]
+        # 🚨 分母**只能**由真正贡献了分子的那些行构成。
+        #   `verify_predictions` 用 `merge(how="left")`，没有下一根 bar 的行
+        #   `actual_pct` 是 NaN ⇒ 分子跳过它们，而 `w` 在它们上面不是 NaN。
+        #   分母若按 `w.groupby(days).sum()` 算，就把「没进分子的行」
+        #   也算进了分母 ⇒ 篮子超额被按比例缩小。
+        #   实测（2021 单年、N=200、全等市值）：B 臂 7.03%/年 而「加权退化」臂
+        #   6.86%/年 —— **差 2.4%**，全部来自这一处。
+        #   「全等市值 ⇒ 退化成等权」这条本该抓得住它的性质，正是被它顶掉的。
+        ok = w.notna() & (w > 0) & net.notna()
+        basket = (net * w).groupby(days).sum() / w.where(ok).groupby(days).sum()
+        daily = basket - market
+        # 成分下限数的是**真正进了篮子**的行：既有市值、又有收益。
+        count = ok.groupby(days).sum()
     daily = daily.where(count >= MIN_BASKET).dropna()
     if negate:
         daily = -daily

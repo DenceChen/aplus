@@ -95,6 +95,21 @@ EXEC_UNFILLABLE_REASONS = ("buy_unfillable", "sell_void", "price_implausible")
 # (o, h, l, c, volume, amount, prev_close)，少一列就只能整体降级。
 RAW_ROW_NAMES = ("open", "high", "low", "close", "volume", "amount", "prev_close")
 
+# ★ `evaluate_weights` 逐行结果的**权威列清单**（2026-10-15）。
+# 以前它只以字面量出现在空路径那一行（`pd.DataFrame(columns=[...])`），
+# 于是**消费方无从知道该给它什么、它会给回什么**——
+# `scripts/basket_weighting.py::_weighted_daily` 就照着自己的想象读了
+# 一个**根本不存在的 `date` 列**，跑了 5 分 20 秒才以 `KeyError` 收场。
+# ⇒ 这不是「调用方写错了列名」，是**契约从未被写下来过**
+# （与同文件 docstring 里记的 `rows["date"]` vs `work["d"]` 是同一个病，
+#   那次修了消费方那一侧，**生产方这一侧从来没修**）。
+#
+# ⚠️ **这里没有 `date` 列是刻意的**：`pred_date` 是信号日，
+# 成交日由 `entry_lag` 推出；两者不可互相顶替。
+# 谁需要「哪一天」，必须显式说清是哪一个。
+RESULT_COLUMNS = ("pred_date", "code", "direction", "actual_pct",
+                  "result", "market_pct", "cost")
+
 
 def _exec_stats() -> dict:
     """成交窗口闸门的拦截计数。`codes` 记到**代码**粒度，便于定位是哪几只。"""
@@ -532,7 +547,8 @@ def _resolve_maps(store, daily_map, factors_map):
 
 def _market_by_day(daily_map: dict, dates: list, sample_size: int = MARKET_SAMPLE,
                    entry_lag: int = ENTRY_LAG, factors_map: dict | None = None,
-                   adj_cache: dict | None = None) -> dict:
+                   adj_cache: dict | None = None,
+                   cap_ctx=None, cap_sink: dict | None = None) -> dict:
     """市场基准日收益——随机分层抽样、固定种子，与权重**无关**，故整窗只算一次。
 
     （此前 list()[:150] 取的是文件名序前 150 只 sh.600xxx 老工业股，基准系统性
@@ -540,6 +556,20 @@ def _market_by_day(daily_map: dict, dates: list, sample_size: int = MARKET_SAMPL
 
     entry_lag 必须与策略侧一致，否则超额是拿两段不同期相减，没有意义；
     复权口径同理——基准若用不复权价，超额就是拿复权收益减不复权收益。
+
+    ## `cap_ctx` / `cap_sink`（市值加权基准，默认全关 ⇒ 逐位等于老行为）
+
+    预注册 `docs/TODO_cap_weighted_benchmark_2026-10-15.md`：
+    **等权全池根本不是一个基准 —— 没有任何被动资金拿得到它。**
+    被动资金拿得到的是市值加权指数，所以「相对被动投资赚了多少」只能用后者回答。
+
+    ⚠️ **参数加在这一层，不新建一条基准路径。**
+      基准相减发生在共享路径最深处（`_daily_series` 里减 `market_pct`），
+      在旁边另写一个「市值加权版基准」就是第二台测量仪，
+      两台之间的差永远查不出来（第 22 层）。
+
+    ★ **抽样、成交窗口、复权口径三者与等权臂完全共用**，只有聚合那一步不同。
+      抽样种子若不一致，B 臂与 A 臂减的就不再是同一个市场。
     """
     import random as _random
 
@@ -550,13 +580,26 @@ def _market_by_day(daily_map: dict, dates: list, sample_size: int = MARKET_SAMPL
     for day in dates:
         market = _next_bars(daily_map, sample_codes, day, entry_lag=entry_lag,
                             factors_map=factors_map, adj_cache=adj_cache)
-        out[day] = float((market["close"] / market["prev_close"] - 1).mean()) if len(market) else 0.0
+        if not len(market):
+            out[day] = 0.0
+            if cap_sink is not None:
+                cap_sink[day] = 0.0
+            continue
+        ret = market["close"] / market["prev_close"] - 1
+        out[day] = float(ret.mean())
+        if cap_sink is not None:
+            w = cap_ctx.normalize(day, list(market["code"]), channel="benchmark") \
+                if cap_ctx else {}
+            # 市值全不可得的那一天 ⇒ 回退等权，**且回退次数被 count**（capweight）
+            cap_sink[day] = float(sum(w[c] * x for c, x in zip(market["code"], ret))) \
+                if w else float(ret.mean())
     return out
 
 
 def build_cross_sections(store, start: str, end: str, names_map: dict | None = None,
                          daily_map: dict | None = None, factors_map: dict | None = None,
-                         entry_lag: int = ENTRY_LAG) -> dict:
+                         entry_lag: int = ENTRY_LAG,
+                         benchmark_cap: bool = False, cap_ctx=None) -> dict:
     """窗口内每日横截面**算一次**（因子面板 + 股票过滤）。
 
     复权挂载、因子计算、股票过滤全都与权重无关——只有 build_predictions 依赖
@@ -570,11 +613,16 @@ def build_cross_sections(store, start: str, end: str, names_map: dict | None = N
     """
     daily_map, factors_map = _resolve_maps(store, daily_map, factors_map)
     if not daily_map:
-        return {"_dates": [], "_daily_map": {}, "_market": {}, "_entry_lag": entry_lag,
+        return {"_dates": [], "_daily_map": {}, "_market": {}, "_market_cap": {},
+                "_entry_lag": entry_lag,
                 "_factors_map": {}, "_adj_cache": {}, "_unadjusted": {},
                 "_unfillable": {}, "_unknown_st": {}}
     panel = build_panel(store, start, end, names_map, daily_map, factors_map)
     adj_cache: dict = {}
+    # ★ 市值加权基准**与等权基准在同一次抽样里同时算出**（`_market_by_day` 的
+    #   `cap_sink`）：抽样种子、成交窗口、复权口径三者共用，只有聚合那一步不同。
+    #   分两次跑就是「两个市场」，B 臂减的与 A 臂减的便不再同一个量。
+    market_cap: dict = {}
     sections: dict = {
         "_dates": panel.dates,
         "_daily_map": daily_map,
@@ -589,8 +637,11 @@ def build_cross_sections(store, start: str, end: str, names_map: dict | None = N
         # 落在盲区的规模必须能被读到（2026-10-12 缺陷 24）。
         "_unknown_st": {},
         "_market": _market_by_day(daily_map, panel.dates, entry_lag=entry_lag,
-                                  factors_map=factors_map, adj_cache=adj_cache),
+                                  factors_map=factors_map, adj_cache=adj_cache,
+                                  cap_ctx=cap_ctx if benchmark_cap else None,
+                                  cap_sink=market_cap if benchmark_cap else None),
     }
+    sections["_market_cap"] = market_cap
     for i, day in enumerate(panel.dates):
         sections[day] = filter_universe(panel.cross_section(i, names_map),
                                         unfillable=sections["_unfillable"],
@@ -677,7 +728,10 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
                      rebalance_every: int = 1,
                      buffer_multiple: float | None = None,
                      execution_gate: bool = True,
-                     score_transform=None) -> pd.DataFrame:
+                     score_transform=None,
+                     portfolio_cap: bool = False,
+                     cap_ctx=None,
+                     benchmark_cap: bool = False) -> pd.DataFrame:
     """在**已算好的**横截面上跑一组权重（与 walk_forward 逐行等价）。
 
     dates 可限定子区间——样本外验证（训练段选权重、测试段验收）就靠它，
@@ -720,6 +774,19 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
       拿的是**未被置换的原始 score**。于是 `buffer_multiple=2` + 安慰剂 =
       一半的行按打乱后的顺序选、一半按原顺序选，
       而报告里看不出任何区别 —— 那是「看起来能调，实际调了别的东西」。
+
+    ## `portfolio_cap`（市值加权持仓，默认 False ⇒ 逐位等于老行为）
+
+    预注册 `docs/TODO_cap_weighted_benchmark_2026-10-15.md` §1：
+    组合端也要按 `close × a_shares` 归一化，**每日重新归一化**。
+
+    ⚠️ 本函数**只负责把当天的权重挂成一列 `cap`**，加权本身在
+      `_daily_series` 里做 —— 那才是组合收益真正被聚合的地方。
+      在这里算一份加权收益、再让下游用等权，是两台测量仪。
+
+    为什么权重挂在**每一行**而不是每个 day 一个标量：
+    `_daily_series` 的 `groupby(pred_date)` 要在**逐笔**上做加权和
+    （成分是逐票的，市值也是逐票的）。挂成 day 标量就只剩等权了。
     """
     if score_transform is not None and buffer_multiple:
         raise ValueError(
@@ -729,6 +796,17 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
             "而报告里看不出任何区别。")
     daily_map = cross_sections.get("_daily_map") or {}
     market = cross_sections.get("_market") or {}
+    if benchmark_cap:
+        # 🚨 找不到市值加权基准时**当场报错**，不许静默退回等权。
+        #   `market.get(day, 0.0)` 在空字典上恒为 0.0 ⇒ 「超额」会变成
+        #   **组合绝对收益**，而报告里 B/C 臂的数字看上去仍然完全正常
+        #   （只是整体大了一截）。这正是本仓第 5 层那一族：静默回落。
+        if not cross_sections.get("_market_cap"):
+            raise ValueError(
+                "benchmark_cap=True 但 cross_sections 里没有非空的 `_market_cap`。"
+                " 基准必须由 `build_cross_sections(..., benchmark_cap=True)` "
+                "在**同一次抽样**里生成；退回等权会让 B/C 臂悄悄变成 A 臂。")
+        market = cross_sections["_market_cap"]
     entry_lag = cross_sections.get("_entry_lag", ENTRY_LAG)
     # 成本**只有这一个来源**。
     #
@@ -748,6 +826,7 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
     use_dates = dates if dates is not None else cross_sections.get("_dates", [])
     exec_stats = _exec_stats()
     out = []
+    cap_missing_total = 0
     prev_up: list | None = None          # 上一期的涨篮子，用于算换手
     held_up: list | None = None          # 跨调仓周期持有的篮子
     held_down: list | None = None
@@ -803,6 +882,14 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
         res = verify_predictions(preds, bars)
         res["pred_date"] = day
         res["market_pct"] = market.get(day, 0.0)
+        if portfolio_cap:
+            # 只给涨腿挂权重：跌腿是回避清单，从不持有，权重对它无意义。
+            # 缺市值的那几只留 NaN ⇒ `_daily_series` 按「有市值的成分数」
+            # 判 MIN_BASKET，而不是按行数（见该函数 docstring）。
+            _w = cap_ctx.normalize(day, list(up["code"]), channel="portfolio") \
+                if cap_ctx else {}
+            res["cap"] = [_w.get(c, float("nan")) for c in res["code"]]
+            cap_missing_total += int(len(_w) == 0)
         # 交易成本：只按**涨腿**计（我们实际建仓的一侧），跌腿是回避清单不产生交易。
         # 成本挂在 `cost` 列上，由 rolling_stats / excess_tstat 在算净超额时扣除——
         # 不在 verify_predictions 里直接改 actual_pct，因为那是「市场实际怎么走」，
@@ -820,8 +907,7 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
         out.append(res)
 
     if not out:
-        empty = pd.DataFrame(columns=["pred_date", "code", "direction", "actual_pct",
-                                      "result", "market_pct", "cost"])
+        empty = pd.DataFrame(columns=list(RESULT_COLUMNS))
         return _attach_exec_attrs(empty, exec_stats)
     result = pd.concat(out, ignore_index=True)
     result = _attach_exec_attrs(result, exec_stats)
@@ -835,6 +921,9 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
     unknown_st = cross_sections.get("_unknown_st") or {}
     result.attrs["unknown_st"] = int(sum(unknown_st.values()))
     result.attrs["unknown_st_codes"] = len(unknown_st)
+    # 市值全不可得、因而回退等权的天数。**必须可读**（第 5 层同族：
+    # 静默回退时报告与正常跑长得一模一样）。
+    result.attrs["cap_fallback_days"] = int(cap_missing_total)
     if callable(weights):
         result.attrs["n_ranked"] = -1
     else:

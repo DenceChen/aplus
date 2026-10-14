@@ -13,11 +13,16 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import inspect
+import json
+import math
 import sys
+import textwrap
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "basket_weighting.py"
@@ -354,42 +359,88 @@ def test_dropping_more_than_the_preregistered_share_voids_the_day():
 
 
 # ─────────────────── ③ 判决函数：四个分支各自可达 ───────────────────
+#
+# ★ 夹具承载**真实测量值**（`factor_width_mde.json::widths["200"]`，
+#   2026-10-15），不是玩具数 —— 预注册 §6-修订1.4 把 `SD_WORKS` 的门槛
+#   从字面量 `0.20` 改成**由外部锚推导**，而推导的输入就是这三个数。
+#   ⇒ 用玩具夹具（`sd=10, mean=6`，推出 ~48.8% 的门槛）测出来的
+#   「门过 / 门不过」**不约束真实验收的那条线**。
+#
+#   三个量缺一不可：`sd`/`mean` 决定降幅与代价，`n_days` 决定**门槛本身**
+#   （门槛 ∝ 1/√年数）。少了 `n_days` ⇒ 门槛算不出来 ⇒ 拒绝出判决。
+#   守卫 `..._refuses_to_verdict_without_the_sample_length` 钉的就是这一条。
+_BASE = {"sd": 0.08854148167643767,      # annual_sd_pct @ N=200
+         "mean": 0.0694654436628111,      # gross_annual_pct @ N=200
+         "n_days": 1395}                  # 判决窗口 2021-01-01 → 2026-10-12
+
+# 达标所需的 sd（`sd_needed`）。门槛的另一种说法是「降幅 = 1 − sd_needed/sd」，
+# 所以这个数既是推导的中间量，也是 `decide` 判据的物理含义。
+_SD_NEEDED = _BASE["mean"] * math.sqrt(_BASE["n_days"] / bw.DAYS_PER_YEAR) / bw.T_POWER_TARGET
+
+
 def _arms(**kw):
-    a = {"A0_equal": {"sd": 10.0, "mean": 6.0},
-         "A1_inv_total": {"sd": 10.0, "mean": 6.0},
-         "A2_inv_excess": {"sd": 10.0, "mean": 6.0}}
+    a = {k: dict(_BASE) for k in bw.ARMS}
     for k, v in kw.items():
         arm, field = k.split("__")
         a[arm][field] = v
     return a
 
 
+def _flat(drop):
+    """逐年降幅恒为 `drop`，六年全正 —— 用来看「逐年一致性之外的分支」。"""
+    return {"A1_inv_total": {y: drop for y in range(2021, 2027)}}
+
+
+def test_the_baseline_constants_still_match_the_artifact():
+    """★ 夹具承载真实测量值 ⇒ 它**必须**跟着产物走。
+
+    否则产物重跑后基线变了，这条文件里的「推导门槛 = 33.0%」会静默过期，
+    而守卫照样全绿 —— 这正是第 18 种形状（机制绿、数据侧已腐）。
+    """
+    art = json.loads((ROOT / "data/reports/factor_width_mde.json").read_text())
+    w = art["widths"][str(bw.MAIN_N)]
+    assert w["annual_sd_pct"] == _BASE["sd"], (
+        "榜宽实验重跑过，annual_sd_pct 变了 ⇒ 更新 _BASE 并重算 _SD_NEEDED，"
+        "不要只改测试的断言让它绿")
+    assert w["gross_annual_pct"] == _BASE["mean"], "同上：毛超额变了"
+    assert w["n_days"] == _BASE["n_days"], "同上：样本长度变了（门槛 ∝ 1/√年数）"
+
+
 def test_sd_neutral_when_the_best_arm_barely_moves_the_sd():
     """★ 零结果是本实验**最有决策价值**的输出（预注册 §1.4），所以
     它必须可达、且被明确命名 —— 而不是被当成「没跑出东西」。"""
-    v, why = bw.decide(_arms(A1_inv_total__sd=9.5), {"A1_inv_total": {2022: 0.05}})
+    v, why = bw.decide(_arms(A1_inv_total__sd=_BASE["sd"] * 0.96), _flat(0.04))
     assert v == "SD_NEUTRAL"
-    assert "ρ≈1" in why
+    # 🚨 文案里**不许**再把 ρ≈1 当解释 —— 榜宽实验已用两套独立论证排除它。
+    #   这条断言按「形状」写（出现「不等于」/「排除」），不按字面量写，
+    #   免得下一次改文案时要么红要么被注释满足（第 13 种形状）。
+    assert "ρ≈1" in why and ("不等于" in why or "排除" in why), (
+        "ρ≈1 已被实测排除，不许再作为 NEUTRAL 的理由")
 
 
 def test_sd_works_requires_both_the_drop_and_the_yearly_consistency():
-    v, why = bw.decide(
-        _arms(A1_inv_total__sd=7.0),
-        {"A1_inv_total": {2021: 0.3, 2022: 0.25, 2023: 0.2,
-                          2024: 0.28, 2025: 0.26, 2026: 0.22}},
-    )
-    assert v == "SD_WORKS"
+    """降幅**过推导门槛**且逐年一致，才给 SD_WORKS。
+
+    ⚠️ 这里的 `sd` 是从真实基线推出来的，不是随手写的：
+    要过门槛就得 `sd ≤ _SD_NEEDED`（5.93%），否则判决是 TRADEOFF。
+    """
+    v, why = bw.decide(_arms(A1_inv_total__sd=0.0500), _flat(0.44))
+    assert v == "SD_WORKS", why
     assert "仪器" in why, "★ sd 降只说明仪器变好，不说明 alpha 变大 —— 措辞必须带出去"
+    # 门槛必须**印出来**，且印的是推导出来的那个值（不是旧字面量 0.20）
+    thr = bw.required_sd_drop(_BASE["mean"], _BASE["sd"], _BASE["n_days"])
+    assert f"{thr:.1%}" in why, f"理由里必须带门槛值 {thr:.1%}"
 
 
 def test_a_big_average_drop_with_unstable_years_is_mixed_not_works():
     """★ 逐年一致性是**硬要求**。66 个独立观测上的均值差不可信，
     逐年一致性是唯一不额外要数据就能拿到的稳健性证据。
 
-    这是「先判逐年、再判降幅」的守卫：若顺序反了，
-    这个案例会被报成 SD_WORKS —— 而那正是本实验最该防的错误结论。"""
+    这是「先判逐年、再判降幅」的守卫：降幅 43.5% 已**过门槛**，
+    若逐年分支被写成后判，这个案例会被报成 SD_WORKS ——
+    而那正是本实验最该防的错误结论。"""
     v, why = bw.decide(
-        _arms(A1_inv_total__sd=7.0),
+        _arms(A1_inv_total__sd=0.0500),
         {"A1_inv_total": {2021: 0.5, 2022: 0.5, 2023: -0.4,
                           2024: 0.5, 2025: -0.3, 2026: -0.45}},
     )
@@ -397,13 +448,30 @@ def test_a_big_average_drop_with_unstable_years_is_mixed_not_works():
 
 
 def test_a_drop_that_costs_more_than_half_of_itself_is_a_tradeoff():
+    """降幅 15.3%（>10% 所以不是 NEUTRAL），但均值代价 0.672 sd 单位
+    ≫ 降幅的一半 0.076 ⇒ 因代价被否。"""
     v, why = bw.decide(
-        _arms(A1_inv_total__sd=8.0, A1_inv_total__mean=1.0),
-        {"A1_inv_total": {2021: 0.2, 2022: 0.2, 2023: 0.2,
-                          2024: 0.2, 2025: 0.2, 2026: 0.2}},
-    )
+        _arms(A1_inv_total__sd=0.0750, A1_inv_total__mean=0.0100), _flat(0.15))
     assert v == "SD_TRADEOFF"
     assert "不采用" in why
+
+
+def test_a_drop_above_the_floor_but_below_the_derived_threshold_is_a_tradeoff():
+    """★ **这是本轮新写的守卫**，它守的是「推导门槛真的在判决里」。
+
+    降幅 29.98% > 0.10（所以不是 NEUTRAL）、均值代价为 0（所以不是被代价否），
+    唯一能判它的是 `bd < threshold` 那条分支。
+    ⇒ 若有人把门槛换回字面量 `0.20`，本例会翻成 `SD_WORKS` ⇒ 变红。
+
+    ⚠️ 旧守卫抓不到这个：它们全都只测「过 / 不过」，
+    而在 `0.20` 下这三个用例**结论一模一样**（见本节的 0.20→0.33 说明）。
+    """
+    v, why = bw.decide(_arms(A1_inv_total__sd=0.0620), _flat(0.30))
+    assert v == "SD_TRADEOFF", why
+    assert "未达" in why and "推导" in why, (
+        "未过门槛的理由必须写明门槛是推导的，并印出门槛值")
+    # 降幅确实过了旧字面量 0.20 —— 所以这条用例对 0.20 与 0.33 是可区分的
+    assert 0.20 < (0.08854148167643767 - 0.0620) / 0.08854148167643767
 
 
 def test_the_mean_cost_is_measured_in_sd_units_not_mean_units():
@@ -413,19 +481,26 @@ def test_the_mean_cost_is_measured_in_sd_units_not_mean_units():
     「牺牲了很多」；除以 sd 才是「以风险为单位衡量收益损失」——
     这正是风险平价的原始命题。
 
-    ⇒ 守卫用一个**能区分两者**的构造：降幅 15%、均值从 6.0 掉到 4.0。
-      除以 mean_A0 得 −33%（远超降幅一半 ⇒ TRADEOFF），
-      除以 sd_A0 得 −0.20 sd 单位（< 降幅一半 ⇒ 不是因代价被否）。
+    ⇒ 守卫用一个**判决真的会翻转**的构造，而不是只核一次算术：
+      降幅 43.5%、均值从 6.9465% 掉到 5.20%，
+        除以 `sd_A0`（8.854%）得 **0.197 sd 单位** ≤ 降幅一半（0.218）⇒ 过；
+        除以 `mean_A0`（6.9465%）得 **0.251** > 0.218 ⇒ 不过。
+      ⇒ 口径写错 ⇒ 判决从 `SD_WORKS` 翻成 `SD_TRADEOFF`。
+
+    🚨 旧版这条守卫**测不出这个**：它只断言 `cost_sd_units ≈ 0.20`，
+    而 verdict 在两种口径下**都是** TRADEOFF ——
+    断言的是算术，判决没被区分开（第 5 种形状：断言 == 公式，公式错了跟着一错）。
     """
-    arms = _arms(A1_inv_total__sd=8.5, A1_inv_total__mean=4.0)
-    py = {"A1_inv_total": {2021: 0.15, 2022: 0.15, 2023: 0.15,
-                           2024: 0.15, 2025: 0.15, 2026: 0.15}}
-    v, why = bw.decide(arms, py)
-    cost_sd_units = (arms["A0_equal"]["mean"] - 4.0) / arms["A0_equal"]["sd"]
-    assert abs(cost_sd_units - 0.20) < 1e-12
-    # 降幅 15% < 20% ⇒ 即使代价可接受也仍是 TRADEOFF（未达 SD_WORKS 门槛）
-    assert v == "SD_TRADEOFF"
-    assert "sd 单位" in why or "未达" in why
+    arms = _arms(A1_inv_total__sd=0.0500, A1_inv_total__mean=0.0520)
+    drop = (_BASE["sd"] - 0.0500) / _BASE["sd"]
+    cost_sd = (_BASE["mean"] - 0.0520) / _BASE["sd"]
+    cost_mean = (_BASE["mean"] - 0.0520) / _BASE["mean"]
+    # 正控：构造出来的两个代价确实**分居降幅一半的两侧**，否则本守卫恒真
+    assert cost_sd <= drop / 2 < cost_mean, (
+        "判别构造失效：两个口径必须分居两侧，否则这条守卫测不到口径")
+    v, why = bw.decide(arms, _flat(0.44))
+    assert v == "SD_WORKS", why
+    assert "sd 单位" in why
 
 
 def test_no_verdict_is_issued_when_the_baseline_is_unusable():
@@ -434,6 +509,161 @@ def test_no_verdict_is_issued_when_the_baseline_is_unusable():
     v, why = bw.decide({"A0_equal": {"sd": float("nan"), "mean": 0.0}}, {})
     assert v is None
     assert "拒绝出判决" in why
+
+
+def test_it_refuses_to_verdict_without_the_sample_length():
+    """★ 门槛 ∝ 1/√年数 ⇒ **没有 `n_days` 就算不出门槛**。
+
+    ⇒ 拒绝出判决，而不是回落到某个默认长度。
+    「缺档必须报错，绝不回落」—— 回落到默认值会让判决看起来正常，
+    而它用的样本长度是假的。
+    """
+    v, why = bw.decide({"A0_equal": {"sd": _BASE["sd"], "mean": _BASE["mean"]}}, {})
+    assert v is None
+    assert "n_days" in why and "拒绝出判决" in why
+
+
+def test_the_threshold_is_inf_when_the_gross_excess_is_not_positive():
+    """★ 毛超额 ≤ 0 ⇒ 门槛**不可达**，必须返回 `inf` 而不是负门槛。
+
+    负门槛会让「任何正降幅」都判 `SD_WORKS` ——
+    而那是本实验最该防的错误结论（t 的分子是 0 或负，把 sd 降到 0 也测不出）。
+    """
+    assert bw.required_sd_drop(0.0, _BASE["sd"], _BASE["n_days"]) == math.inf
+    assert bw.required_sd_drop(-0.05, _BASE["sd"], _BASE["n_days"]) == math.inf
+    assert bw.required_sd_drop(_BASE["mean"], 0.0, _BASE["n_days"]) == math.inf
+    # 正控：真实基线必须给出**有限**门槛，否则上面三条是恒真的
+    assert 0.0 < bw.required_sd_drop(_BASE["mean"], _BASE["sd"], _BASE["n_days"]) < 1.0
+
+
+def test_the_threshold_is_derived_from_the_external_anchor():
+    """★ `SD_WORKS` 的门槛**由外部锚推导**，不是字面量。
+
+    推导链（每一环都不在本模块内定义）：
+        MDE = t_power × SE_年     ← `factor_attribution.power_floor`
+        可测 ⟺ 毛超额 > MDE ⟺ 夏普 > t_power/√年数
+
+    ⇒ 等价说法：**降幅达门槛 ⟺ sd 降到 `_SD_NEEDED`**。
+      这里从定义那一侧独立复算一次，与 `required_sd_drop` 对拍 ——
+      推导路径不同（第 5 种形状的正解：给断言换一条真值源）。
+    """
+    t_power = bw.T_POWER_TARGET
+    n_years = _BASE["n_days"] / bw.DAYS_PER_YEAR
+    sd_needed = _BASE["mean"] * math.sqrt(n_years) / t_power
+    got = bw.required_sd_drop(_BASE["mean"], _BASE["sd"], _BASE["n_days"])
+    assert abs(got - (1.0 - sd_needed / _BASE["sd"])) < 1e-15
+    # 关键换算：`夏普 = 毛超额/sd` ⟺ 可测 ⟺ `sd ≤ sd_needed`
+    # ⇒ 毛超额/sd_needed 必须恰好等于「可测所需的夏普门槛」t_power/√年数
+    assert abs(_BASE["mean"] / sd_needed - t_power / math.sqrt(n_years)) < 1e-12
+    # 预注册文档里手算的 33.0% —— 钉到 0.1pp，防止推导悄悄改口径
+    assert abs(got - 0.330) < 1e-3, f"推导门槛 {got:.4%} 与预注册的 33.0% 不符"
+    # 🚨 旧字面量 0.20 在真实基线**买不到可测性**：它只把夏普抬到 0.981，
+    #   而可测门槛是 t_power/√年数。正控：两条数都要在守卫里被算出来，
+    #   否则这条断言会变成「我又写了一句正确的话」而没人能验它对不对。
+    sharpe_at_020 = (_BASE["mean"] / _BASE["sd"]) / (1 - 0.20)
+    assert sharpe_at_020 < t_power / math.sqrt(n_years)
+
+
+def test_the_threshold_moves_with_the_sample_length_and_was_not_typed():
+    """★ 两件事合成一条守卫：门槛**依赖样本长度**，且**不含字面量**。
+
+    ① 行为层：样本翻倍 ⇒ 门槛下降（√年数）。
+       ⇒ 若有人把门槛写死，这一条立刻红。
+    ② 结构层：`decide` 的函数体里**不许出现**任何裸浮点比较常量。
+       用 AST 取 `Compare` 的比较子（第 13 种形状的解法：锚在语法位置上，
+       不锚在「这个串出现过」上 —— 否则能被注释满足）。
+    """
+    thr_now = bw.required_sd_drop(_BASE["mean"], _BASE["sd"], _BASE["n_days"])
+    thr_2x = bw.required_sd_drop(_BASE["mean"], _BASE["sd"], 2 * _BASE["n_days"])
+    assert thr_2x < thr_now, "样本翻倍门槛必须降（∝ 1/√年数）"
+    # ⚠️ 随样本长度按 √ 缩放的是**达标所需的 sd**，
+    #   而阈值形如 `1 − sd_needed/sd` ⇒ 按同一比例缩的是 `1 − 阈值`。
+    #   （第一版把关系写成 `阈值 ∝ 1/√n` —— 守卫当场红 0.255 ≠ 0。
+    #   这是「先写下我以为的性质再让代码确认它」的又一次，
+    #   好在它红的是**我写错的期望**，而不是守卫本身。）
+    sd_1x = _SD_NEEDED
+    sd_2x = (_BASE["mean"] * math.sqrt(2 * _BASE["n_days"] / bw.DAYS_PER_YEAR)
+             / bw.T_POWER_TARGET)
+    assert abs(sd_2x / sd_1x - math.sqrt(2)) < 1e-12, "所需 sd 必须 ∝ √天数"
+    assert abs((1 - thr_2x) / (1 - thr_now) - math.sqrt(2)) < 1e-12
+
+    fn = next(n for n in ast.walk(ast.parse(SCRIPT.read_text(encoding="utf-8")))
+              if isinstance(n, ast.FunctionDef) and n.name == "decide")
+    # ⚠️ 第一版写成「`decide` 里不许有任何浮点比较常量」⇒ 抓到 `bd < 0.10` 就红。
+    #   **那是过严**：0.10 是「降幅太小就当没动」的 NEUTRAL 下限，
+    #   是预注册里的**判断**，不是推导门槛。把它也逼成推导 ⇒ 人会去改一个本来
+    #   正确的判断。过严的守卫与恒真的一样有害。
+    # ⇒ 精确形式：**只有 0.10 以内的语义下限允许写死**；
+    #   任何 >0.10 的字面量都是**与推导门槛竞争的第二个门槛**，必须红。
+    #   （旧字面量 0.20 与新推导值 0.330 都落在这一侧。）
+    typed = [c.value for c in ast.walk(fn)
+             if isinstance(c, ast.Compare) for c in c.comparators
+             if isinstance(c, ast.Constant) and isinstance(c.value, float)]
+    assert all(v <= 0.10 for v in typed), (
+        f"decide 里出现了 >10%% 的字面量门槛 {typed} —— "
+        f"那是与推导门槛竞争的第二个判据")
+    # 正控：这条守卫本身没瞎（typed 非空 ⇒ 它真的扫到了那个下限）
+    assert typed, "AST 扫描没抓到任何字面量门槛 ⇒ 正控失效，别再相信上面的断言"
+
+    # 真正的「推导而非手打」在**语法位置**上：`threshold` 必须来自函数调用
+    assert any(isinstance(n, ast.Call)
+               and getattr(n.func, "id", None) == "required_sd_drop"
+               for n in ast.walk(fn)), (
+        "decide 里的 threshold 必须由 required_sd_drop(...) 算出")
+    assert any(isinstance(n, ast.Assign)
+               and any(getattr(t, "id", None) == "threshold" for t in n.targets)
+               and isinstance(n.value, ast.Call)
+               for n in ast.walk(fn)), "threshold 必须被赋成一次调用，而不是一个字面量"
+
+
+def test_the_threshold_boundary_is_exact_with_no_epsilon_slack():
+    """★ 容差必须被单独测一条（第 4 条纪律）。
+
+    `sd = sd_needed` ⇒ 降幅恰好等于推导门槛 ⇒ 应判 `SD_WORKS`；
+    `sd = sd_needed × (1+1e-12)` ⇒ 降幅短 **6.7e-13** ⇒ 应判 `SD_TRADEOFF`。
+    ⇒ 若有人把比较放宽成 `bd < threshold − 1e-9`，第二个用例会翻案。
+
+    🚨 **`bd < threshold` 与 `bd <= threshold` 在这里测不出来，这是已知且已证的。**
+    变异台 M5（`<` 改成 `<=`）打绿了，原因不是守卫漏了断言，而是：
+    `threshold = 0.33040780634529643` **不在 `drop = (S−sd)/S` 的浮点网格上**
+    —— 它恰好落在相邻网格点 `…964` 与 `…965` 之间。
+    ⇒ `bd == threshold` **在可达输入上不存在** ⇒ 两个写法行为完全相同
+    ⇒ M5 是**等价变异**，不是守卫有洞。（实测：sd 空间 ±2e6 个 ulp、
+      400 万个网格点、命中 0。）
+    ⇒ 这条守卫守的是**epsilon 松懈**（真能杀），不是**等号方向**（不可观察）。
+    下一个人不必再搜一遍这个边界。
+    """
+    at = _arms(A1_inv_total__sd=_SD_NEEDED)
+    just_over = _arms(A1_inv_total__sd=_SD_NEEDED * (1 + 1e-12))
+    assert bw.decide(at, _flat(0.34))[0] == "SD_WORKS", "恰好达标必须过"
+    assert bw.decide(just_over, _flat(0.34))[0] == "SD_TRADEOFF", (
+        "只差 6.7e-13 的降幅就翻案 ⇒ 判据被某个 epsilon 放宽过")
+
+
+def test_the_threshold_is_off_the_reachable_float_grid():
+    """★ 把上面那条「无法测」的结论**做成守卫**，免得它退化成一句抱怨。
+
+    断言的不是判决（判决在两种写法下相同），而是一个**关于浮点表示的事实**：
+    `threshold` 不在 `drop` 的网格上 ⇒ `bd == threshold` 不可达。
+
+    ⚠️ 它同时是一条**防空真**守卫：若哪天有人把门槛改写成某个
+    恰好落在网格上的数（例如取整到 0.33），本例会红 ——
+    那时 `<` 与 `<=` 就**变得可观察**了，必须补一条等号方向的断言。
+    """
+    thr = bw.required_sd_drop(_BASE["mean"], _BASE["sd"], _BASE["n_days"])
+    grid = set()
+    sd = _SD_NEEDED
+    for _ in range(20000):                     # ±2e4 个 ulp ≈ ±2.8e-13
+        sd = math.nextafter(sd, 0.0)
+        grid.add((_BASE["sd"] - sd) / _BASE["sd"])
+    sd = _SD_NEEDED
+    for _ in range(20000):
+        sd = math.nextafter(sd, 1.0)
+        grid.add((_BASE["sd"] - sd) / _BASE["sd"])
+    assert len(grid) > 10000, "扫描没扫到东西 ⇒ 本守卫恒真，别信它"
+    assert thr not in grid, (
+        "门槛现在**落在** drop 的浮点网格上 ⇒ `<` 与 `<=` 已变得可观察，"
+        "必须补一条等号方向的断言（本守卫的 docstring 前提已失效）")
 
 
 # ─────────────────── ④ 守卫自身的健康 ───────────────────
@@ -473,3 +703,154 @@ def test_a_window_before_2021_is_refused_rather_than_silently_measured():
     窗口不同 ⇒ 臂间不可比，而表格看上去完全正常。"""
     rc = bw.main(["--data-root", "/nonexistent-路径", "--start", "2019-01-01"])
     assert rc == 2
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ④ 输入契约（2026-10-15，真实崩溃逼出来的）
+# ═══════════════════════════════════════════════════════════════
+#  起因：`scripts/basket_weighting.py::_weighted_daily` 读了
+#  `leg["date"]`，而 `evaluate_weights` 的返回里**根本没有这一列**
+#  ⇒ 面板载入 320s + 六个年份全跑完，才在第一行加权处抛 `KeyError`。
+#  而那一列 `d` **零消费者** —— 既崩了，又没人用。
+#
+#  ★ 所以这一节测的不是「崩溃没了」（那是 5 分钟真跑的事），
+#  而是**契约**：消费方能读哪些列、从哪读、缺列时必须响。
+#  全部用**合成帧**，几十行，不碰面板。
+
+
+def _leg_frame(**over) -> pd.DataFrame:
+    """一份**完全符合权威清单**的合成逐行结果。
+
+    ⚠️ 列顺序与 `aplus.backtest.RESULT_COLUMNS` 一致，但这里**刻意重打一遍**：
+    合成帧必须是**从消费方的眼睛看过去的形状**，而不是同一份字面量 ——
+    否则「消费方和生产方同时改错」会一起通过（一致性测试的经典失效）。
+    真正把两边钉在一起的是下面那条「`_NEEDED_COLUMNS` 是派生的」。
+
+    ★🚨 **第一版这个夹具是错的，而且错得很有教育意义**：
+    我给 6 行各配了**不同的日期和不同的代码** ⇒ 每个「篮子」只有 1 只票。
+    于是 `_weighted_daily` 的 `held` 只含第一天那只，
+    后五天的 `idx` 恒为 0 ⇒ 产出 1 天序列，而**测试报的是
+    「days=1 ≠ 6」** —— 一个看起来像代码 bug 的失败。
+
+    真实面板是**每个日期几十上百只**。
+    ⇒ **不像真实数据的夹具，会让守卫去测一个不存在的场景**，
+    然后把「夹具错了」误报成「实现错了」。本仓已有同族事故：
+    `test_the_two_arms_measure_different_quantities` 栽在 `std(x−c) ≡ std(x)` 上。
+    ⇒ 判据：**造完夹具先问「它像不像面板里的一天」**，而不是「列齐不齐」。
+    """
+    dates = [f"2021-01-{d:02d}" for d in range(1, 5)]      # 4 个调仓/持有日
+    codes = ["000001.SZ", "000002.SZ", "600000.SH"]        # 每日 3 只
+    rows = [(d, c) for d in dates for c in codes]          # 12 行
+    base = {
+        "pred_date": [d for d, _ in rows],
+        "code": [c for _, c in rows],
+        "direction": ["up"] * len(rows),
+        "actual_pct": [0.01, -0.02, 0.03] * len(dates),
+        "result": [1, -1, 1] * len(dates),
+        "market_pct": [0.001] * len(rows),
+        "cost": [0.0002] * len(rows),
+    }
+    for k in list(over):                       # 覆盖成 None ⇒ 该列直接删掉
+        if over[k] is None:
+            base.pop(k, None)
+        else:
+            base[k] = over[k]
+    return pd.DataFrame(base)
+
+
+def test_the_needed_columns_are_derived_from_the_authoritative_list_not_retyped():
+    """★ 契约不许有第二个真相源。
+
+    两份字面量必然漂移 —— 那是第 17 种形状（同一个语义处理 N 次，
+    第 N+1 处几乎必然漏）。今天的 `KeyError: 'date'` 就是这么来的：
+    生产方那份清单只存在于**空路径那一行**里，从没被当成契约公布过。
+    """
+    from aplus.backtest import RESULT_COLUMNS
+    assert bw._NEEDED_COLUMNS == tuple(
+        c for c in RESULT_COLUMNS
+        if c in {"pred_date", "code", "actual_pct", "market_pct", "cost"}
+    ), "_NEEDED_COLUMNS 不再是从权威清单派生的 ⇒ 有人把它重打成了字面量"
+    assert set(bw._NEEDED_COLUMNS) <= set(RESULT_COLUMNS)
+
+
+def test_the_authoritative_list_has_no_date_column_and_that_is_deliberate():
+    """🚨 `date` **不在**权威清单里，而这是**刻意的**，不是遗漏。
+
+    `pred_date` 是信号日，成交日由 `entry_lag` 隔着 1 天推出；
+    谁拿 `pred_date` 顶替成交日，就是把两个不同的量当成同一个量
+    （第 7 种形状）。⇒ 必须有一条守卫把「不许加 date 列」钉住，
+    否则下一个人的「顺手补上」会重新制造今天的崩溃。
+    """
+    from aplus.backtest import RESULT_COLUMNS
+    assert "date" not in RESULT_COLUMNS, (
+        "权威清单里出现了 `date`。\n"
+        "⇒ 如果它是**成交日**，那它是第 7 种形状（与 pred_date 不可混比）；\n"
+        "  如果它是 pred_date 的别名，那它就是今天那个 KeyError 的同一个坑。"
+        "两种都不许靠加一列解决 —— 该做的是让调用方**显式声明**它要哪一个。"
+    )
+
+
+def test_a_frame_missing_the_cost_column_is_refused_rather_than_silently_uncosted():
+    """★ 这条直接钉**形状 6（假装能调）**的修法。
+
+    旧写法是 `if "cost" in leg.columns: net = net - leg["cost"]`。
+    `cost` 是权威清单里**恒在**的一列 ⇒ 那个 `if` 永远为真，
+    于是读代码的人以为「成本可以不带」，而：
+      带 ⇒ 恒扣一次；不带 ⇒ 恒不扣
+    **两条分支的净超额差一整个成本量级，而表格看上去完全正常。**
+
+    ⚠️ 这条守卫第一版写反了方向：我原本要断言「缺列会抛」，
+    而真正要防的是「不抛」。⇒ 判据是**它必须响**。
+    """
+    with pytest.raises(KeyError, match="缺列"):
+        bw._weighted_daily(_leg_frame(cost=None), "equal", {}, {}, 60, 21, 1)
+
+
+def test_a_missing_prediction_date_is_also_refused():
+    """不是只有 `cost` 值得守 —— `pred_date` 缺了会让 `dates` 变空，
+    而空 `dates` 走到最后是「样本不足，不构成测量」，
+    **那是一条看起来很正常的消息**，比抛异常更难认。"""
+    with pytest.raises(KeyError, match="pred_date"):
+        bw._weighted_daily(_leg_frame(pred_date=None), "equal", {}, {}, 60, 21, 1)
+
+
+def test_a_frame_carrying_an_extra_date_column_still_runs():
+    """★ 这条是**删死代码**的判据，不是**换列名**的判据。
+
+    `_weighted_daily` 第一版建了一个 `"d"` 列（读 `leg["date"]`），
+    而它**零消费者**。修法必须是**删掉它**：
+    如果改成 `leg["pred_date"]`，这帧照样能跑，测试照样绿 ——
+    **而那一列就成了一句「`d` 就是信号日」的假话**，
+    等哪天有人真的去读它，σ 窗口就会落在信号日而不是成交日上。
+    ⇒ 这条断言的是「额外多一列不影响」，因此**换列名的修法也通过**；
+    真正把删死代码钉住的是下面那条 AST 守卫。
+    """
+    s, meta = bw._weighted_daily(_leg_frame(date=["2021-01-05"] * 12),
+                                 "equal", {}, {}, 60, 21, 3)
+    assert meta["days"] == 4, f"应为 4 个持有日，实得 {meta['days']}"
+
+
+def test_the_function_never_reads_a_column_outside_the_declared_contract():
+    """★ AST 守卫：`_weighted_daily` 里每一个 `leg["…"]` 都在契约内。
+
+    这条把「重新引入 `leg["date"]`」变成**当场红**，
+    而不用等 5 分钟的真跑再崩一次。
+    ⚠️ 锚在**语法位置**上而不是「这个串在文件里出现过」——
+       否则它会被 docstring 里那段事故记录喂饱（第 13 种形状：
+       作者与断言者是同一个人，且在同一次编辑里）。
+    """
+    src = inspect.getsource(bw._weighted_daily)
+    tree = ast.parse(textwrap.dedent(src))
+    read = set()
+    for n in ast.walk(tree):
+        if (isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name)
+                and n.value.id == "leg" and isinstance(n.slice, ast.Constant)
+                and isinstance(n.slice.value, str)):
+            read.add(n.slice.value)
+    assert read, ("AST 一个 `leg[...]` 都没抓到 ⇒ 正控失效，"
+                  "别再相信上面那些断言")
+    assert read <= set(bw._NEEDED_COLUMNS), (
+        f"`_weighted_daily` 读了契约外的列 {sorted(read - set(bw._NEEDED_COLUMNS))}。"
+        f"\n⇒ 要么把它加进契约（并说清它是什么量），要么删掉。"
+        f"**不许**靠加一个 `if 列存在` 让它变成可选 —— 那是形状 6。"
+    )
