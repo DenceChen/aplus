@@ -72,7 +72,12 @@ def cost_drag(prev_codes, cur_codes, top_n: int,
 
 # 成交窗口闸门的拦截原因。**分原因**计数，不是单一桶：合成后只知道
 # 「少了 N 条」时，无法判断是闸门太严还是数据出了问题。
+#
+# 其中 `sell_extended` **不是**拦截——那笔成交了，只是延后到复牌首根可卖 bar。
+# 它照样必须被记录（持有期从 1 天变成 N 天是件大事），但不得计入
+# `unfillable_execution` 总数，否则那个数会虚报「有 N 笔没成交」。
 EXEC_GATE_REASONS = ("buy_unfillable", "sell_extended", "sell_void", "price_implausible")
+EXEC_UNFILLABLE_REASONS = ("buy_unfillable", "sell_void", "price_implausible")
 
 # `_raw_bars(full=True)` 的行序。`can_buy`/`can_sell` 的签名就是
 # (o, h, l, c, volume, amount, prev_close)，少一列就只能整体降级。
@@ -180,9 +185,16 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
     ## 已知缺口：ST 的 ±5% 价格笼子没接上
 
     `panel.price_limit(code)` 只吃代码前缀，**判不出 ST**，所以
-    `can_buy`/`can_sell` 里的涨跌停一律按 10%/20%/30% 算，一只封在 ±5%
-    的 ST 一字板会被当成「没封板」而漏放。`panel.py` 的注释写着
-    「`price_limit` 仍要认它」——**那句话不成立**。
+    `can_buy`/`can_sell` 的 `at_limit_up` / `at_limit_dn` 一律按
+    10%/20%/30% 算。`panel.py` 的注释写着「`price_limit` 仍要认它」——
+    **那句话不成立**。
+
+    缺口范围要说准，不要夸大：**一字板那一侧是好的**——`_limit_close_flags`
+    的 `on_band` 额外认了 ±5%，所以封在 ±5% 的一字 ST 板会被 `sealed`
+    拦下（买卖两端都拦）。真正漏的是「收盘在 ±5%、但盘中**有**价格发现」
+    的 bar：它既不是一字板，`at_limit_up`/`at_limit_dn` 又因为带宽算错而
+    不成立 → `can_buy`/`can_sell` 直接放行。真实场景就是一只主板票在
+    D+1 收盘封在 +5.00（ST 涨停价），回测照常记成「买进了」。
 
     修它要改 `aplus/panel.py`（ST 状态得进 `price_limit` 的签名），
     不在本文件的改动范围内。影响面有限：`filter_universe` 的
@@ -210,12 +222,15 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
         exit_i = entry + 1
         if entry < 0 or exit_i >= len(dates):
             continue                            # 卖价不存在 → 不成交，不拿更早的凑
+        extended = False
         if _direction_of(directions, code) == "up":
-            exit_i, blocked = _up_leg_exit(raw, buyable, sellable,
-                                           entry, exit_i, len(dates))
-            if blocked:
-                _note_exec(exec_stats, blocked, code)
+            exit_i, reason = _up_leg_exit(raw, buyable, sellable,
+                                          entry, exit_i, len(dates))
+            if reason:                       # 含 sell_extended：延后成交也要留痕
+                _note_exec(exec_stats, reason, code)
+            if exit_i < 0:                    # 真的没成交 → 不进观测
                 continue
+            extended = exit_i > entry + 1
         elif not _bars_tradable(raw, entry, exit_i):
             continue                            # 跌腿/旧路径：买入或卖出那根停牌 → 不成交
         entry_px, exit_px = float(closes[entry]), float(closes[exit_i])
@@ -224,7 +239,9 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
         # 再判断更危险。
         if entry_px <= 0 or exit_px <= 0:
             continue
-        if abs(exit_px / entry_px - 1.0) > MAX_PLAUSIBLE_RETURN:
+        plausible = (_hold_is_plausible(closes, entry, exit_i) if extended
+                     else abs(exit_px / entry_px - 1.0) <= MAX_PLAUSIBLE_RETURN)
+        if not plausible:
             _note_exec(exec_stats, "price_implausible", code)
             continue                            # ±40% 之外不存在合法单日收益
         rows.append({"code": code, "close": exit_px,
@@ -237,8 +254,8 @@ def _build_bar_cache(code: str, df: pd.DataFrame, events) -> tuple:
 
     ## 内存：为什么缓存的是**布尔标记**而不是 7 列 OHLC
 
-    实测全库 5460 个 parquet、共 **8,716,724 行**日线（`backtest.py` 的
-    adj_cache 覆盖全部时）。float64 每列每行 8 字节：
+    实测全库 5460 个 parquet、共 **8,716,724 行**日线（adj_cache 覆盖全部时）。
+    float64 每列每行 8 字节（十进制 MB）：
 
         2 列（volume/amount，既有）  8,716,724 × 2 × 8 = 139.47 MB
         7 列（full OHLC + prev）     8,716,724 × 7 × 8 = 488.14 MB
@@ -248,13 +265,19 @@ def _build_bar_cache(code: str, df: pd.DataFrame, events) -> tuple:
 
     348 MB 不算致命但也不该白付——这些列在整段回测里**只被读一次**
     （建缓存时算一遍标记），之后就再也不碰了。所以这里缓存的是
-    `buyable`/`sellable` 两个**布尔数组**：
+    `buyable`/`sellable` 两个**布尔数组**（各 1 字节/行）：
 
-        8,716,724 × 2 × 1 字节 = 16.64 MB
+        8,716,724 × 2 × 1 = 17.43 MB   → 省下 331.24 MB
 
-    即省下约 332 MB，代价只是「缓存里拿不回原始 OHLC」——而闸门本来
-    也只在建缓存时判一次。完整 7 列仍以 `full=True` 提供，供需要逐根
-    OHLC 的调用方使用（测试、`_bar_flags` 独立调用）。
+    代价只是「缓存里拿不回原始 OHLC」——而闸门本来也只在建缓存时判一次。
+    完整 7 列仍以 `full=True` 提供，供需要逐根 OHLC 的调用方使用
+    （测试、`_bar_flags` 的独立调用）。
+
+    另一条被考虑过并否决的路：只对「会被拦截的候选」按需回读原始 parquet。
+    否决理由是它把「建缓存时一次向量化」换成「每次 miss 一次磁盘 IO」，
+    而闸门开启后 `sell_extended` 的持有延长会让同一只股票在多个日期反复
+    被查——实测持有期均值 9.6 根、最长 731 根（≈34 个月），按需回读的
+    放大效应不可控。省 331 MB 换一次可预测的 17 MB，值。
 
     复权基准未知（`attach_factor` 把首段置 NaN）时 `_prev_reference`
     退回不复权前收，理由见该函数。
@@ -315,7 +338,7 @@ def _raw_bars(sorted_df: pd.DataFrame, full: bool = False) -> np.ndarray:
     逐根判定（少一列就只能整体降级成「只判停牌」）。
 
     内存取舍见 `_build_bar_cache`：全库 8,716,724 行时 full 矩阵比 2 行
-    多 **348.67 MB**（8,716,724 × 5 × 8），所以**不缓存它**，
+    多 **348.67 MB**（8,716,724 × 5 × 8，十进制），所以**不缓存它**，
     建完布尔标记就丢。
     """
     def col(name):
@@ -385,6 +408,27 @@ def _up_leg_exit(raw: np.ndarray, buyable, sellable, entry: int, exit_i: int,
         if sellable[j]:
             return j, "sell_extended"
     return -1, "sell_void"
+
+
+def _hold_is_plausible(closes: np.ndarray, entry: int, exit_i: int) -> bool:
+    """延长持有的**逐日相邻步**是否都落在 `MAX_PLAUSIBLE_RETURN` 内。
+
+    `MAX_PLAUSIBLE_RETURN` 判的是**单根 bar 的脏价格**（复牌跳空被源站
+    记成价格跳空这类）。把它原样套在延长持有的**总收益**上，就是把
+    「单日 ±40% 的上界」误当成「任意持有期 ±40% 的上界」——实测强制延长
+    均值 9.6 根、最长 731 根（≈34 个月），那么长的持有期里总收益越界是
+    **常态**，于是最惨的那批样本会被这道闸门重新扔掉，正是本项修复要
+    消灭的「亏损凭空蒸发」。
+
+    所以延长持有按逐日步判：脏 bar 照样拦得住（某一根自己跳 60% 就出局），
+    而 N 天累计跌 80% 只是 N 个各 −5% 的正常交易日，必须留下。
+    """
+    if exit_i - entry <= 1:
+        return True
+    seg = np.asarray(closes[entry:exit_i + 1], dtype=float)
+    if not np.all(np.isfinite(seg)) or np.any(seg <= 0):
+        return False
+    return bool(np.all(np.abs(seg[1:] / seg[:-1] - 1.0) <= MAX_PLAUSIBLE_RETURN))
 
 
 def _bar_suspended(raw: np.ndarray, i: int) -> bool:
@@ -558,10 +602,16 @@ def _attach_exec_attrs(result: pd.DataFrame, exec_stats: dict) -> pd.DataFrame:
     分原因计数是为了区分「闸门太严」和「数据出了问题」。
 
     注意 `price_implausible` 也在这里：那道闸门一直存在，但它拦掉的样本
-    此前是完全不可见的。
+    此前是完全不可见的。`sell_extended` 出现在 `by` 里但**不进**总数——
+    那笔是成交了、只是延后到复牌首根可卖 bar，不是「没成交」。
+
+    两个计数各回答一个问题：
+        unfillable_execution       有多少笔**没成交**（进不了统计）
+        unfillable_execution_by    每个原因各多少（含延后成交，供口径体检）
     """
     by = {reason: int(exec_stats.get(reason, 0)) for reason in EXEC_GATE_REASONS}
-    result.attrs["unfillable_execution"] = int(sum(by.values()))
+    result.attrs["unfillable_execution"] = int(
+        sum(by[reason] for reason in EXEC_UNFILLABLE_REASONS))
     result.attrs["unfillable_execution_by"] = by
     result.attrs["unfillable_execution_codes"] = len(exec_stats.get("codes") or {})
     return result

@@ -49,7 +49,8 @@ def is_st_name(name) -> bool:
 
 def filter_universe(cross_section: pd.DataFrame, as_of: str | None = None,
                     max_stale_days: int = 30, unfillable: dict | None = None,
-                    unknown_st: dict | None = None) -> pd.DataFrame:
+                    unknown_st: dict | None = None,
+                    stale: dict | None = None) -> pd.DataFrame:
     """剔 ST / 次新（≤60 交易日）/ 停牌无成交 / 数据过期（退市冻结）/ **买不进**。
 
     **ST 用两个独立信号取「或」剔除**：(isST == 1) 或 (名称带 ST/*ST 前缀)。
@@ -75,18 +76,61 @@ def filter_universe(cross_section: pd.DataFrame, as_of: str | None = None,
     这是**已知的接线缺口**，不得用 fail-closed 的形式伪装成已生效。
     补齐方式是给 `cross_rows_from_map` 的 COLUMNS 加上同一列。
 
-    max_stale_days：最新数据日距快照日的自然日上限——退市股最后一行停在摘牌日，
-    不剔除会以冻结动量霸榜且次日必 no_data（2026-10-10 全池回测实证）。
-    as_of 缺省时取 cross_section 里最新的 last_date 作基准（实时路径自然成立）。
+    ## 陈旧透传（2026-10-14 修复）
 
-    `unfillable` 传入一个 dict 时，被判为买不进的 code 会按日累加计数——
-    「剔除了多少」必须可见，否则这是一次静默的口径变更。
+    横截面 `panel.cross_section` 用 `searchsorted(side="right") - 1` 取「信号日 D
+    的最后一根 K 线」。该股在 D 当天没有 bar 时，这一行指向的是 **D 之前**
+    某天的价格——它的因子值（mom20 / vol20 / …）算到那一天，与同场其他股票
+    **不是同一个时点**。横截面排序的前提正是「所有成分都算到同一天」，
+    时点不齐的名次没有意义。此前这里只有 `max_stale_days=30`（**自然日**）
+    兜底，于是 30 个自然日（约 21 个交易日）的窗口里，停笔股一直带着
+    冻结的因子值在池子里，直到滞后超限才被剔除。
+
+    实测这个窗口**只放行噪声，从不放行真实交易**（2026-10-14，
+    `data/reports/*.parquet` 四个落盘产物，N = 33,760 条篮子记录）：
+
+    | 末根滞后 | 篮子记录 | 产出收益的 |
+    |---|---|---|
+    | lag = 0 | 33,682 | 33,682 |
+    | lag ∈ [1, 30] | **78** | **0**（全部 no_data，且无一有 D+1 bar） |
+
+    所以判据是：**`last_date` 必须等于横截面自身最新的 `last_date`**。
+    这不是「30 天太久」，是「时点不可比」——把 `max_stale_days` 调大
+    不构成豁免（`tests/test_stale_passthrough.py` 有专门一条钉住）。
+
+    **基准取横截面自身的最大值，不取 `as_of`**：`as_of` 可能不是交易日
+    （实盘 cron 在周末/节假日照常触发，2026-10-11 就是周日），拿它当基准
+    会让停一天的公司在周一被判成滞后 2 天，一个长假就能把整池清空——
+    fail-closed 在这条路径上等于平台直接不可用。取最大值则**必然有股票
+    存活**，且实盘（`build_cross_section`）与回测（`build_cross_sections`）
+    两条路径都经由面板给出同一列，判定天然一致。
+
+    **整列缺失/全不可解析时不做处理**（与 `buyable` 同一纪律）：把整池清空
+    比放过几天更糟，而「数据整体陈旧」由 `scripts/run_daily.py` 的
+    「数据截至 X，已陈旧 N 天」告警负责暴露。
+
+    ## 计数：剔除必须可见
+
+    `stale` 传入 dict 时，陈旧剔除按日累加。**未单独传入时自动落到
+    `unfillable`**——它们确实买不进（实测 78/78 条没有 D+1 bar），
+    语义一致；而 `unfillable` 是 `aplus/backtest.py`（本轮不得改动）
+    已经接到 `result.attrs["unfillable"]` 上的唯一通道。
     """
     df = cross_section
     if "last_date" in df.columns:
-        base = as_of or df["last_date"].max()
-        fresh = (pd.Timestamp(base) - pd.to_datetime(df["last_date"])).dt.days <= max_stale_days
-        df = df[fresh]
+        parsed = pd.to_datetime(df["last_date"], errors="coerce")
+        signal_day = parsed.max()
+        if pd.notna(signal_day):
+            base = as_of or signal_day
+            fresh = (pd.Timestamp(base) - parsed).dt.days <= max_stale_days
+            # 陈旧透传：该股在信号日没有自己的那一根 bar（lag > 0）一律剔除。
+            fresh &= parsed.eq(signal_day)
+            if stale is None:
+                stale = unfillable          # 未单独分账 → 计入 unfillable
+            if stale is not None:
+                for code in df.loc[~fresh, "code"]:
+                    stale[code] = stale.get(code, 0) + 1
+            df = df[fresh]
     mask = pd.Series(True, index=df.index)
     if "buyable" in df.columns:
         buyable = df["buyable"].fillna(False).astype(bool)

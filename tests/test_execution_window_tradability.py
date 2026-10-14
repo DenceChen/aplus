@@ -238,10 +238,12 @@ def test_held_until_resumption_really_reprices_at_the_resumption_bar():
     code = "600001.SH"
     df = _flat(code)
     df = _suspend_at(df, _EXIT)
-    df = _reopen_at(df, _ENTRY + 2, 7.0)     # 复牌 −30%
+    # 复牌 −8%：落在主板 ±10% 价格笼子**内**，所以是可成交的正常 bar。
+    # （−30% 会被 `can_sell` 判成「收在跌停价以下」，那是另一个问题。）
+    df = _reopen_at(df, _ENTRY + 2, 9.2)
     bars, _ = _run({code: df}, [code], directions="up")
     assert float(bars["close"].iloc[0]) / float(bars["prev_close"].iloc[0]) - 1.0 \
-        == pytest.approx(-0.30)
+        == pytest.approx(-0.08)
 
 
 def test_suspended_loss_no_longer_vanishes_from_the_basket():
@@ -249,21 +251,28 @@ def test_suspended_loss_no_longer_vanishes_from_the_basket():
 
     旧路径：停牌那行被 `continue` 掉 → `merge(how="left")` → `actual_pct=NaN`
     → `judge` 记 `no_data` → `rolling_stats` 的 `.mean()` 静默跳过。
-    篮子里一只股票亏 −30%，`avg_up_return` 却报 0.0。
+    篮子里一只股票亏 −8%，`avg_up_return` 却报 **0.0**。
     """
     held, halted = "600001.SH", "600002.SH"
     dm = {held: _flat(held)}
     df = _flat(halted)
     df = _suspend_at(df, _EXIT)
-    df = _reopen_at(df, _ENTRY + 2, 7.0)
+    df = _reopen_at(df, _ENTRY + 2, 9.2)
     dm[halted] = df
     bars, _ = _run(dm, [held, halted], directions="up")
     preds = pd.DataFrame({"code": [held, halted], "direction": ["up", "up"]})
     stats = rolling_stats(verify_predictions(preds, bars))
 
     assert stats["up_basket_n"] == 2, "停牌样本仍在被丢弃"
-    assert stats["avg_up_return"] == pytest.approx(-0.15), (
-        f"avg_up_return={stats['avg_up_return']:+.4%}：−30% 那笔没有进入篮子均值")
+    assert stats["avg_up_return"] == pytest.approx(-0.04), (
+        f"avg_up_return={stats['avg_up_return']:+.4%}：−8% 那笔没有进入篮子均值")
+
+    # 变异验证：旧算法把停牌那行 `continue` 掉，**确实**给出 0.0。
+    # 两者之差就是这条测试的鉴别力。
+    legacy = rolling_stats(verify_predictions(preds, bars[bars["code"] == held]))
+    assert legacy["up_basket_n"] == 1
+    assert legacy["avg_up_return"] == 0.0, (
+        "前提变了：这条测试已不再复现「亏损凭空蒸发」，测不出东西")
 
 
 def test_permanently_unfillable_exit_is_counted_and_visible():
@@ -328,6 +337,52 @@ def test_down_leg_suspension_keeps_the_existing_behaviour():
     assert bars.empty, "跌腿不应新增持有语义"
     assert stats["sell_extended"] == 0
     assert stats["sell_void"] == 0
+
+
+def test_long_hold_beyond_forty_percent_is_not_discarded_as_a_dirty_bar():
+    """延长持有跨过 ±40% **总**收益时必须保留 —— 逐步判，不是拿总收益判。
+
+    `MAX_PLAUSIBLE_RETURN` 判的是**单根 bar 的脏价格**。把它套在延长持有的
+    总收益上，等于把「单日 ±40%」误当成「任意持有期 ±40%」。而本函数让卖出
+    延到复牌后的第一根可交易 bar，中间可以夹着一串跌停板——每一步都合法，
+    累计却轻松越过 ±40%。真按总收益判，被扔掉的恰恰是**退市风险股**那批
+    最惨的样本，正是本项修复要消灭的「亏损凭空蒸发」。
+
+    构造：10.00 进场 → 停牌 1 天 → 连吃 6 个一字跌停 → 第 8 天恢复交易收 5.00。
+    总收益 −50%，逐步最大 −10%（一字跌停的真实幅度），没有一根是脏价格。
+    """
+    code = "600001.SH"
+    n = 15
+    df = _daily(code, [10.0] * n)
+    df = _suspend_at(df, _EXIT)                      # index 7 停牌
+    for i in range(8, 14):                           # 6 个一字跌停
+        df = _seal_at(df, i, code, up=False)
+    df = _reopen_at(df, 14, 5.0)                     # 恢复交易，但已腰斩
+
+    bars, stats = _run({code: df}, [code], directions="up")
+    assert stats["sell_extended"] == 1
+    assert stats["price_implausible"] == 0
+    assert len(bars) == 1, (
+        "逐步都合法的 −50% 延长持有被当成脏价格扔掉——最惨的样本又凭空消失了")
+    ret = float(bars["close"].iloc[0]) / float(bars["prev_close"].iloc[0]) - 1.0
+    assert ret < -0.40, f"样本没造出来：实际收益只有 {ret:.2%}"
+
+
+def test_a_single_dirty_bar_still_voids_an_extended_hold():
+    """逐日步判**不能**放松成「延长持有一律放行」：脏 bar 照样要拦。
+
+    复牌后第二天单根 −96%（复牌跳空被源站记成价格跳空，见
+    `tests/test_implausible_return.py` 的 600766.SH）——这一根不真实，
+    整笔成交不可信，作废并计数。
+    """
+    code = "600001.SH"
+    closes = [10.0] * 7 + [2.0] + [2.0] * 4
+    df = _daily(code, closes)
+    df = _suspend_at(df, _EXIT)                 # index 7 停牌
+    bars, stats = _run({code: df}, [code], directions="up")
+    assert bars.empty, "延长持有里的一根脏 bar 没被拦下"
+    assert stats["price_implausible"] == 1
+    assert stats["sell_extended"] == 1          # 延后确实发生了，只是作废
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -408,7 +463,7 @@ def test_bars_tradable_contract_is_unchanged_for_factor_ic():
     assert _bars_tradable(_raw_bars(df), _ENTRY, _EXIT) is True
     df2 = _suspend_at(_flat(code), _EXIT)
     assert _bars_tradable(_raw_bars(df2), _ENTRY, _EXIT) is False
-    assert _bars_tradable(np.zeros((2, 1)), 0, 0) is True  # 越界 → 既有行为
+    assert _bars_tradable(np.zeros((2, 0)), 0, 0) is True  # 越界 → 既有行为
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -528,10 +583,12 @@ def test_market_benchmark_stays_on_the_legacy_path():
 def _seed_and_run(tmp_path, execution_gate: bool):
     """6 只股票，drift 最高的三只在最后三根 K 线上封成**一字涨停**。
 
-    信号日取 `n_bars - 4`：其进场 bar（`n_bars - 3`）正好是封板那根，
-    而封板本身要等到信号日之后才生效——所以信号日它们**在池子里**
-    （`filter_universe` 只判信号日），进场时才被成交闸门拦下。
-    这正是「买得到 ≠ 买得进」最容易被违反的窗口。
+    信号日取索引 86：其进场 bar（87）正好是封板那根。封板本身发生在信号日
+    **之后**，所以信号日这三只**在池子里**（`filter_universe` 只判信号日），
+    进场时才被成交闸门拦下——这正是「买得到 ≠ 买得进」最容易被违反的窗口。
+
+    窗口起点取 `dates[60]`：`filter_universe` 要求 `listed_days > 60`，
+    从头跑会得到一个空池子（测不到任何东西）。
     """
     from aplus.store import LocalStore
 
@@ -552,9 +609,10 @@ def _seed_and_run(tmp_path, execution_gate: bool):
                 df = _seal_at(df, k, code, up=True)
         store.upsert_daily(code, df)
 
-    sections = build_cross_sections(store, "2026-01-01", "2026-01-31")
-    return evaluate_weights(sections, weights=None, top_n=3, bottom_n=3,
-                            execution_gate=execution_gate)
+    dates = store.read_daily("600001.SH")["date"].tolist()
+    sections = build_cross_sections(store, dates[60], dates[-1])
+    return evaluate_weights(sections, weights={"mom20": 1.0}, top_n=3, bottom_n=3,
+                            execution_gate=execution_gate), dates
 
 
 def test_evaluate_weights_wires_the_gate_into_the_up_leg(tmp_path):
@@ -562,23 +620,27 @@ def test_evaluate_weights_wires_the_gate_into_the_up_leg(tmp_path):
 
     断言的不是具体股票，而是**不变量**：闸门开着时，涨腿里不存在
     「收益率是涨停级别」的成交——那笔交易在现实中根本不存在。
-    """
-    dates = pd.bdate_range("2026-01-01", periods=90).strftime("%Y-%m-%d").tolist()
-    d = dates[86]                                       # 进场 bar = 87（封板）
 
-    on = _seed_and_run(tmp_path / "on", True)
-    off = _seed_and_run(tmp_path / "off", False)
+    注意比的是**有成交的行**（`actual_pct` 非空），不是行数：
+    `verify_predictions` 是 `merge(how="left")`，被闸门拦下的代码仍以
+    `no_data` 留在结果里（对「没买进」是正确的语义），但 `rolling_stats`
+    的 `.mean()` 会跳过它们——所以只有非空行才代表真实发生的交易。
+    """
+    on, dates = _seed_and_run(tmp_path / "on", True)
+    off, _ = _seed_and_run(tmp_path / "off", False)
+    d = dates[86]                                       # 进场 bar = 87（封板）
 
     assert on.attrs["unfillable_execution"] > 0, (
         "闸门开着却一次都没触发——`evaluate_weights` 没把 directions 传下去")
     assert on.attrs["unfillable_execution_by"]["buy_unfillable"] > 0
 
-    up_on = on[(on["direction"] == "up") & (on["pred_date"] == d)]
-    up_off = off[(off["direction"] == "up") & (off["pred_date"] == d)]
+    filled = lambda f: f[(f["direction"] == "up") & (f["pred_date"] == d)
+                         & f["actual_pct"].notna()]
+    up_on, up_off = filled(on), filled(off)
     assert len(up_off) >= 1, "前提变了：旧路径在这一天没有涨腿成交，测不出闸门"
     assert float(up_off["actual_pct"].max()) > 0.05, (
         "前提变了：旧路径在这一天没有涨停级别的买进，测不出闸门")
 
     assert len(up_on) < len(up_off), "闸门开着却没少任何一笔涨腿成交"
-    assert float(up_on["actual_pct"].max()) <= 0.05, (
+    assert not (up_on["actual_pct"] > 0.05).any(), (
         "闸门开着，仍有涨停级别的买进——买不进的那笔没被拦下")
