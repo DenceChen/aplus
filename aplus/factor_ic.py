@@ -377,7 +377,103 @@ def weight_sign_conflicts(reports_dir, weights: dict) -> dict:
             "report": path.name, "note": "；".join(parts)}
 
 
+def yearly_sign_consistency(reports_dir) -> dict:
+    """逐年 IC 符号与全段 IC 的一致率——**从报告算，不许手写**。
+
+    返回形如::
+
+        {"unknown": False, "agree": 63, "total": 63, "n_factors": 8,
+         "n_years": 8, "flips": [], "per_factor": {...}, "note": "..."}
+
+    ## 为什么这个函数存在
+
+    「逐年符号 N/N 一致」这句话是 `DEFAULT_WEIGHTS` 符号翻转的**全部说服力**，
+    而且它被直接印在概览页给用户看（`evolve.load_weights` 的 caveat）。
+    它此前是**手写的**，写成「8 因子 × 8 年逐年符号 32/32 一致」——
+    三处错：32/32 算术上不自洽（8×8 应为 64）、`turnratio` 实际只有 7 年、
+    真实数字是 **63/63**。信号本身没错（63/63 比 32/32 更强），但报出来的
+    是编的。
+
+    手写的证据数字必然与数据漂移。所以这里让它可算，散文反查它。
+
+    ## 缺记录的年份计入分母，不被抹掉
+
+    `turnratio` 缺 2019（需要累积成交量历史，年初无前值；其 `n_days=1630`
+    比其余因子的 1821 少 191 天，正好对上）。那是**事实**，必须留在分母里被
+    看见，而不是从表里删掉好凑一个整数。`missing` 字段把缺口显式报出。
+
+    ## 未知时必须沉默
+
+    与 `weight_sign_conflicts` 同一纪律：没有报告 / 报告坏掉 / 一个都没测到，
+    一律 `unknown=True` 且 `agree=total=None`。返回 `0/0` 会被读成
+    「查过了，零反号」——而实际是「根本没查」。
+    """
+    blank = {"unknown": True, "agree": None, "total": None,
+             "n_factors": None, "n_years": None, "flips": None,
+             "per_factor": None, "report": None, "note": ""}
+
+    path = _find_ic_report(reports_dir)
+    if path is None:
+        return {**blank,
+                "note": "没有可用的因子 IC 报告，本次未做逐年符号核对"
+                        "（不等于「逐年一致」）"}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        yearly = payload["yearly"]
+        factors = list(payload["factors"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return {**blank, "report": path.name,
+                "note": "因子 IC 报告结构异常，未做逐年符号核对"
+                        "（不等于「逐年一致」）"}
+
+    # 全段 IC 只认 `lag1_real`（非泄漏窗口）——`lag0_leaky` 是诊断口径，
+    # 用它定符号就是拿泄漏结果当证据。
+    full: dict[str, float] = {}
+    for row in payload.get("table", []):
+        if row.get("window") == "lag1_real" and row.get("factor") in factors:
+            val = row.get("all")
+            if val is not None and float(val) != 0.0:
+                full[row["factor"]] = float(val)
+
+    years = sorted({r["year"] for r in yearly})
+    if not years or not factors:
+        return {**blank, "report": path.name,
+                "note": "IC 报告里没有逐年记录，未做核对（不等于「逐年一致」）"}
+
+    per_factor: dict[str, dict] = {}
+    flips, agree, total = [], 0, 0
+    for f in factors:
+        by_year = {r["year"]: r.get("ic_mean") for r in yearly
+                   if r.get("factor") == f and r.get("ic_mean") is not None}
+        have = [y for y in years if y in by_year]
+        ref = full.get(f)
+        bad = [y for y in have
+               if ref is not None and (by_year[y] > 0) != (ref > 0)]
+        agree += len(have) - len(bad)
+        total += len(have)
+        flips.extend({"factor": f, "year": y} for y in bad)
+        per_factor[f] = {"full_ic": ref, "n_years": len(have),
+                         "missing": [y for y in years if y not in by_year],
+                         "flips": bad,
+                         "signs": "".join("+" if by_year[y] > 0 else "-"
+                                          for y in have)}
+
+    if total == 0:
+        return {**blank, "report": path.name,
+                "note": "逐年记录为空，未做核对（不等于「逐年一致」）"}
+
+    gaps = {f: d["missing"] for f, d in per_factor.items() if d["missing"]}
+    parts = [f"{agree}/{total} 个（因子×年）观测与该因子的全段 IC 同号"]
+    if gaps:
+        parts.append("缺记录的年份已计入分母：" + "、".join(
+            f"{f} 缺 {','.join(y)}" for f, y in gaps.items()))
+    return {"unknown": False, "agree": agree, "total": total,
+            "n_factors": len(factors), "n_years": len(years),
+            "flips": flips, "per_factor": per_factor,
+            "report": path.name, "note": "；".join(parts)}
+
+
 __all__ = ["FWD_WINDOWS", "TAIL_Q", "MIN_PAIRS", "MIN_OBS", "build_price_cache",
            "forward_returns", "rank_corr", "daily_ic", "daily_ic_ranked",
            "make_ranked_forward", "RankedForward", "ic_summary", "_rankdata",
-           "window_block", "weight_sign_conflicts"]
+           "window_block", "weight_sign_conflicts", "yearly_sign_consistency"]

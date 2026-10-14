@@ -191,6 +191,46 @@ def save_weights(reports_dir, weights: dict, evidence: dict,
     )
 
 
+def _yearly_evidence_sentence(reports_dir) -> str:
+    """「逐年符号 N/N 一致」这句证据——**从 IC 报告算**，不许手写。
+
+    ## 为什么它必须是算出来的
+
+    这句话是 `DEFAULT_WEIGHTS` 符号翻转的全部说服力，而且**直接显示在
+    概览页给用户看**。它此前是手写的常量「8 因子 × 8 年逐年符号 32/32 一致」，
+    三处错：32/32 算术上不自洽（8×8 应为 64）；`turnratio` 实际只有 7 年
+    （缺 2019，需要累积成交量历史）；真实数字是 **63/63**。信号本身没错，
+    但报出来的是编的——而这正是整条证据链唯一给用户看的部分。
+
+    手写的证据数字必然漂移。所以散文反查数据。
+
+    ## 查不到就不说那句
+
+    与 `weight_sign_conflicts` 同一纪律：`unknown=True` 时返回**空串**，
+    让这句话整句缺席。写「逐年一致性未知」比编一个数字诚实，但比
+    「符号已按实测 IC 校正」弱——后者仍然成立（`weight_sign_conflicts`
+    单独核实），只是这条**更强的**证据此刻不可用。
+    """
+    try:
+        from .factor_ic import yearly_sign_consistency
+        got = yearly_sign_consistency(reports_dir)
+    except Exception:                                   # noqa: BLE001
+        return ""
+    if got.get("unknown") or not got.get("total"):
+        return ""
+    gaps = {f: d["missing"] for f, d in (got.get("per_factor") or {}).items()
+            if d.get("missing")}
+    # 必须说清「哪个因子缺哪一年」。第一版这里只列了年份，
+    # 生成出「（2019 因子缺记录）」——读起来像「2019 这个因子」，
+    # 而实际是「turnratio 缺 2019 年」。缺口本身是事实，说错归属就变成了
+    # 一个关于因子的假陈述。
+    note = ("（" + "、".join(f"{f} 缺 {','.join(ys)} 年"
+                             for f, ys in gaps.items())
+            + "，已计入分母）") if gaps else ""
+    return (f"（{got['agree']}/{got['total']} 个（因子×年）观测与该因子的"
+            f"全段 IC 同号{note}；见 aplus/factor.py 的 DEFAULT_WEIGHTS 注释）")
+
+
 def load_weights(reports_dir):
     path = _weights_path(reports_dir)
     if not path.exists():
@@ -206,11 +246,10 @@ def load_weights(reports_dir):
                 "caveat_kind": "unraced",
                 "caveat": (
                     "回落默认权重，**未经赛马验证**。符号已按实测 IC 校正"
-                    "（2019–2026，8 因子 × 8 年逐年符号 32/32 一致；"
-                    "见 aplus/factor.py 的 DEFAULT_WEIGHTS 注释），"
-                    "但**幅度**沿用旧值未调，更没有任何样本外验收。"
+                    + _yearly_evidence_sentence(reports_dir) +
+                    "，但**幅度**沿用旧值未调，更没有任何样本外验收。"
                     "上一版默认权重 "
-                    "{mom20:+1.0,rev5:+0.3,vol20:+0.5,vsur:+0.5} 在 2026-10-14 的"
+                    "{mom20:+1.0,rev5:+0.3,vol20:+0.5,vsur:+0.5} 在 2026-10-14 的 "
                     "730 天赛马里排第 81/87 名、测试段超额 −0.74%、t=−3.03 —— "
                     "那个数字属于**旧配置**，不能算到这一版头上。"
                     "当前状态是「方向有证据、效果未验证」，"
