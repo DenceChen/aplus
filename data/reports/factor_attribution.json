@@ -1,0 +1,1489 @@
+{
+  "generated": "2026-10-15",
+  "prereg": "docs/TODO_factor_attribution_2026-10-15.md",
+  "model": "gross_excess_t ~ 1 + Σ β_i·expo_i,t",
+  "n_obs": 1394,
+  "n_factors": 8,
+  "bootstrap": {
+    "method": "wild (Rademacher)",
+    "B": 2000,
+    "seed": 20261015,
+    "why": "本仓无 scipy；不用任何硬编码临界值表"
+  },
+  "thresholds": {
+    "joint_p": 0.05,
+    "factor_p_bonferroni": 0.00625,
+    "require": "跨 5 档同号 + 跨子期同号"
+  },
+  "NOT_a_criterion": {
+    "r2": "R² 高是设计的必然结果（选股即按这几因子打分），**不进判决**",
+    "alpha": "截距显著为正 = 样本内过拟合残差，**不算能力**"
+  },
+  "power_floor": {
+    "k5": {
+      "n": 1394,
+      "daily_sd": 0.008423056816049969,
+      "daily_se": 0.00022559960934112426,
+      "annual_mean_pct": 0.09807359491181837,
+      "annual_sd_pct": 0.1315723535353952,
+      "annual_se_pct": 0.05504630467923432,
+      "annual_tilt_note": "均值×T、标准差×√T、SE×T —— 三者不同，把 sd 写成 ×T 会让 sd 与 SE 的比值失真 √T 倍",
+      "t_naive": 1.7816562888882834,
+      "MDE_annual_pct": 0.15421691350108557,
+      "detectable": false,
+      "days_needed_for_80pct_power": 3447,
+      "thresholds_from": "t_crit=1.95996（5%% 双尾）、t_power=2.80159（80%% 检出力）—— 均由 math.erf 二分反解，无查表、无手打字面量",
+      "caveat": "这是**按天**的口径。K 日调仓时真实独立观测只有 n/K，报告里的分块 t 才是诚实的那一个。"
+    },
+    "k10": {
+      "n": 1394,
+      "daily_sd": 0.008086303011074231,
+      "daily_se": 0.0002165801371345613,
+      "annual_mean_pct": 0.09932118957541053,
+      "annual_sd_pct": 0.12631209094305104,
+      "annual_se_pct": 0.05284555346083296,
+      "annual_tilt_note": "均值×T、标准差×√T、SE×T —— 三者不同，把 sd 写成 ×T 会让 sd 与 SE 的比值失真 √T 倍",
+      "t_naive": 1.8794616210997486,
+      "MDE_annual_pct": 0.1480513214188682,
+      "detectable": false,
+      "days_needed_for_80pct_power": 3098,
+      "thresholds_from": "t_crit=1.95996（5%% 双尾）、t_power=2.80159（80%% 检出力）—— 均由 math.erf 二分反解，无查表、无手打字面量",
+      "caveat": "这是**按天**的口径。K 日调仓时真实独立观测只有 n/K，报告里的分块 t 才是诚实的那一个。"
+    },
+    "k21": {
+      "n": 1394,
+      "daily_sd": 0.008419056023066253,
+      "daily_se": 0.000225492453785381,
+      "annual_mean_pct": 0.06522306463647867,
+      "annual_sd_pct": 0.13150985915118635,
+      "annual_se_pct": 0.055020158723632966,
+      "annual_tilt_note": "均值×T、标准差×√T、SE×T —— 三者不同，把 sd 写成 ×T 会让 sd 与 SE 的比值失真 √T 倍",
+      "t_naive": 1.1854394125632215,
+      "MDE_annual_pct": 0.15414366337835936,
+      "detectable": false,
+      "days_needed_for_80pct_power": 7786,
+      "thresholds_from": "t_crit=1.95996（5%% 双尾）、t_power=2.80159（80%% 检出力）—— 均由 math.erf 二分反解，无查表、无手打字面量",
+      "caveat": "这是**按天**的口径。K 日调仓时真实独立观测只有 n/K，报告里的分块 t 才是诚实的那一个。"
+    },
+    "k42": {
+      "n": 1394,
+      "daily_sd": 0.008200671450944119,
+      "daily_se": 0.00021964333330182876,
+      "annual_mean_pct": 0.005716774214504433,
+      "annual_sd_pct": 0.1280985830839065,
+      "annual_se_pct": 0.05359297332564622,
+      "annual_tilt_note": "均值×T、标准差×√T、SE×T —— 三者不同，把 sd 写成 ×T 会让 sd 与 SE 的比值失真 √T 倍",
+      "t_naive": 0.10667021924250554,
+      "MDE_annual_pct": 0.15014528186385304,
+      "detectable": false,
+      "days_needed_for_80pct_power": 961578,
+      "thresholds_from": "t_crit=1.95996（5%% 双尾）、t_power=2.80159（80%% 检出力）—— 均由 math.erf 二分反解，无查表、无手打字面量",
+      "caveat": "这是**按天**的口径。K 日调仓时真实独立观测只有 n/K，报告里的分块 t 才是诚实的那一个。"
+    },
+    "k63": {
+      "n": 1394,
+      "daily_sd": 0.009085057759988696,
+      "daily_se": 0.00024333036405376661,
+      "annual_mean_pct": 0.05635328893266261,
+      "annual_sd_pct": 0.1419131388510899,
+      "annual_se_pct": 0.05937260882911905,
+      "annual_tilt_note": "均值×T、标准差×√T、SE×T —— 三者不同，把 sd 写成 ×T 会让 sd 与 SE 的比值失真 √T 倍",
+      "t_naive": 0.9491462484805682,
+      "MDE_annual_pct": 0.16633742325646342,
+      "detectable": false,
+      "days_needed_for_80pct_power": 12146,
+      "thresholds_from": "t_crit=1.95996（5%% 双尾）、t_power=2.80159（80%% 检出力）—— 均由 math.erf 二分反解，无查表、无手打字面量",
+      "caveat": "这是**按天**的口径。K 日调仓时真实独立观测只有 n/K，报告里的分块 t 才是诚实的那一个。"
+    }
+  },
+  "arms_run": [
+    5,
+    10,
+    21,
+    42,
+    63
+  ],
+  "arms_missing": [],
+  "arms_missing_required": [],
+  "cross_consistency": {
+    "expo_ivol": {
+      "across_arms": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        "consistent": true,
+        "sign": -1
+      },
+      "across_subperiods": {
+        "signs": [
+          -1,
+          1,
+          -1,
+          -1,
+          1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_mom20": {
+      "across_arms": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ],
+        "consistent": true,
+        "sign": -1
+      },
+      "across_subperiods": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          1,
+          -1,
+          1,
+          -1,
+          -1,
+          -1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_rev5": {
+      "across_arms": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "across_subperiods": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          1,
+          -1,
+          -1,
+          1,
+          -1,
+          1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_rsi": {
+      "across_arms": {
+        "signs": [
+          1,
+          -1,
+          -1,
+          1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "across_subperiods": {
+        "signs": [
+          1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          1,
+          -1,
+          1,
+          -1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_turn20": {
+      "across_arms": {
+        "signs": [
+          -1,
+          -1,
+          1,
+          1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "across_subperiods": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_turnratio": {
+      "across_arms": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          1,
+          -1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "across_subperiods": {
+        "signs": [
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          1,
+          1,
+          -1,
+          -1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_vol20": {
+      "across_arms": {
+        "signs": [
+          1,
+          1,
+          -1,
+          1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "across_subperiods": {
+        "signs": [
+          1,
+          1,
+          1,
+          1,
+          -1,
+          1,
+          1,
+          1,
+          -1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    },
+    "expo_vsur": {
+      "across_arms": {
+        "signs": [
+          1,
+          1,
+          1,
+          -1,
+          -1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "across_subperiods": {
+        "signs": [
+          1,
+          -1,
+          -1,
+          1,
+          -1,
+          1,
+          -1,
+          1,
+          -1,
+          1
+        ],
+        "consistent": false,
+        "sign": null
+      },
+      "consistent": false,
+      "n_arms": 5,
+      "n_subperiods": 10
+    }
+  },
+  "results": {
+    "k5": {
+      "full": {
+        "label": "k5·全期",
+        "n": 1394,
+        "period": [
+          "2021-01-04",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.004055884220122985,
+          "t": -2.1040050438973497,
+          "boot_p": 0.0545
+        },
+        "joint_F": 1.6057567535296147,
+        "joint_p": 0.2925,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0013784853646960167,
+            "se": 0.0013631946592954625,
+            "t": -1.0112168172727853,
+            "boot_p": 0.4095,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0013995989069607092,
+            "se": 0.00114534528806884,
+            "t": -1.2219886191006772,
+            "boot_p": 0.2735,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.00025769918467099373,
+            "se": 0.0003591189857638487,
+            "t": -0.7175871922306354,
+            "boot_p": 0.4295,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": 0.0010384011839782766,
+            "se": 0.0008159048210902317,
+            "t": 1.2726989192081741,
+            "boot_p": 0.2285,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": -0.005070038136029355,
+            "se": 0.0024048251433072187,
+            "t": -2.10827724840602,
+            "boot_p": 0.053,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0016247479904319517,
+            "se": 0.0012952211323974268,
+            "t": -1.254417450265483,
+            "boot_p": 0.2785,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.00205940156905727,
+            "se": 0.0009071459167610147,
+            "t": 2.2701987971355373,
+            "boot_p": 0.0815,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.00031560289634391256,
+            "se": 0.0006006670683703015,
+            "t": 0.525420674717843,
+            "boot_p": 0.653,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_first": {
+        "label": "k5·前半",
+        "n": 727,
+        "period": [
+          "2021-01-04",
+          "2023-12-29"
+        ],
+        "alpha": {
+          "value": -0.006345627874349532,
+          "t": -2.532288479220438,
+          "boot_p": 0.0285
+        },
+        "joint_F": 2.200779703279744,
+        "joint_p": 0.1055,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0017531269735075131,
+            "se": 0.002098530866330622,
+            "t": -0.8354068084654558,
+            "boot_p": 0.4625,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0020064489636164823,
+            "se": 0.001393070478135283,
+            "t": -1.4403068582016374,
+            "boot_p": 0.1875,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.00022287015568660983,
+            "se": 0.0003717843339985432,
+            "t": -0.5994608575612633,
+            "boot_p": 0.5305,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": 0.0013158717131007622,
+            "se": 0.0010987747247664086,
+            "t": 1.1975809812885045,
+            "boot_p": 0.2425,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": -0.005090767762887791,
+            "se": 0.0031362751123517984,
+            "t": -1.6231891592795815,
+            "boot_p": 0.1495,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0037187597900345004,
+            "se": 0.0017618426039176344,
+            "t": -2.1107219122556486,
+            "boot_p": 0.1115,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0013653077359446135,
+            "se": 0.0017714797169296164,
+            "t": 0.7707159855665788,
+            "boot_p": 0.4425,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.0007056156371145349,
+            "se": 0.0006834663498612713,
+            "t": 1.0324072827546804,
+            "boot_p": 0.2565,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_second": {
+        "label": "k5·后半",
+        "n": 667,
+        "period": [
+          "2024-01-02",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.003760648639815844,
+          "t": -0.9758839257570232,
+          "boot_p": 0.3915
+        },
+        "joint_F": 0.8635985412121743,
+        "joint_p": 0.7115,
+        "factors": {
+          "expo_ivol": {
+            "beta": 0.00025085910245809553,
+            "se": 0.0024621938691856498,
+            "t": 0.10188438270340795,
+            "boot_p": 0.9425,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0009549961672344528,
+            "se": 0.0019723900833116814,
+            "t": -0.48418219870128104,
+            "boot_p": 0.6615,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.0006079852486029884,
+            "se": 0.0007885693915334183,
+            "t": -0.7709977779136548,
+            "boot_p": 0.4395,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -6.283965009042032e-05,
+            "se": 0.0013477755742630926,
+            "t": -0.04662471355795153,
+            "boot_p": 0.96,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": -0.008658908829968883,
+            "se": 0.004508476759426394,
+            "t": -1.9205841112221995,
+            "boot_p": 0.0645,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0009289461573189084,
+            "se": 0.002027294931213554,
+            "t": -0.458219543203235,
+            "boot_p": 0.6505,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0034440771532729176,
+            "se": 0.0014696703373193957,
+            "t": 2.3434351676136704,
+            "boot_p": 0.0525,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -0.00043756771327591867,
+            "se": 0.0010768565046546754,
+            "t": -0.40633799525242886,
+            "boot_p": 0.7685,
+            "passes_bonferroni": false
+          }
+        }
+      }
+    },
+    "k10": {
+      "full": {
+        "label": "k10·全期",
+        "n": 1394,
+        "period": [
+          "2021-01-04",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.0018953792657787796,
+          "t": -1.188721758205115,
+          "boot_p": 0.2875
+        },
+        "joint_F": 1.3532980154711873,
+        "joint_p": 0.4585,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.002014192750863872,
+            "se": 0.0011793020000660927,
+            "t": -1.7079533069145894,
+            "boot_p": 0.2145,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0002873494765542008,
+            "se": 0.0010002228298670107,
+            "t": -0.2872854607731826,
+            "boot_p": 0.802,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.00034525380657098384,
+            "se": 0.00035200351038797514,
+            "t": -0.9808248962927902,
+            "boot_p": 0.2745,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.00027525801988024227,
+            "se": 0.0007697548648615262,
+            "t": -0.35759178986125584,
+            "boot_p": 0.7295,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": -0.0010392010757875906,
+            "se": 0.0023673918081836436,
+            "t": -0.43896454832497994,
+            "boot_p": 0.7035,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0009715918451386076,
+            "se": 0.0010974544209348517,
+            "t": -0.8853140746482849,
+            "boot_p": 0.4155,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0018831881379730135,
+            "se": 0.000866947087330706,
+            "t": 2.1722065458126996,
+            "boot_p": 0.093,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.0003232495739385954,
+            "se": 0.0005692885622826763,
+            "t": 0.567813224004469,
+            "boot_p": 0.6745,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_first": {
+        "label": "k10·前半",
+        "n": 727,
+        "period": [
+          "2021-01-04",
+          "2023-12-29"
+        ],
+        "alpha": {
+          "value": -0.0017478042254906211,
+          "t": -0.8115837690452722,
+          "boot_p": 0.489
+        },
+        "joint_F": 0.7322167110459142,
+        "joint_p": 0.8245,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0011961787239519119,
+            "se": 0.002107474548238267,
+            "t": -0.5675886928038355,
+            "boot_p": 0.5975,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0004945056807039342,
+            "se": 0.0012724310559741468,
+            "t": -0.3886306282624884,
+            "boot_p": 0.728,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.0006557412954774726,
+            "se": 0.0003855462866271421,
+            "t": -1.7008108188878326,
+            "boot_p": 0.047,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.0003030575767886672,
+            "se": 0.0010036186192370277,
+            "t": -0.3019648808618736,
+            "boot_p": 0.781,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": -0.00025496729326434574,
+            "se": 0.0031459438732759095,
+            "t": -0.08104635795642635,
+            "boot_p": 0.9455,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0014161374588235953,
+            "se": 0.001506811527018417,
+            "t": -0.9398238820390219,
+            "boot_p": 0.489,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0004893380934818527,
+            "se": 0.0018459818296487646,
+            "t": 0.26508283322320625,
+            "boot_p": 0.792,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -9.157827232642605e-07,
+            "se": 0.0007179403314480397,
+            "t": -0.0012755694075818047,
+            "boot_p": 0.998,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_second": {
+        "label": "k10·后半",
+        "n": 667,
+        "period": [
+          "2024-01-02",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.004516760519649168,
+          "t": -1.5036318488948017,
+          "boot_p": 0.206
+        },
+        "joint_F": 1.256195316682703,
+        "joint_p": 0.502,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0025057012989768207,
+            "se": 0.0018220441666924713,
+            "t": -1.3752143580171174,
+            "boot_p": 0.3195,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": 0.00029981615183610993,
+            "se": 0.0017171029372717824,
+            "t": 0.17460581152605364,
+            "boot_p": 0.8665,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": 0.00013397097791174466,
+            "se": 0.0007130294096919165,
+            "t": 0.18788983468386025,
+            "boot_p": 0.872,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.001060208069399289,
+            "se": 0.0012620731856030078,
+            "t": -0.8400527651593601,
+            "boot_p": 0.373,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": -0.003568610467175709,
+            "se": 0.004176696011731684,
+            "t": -0.8544099108845944,
+            "boot_p": 0.414,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0022499130656256157,
+            "se": 0.0019688724577715355,
+            "t": -1.142741906284867,
+            "boot_p": 0.277,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.003496810300239089,
+            "se": 0.0013459924860624803,
+            "t": 2.5979419175425984,
+            "boot_p": 0.033,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.0007911153523771679,
+            "se": 0.00092846438578523,
+            "t": 0.8520686032648394,
+            "boot_p": 0.555,
+            "passes_bonferroni": false
+          }
+        }
+      }
+    },
+    "k21": {
+      "full": {
+        "label": "k21·全期",
+        "n": 1394,
+        "period": [
+          "2021-01-04",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.0008004567825698279,
+          "t": -0.7674196625189591,
+          "boot_p": 0.4955
+        },
+        "joint_F": 1.0330354728797642,
+        "joint_p": 0.674,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0015436582860700507,
+            "se": 0.0009630939195223006,
+            "t": -1.6028117868667606,
+            "boot_p": 0.254,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.00016726383377763934,
+            "se": 0.0006347137318280267,
+            "t": -0.26352641417715356,
+            "boot_p": 0.798,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.0003525563444079879,
+            "se": 0.0003964813213156922,
+            "t": -0.8892129980753122,
+            "boot_p": 0.4455,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.0009032400911885008,
+            "se": 0.0007324779088285906,
+            "t": -1.233129464113123,
+            "boot_p": 0.229,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.001619490270975223,
+            "se": 0.0022718688191637666,
+            "t": 0.7128449747249614,
+            "boot_p": 0.522,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0003782225154445354,
+            "se": 0.0011834972618516206,
+            "t": -0.31958038910271225,
+            "boot_p": 0.7725,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": -0.00021320299919581103,
+            "se": 0.0009299851251810273,
+            "t": -0.22925420355977175,
+            "boot_p": 0.838,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.0001647411464935696,
+            "se": 0.0005060966603200764,
+            "t": 0.3255132060926474,
+            "boot_p": 0.798,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_first": {
+        "label": "k21·前半",
+        "n": 727,
+        "period": [
+          "2021-01-04",
+          "2023-12-29"
+        ],
+        "alpha": {
+          "value": 0.0007719571946771149,
+          "t": 0.4297318131945098,
+          "boot_p": 0.722
+        },
+        "joint_F": 1.108235231852484,
+        "joint_p": 0.6235,
+        "factors": {
+          "expo_ivol": {
+            "beta": 0.0015573781819341872,
+            "se": 0.0018027507879205254,
+            "t": 0.8638898911427598,
+            "boot_p": 0.387,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0007285120475990825,
+            "se": 0.0008225471142732304,
+            "t": -0.8856782000174744,
+            "boot_p": 0.432,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.00013990109017468136,
+            "se": 0.00044257686082935677,
+            "t": -0.31610574920820966,
+            "boot_p": 0.814,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.0005478589281381674,
+            "se": 0.0009038234118058478,
+            "t": -0.6061570445973954,
+            "boot_p": 0.5795,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.005721520163483921,
+            "se": 0.004112204278312723,
+            "t": 1.3913511528740288,
+            "boot_p": 0.2405,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0011550950234348566,
+            "se": 0.0017045661874770816,
+            "t": -0.6776475046384124,
+            "boot_p": 0.545,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": -0.004618715438821581,
+            "se": 0.0022065413177266694,
+            "t": -2.093192364772983,
+            "boot_p": 0.0625,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -0.0007157444726889701,
+            "se": 0.0006366326284594729,
+            "t": -1.1242660848548283,
+            "boot_p": 0.2355,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_second": {
+        "label": "k21·后半",
+        "n": 667,
+        "period": [
+          "2024-01-02",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.002951823086639267,
+          "t": -1.7353419840433608,
+          "boot_p": 0.09
+        },
+        "joint_F": 1.2729711765780198,
+        "joint_p": 0.44,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0021993990055429297,
+            "se": 0.0014199728009913887,
+            "t": -1.5489022071460563,
+            "boot_p": 0.2355,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": 0.0009470443580188283,
+            "se": 0.0011624260924743032,
+            "t": 0.8147136098803321,
+            "boot_p": 0.3555,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.0008046154194050697,
+            "se": 0.0007887587258828114,
+            "t": -1.0201033510019313,
+            "boot_p": 0.365,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.002239804710529688,
+            "se": 0.0012970136250765633,
+            "t": -1.7268937405321947,
+            "boot_p": 0.052,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.00044856122296635186,
+            "se": 0.0034084879133255727,
+            "t": 0.13160123619998476,
+            "boot_p": 0.9055,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0022546050433023476,
+            "se": 0.0022261365975008948,
+            "t": -1.0127882744632166,
+            "boot_p": 0.3,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0016672454438495107,
+            "se": 0.001376838671703344,
+            "t": 1.210922875798435,
+            "boot_p": 0.1975,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.0010605240001459332,
+            "se": 0.0008231968557294774,
+            "t": 1.288299381569124,
+            "boot_p": 0.4355,
+            "passes_bonferroni": false
+          }
+        }
+      }
+    },
+    "k42": {
+      "full": {
+        "label": "k42·全期",
+        "n": 1394,
+        "period": [
+          "2021-01-04",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.0005907079704463772,
+          "t": -0.8026285912482651,
+          "boot_p": 0.4295
+        },
+        "joint_F": 0.8202194498548545,
+        "joint_p": 0.7595,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0015602582262330348,
+            "se": 0.0009649716408556793,
+            "t": -1.616895419692843,
+            "boot_p": 0.088,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.000641768675212584,
+            "se": 0.000652832311246603,
+            "t": -0.9830528669561519,
+            "boot_p": 0.3765,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": 0.0003445402802601464,
+            "se": 0.000498008903188556,
+            "t": 0.6918355837700689,
+            "boot_p": 0.6145,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": 0.000289723022339026,
+            "se": 0.0007206300784264981,
+            "t": 0.402041256689755,
+            "boot_p": 0.724,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.00041403546534132595,
+            "se": 0.002077172008592424,
+            "t": 0.1993265187613871,
+            "boot_p": 0.838,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": 0.0003235608815918699,
+            "se": 0.0009365502758768215,
+            "t": 0.3454815933815664,
+            "boot_p": 0.7685,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.00027583333221541925,
+            "se": 0.0009336180936914417,
+            "t": 0.29544557253041137,
+            "boot_p": 0.7545,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -0.00010766141390320716,
+            "se": 0.0004891792699973864,
+            "t": -0.22008580597412147,
+            "boot_p": 0.8295,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_first": {
+        "label": "k42·前半",
+        "n": 727,
+        "period": [
+          "2021-01-04",
+          "2023-12-29"
+        ],
+        "alpha": {
+          "value": 6.235828902036873e-05,
+          "t": 0.05084949102054771,
+          "boot_p": 0.951
+        },
+        "joint_F": 0.6551816132599464,
+        "joint_p": 0.888,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0009602364709899005,
+            "se": 0.001815489435317527,
+            "t": -0.5289132794220619,
+            "boot_p": 0.604,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0008799220270895835,
+            "se": 0.000846673753477925,
+            "t": -1.0392692858082384,
+            "boot_p": 0.4005,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": 0.0007327281103511573,
+            "se": 0.00055046233743578,
+            "t": 1.3311139755072552,
+            "boot_p": 0.302,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": 0.0011172396357287057,
+            "se": 0.000890710047773397,
+            "t": 1.2543247250006766,
+            "boot_p": 0.2725,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.0006080942842228646,
+            "se": 0.003996275891735296,
+            "t": 0.15216524101363102,
+            "boot_p": 0.8815,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": 0.0006449327702376435,
+            "se": 0.0015018084746391408,
+            "t": 0.42943742902543547,
+            "boot_p": 0.691,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 3.33041455967008e-05,
+            "se": 0.002175731499808713,
+            "t": 0.015307102737460413,
+            "boot_p": 0.9895,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -0.0004259843973945414,
+            "se": 0.0006455073455299991,
+            "t": -0.6599218434064192,
+            "boot_p": 0.4945,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_second": {
+        "label": "k42·后半",
+        "n": 667,
+        "period": [
+          "2024-01-02",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.0010754800224435112,
+          "t": -0.9780295943420478,
+          "boot_p": 0.359
+        },
+        "joint_F": 0.7220280676743321,
+        "joint_p": 0.755,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0019778645994805075,
+            "se": 0.0014463664063848935,
+            "t": -1.3674713341995144,
+            "boot_p": 0.092,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0004881482269319155,
+            "se": 0.0013661975362822428,
+            "t": -0.35730427992154495,
+            "boot_p": 0.7015,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": -0.0009261299837495399,
+            "se": 0.0011886942405464232,
+            "t": -0.7791153958345194,
+            "boot_p": 0.4215,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.0009897476346895535,
+            "se": 0.001281186351907875,
+            "t": -0.7725243351333502,
+            "boot_p": 0.48,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.00027860596096776935,
+            "se": 0.0028929881036848107,
+            "t": 0.09630387370515206,
+            "boot_p": 0.9275,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": 0.000349557031716327,
+            "se": 0.0015734002518469727,
+            "t": 0.22216663007775123,
+            "boot_p": 0.8395,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.000508084763726775,
+            "se": 0.0012430536900896571,
+            "t": 0.4087391942741657,
+            "boot_p": 0.6515,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 8.99355281260141e-05,
+            "se": 0.0008034474864601148,
+            "t": 0.11193703339873318,
+            "boot_p": 0.914,
+            "passes_bonferroni": false
+          }
+        }
+      }
+    },
+    "k63": {
+      "full": {
+        "label": "k63·全期",
+        "n": 1394,
+        "period": [
+          "2021-01-04",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": 0.0002208442233728217,
+          "t": 0.38229496411307506,
+          "boot_p": 0.762
+        },
+        "joint_F": 1.122954382471708,
+        "joint_p": 0.5485,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.002086091556165274,
+            "se": 0.001265722486802028,
+            "t": -1.6481429206776508,
+            "boot_p": 0.1365,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.001443293162638093,
+            "se": 0.0007633779515120258,
+            "t": -1.890666556165732,
+            "boot_p": 0.071,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": 0.00033440183747895864,
+            "se": 0.000644502112037219,
+            "t": 0.518852973843548,
+            "boot_p": 0.611,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": 0.001302883665270584,
+            "se": 0.0007601118837582719,
+            "t": 1.7140682748290281,
+            "boot_p": 0.13,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.0023586782811843036,
+            "se": 0.001829667852737018,
+            "t": 1.2891292141663493,
+            "boot_p": 0.225,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0005014241644842995,
+            "se": 0.000761521510110028,
+            "t": -0.6584504282903992,
+            "boot_p": 0.5215,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0006199424116433286,
+            "se": 0.000981675331809377,
+            "t": 0.6315147091459254,
+            "boot_p": 0.586,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -0.0001640272419697879,
+            "se": 0.0005056320171607358,
+            "t": -0.324400426402676,
+            "boot_p": 0.727,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_first": {
+        "label": "k63·前半",
+        "n": 727,
+        "period": [
+          "2021-01-04",
+          "2023-12-29"
+        ],
+        "alpha": {
+          "value": 0.002105552353099253,
+          "t": 2.058519161200084,
+          "boot_p": 0.0695
+        },
+        "joint_F": 1.7744510346026565,
+        "joint_p": 0.188,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0008433481979767968,
+            "se": 0.0022854667689514757,
+            "t": -0.3690047956215558,
+            "boot_p": 0.719,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": -0.0030540362111904015,
+            "se": 0.0010185441402193129,
+            "t": -2.9984328519457257,
+            "boot_p": 0.0065,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": 0.00039649781819779727,
+            "se": 0.0007958446090756332,
+            "t": 0.49821009488061513,
+            "boot_p": 0.591,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": 0.0021661353996153742,
+            "se": 0.0009053115234119204,
+            "t": 2.3926961533105042,
+            "boot_p": 0.0485,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.009110887370877164,
+            "se": 0.0037455039664091,
+            "t": 2.432486376355911,
+            "boot_p": 0.0235,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.00035298025503331497,
+            "se": 0.001051030095504283,
+            "t": -0.335842195711775,
+            "boot_p": 0.7635,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": -0.003076449114394293,
+            "se": 0.0022457576228948318,
+            "t": -1.369893653273536,
+            "boot_p": 0.213,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": -0.0007759170605918266,
+            "se": 0.0006029671766400804,
+            "t": -1.286831341161017,
+            "boot_p": 0.131,
+            "passes_bonferroni": false
+          }
+        }
+      },
+      "sub_second": {
+        "label": "k63·后半",
+        "n": 667,
+        "period": [
+          "2024-01-02",
+          "2026-10-08"
+        ],
+        "alpha": {
+          "value": -0.0005903553433191296,
+          "t": -0.7508834583990727,
+          "boot_p": 0.5335
+        },
+        "joint_F": 1.029779346224937,
+        "joint_p": 0.659,
+        "factors": {
+          "expo_ivol": {
+            "beta": -0.0015497929856978453,
+            "se": 0.0019184753608000947,
+            "t": -0.8078253270094168,
+            "boot_p": 0.477,
+            "passes_bonferroni": false
+          },
+          "expo_mom20": {
+            "beta": 0.00043632167694792755,
+            "se": 0.0013157307884155264,
+            "t": 0.3316192649663306,
+            "boot_p": 0.7505,
+            "passes_bonferroni": false
+          },
+          "expo_rev5": {
+            "beta": 0.0007048166478739503,
+            "se": 0.0011056235545366655,
+            "t": 0.6374833866209718,
+            "boot_p": 0.592,
+            "passes_bonferroni": false
+          },
+          "expo_rsi": {
+            "beta": -0.0009274336287152815,
+            "se": 0.0013908178016713247,
+            "t": -0.6668261130974874,
+            "boot_p": 0.588,
+            "passes_bonferroni": false
+          },
+          "expo_turn20": {
+            "beta": 0.0005608659517242835,
+            "se": 0.002410701076983298,
+            "t": 0.2326567806681945,
+            "boot_p": 0.826,
+            "passes_bonferroni": false
+          },
+          "expo_turnratio": {
+            "beta": -0.0015846548605188337,
+            "se": 0.0014119691114366458,
+            "t": -1.1223013645861446,
+            "boot_p": 0.282,
+            "passes_bonferroni": false
+          },
+          "expo_vol20": {
+            "beta": 0.0016771294759730458,
+            "se": 0.0013653613383846294,
+            "t": 1.2283411202760963,
+            "boot_p": 0.3185,
+            "passes_bonferroni": false
+          },
+          "expo_vsur": {
+            "beta": 0.001270055788572494,
+            "se": 0.0008987856471575694,
+            "t": 1.413079739968117,
+            "boot_p": 0.1825,
+            "passes_bonferroni": false
+          }
+        }
+      }
+    }
+  },
+  "verdict": "NO_LEVER",
+  "verdict_branch": "联合不显著：8 个因子解释不掉逐日毛超额",
+  "verdict_also_true": [
+    "NO_SINGLE_FACTOR"
+  ],
+  "verdict_branch_order": [
+    "NO_LEVER",
+    "NO_SINGLE_FACTOR",
+    "OVERFIT",
+    "CANDIDATE"
+  ],
+  "limitations": [
+    "全样本内：权重用这 6 年拟合的，β 量级必然偏乐观；只有符号一致性有参考价值",
+    "样本期单一市场环境，实现溢价不等于未来实现溢价",
+    "本实验不构成任何前瞻证据；候选杠杆须另走注册即冻结流程"
+  ]
+}

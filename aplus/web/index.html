@@ -580,6 +580,30 @@ const fmtPct = (v, d = 1) => v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100)
 const fmtNum = (v, d = 1) => v == null ? '—' : (v * 100).toFixed(d) + '%';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* 把后端的 `YYYY-MM-DD` 解析成**本地日历日**。
+   ⚠️ 不能写 `new Date(s)`：日期串按 ISO 规则解析成 **UTC 零点**，
+   而 `getDay()` / `getFullYear()` 读的是**本地**时间 —— 于是在 UTC 以西的
+   浏览器上 `'2026-10-14'` 落成 10月13日（周二），「下一交易日」整个错一天，
+   而且落在错误的星期几上。实测三时区：Asia/Shanghai 与 Pacific/Kiritimati
+   得 14 日，America/Los_Angeles 得 13 日 ⇒ 三个数自己构造，不经过 UTC。 */
+function parseTradingDay(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s ?? ''));
+  if (!m) return null;
+  const [y, mo, dd] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])];
+  const d = new Date(y, mo, dd);
+  // ⚠️ `new Date(2026, 1, 30)` 会**悄悄滚到 3月2日** —— 那是另一个日子，
+  //    不是本月三十。不回查三段就会把它当成一个真实存在的日历日用下去。
+  if (d.getFullYear() !== y || d.getMonth() !== mo || d.getDate() !== dd) return null;
+  return d;
+}
+
+/* 某个时刻所在**本地日历日**的中点（00:00），供「只比日期、不比时刻」用。
+   ⚠️ 直接比 `new Date()` 会在每天 00:00–01:00 之间假红：
+   那段时间里任何时刻都大于当天 00:00，「今天跑的」会被判成「昨天跑的」。 */
+function localMidnight(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
 /* 「明日预测」在周六周日是错的——明天的明天才是交易日。
    预测是对次一交易日说的，标题必须跟着走，否则用户会以为是明天。 */
 function nextTradingDayLabel(from = new Date()) {
@@ -840,7 +864,17 @@ async function loadOverview() {
     ]);
     state.predictions = pred;
     $('universe-sub').textContent = `股票池 ${status.universe_size} 只`;
-    $('pred-title').textContent = nextTradingDayLabel() + '预测';
+    /* ★ 基准必须是 `pred.date`，**不是运行当天**。
+       榜单是 pred.date 收盘后生成的，说的是 **pred.date 的下一个交易日**；
+       而 `nextTradingDayLabel()` 的默认参数是浏览器当天 —— 那是另一口钟。
+       两者只在「当天流水线已经跑完」时才相等；早上打开、当天还没跑时
+       后者比前者晚一个交易日，于是标题写「10月16日预测」而榜单说的是 10月15日，
+       且**页面上两行自相矛盾**：副标题老老实实写着「2026-10-14 收盘后生成」。
+       实测（冻结今天＝2026-10-15）：当天基准给 10月16日，pred.date 基准给 10月15日。
+       ⚠️ 判不出来时不许退回当天基准 —— 那正是这个缺陷本身。
+          宁可写「预测日期未知」，也不许显示一个编出来的日子。 */
+    const boardDay = parseTradingDay(pred.date);
+    $('pred-title').textContent = boardDay ? nextTradingDayLabel(boardDay) + '预测' : '预测日期未知';
     $('pred-sub').textContent = `${pred.date} 收盘后生成`;
     renderHeroes(pred.up[0], pred.down[0]);
     renderRows($('pred-rows-up'), pred.up.slice(1), 'up');
@@ -936,9 +970,27 @@ async function loadRunDot() {
   try {
     const s = await jget('/api/run-status');
     const dot = $('run-dot'), txt = $('run-text');
-    if (s.status === 'never_run') { dot.className = 'run-dot bad'; txt.textContent = '尚未运行'; }
-    else if (s.status === 'ok') { dot.className = 'run-dot ok'; txt.textContent = `今日已跑 · ${s.updated_at?.slice(11) ?? ''}`; }
-    else { dot.className = 'run-dot warn'; txt.textContent = `部分完成 · ${Object.entries(s.steps).filter(([,v]) => v !== 'ok').map(([k]) => k).join('/')}`; }
+    const hm = s.updated_at?.slice(11) ?? '';
+    if (s.status === 'never_run') { dot.className = 'run-dot bad'; txt.textContent = '尚未运行'; return; }
+    /* ★ 缺陷修复：`status` 只说「这一次跑成没跑成」，**从不说「跑的是哪天」**。
+       旧代码只按 status 分支，`s.date` 一次都没被读过 ⇒ 昨天那次
+       `status:'ok'` 的 run，今天早上照样顶着**绿点**显示「今日已跑 · 20:00:17」。
+       「今日」是一个关于**时间**的断言，却由一个关于**结果**的字段撑着 ——
+       与 E1/E3 同族：界面说的与事实不符，而界面上没有任何报警。
+       实测：`data/reports/run_status.json` 的 date 是 2026-10-14、
+       status 是 ok、updated_at 是 2026-10-14 20:00:17 —— 今天 2026-10-15 打开，
+       旧代码输出「今日已跑」。
+       ⇒ 必须比日期。⚠️ 判不出来（date 缺失/格式非法）时**也不许**落进
+          「今日」分支：那是把「不知道」渲染成「是」，与原缺陷同一种撒谎。 */
+    const runDay = parseTradingDay(s.date);
+    const age = runDay == null ? null
+      : Math.round((localMidnight(new Date()) - localMidnight(runDay)) / 864e5);
+    if (s.status === 'ok' && age === 0) { dot.className = 'run-dot ok';   txt.textContent = `今日已跑 · ${hm}`; return; }
+    if (s.status === 'ok' && age > 0)  { dot.className = 'run-dot warn'; txt.textContent = `今日未跑 · 上次 ${s.date}（${age} 天前）`; return; }
+    if (s.status === 'ok')             { dot.className = 'run-dot warn'; txt.textContent = `运行日期${age == null ? '未知' : '异常'} · ${s.date ?? ''}`; return; }
+    const bad = Object.entries(s.steps).filter(([, v]) => v !== 'ok').map(([k]) => k).join('/');
+    dot.className = 'run-dot warn';
+    txt.textContent = `部分完成 · ${s.date ?? '日期未知'}${bad ? ' · ' + bad : ''}`;
   } catch { $('run-text').textContent = '状态未知'; }
 }
 
@@ -982,7 +1034,11 @@ function renderRows(tbody, rows, dir) {
 
 function renderAlloc(a) {
   const equity = (a.positions || []).reduce((s, p) => s + p.weight, 0);
-  $('alloc-date').textContent = `生成于 ${a.date ?? ''}`;
+  // ⚠️ 不再用 `a.date ?? ''`：空串渲染出来是「生成于 」——尾巴上什么都没有，
+  //   而那与「这一栏还没加载」在页面上**长得一模一样**。
+  //   判不出来就说判不出来；后端已经在 /api/allocation/latest 补上 date，
+  //   这里的 `未知` 是第二道闸，不是对后端的替代。
+  $('alloc-date').textContent = a.date ? `生成于 ${a.date}` : '生成日期未知';
   $('alloc-body').innerHTML = `
     <div class="alloc-bar"><div class="equity" style="width:${equity * 100}%"></div><div class="cash" style="width:${(1 - equity) * 100}%"></div></div>
     <div class="alloc-legend">
@@ -1287,7 +1343,7 @@ function renderVerdict(s) {
 
      产品承诺是每天「10 涨 10 跌」。涨腿那一半有超额闸、有符号核对横幅，
      跌腿那一半此前**既没有闸、也没有任何展示**——而实测现任权重的
-     `avg_down_return = +0.126%/日`：它推的「10 只��跌」平均每天在涨。
+     `avg_down_return = +0.126%/日`：它推的「10 只会跌」平均每天在涨。
 
      半年下来用户每天收到 10 只「会跌」的股票，判决板一个字都没说。
      这不是统计问题，是承诺没兑现还没人喊。
@@ -1444,7 +1500,7 @@ async function loadEvolution() {
        而且**不能**硬编码「尚未被证伪」——2026-10-11 21:42 的真浏览器截图里，
        同一屏上方写着「现任健康度：已被证伪」（红），下方却写着
        「尚未被证伪，也尚未被证实」。同一组权重，两个相反的结论。
-       ���论必须去问健康度那一栏，不能自己编。 */
+       结论必须去问健康度那一栏，不能自己编。 */
     const falsified = evoSummary?.champion_falsified;
     const health = evoSummary?.champion_health;
     /* 用 innerHTML 不是 textContent：要显示红色的「已被证伪」四个字，

@@ -117,8 +117,14 @@ def _platform_context(reports_dir: Path) -> str:
     stats = _stats_with_compounded(load_verification_history(reports_dir))
     hist = load_verification_history(reports_dir)
     if len(hist):
+        # ★ 样本量必须同时给出「条目数」与「独立成交窗口数」。
+        #   周末/节假日出单会让多个信号日落进同一个窗口
+        #   （实测 3 个信号日 → 1 笔交易 = 80 条判定只有 2 次独立观测）。
+        #   只报「80 条」会把一次交易数三遍，读起来像样本量很大。
+        win = stats.get("n_independent_windows")
+        win_txt = f"，其中 {win} 次独立成交" if win else "（独立成交次数未知）"
         parts.append(
-            f"累计 {len(hist)} 条判定：总命中率 {stats['overall_hit_rate']:.1%}，"
+            f"累计 {len(hist)} 条判定{win_txt}：总命中率 {stats['overall_hit_rate']:.1%}，"
             f"涨方向命中 {stats['hit_rate_up']:.1%}，涨组合超额收益 {stats['up_excess_vs_market']:+.2%}"
         )
         # 跌腿以前完全不报——平台天天输出 10 跌，能不能看空却从没被测量过。
@@ -266,7 +272,27 @@ def create_app(data_root, llm=None) -> FastAPI:
         alloc = load_allocation(reports_dir, lp) if lp else None
         if alloc is None:
             raise HTTPException(404, "尚无配置方案")
-        return alloc
+        # ★ 优先用**产物内容里的** date（`save_allocation` 现在会写进去）。
+        #
+        # 历史：alloc_*.json 里**没有** date 字段 —— 实测扫遍 6 个文件的每一层：
+        #   顶层键只有 capital / cash_weight / positions / rebalance / risk_notes，
+        #   rebalance 元素只有 {code, action}。根因是写盘那一步
+        #   `save_allocation(reports_dir, today, plan.to_dict())`（scripts/run_daily.py:579）
+        #   把 date **只拿去拼文件名**，从不写进内容
+        #   ⇒ 产物的身份被劈成两路：文件名有、内容没有。
+        #   于是前端 `a.date ?? ''` 渲染成「生成于 」—— 一个不报错、不留痕、
+        #   控制台干净的空值（E3：界面说的与事实不符，且没有任何报警）。
+        # 根因已修（`aplus/reports.py:save_allocation` 用 setdefault 写进内容），
+        # 新跑出的文件都有 `date`。下面这行只是**旧文件**的过渡回退。
+        #
+        # ⚠️ 回退值 `lp` 不是编的：它就是 `load_allocation` 刚刚用的文件名日期分量
+        #    （`_alloc_path` → `alloc_{lp}.json`），构造上不会与内容分叉。
+        # 🚨 但**内容有 date 而它 ≠ lp 时，必须以内容为准并让守卫抓到** ——
+        #    那种分叉意味着写盘路径上有人绕过了 `save_allocation`。
+        #    这里 `content_date or lp` 恰好做到：非空即用内容。
+        # ⚠️ 用 `{**alloc, ...}` 而不是就地改 alloc：不让响应组装去污染
+        #    读出来的数据结构，也保证键顺序稳定（守卫逐键比对）。
+        return {**alloc, "date": alloc.get("date") or lp}
 
     @app.post("/api/chat")
     def chat(body: ChatIn):
@@ -617,8 +643,9 @@ def create_app(data_root, llm=None) -> FastAPI:
                     rows = json.loads(path.read_text(encoding="utf-8")).get("table") or []
                 except (json.JSONDecodeError, OSError, AttributeError):
                     continue
+                exact, by_weight = None, None
                 for r in rows:
-                    # **按三元组匹配，不��按权重**（2026-10-11 22:30，第 20 号缺陷的第三个副本）。
+                    # **按三元组匹配，不只按权重**（2026-10-11 22:30，第 20 号缺陷的第三个副本）。
                     # 复合候选池里同一组权重会出现 6 次（K=1/5/21/63 × 有无缓冲），
                     # 只按权重匹配会返回**表里第一个**匹配行——实测就是 K=63 那行，
                     # 于是判决板拿季频的成绩去描述一个日频策略，
@@ -626,19 +653,44 @@ def create_app(data_root, llm=None) -> FastAPI:
                     got = candidate_key({"weights": r.get("weights") or {},
                                          "rebalance_every": r.get("rebalance_every", 1),
                                          "buffer_multiple": r.get("buffer_multiple")})
-                    if got != want:
-                        continue
-                    st = (r.get("test_stats")
-                          or ((r.get("test") or {}).get("stats"))
-                          or {})
-                    t = st.get("excess_t")
-                    verdict = "inconclusive"
-                    if t is not None and abs(t) >= 1.96:
-                        verdict = "significantly_positive" if t > 0 else "significantly_negative"
-                    return {"live_oos_excess": st.get("up_excess_vs_market"),
-                            "live_oos_t": t,
-                            "live_oos_hit": st.get("overall_hit_rate"),
-                            "live_oos_verdict": verdict}
+                    if got == want:
+                        exact = r
+                        break
+                    if got[0] == want[0] and by_weight is None:
+                        by_weight = (r, got)
+                # ⚠️ 权重对得上、**执行参数对不上**（2026-10-15）。
+                #
+                # 实盘换仓周期改成 `LIVE_REBALANCE_EVERY=21` 之后，赛马表里
+                # 所有行仍是 K=1 ⇒ 三元组一个都匹配不上。若就此返回 `unknown`，
+                # 就把「现任样本外显著为负 t=−2.83」**又一次结构性地藏起来** ——
+                # 那正是 `tests/test_live_health.py` 记录的 2026-10-11 事故本身。
+                #
+                # ⇒ 报出那一行，但**明说它不是线上这个配置的判决**。
+                # 拿 K=1 的成绩冒充 K=21 是撒谎；
+                # 什么都不报、让最该被看见的警告消失，同样是撒谎。
+                picked = exact or (by_weight[0] if by_weight else None)
+                if picked is None:
+                    continue
+                st = (picked.get("test_stats")
+                      or ((picked.get("test") or {}).get("stats")) or {})
+                t = st.get("excess_t")
+                base = {"live_oos_excess": st.get("up_excess_vs_market"),
+                        "live_oos_t": t,
+                        "live_oos_hit": st.get("overall_hit_rate")}
+                if exact is None:
+                    got = candidate_key({"weights": picked.get("weights") or {},
+                                         "rebalance_every": picked.get("rebalance_every", 1),
+                                         "buffer_multiple": picked.get("buffer_multiple")})
+                    return {**base, "live_oos_verdict": "mismatched_execution",
+                            "live_oos_note": (
+                                f"赛马表里只有 K={got[1]}×缓冲={got[2]} 这一行权重相同，"
+                                f"线上跑的是 K={want[1]}×缓冲={want[2]}"
+                                " ⇒ 该 t 值**不适用于**线上配置；"
+                                "线上这个配置从未被赛马测过")}
+                verdict = "inconclusive"
+                if t is not None and abs(t) >= 1.96:
+                    verdict = "significantly_positive" if t > 0 else "significantly_negative"
+                return {**base, "live_oos_verdict": verdict}
         except (TypeError, ValueError):
             return blank
         return blank

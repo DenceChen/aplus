@@ -173,7 +173,7 @@ def test_scan_puts_known_bad_ahead_of_unknown(repo):
 
     用真仓库做 root，而不是 tmp 目录——否则 stamp 记的是当前 HEAD，
     而 HEAD 之后没有新提交，造不出 stale，测试会**因为自己的错误**
-    报「排序错���」，把真 bug 藏在噪音里。
+    报「排序错〔此字已损，MISTAKE_LOG 第 92 层，待人工确认〕」，把真 bug 藏在噪音里。
     """
     d = repo["root"] / "reports"
     for n in ("backtest_summary.json", "zzz_unknown.json", "mmm_unknown.json"):

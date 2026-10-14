@@ -195,7 +195,7 @@ def rolling_stats(history: pd.DataFrame) -> dict:
 
     **偏度用于披露市场暴露。** `E[r_up] + E[r_down] − 2 E[r_mkt] ≠ 0` 说明排序
     两端**合起来**就偏离了市场，即名单整体含有 beta / 市值等系统性暴露。
-    纯 beta 排序正是如此——这不是 bug，是用户按名单建仓时必须知情���风险。
+    纯 beta 排序正是如此——这不是 bug，是用户按名单建仓时必须知情的风险。
 
     注意：这两个数**不能**区分「单因子」与「真本事」——纯单因子排序同样有正的
     多空价差。
@@ -245,6 +245,28 @@ def rolling_stats(history: pd.DataFrame) -> dict:
     up_excess = avg_up - market
     down_excess = market - avg_down          # 正 = 回避有效（挑出的确实跑输市场）
 
+    # ── ★ 独立成交窗口数：样本量的真正分母（2026-10-14）────────────
+    # 周末/节假日出单会让**多个信号日落到同一个成交窗口**：
+    #     2026-10-09 ┐
+    #     2026-10-10 ├─ 全部量在 2026-10-12→2026-10-13 这一笔
+    #     2026-10-11 ┘
+    # 这不是 bug（周末没有交易，名单只能等到下一个交易日），
+    # 但它让「累计 80 条判定」实际只有 **2 次独立交易**。
+    # 同一笔交易被数三遍 ⇒ 命中率的分母虚增 3 倍，
+    # 而三份记录同时对、同时错 ⇒ 命中率数字不会因重复而更可靠。
+    #
+    # ⇒ 报告必须同时给两个数：条目数（信息量）与独立窗口数（样本量）。
+    # 只报条目数，就是把重复当成证据。
+    # ⚠️ 按**窗口本身**去重，不是按 pred_date ——
+    #   后者会把「3 个信号日 → 1 个窗口」仍然算成 3，正是要防的那个错。
+    n_windows = None
+    if {"entry_date", "exit_date"} <= set(history.columns):
+        _w = history.dropna(subset=["entry_date", "exit_date"])[["entry_date", "exit_date"]]
+        n_windows = int(len(_w.drop_duplicates()))
+    elif "entry_date" in history.columns:
+        _w = history.dropna(subset=["entry_date"])[["entry_date"]]
+        n_windows = int(len(_w.drop_duplicates()))
+
     # ── 成本必须被**报出来**，不只是被扣掉 ──────────────────────────
     # 净超额已经扣过成本（上面 avg_up 用的是 actual_pct − cost），但报告里
     # 看不出扣了多少。于是这两种策略在表里一模一样：
@@ -273,6 +295,11 @@ def rolling_stats(history: pd.DataFrame) -> dict:
         "excess_tilt": up_excess - down_excess,
         "up_basket_n": n_up,
         "down_basket_n": n_down,
+        # ★ 样本量的真分母：独立成交窗口数。见上方注释。
+        #   `n_up`/`n_down` 是条目数，**不是**样本量 ——
+        #   多个信号日共用一个窗口时它们会虚增。
+        "n_predictions": int(len(history)),
+        "n_independent_windows": n_windows,
         "judged": int(history["result"].isin(["hit", "miss"]).sum()) if "result" in history else 0,
         "avg_cost_drag": cost_drag_avg,
         "gross_up_excess": gross_up_excess,
@@ -307,7 +334,7 @@ def daily_portfolio_returns(history: pd.DataFrame) -> pd.Series:
     **2. 成分不足的日子丢弃，不填 0。** `.mean()` 默认跳过 NaN，所以一天里
     「10 只里只有 1 只有次日行情」会算出一个**看起来正常**的平均值，而它
     衡量的其实是个别标的的运气。填 0 更糟——那是宣称「那天组合没动」，
-    是编造。低于 `MIN_BASKET` 的日子整���丢掉，并让 `n_days` 如实反映天数。
+    是编造。低于 `MIN_BASKET` 的日子整天丢掉，并让 `n_days` 如实反映天数。
 
     **3. 成本只扣一次。** 净收益 = `actual_pct − cost`。
 

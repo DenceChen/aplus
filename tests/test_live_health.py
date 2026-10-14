@@ -130,8 +130,29 @@ def test_healthchecks_default_weights_when_never_promoted(tmp_path):
         json.dumps(_race(DEFAULT_W, -0.005978, -2.831, 0.4746)), encoding="utf-8")
     s = c.get("/api/evolution/summary").json()
     assert s["weights_exist"] is False, "本测试的前提就是没有晋级文件"
-    assert s["live_oos_verdict"] == "significantly_negative"
-    assert s["live_oos_t"] < -1.96
+
+    # ★ 本测试的核心断言是 `!= "unknown"`，不是某个具体的判决词。
+    # 2026-10-15 实盘换仓周期改成 K=21 之后，赛马表里只有 K=1 那一行权重相同，
+    # 三元组匹配不上 ⇒ 判决词从 `significantly_negative` 变成
+    # **`mismatched_execution`**（而不是 `unknown`）。
+    # 这个变化是**对的**：K=1 的 t 值确实不适用于线上跑的 K=21。
+    #
+    # ⚠️ 若这里退回 `unknown`，就是 2026-10-11 那起事故原地复发 ——
+    # 「现任显著为负」这条最该被看见的事实被结构性地藏起来。
+    assert s["live_oos_verdict"] != "unknown", (
+        "判决再次变成 unknown —— 与 2026-11-11 同一起事故复发"
+    )
+    assert s["live_oos_verdict"] == "mismatched_execution", (
+        f"实判决是 {s['live_oos_verdict']!r}；"
+        "权重相同但执行参数不同应当报 mismatched_execution"
+    )
+    # t 值必须照报 —— 它仍然是最刺眼的那条事实
+    assert s["live_oos_t"] < -1.96, (
+        f"t={s['live_oos_t']}，样本外仍显著为负；这条数字不许被参数不匹配吞掉"
+    )
+    assert "K=" in (s.get("live_oos_note") or ""), (
+        "必须说清差在哪一档 K —— 否则用户看到的是一个没有来由的陌生判决词"
+    )
 
 
 def test_weights_not_in_race_table_leaves_unknown(tmp_path):

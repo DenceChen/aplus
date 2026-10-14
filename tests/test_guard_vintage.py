@@ -29,6 +29,45 @@ def _register(root, days, rows=1):
             "REPORT_DATE": ["2021-12-31"] * rows}))
 
 
+# ── 时钟替身 ────────────────────────────────────────────────────────
+#
+# ★ 2026-10-15：下面三条测试里曾有一条**只在 2026-10-14 那天成立**。
+#
+# `guard_vintage.main()` 的 `today` 来自 `scripts/guard_vintage.py:199` 的
+# `date.today()`（真实系统时钟），而测试 monkeypatch 了 `VINTAGE_ROOT`、
+# `span`、`days_missed`、`subprocess.run` **四样，唯独没替换时钟**。
+# 于是「登记 2026-10-14」这个夹具**只在作者写它的那天等于今天** ——
+# 一夜之间变红。
+#
+# 这不是「实现演进导致前提失效」的过时测试，而是
+# **从写下第一天起就只在单日成立的时间炸弹**：
+# 实现一行没改（`git log` 显示最后一次改动在测试落地之前 9 分钟），
+# 变的只是墙上的钟。
+#
+# ⇒ 凡是调 `main()` 的测试都必须**显式声明今天是几号**。
+# 「跑测试时刚好是那天」不是前提，是运气。
+
+def _freeze_today(g, monkeypatch, iso: str) -> str:
+    """把 `guard_vintage.date` 换成「`today()` 恒返回 iso」的替身。
+
+    **子类而不是 Mock**：`guard_vintage` 里还有 `date.fromisoformat` 等
+    用法（`days_missed` 也要读 `date.today()`），裸替身会把它们一起打死，
+    于是测试「因为别的原因失败」——比红着更难查。
+
+    顺带把 `days_missed` 一起冻住：`main()` 内部也调它（`:176`），
+    两处读的是**同一个**模块级 `date`。
+    """
+    real = g.date
+
+    class _Frozen(real):
+        @classmethod
+        def today(cls):
+            return real.fromisoformat(iso)
+
+    monkeypatch.setattr(g, "date", _Frozen)
+    return iso
+
+
 # ── 判据：看 manifest，不看文件在不在 ────────────────────────────────
 
 def test_a_day_counts_as_done_only_when_the_manifest_says_so(tmp_path):
@@ -106,12 +145,16 @@ def test_guard_main_does_not_rerun_when_today_is_registered(tmp_path,
 
     一天补跑两次不是「多做了一件好事」——它把机器占满 45 分钟，
     于是第二天真正的采集反而排不进来，**制造**出真正的漏采。
+
+    ⚠️ 显式冻钟到 2026-10-14：否则这条断言的真实内容是
+    「**跑测试的那天**恰好是 2026-10-14」。见 `_freeze_today` 的注释。
     """
     import scripts.guard_vintage as g
     root = tmp_path / "v"
     _register(root, ["2026-10-14"])
     calls = []
     monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-14")
     monkeypatch.setattr(g, "span", lambda *a, **k: {
         "first": "2026-10-14", "last": "2026-10-14",
         "n_days": 1, "calendar_days": 1, "gaps": []})
@@ -123,12 +166,18 @@ def test_guard_main_does_not_rerun_when_today_is_registered(tmp_path,
 
 
 def test_guard_main_reruns_when_today_is_missing(tmp_path, monkeypatch):
-    """**不漏触发**：今天没登记必须补跑。"""
+    """**不漏触发**：今天没登记必须补跑。
+
+    同样冻钟 —— 否则这条的隐含前提是「跑测试那天不是 2026-10-13」，
+    **方向与上一条相反**：上一条在**第二天**炸，这条在**当天**炸。
+    两条长得几乎一样却各自只在一天里成立，这本身就是证据。
+    """
     import scripts.guard_vintage as g
     root = tmp_path / "v"
     _register(root, ["2026-10-13"])
     calls = []
     monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-14")
     monkeypatch.setattr(g, "span", lambda *a, **k: {
         "first": "2026-10-13", "last": "2026-10-13",
         "n_days": 1, "calendar_days": 1, "gaps": []})
@@ -175,18 +224,27 @@ def test_the_guard_never_recollects_a_past_day_under_a_past_date(
     而且表面上完全正常。
 
     所以：历史有缺口时，守卫**仍然只抓今天**，绝不传 `--date`。
+
+    ⚠️ `assert calls` 不是废断言 —— 它钉住「本测试的夹具确实触发了采集」。
+    ★ 本条在 2026-10-15 之前是**恒真**的：`calls` 为空时
+    `for c in calls:` 一次都不执行，循环体里的断言**从未运行过**，
+    而测试照样绿。而它恰好是本文件自称「最重要的一条纪律」那条。
+    空数据不会让测试变红，只会让它变成**安慰剂**。
     """
     import scripts.guard_vintage as g
     root = tmp_path / "v"
     _register(root, ["2026-10-12", "2026-10-14"])       # 故意缺 10-13
     calls = []
     monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-15")         # 今天未登记 ⇒ 必采集
     monkeypatch.setattr(g, "span", lambda *a, **k: {
         "first": "2026-10-12", "last": "2026-10-14",
         "n_days": 2, "calendar_days": 3, "gaps": [{"missing_days": 1}]})
     monkeypatch.setattr(g.subprocess, "run",
                         lambda *a, **k: calls.append(a) or _R0())
     g.main()
+    assert calls, ("夹具没触发采集 ⇒ 下面的循环是恒真的，本条测试什么都没测。"
+                   "最可能的原因：冻钟日期已被登记。")
     for c in calls:
         assert "--date" not in c[0], (
             f"守卫试图用过去的日期重新采集：{c[0]}——"
@@ -200,6 +258,10 @@ def test_a_past_gap_is_reported_as_permanent_loss(tmp_path, monkeypatch,
     root = tmp_path / "v"
     _register(root, ["2026-10-12", "2026-10-14"])
     monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    # 冻钟：这条断言的**内容**（缺口必须出现在 stdout）与今天几号无关，
+    # 但它确实调了 `main()`，而 `main()` 读真实时钟。
+    # 「碰巧不依赖」不是「不依赖」——显式写出来，它才在明天也成立。
+    _freeze_today(g, monkeypatch, "2026-10-14")
     monkeypatch.setattr(g, "span", lambda *a, **k: {
         "first": "2026-10-12", "last": "2026-10-14",
         "n_days": 2, "calendar_days": 3, "gaps": [{"missing_days": 1}]})
@@ -286,3 +348,66 @@ def test_the_real_calendar_covers_the_last_three_months():
     assert len(cal) > 1000, f"交易日历只有 {len(cal)} 天——来源坏了"
     assert max(cal) >= "2026-09-01", (
         f"日历最新只到 {max(cal)}，落后太多，缺口判定会失效")
+
+
+# ── 本文件的自守卫：下一个测试不许再放一颗同样的炸弹 ──────────────────
+
+def test_every_test_that_calls_main_must_first_freeze_the_clock():
+    """★ 用 AST 扫**本文件**：调 `g.main()` 的测试必须先 `_freeze_today`。
+
+    ## 为什么需要这条
+
+    全仓扫过一遍：`tests/` 里其余的 `date.today()`（`test_bond.py`、
+    `test_audit_logging.py`…）都是**两侧同源**——测试自己也算一遍今天，
+    所以它跟真时钟怎么走都自洽。**只有本文件把字面量日期当成了「今天」**，
+    那才是会炸的形状。所以这条守卫的作用域就是本文件，不必假装全仓统一。
+
+    ## 它挡的具体回归
+
+    2026-10-15 那天 `test_guard_main_does_not_rerun_when_today_is_registered`
+    红了。诊断结论是「实现没错、测试从写下那天起就只在单日成立」。
+    那天的顺手修法只是**把那三条改对**；半年后有人再往本文件加一条
+    调 `main()` 的测试，它会**默认复制同样的写法**——
+    「照着上面那条写」正是那时它被写出来的原因。
+
+    ⇒ 守卫必须锚在**控制流**上（「调 main 之前有没有冻钟」），
+    而不是「文件里出现过 `_freeze_today`」——
+    后者只需要有人在**任何一条**测试里写过它就恒真。
+    """
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+
+    def _is_g_main_call(n):
+        """**必须是 `Call`**，光有 `g.main` 这个属性访问不算。
+
+        第一版写成「出现 `g.main` 属性就算」，于是
+        `inspect.getsource(g.main)` 被判成「调用了 main」——
+        那条测试只是**读源码**，根本不跑 `main()`。
+        ⇒ 误报。锚点太松（第 13/75 条：锚在整个文件/整个属性上，
+        而不是锚在「这是一个调用」这个语法位置上）。
+        """
+        return (isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute) and n.func.attr == "main"
+                and isinstance(n.func.value, ast.Name)
+                and n.func.value.id == "g")
+
+    offenders = []
+    for node in tree.body:
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        main_at = [n.lineno for n in ast.walk(node) if _is_g_main_call(n)]
+        if not main_at:
+            continue
+        # 冻结必须发生在 `main()` **之前**，而不只是在函数里出现过
+        frozen_at = [n.lineno for n in ast.walk(node)
+                     if isinstance(n, ast.Call)
+                     and isinstance(n.func, ast.Name)
+                     and n.func.id == "_freeze_today"]
+        if not frozen_at or min(frozen_at) > min(main_at):
+            offenders.append(f"{node.name}（main 在第 {min(main_at)} 行，"
+                             f"冻钟 {frozen_at or '从未调用'}）")
+    assert not offenders, (
+        "这些测试调了 `g.main()` 却没先冻钟——它们只在自己写下的那天成立：\n  "
+        + "\n  ".join(offenders))

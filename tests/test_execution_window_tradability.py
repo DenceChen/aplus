@@ -508,7 +508,7 @@ def test_st_five_percent_band_is_not_applied_and_the_gap_is_real():
     缺口**不在**一字板那一侧——`panel._limit_close_flags` 的 `on_band`
     额外认了 ±5%，所以封在 ±5% 的**一字** ST 板会被 `sealed` 拦下（买卖两端）。
     真正漏的是 `at_limit_up` / `at_limit_dn` 这两条：它们只按
-    10%/20%/30% 判，于是一根**收盘在 ±5%、但盘中��价格发现**的 ST bar
+    10%/20%/30% 判，于是一根**收盘在 ±5%、但盘中有价格发现**的 ST bar
     既不是一字板、也不算涨停收盘 → `can_buy` / `can_sell` 直接放行。
 
     真实场景：一只主板票在 D+1 收盘封在 +5.00（涨停价），回测照常记成「买进了」。

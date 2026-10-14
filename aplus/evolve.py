@@ -43,6 +43,42 @@ class PromotionResult:
 DEFAULT_REBALANCE_EVERY = 1
 
 
+# ★ 实盘**回落路径**的换仓周期（2026-10-14 定，K 扫描实测选出）。
+#
+# 为什么与 `DEFAULT_REBALANCE_EVERY` 分开：
+#   `DEFAULT_REBALANCE_EVERY` 是**赛马**用的 —— 候选之间比的是日频口径，
+#   统一成 1 才可比（`evolve_race.py` / `evolve_researcher.py` 依赖它）。
+#   实盘要的恰恰相反：**名单天天出，持仓不必天天换**。
+#   两者用途不同，共用一个常量就会把赛马口径悄悄改成月频。
+#
+# 为什么是 21（`k_sweep_summary.json`，6 年，**2026-10-15 P0 结清后重跑**，
+# 成本取**实测**而非名义公式；恒等式 (毛−净)/实测成本 五档均 = 1.000）：
+#   K=5  实测成本 24.99%/年   净 −15.20%
+#   K=10 实测成本 13.17%/年   净  −3.26%
+#   K=21 实测成本  6.29%/年   净  +0.49%   ← 月频，与历史结论同一口径
+#   K=42 实测成本  3.06%/年   净  −1.94%
+#   K=63 实测成本  1.92%/年   净  +4.12%   ← 净值为正，但 n_t_obs 只有 5
+#
+# 🚨 下面这组净数字（−42.0 / −16.7 / −5.9 / −5.1 / +2.0）是**重复扣成本**的产物，
+#    2026-10-15 全部作废（`docs/MISTAKE_LOG_2026-10-14.md` 第 82 层）。
+#    判**净**的绝对值会变，判**「K 越大成本越薄」这个方向**不变 —— 后者才是选 K 的依据。
+#
+# 选 21 而不是 63：**判决必须用有可比年份的那一档**。
+# K=63 的 2026 年 t 值是 None（样本未满），拿它当实盘默认
+# 等于用一个**不完整**的观测去定未来行为。
+# K=21 是全部 5 档里逐年数字齐全、且与既有全部结论同一口径的一档。
+#
+# ⚠️ 三件事必须同时说清楚，不许混为一谈：
+#   ① 这**只是降低损耗**，不是提高收益 —— K 扫描五档**全部**够不到
+#      预注册的 26.39%/年门槛（最好一档 ratio 仅 **0.296**，K=10；
+#      K=63 的 0.273 排第二）。⚠️ 我第一版在这里写的是「最好一档 0.27」，
+#      那是从 K=63 这一档挑出来的数字，不是最大值 —— 手抄的统计量
+#      必须回产物核对，哪怕只有一个数字。
+#   ② 降低 K 是提速，砍掉前瞻验证是作弊。改换仓周期不动任何铁律。
+#   ③ 名单天天出 ≠ 持仓天天换。名次变化不构成换仓理由。
+LIVE_REBALANCE_EVERY = 21
+
+
 def split_weights(candidate) -> tuple[dict, int, float | None]:
     """把候选拆成 `(权重, 调仓频率, 缓冲区倍数)`。
 
@@ -182,10 +218,15 @@ def save_weights(reports_dir, weights: dict, evidence: dict,
     path = _weights_path(reports_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     exec_cfg = dict(execution or {})
+    # ⚠️ 兜底不是 1（2026-10-15）：留一个通往日频的默认后门，
+    # 等于让「月频换仓」这个决策**只接了一半** ——
+    # `load_weights` 回落给 21，而这里不显式传就写 1，实盘读到哪个全看走哪条路。
+    # 半接的开关比不接更坏（第 6 条）。
     path.write_text(
         json.dumps({"weights": weights,
-                    "execution": {"rebalance_every": int(exec_cfg.get("rebalance_every", 1)),
-                                  "buffer_multiple": exec_cfg.get("buffer_multiple")},
+                    "execution": {"rebalance_every": int(exec_cfg.get(
+                        "rebalance_every", LIVE_REBALANCE_EVERY)),
+                        "buffer_multiple": exec_cfg.get("buffer_multiple")},
                     "evidence": evidence}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -235,7 +276,8 @@ def load_weights(reports_dir):
     path = _weights_path(reports_dir)
     if not path.exists():
         return {"weights": dict(DEFAULT_WEIGHTS), "evidence": None,
-                "execution": {"rebalance_every": 1, "buffer_multiple": None},
+                "execution": {"rebalance_every": LIVE_REBALANCE_EVERY,
+                              "buffer_multiple": None},
                 "source": "fallback",
                 # `caveat_kind` 是给前端的**证据状态**，与 caveat 正文配套。
                 # 前端据此查表定标题，不再硬编码——正文改写时标题不会说反话。
@@ -253,10 +295,13 @@ def load_weights(reports_dir):
                     "730 天赛马里排第 81/87 名、测试段超额 −0.74%、t=−3.03 —— "
                     "那个数字属于**旧配置**，不能算到这一版头上。"
                     "当前状态是「方向有证据、效果未验证」，"
-                    "不是「已验收的冠军」。日频执行它的年成本量级仍在数百个百分点。")}
+                    "不是「已验收的冠军」。"
+                    f"实盘按每 {LIVE_REBALANCE_EVERY} 个交易日换仓一次执行"
+                    "（名单仍每天出），因为日频换仓的成本量级"
+                    "与毛超额同数量级甚至更大。")}
     data = json.loads(path.read_text(encoding="utf-8"))
     return {"weights": data.get("weights"), "evidence": data.get("evidence"),
-            "execution": data.get("execution") or {"rebalance_every": 1,
+            "execution": data.get("execution") or {"rebalance_every": LIVE_REBALANCE_EVERY,
                                                     "buffer_multiple": None},
             "source": "file", "caveat": None, "caveat_kind": None}
 
@@ -334,6 +379,24 @@ def live_execution_status(reports_dir) -> dict:
     if not missing:
         return {"honored": True, "rebalance_every": every, "buffer_multiple": buf,
                 "reason": f"日频全换，无缓冲区（K=1）——与 weights.json 声明一致"}
+
+    # ⚠️ 2026-10-15：这一段的**前提已经过期**，原来恒返回 honored=False，
+    # 理由写着「实盘没有持仓状态机，正在按日频全换出单」。
+    # 那个前提在今天不成立了：`scripts/run_daily.py` 的持仓写入已经
+    # 收进 `if due` 分支（守卫 `tests/test_live_holdings_are_not_overwritten_daily.py`，
+    # 两个变异都变红），`run_daily.py:355` 的 `is_due(prev, every, buf)`
+    # 也确实按 every 判到期。
+    #
+    # ⇒ **继续在这里报「正在按日频全换」是第 6 条的又一次发作：**
+    # 一个曾经为真的前提，在产品改变之后没有跟着改，
+    # 于是这道闸开始对**正确行为**报警 —— 比不报警更坏，
+    # 因为它训练人忽略这道闸。
+    #
+    # 现在实盘**确实**在执行声明的 K 与缓冲区（同一份 `load_weights` 读出来的）。
+    return {"honored": True, "rebalance_every": every, "buffer_multiple": buf,
+            "reason": (f"实盘按声明执行：{'、'.join(missing)}"
+                       "（持仓写入已收进 `if due`，非换仓日沿用旧持仓）"
+                       f"——回落默认 K={LIVE_REBALANCE_EVERY}")}
 
     return {"honored": False, "rebalance_every": every, "buffer_multiple": buf,
             "reason": (f"⚠️ 权重文件声明的执行方式是「{'、'.join(missing)}」，"

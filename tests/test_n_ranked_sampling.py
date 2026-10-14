@@ -82,7 +82,7 @@ def test_empty_window_reports_zero():
 
 
 def test_missing_day_is_skipped_not_counted_as_zero():
-    """窗口里有个���的日子不能被当成「0 只可打分」拉低中位数。"""
+    """窗口里有个缺失的日子不能被当成「0 只可打分」拉低中位数。"""
     days = [f"2024-01-{i:02d}" for i in range(1, 11)]
     xs = _panel(days, [300] * 10)
     del xs[days[0]]

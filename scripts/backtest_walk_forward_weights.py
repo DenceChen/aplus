@@ -101,6 +101,53 @@ def weights_by_year(df: pd.DataFrame, factors: list[str]) -> dict[int, dict]:
     return {r["year"]: r for r in rows if r.get("weights") is not None}
 
 
+COST_FLAT_CALIBRATED_N = 10
+"""`COST_REAL_50K` 的标定名数 —— **不是**「一个成本参数」，是「10 个仓位的成本」。
+
+见 `real_cost_for`。
+"""
+
+#: 本项目的产品本金（用户口径）。成本是**固定额 + 费率**的混合体，
+#: 所以成本必然依赖本金 —— 把这两个数字写在这里是为了让「换本金」这件事
+#: 必须**改两处**，而不是悄悄只改一处。
+COST_REAL_CAPITAL = 50_000.0
+COST_REAL_EQUITY_WEIGHT = 1.0   # 本策略满仓权益，无杠杆、无现金缓冲
+
+
+def real_cost_for(top_n: int, k: int | None = None) -> float:
+    """返回 `top_n` 个持仓下**每轮双边**的真实现况成本（收益率比例）。
+
+    ★ 第 17 种形状（2026-10-15）：`COST_REAL_50K = 0.0055` 是一个**标定值**，
+      它的标定配置是 **N=10**（本金 ¥50,000 ⇒ 每只 ¥5,000）。
+      A 股单边最低佣金 **¥5/笔是每笔固定额**（`costs.COMMISSION_MIN`），
+      名数一变，每笔变小，最低佣金占的比例就变，而且**非线性**
+      （`COMMISSION_MIN_BINDS_BELOW = 5/万三 = ¥16,667`）。
+
+      实测低估倍数（本金 5 万、K=21）：N=21 **1.4×**、N=100 **4.3×**、
+      N=200 **7.9×**、N=546 **20.5×**。
+
+    ⇒ **本函数是 `run_year` 取实况成本的唯一入口。**
+      标定名数上**逐位**返回旧常数（所以 K 扫描五档的结论一个数都不用改）；
+      别的名数上**按名数逐笔算**（`costs.annual_friction` / 调仓次数）。
+      ⇒ 结构上**不存在第二条能把那个常数拿到别的名数上的代码路径**。
+
+    ⚠️ 上一版这里是 `raise`（拒绝在标定名数之外量）——
+      **过度设计，当场被榜宽实验打脸**：它也调 `run_year(xs, …, n, n, k)`，
+      于是一个**正当**的宽榜取证被自己的守卫挡住。
+      教训：**「让错误表达不出来」的正解是换成对的尺子，不是禁止测量。**
+      只有当「正确的尺子」根本不存在时，拒绝才是对的修法。
+    """
+    from aplus.costs import annual_friction
+    from aplus.hurdle import rounds_per_year
+
+    if top_n == COST_FLAT_CALIBRATED_N:
+        return COST_REAL_50K
+    kk = k if k is not None else 21
+    rpy = rounds_per_year(kk)
+    return annual_friction(COST_REAL_CAPITAL, COST_REAL_EQUITY_WEIGHT,
+                           top_n, rpy) / rpy
+
+
 def at_cost(results: pd.DataFrame, cost: float) -> pd.DataFrame:
     """把输出换算到 `cost` 口径。
 
@@ -213,6 +260,41 @@ def _up_exposure(res, xs, days, factors) -> dict:
     return out
 
 
+def realized_cost_and_net(gross_daily, daily_with_cost):
+    """★ 从「同一天的毛/净两条序列」反推**实际**成本，并给出净额。
+
+    ## 为什么必须由两条序列相减，而不是套名义公式
+
+    原实现是 `net = annual_gross_pct − rounds_per_year(k) × c`。
+    两处错叠在一起：
+
+    ① `annual_gross_pct` 来自 `_daily(at_cost(res, c))`，
+       而 `_daily_series` 里写着 `net = net - leg["cost"]`
+       （`aplus/evolve_race.py:249-250`）—— **成本已经扣过一次了**。
+    ② 减掉的是 `rounds_per_year(k) × c` 这个**名义**公式，
+       不是 `cost` 列里实测出来的实际换手成本。
+
+    结果：`毛超额 − 净 ≈ 2 × 名义成本`，且**五档一致**（实测 1.90–1.98×）。
+    而 `hit_threshold` 用的是同一个错的 `annual_net_pct` ——
+    判决与被判决的对象用的是同一个错误数，**自洽，于是全绿**（第 5 层同族）。
+
+    ## 改成由数据反推
+
+    两条序列走的是**同一段代码、同一个 MIN_BASKET 过滤、同一批日子**，
+    所以 `gross_daily − daily_with_cost` 精确等于逐日实际成本，
+    不依赖任何关于换手的假设。
+
+    返回 `(实际年成本, 净额, 自查漂移)`。
+    漂移 = `含成本年化 + 实际年成本 − 无成本年化`，正确实现恒为 0。
+    """
+    import numpy as _np
+
+    gross_annual = float(_np.mean(gross_daily)) * DAYS_PER_YEAR
+    with_cost_annual = float(_np.mean(daily_with_cost)) * DAYS_PER_YEAR
+    realized = gross_annual - with_cost_annual
+    return realized, with_cost_annual, gross_annual - with_cost_annual - realized
+
+
 def _daily_frame(chunks: list, factors) -> "pd.DataFrame":
     """把逐年落盘的 chunk 拼成一张表：日期 + 毛超额 + 逐日因子暴露。
 
@@ -279,7 +361,8 @@ def _daily_frame(chunks: list, factors) -> "pd.DataFrame":
 
 
 def run_year(xs, weights, dates, top_n: int, bottom_n: int,
-             rebalance_every: int, daily_out: list | None = None) -> dict:
+             rebalance_every: int, daily_out: list | None = None,
+             score_transform=None) -> dict:
     """跑一个年份，返回三个口径的逐年数字。
 
     `daily_out` 非空时，把**毛超额逐日序列 + 逐日因子暴露**追加进去。
@@ -290,29 +373,45 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
     ⚠️ 暴露**必须在 `xs` 还在手上时算完**。落盘之后要重算就得
     再加载一次 GB 级面板，而那正是本项目 OOM 的唯一来源
     （实测并发面板作业 RSS 2.9 GB）。
+
+    ## `score_transform`（安慰剂钩子，默认 None）
+
+    三个安慰剂臂**必须**从这里走，与 P0 完全同一条路径
+    （预注册 `docs/TODO_placebo_control_2026-10-15.md` §4）。
+    它只往 `evaluate_weights` 透传，**不在这里加任何分支** ——
+    这一层一旦长出自己的逻辑，安慰剂与 P0 的差就分不清是信号还是这段代码。
     """
     res = evaluate_weights(xs, weights=weights, top_n=top_n, bottom_n=bottom_n,
                            dates=dates, rebalance_every=rebalance_every,
-                           execution_gate=True)
+                           execution_gate=True, score_transform=score_transform)
     if res is None or res.empty:
         return {"n_rows": 0, "n_days": 0}
 
     gross = _daily(res.assign(cost=0.0))
     out = {"n_rows": int(len(res)), "n_days": int(len(dates))}
-    for tag, c in (("bt003", STOCK_COST_DEFAULT), ("real", COST_REAL_50K)):
+    for tag, c in (("bt003", STOCK_COST_DEFAULT),
+                   ("real", real_cost_for(top_n, rebalance_every))):
         daily = _daily(at_cost(res, c))
         t, n_obs = _t(daily, block=rebalance_every)
         mean = float(daily.mean()) if daily is not None and len(daily) else float("nan")
         sd = float(daily.std(ddof=1)) if daily is not None and len(daily) > 1 else float("nan")
+        # ★ 成本只扣一次，且由数据反推（2026-10-15 P0 修复）
+        realized, net_annual, drift = realized_cost_and_net(gross, daily)
         out[tag] = {
             "cost_per_round": c,
             "daily_excess": mean, "daily_sd": sd,
+            # ⚠️ 名字是历史包袱：`annual_gross_pct` 实为**已扣成本**的超额年化。
+            # 改名会波及所有下游消费者（旧报告的字段名必须能读），
+            # 所以保留字段名，在这里把口径钉死。
             "annual_gross_pct": mean * DAYS_PER_YEAR,
             "t_blocked": t, "n_independent_obs": n_obs,
-            "annual_cost_pct": (rounds_per_year(rebalance_every) * c
-                                if "cost" in res.columns else 0.0),
+            # 名义值保留作对照（= 换手理想为 1 时的成本），判决一律用实测值
+            "annual_cost_nominal_pct": (rounds_per_year(rebalance_every) * c
+                                        if "cost" in res.columns else 0.0),
+            "annual_cost_pct": realized,
+            "_selfcheck_cost_single_deduction": drift,
         }
-        out[tag]["annual_net_pct"] = out[tag]["annual_gross_pct"] - out[tag]["annual_cost_pct"]
+        out[tag]["annual_net_pct"] = net_annual
         out[tag]["hit_threshold"] = bool(out[tag]["annual_net_pct"] >= hurdle_rate(
             rounds_per_year=rounds_per_year(rebalance_every)))
 
@@ -356,7 +455,6 @@ def main() -> int:
     if not lin["linear"]:
         print(f"🚨 成本非线性，`at_cost` 的缩放不再精确：{lin}", file=sys.stderr)
         return 2
-
     factors = [f.strip() for f in args.factors.split(",") if f.strip()] \
         or list(FACTOR_NAMES)
     df = pd.read_parquet(args.matrices)
@@ -440,7 +538,14 @@ def main() -> int:
         # ⚠️ 这里的行数**不等于**上面那句「横截面 N 个交易日」——
         #   `_daily_series` 会丢掉成分不足 `MIN_BASKET` 的日子。
         #   两个数并排打印却不写差在哪，读起来就像「少了一天」。
-        dropped = sum(int(r["n_days"]) for r in results) - len(dg)
+        # ⚠️ 2026-10-15：这一行原来写的是 `for r in results`，
+        # 而 `results` 在 `main()` 里**从来不存在**（逐年结果是 `rows`）。
+        # 它是 2026-10-14 加「逐日落盘」时埋的，**崩在 JSON 写盘之前** ——
+        # 于是 parquet 落了、主报告没落，而 `parquet 的 mtime 更新`
+        # 读起来就像「这轮跑完了」（第 8 条：完成与否由进程状态判断）。
+        # 修法不是加 `if`，是让**写盘顺序**保证主报告先于副产物可被误读：
+        # 现在崩点与写盘点都受同一条路径保护（见 `bad_drift` 拒绝落盘）。
+        dropped = sum(int(r["n_days"]) for r in rows) - len(dg)
         print(f"→ {args.out.with_suffix('.daily.parquet')}（{len(dg)} 行逐日序列 × "
               f"1 毛超额 + {len(FACTOR_NAMES)} 因子暴露；"
               f"比横截面少 {dropped} 行，差额 = `_daily_series` 丢掉的日子）")
@@ -457,6 +562,18 @@ def main() -> int:
                   f"  最高 {np.max(vals):>8.2%}  够线 {hit}/{len(rows)}{tail}")
         print(f"\n门槛：年毛超额 {need:.2%}（= 目标 20% + 成本 {COST_REAL_50K:.2%}"
               f" × {rounds:.1f} 次/年）")
+
+    # ★ 成本只扣一次的会计自查（2026-10-15 P0）。
+    # 恒等式「含成本年化 + 实测年成本 = 无成本年化」若不成立，
+    # 说明成本被扣了两次或用了名义公式 —— 那正是刚修掉的那个 bug。
+    # 在**写盘之前**拦，因为它一旦落盘，下游 11 个模块都会读到它。
+    bad_drift = [(r["year"], k, r[k].get("_selfcheck_cost_single_deduction"))
+                 for r in rows for k in ("bt003", "real")
+                 if r.get(k) and abs(r[k].get("_selfcheck_cost_single_deduction") or 0) > 1e-12]
+    if bad_drift:
+        print(f"🚨 成本被重复扣减：{bad_drift[:4]} —— 拒绝落盘。",
+              file=sys.stderr)
+        return 2
 
     res = {
         "kind": "wf_weights_backtest", "top_n": args.top_n,

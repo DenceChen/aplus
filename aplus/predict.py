@@ -6,6 +6,7 @@
   每条带方向、分数、因子快照——可解释是硬要求（用户看不懂模型，但要看懂理由）
 """
 import re
+from typing import Callable
 
 import pandas as pd
 
@@ -166,13 +167,74 @@ def filter_universe(cross_section: pd.DataFrame, as_of: str | None = None,
 PRED_COLUMNS = ["code", "name", "direction", "score"] + list(FACTOR_NAMES)
 
 
-def build_predictions(cross_section: pd.DataFrame, top_n: int = 10, bottom_n: int = 10, weights=None):
+# ── 安慰剂钩子（预注册 `docs/TODO_placebo_control_2026-10-15.md` §4）────
+#
+# 协议：`(day, df) -> df`。
+#   * `day` —— 正在处理的那个横截面的**信号日**（`YYYY-MM-DD`）。
+#     它必须进签名：置换是**逐日期**做的（预注册 §2），而横截面表本身
+#     **不带日期列**（`panel.cross_section` 的列里没有 `date`），
+#     日期只存在于调用方 `evaluate_weights` 的循环变量里。
+#     不传日期的钩子只能做「与日期无关」的改写 —— 那测的是另一个东西。
+#   * `df` —— **已经算好 `score`、尚未剔除 NaN** 的整张横截面表。
+#     返回值必须是同序同长的 DataFrame（下面 `apply_score_transform` 逐项校验）。
+#
+# ★ **绝不改 `composite_score`** —— 它是 P0（观测臂）的共享代码，
+#   改它就等于把安慰剂的定义写进了被安慰剂检验的那个对象。
+#   安慰剂必须是**注入**，不是**改写**（预注册 §4 原话：「不得改动
+#   `composite_score` 的实现」）。
+#
+# ★ **钩子的位置是判据的一部分**，不是实现细节：
+#   它必须在 `notna` 过滤**之前**跑。这样「因子不完整者剔除」的语义
+#   在三条臂上完全一致；反过来（先过滤再置换）会连**谁有资格进池子**
+#   一起换掉，测出来的差异分不清来自排序还是来自池子。
+ScoreTransform = Callable[[str | None, pd.DataFrame], pd.DataFrame]
+
+
+def apply_score_transform(day: str | None, df: pd.DataFrame,
+                          score_transform: ScoreTransform) -> pd.DataFrame:
+    """跑一次 `score_transform` 并校验它没偷偷改变别的什么。
+
+    ## 为什么校验是必要的，而不是防御性编程的洁癖
+
+    钩子返回的表会被**直接**拿去排序。改行数、改索引、改列，
+    都不会抛任何异常：下游只会安静地少算几只票或多算几只票，
+    而报告照样出数（`CLAUDE.md` 静默失效清单第 1 类「口径错配」的形状）。
+    ⇒ 契约要么在这里钉死，要么在别处静默滑移。
+    """
+    out = score_transform(day, df)
+    if not isinstance(out, pd.DataFrame):
+        raise TypeError(f"score_transform 必须返回 DataFrame，返回了 {type(out).__name__}")
+    if "score" not in out.columns:
+        raise ValueError("score_transform 返回的表里没有 `score` 列 —— "
+                         "拿别的列排序测的是另一个东西")
+    if len(out) != len(df):
+        raise ValueError(f"score_transform 改了行数（{len(df)} → {len(out)}）："
+                         "它只能换分数，不许换成分")
+    if list(out.index) != list(df.index):
+        raise ValueError("score_transform 换了行索引：排序后的行会与持仓静默错位")
+    return out
+
+
+def build_predictions(cross_section: pd.DataFrame, top_n: int = 10, bottom_n: int = 10,
+                      weights=None, score_transform: ScoreTransform | None = None,
+                      as_of: str | None = None):
     """返回 (up_df, down_df)：up 按分数降序，down 按分数升序（最看空在前）。
 
     weights 注入自进化：load_weights() 的结果沿 run_daily → 此处贯通。
+
+    ## `score_transform` / `as_of`（安慰剂钩子，默认全关）
+
+    `score_transform=None` 时本函数**逐位等于加钩子之前的行为** ——
+    不是「差不多」，是同一条语句路径。预注册 §4 把这条列为硬要求，
+    守卫：`tests/test_placebo_control.py::test_none_transform_is_bitwise_identical_to_pre_hook`。
+
+    `as_of` 只在 `score_transform` 非 None 时被读到（见 `ScoreTransform` 注释）。
     """
     df = cross_section.copy()
     df["score"] = composite_score(df, weights)
+    # ★ 注入点：必须在下一行 `notna` 过滤**之前**（见 `ScoreTransform` 注释）。
+    if score_transform is not None:
+        df = apply_score_transform(as_of, df, score_transform)
     df = df[df["score"].notna()].reset_index(drop=True)  # 因子不完整者剔除
     ranked = df.sort_values("score", ascending=False).reset_index(drop=True)
 

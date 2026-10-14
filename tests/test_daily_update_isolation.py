@@ -98,7 +98,7 @@ def test_bad_stocks_are_counted_not_swallowed(tmp_path, monkeypatch):
 
 
 def test_sync_start_is_the_last_stored_date(tmp_path, monkeypatch):
-    """起点必须是库内最后日期（含），这样末根缺列能���补上。"""
+    """起点必须是库内最后日期（含），这样末根缺列能〔此字已损，MISTAKE_LOG 第 92 层，待人工确认〕补上。"""
     _, synced = _run_update(tmp_path, monkeypatch)
     assert synced[0][1] == "2026-10-09", synced[0]
 

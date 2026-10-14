@@ -142,3 +142,73 @@ def test_a_missing_column_counts_as_nan():
     import pandas as pd
     df = pd.DataFrame({"a": [1.0]})
     assert is_nan_column(df, "not_there") is True
+
+# ── 2026-10-15：副产物比主产物新 ⇒ 这一轮在中途死了 ──────────────────
+
+def test_a_newer_sibling_means_the_run_died_midway(tmp_path):
+    """★ 本次事故的形状：`.daily.parquet` 落了，`.json` 没落。
+
+    事故经过：`backtest_walk_forward_weights.py` 先落 parquet、后落 JSON，
+    两行之间一句 `sum(... for r in results)` 抛 `NameError`
+    （`results` 从未定义，逐年的结果叫 `rows`）。
+
+    结果是目录里**有**这一轮的文件。任何用「最新 mtime」判断
+    「这轮跑完了」的办法都会判成跑完了。
+    """
+    from aplus.report_ready import require_run_completed
+
+    main = tmp_path / "r.json"
+    sib = tmp_path / "r.daily.parquet"
+
+    # 副产物先落
+    sib.write_text("x", encoding="utf-8")
+    main.write_text("{}", encoding="utf-8")
+    # ⚠️ 时间戳必须相对**当下**构造，不能写字面量。
+    # 第一版写了 `os.utime(sib, (3000, 3000))` —— 那是 1970 年，
+    # 而主文件的 mtime 是「现在」（~1.7e9），于是副产物变成**更旧**，
+    # 守卫判「跑完」是对的，测试却以为它错。
+    # ⇒ **测试写错时，症状与守卫有洞一模一样：一条红。**
+    #    这个形状只有靠「先读失败值」才能分开（失败值会说明谁新谁旧）。
+    import os, time
+    now = time.time()
+    os.utime(sib, (now - 100, now - 100))    # sib 更早 → 正常跑完
+    os.utime(main, (now, now))
+    assert require_run_completed(main).ok
+
+    os.utime(sib, (now + 100, now + 100))    # sib 更新 → 中途死了
+    r = require_run_completed(main)
+    assert not r.ok, "副产物更新却判成跑完 —— 这正是本次事故的漏判"
+    assert "中途死" in r.reason, r.reason
+
+
+def test_missing_main_report_is_not_satisfied_by_a_fresh_sibling(tmp_path):
+    """★ 主文件**根本不存在**时，旁边的副产物不能顶替它。
+
+    这是最容易出事的形态：`require_keys` 的用途是「主文件在、内容不齐」，
+    缺文件是另一回事。混在一起 ⇒ 上一次读到的就是**上一轮**的报告
+    （本模块 docstring 里记的那次事故）。
+    """
+    from aplus.report_ready import require_keys, require_run_completed
+
+    (tmp_path / "r.daily.parquet").write_text("x", encoding="utf-8")
+    main = tmp_path / "r.json"
+
+    assert not require_run_completed(main).ok
+    r = require_keys(main, ["years"])
+    assert not r.ok and "不存在" in r.reason
+
+
+def test_the_guard_reports_which_side_is_older(tmp_path):
+    """报错必须指出**谁新谁旧**。「没跑完」三个字查不动。"""
+    import os
+
+    from aplus.report_ready import require_run_completed
+
+    main = tmp_path / "r.json"
+    sib = tmp_path / "r.daily.parquet"
+    main.write_text("{}", encoding="utf-8")
+    sib.write_text("x", encoding="utf-8")
+    os.utime(main, (2000, 2000))
+    os.utime(sib, (3000, 3000))
+    reason = require_run_completed(main).reason
+    assert "r.daily.parquet" in reason and "r.json" in reason, reason

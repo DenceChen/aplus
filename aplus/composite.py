@@ -48,7 +48,7 @@ def zscore(F: np.ndarray) -> np.ndarray:
     """按列 z 标准化（`ddof=1`）。
 
     **必须先标准化再加权**，否则 `composite_ic` 给的是另一个数——
-    ���且是**系统性偏移**、不会崩的那种（见 `composite_ic` 的说明）。
+    而且是**系统性偏移**、不会崩的那种（见 `composite_ic` 的说明）。
     """
     F = np.asarray(F, dtype=float)
     sd = F.std(axis=0, ddof=1)

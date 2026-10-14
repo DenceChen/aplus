@@ -176,30 +176,75 @@ def _last_two_bars(store, code, after_date, factors_map=None):
     return last_two_bars(store, code, factors_map=factors_map, after_date=after_date)
 
 
-def _market_pct(store, after_date, sample_size=MARKET_SAMPLE):
-    """市场基准：与回测同一成交窗口（锚定 `after_date`）、**固定随机种子**。
+def _market_window(store, after_date, sample_size=MARKET_SAMPLE):
+    """市场基准的**测量窗口 + 采样结果**。`_market_pct` 是它的薄封装。
 
-    2026-10-14 修两处：
-    - 不播种 → `market_pct` 每次跑都不同，`up_excess_vs_market` 在纯抽样噪声上浮动，
-      超额因此**不可复现**。回测侧用 `random.Random(42)`，这里必须同样。
-    - 不锚定 → 与策略不同期，超额没有意义（`backtest.py` 早就注明）。
+    ★ 为什么必须把窗口**一起返回**（2026-10-14）
+
+    原来的实现只返回一个数，于是「测的是哪两根 K 线」在下游完全不可见。
+    实测后果：`verification.parquet` 里 2026-10-09 / 10-10 / 10-11 三天的
+    `market_pct` **精确相同**（0.001196，`nunique()==1`）——
+    三个不同的市场报出了同一个基准。
+
+    根因不是「值碰巧一样」，是**退化**：
+      - `random.Random(42)` + `sorted(codes)` ⇒ 每天抽中**同一批**股票；
+      - `last_two_bars(..., after_date)` 取「信号日之后第一根」，
+        早判时次日数据尚未落库 ⇒ 退化到当时能拿到的同一批 bar。
+      实测 60 只样本中 **58 只**在三天里拿到逐位相同的 K 线。
+
+    ⇒ 一旦 `nunique()==1`，`up_excess = actual_pct − market_pct`
+    只是把收益平移了一个常量，**没有任何信息**。
+    而 `market_pct` 被 11 个模块消费，其中包括
+    **自进化主循环 `evolve_race.py:251`**——假基准污染的是判据本身。
+
+    ★ 种子改为**由日期派生**：`Random(f"aplus-mkt-{after_date}")`。
+    保留「同一日期重跑必得同值」的可复现性，
+    同时让不同日期抽到不同样本 —— 这两件事**不矛盾**，
+    原来的写法把它们当成了取舍，实际只是没写对。
     """
     import random as _random
 
     codes = sorted((store.root / "master" / "daily").glob("*.parquet"))
-    rng = _random.Random(42)                      # 与回测同种子，结果可复现
+    if not codes:
+        return None
+
+    # ★ 种子含日期：同日期可复现，跨日期换样本
+    rng = _random.Random(f"aplus-mkt-{after_date}")
     sample = [p.stem for p in rng.sample(codes, min(sample_size, len(codes)))]
-    pcts = []
-    n_unadjusted = 0
+
+    pcts, windows, n_unadjusted = [], set(), 0
     for code in sample:
         bar = _last_two_bars(store, code, after_date)
         if bar and bar["prev_close"] > 0:
             pcts.append(bar["close"] / bar["prev_close"] - 1)
+            windows.add((bar.get("entry_date"), bar.get("exit_date")))
             if not bar.get("adjusted", False):
                 n_unadjusted += 1
     if n_unadjusted:
         print(f"[verify] 市场基准 {n_unadjusted}/{len(pcts)} 只缺因子表，已降级为不复权口径")
-    return float(sum(pcts) / len(pcts)) if pcts else 0.0
+    if not pcts:
+        # ★ 缺档必须**响亮**，不能静默回落成 0.0（第 12 条同族）：
+        #   0.0 在下游与「市场平盘」不可区分，会把超额凭空归零。
+        print(f"[verify] ⚠️ 市场基准缺档：{after_date} 抽中 {len(sample)} 只全部无次日 bar。"
+              f"**超额本轮不可计算**，禁止按 0.0 回落")
+        return None
+
+    return {
+        "pct": float(sum(pcts) / len(pcts)),
+        "n_used": len(pcts),
+        "n_sampled": len(sample),
+        "windows": sorted(w for w in windows if w[0] is not None),
+    }
+
+
+def _market_pct(store, after_date, sample_size=MARKET_SAMPLE):
+    """市场基准（薄封装）。缺档返回 `None`，**不回落 0.0**。
+
+    保留本函数名是因为 11 个消费方都在用它；语义变化（0.0 → None）
+    本身就是修复的一部分，缺档必须能被下游看见。
+    """
+    w = _market_window(store, after_date, sample_size)
+    return None if w is None else w["pct"]
 
 
 def _judge_one_day(store, reports_dir, pred_date, today):
@@ -226,7 +271,22 @@ def _judge_one_day(store, reports_dir, pred_date, today):
                                  default_cost=STOCK_COST_DEFAULT)
     results["pred_date"] = pred_date
     results["verified_on"] = today
-    results["market_pct"] = _market_pct(store, pred_date)
+    # ★ 基准的**测量窗口**一并落库（2026-10-14）。
+    #   只有 `market_pct` 一个标量时，"三个不同市场报出同一个基准"
+    #   （实测 10-09/10-10/10-11 精确等于 0.001196）在下游完全不可见。
+    #   把 entry/exit 写进产物 ⇒ 退化当场可见，且可被守卫读出来。
+    mkt = _market_window(store, pred_date)
+    if mkt is None:
+        print(f"[verify] {pred_date} 的市场基准缺档 ⇒ 该日**不写** market_pct，"
+              f"避免 0.0 被读成『市场平盘』")
+        results["market_pct"] = pd.NA
+        results["market_n_used"] = 0
+    else:
+        results["market_pct"] = mkt["pct"]
+        results["market_n_used"] = mkt["n_used"]
+        win = f"{mkt['windows'][0][0]}→{mkt['windows'][-1][1]}" if mkt["windows"] else "?"
+        print(f"[verify] 市场基准 {mkt['pct']:+.3%} "
+              f"（{mkt['n_used']}/{mkt['n_sampled']} 只，窗口 {win}）")
     # 成交窗口必须落库：`pred_date` 不等于观测日（周末出名单时，
     # 周五/六/日三次出单落到同一个 10-12→10-13 窗口）。
     # 没有这两列，`daily_portfolio_returns` 会把同一天连乘三次，
@@ -282,6 +342,7 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         return
 
     from aplus.evolve import live_execution_status, load_weights
+    from aplus.factor import composite_score
     from aplus.live_rebalance import advance, instruction, is_due, load_state, save_state
 
     cfg = load_weights(reports_dir)
@@ -439,8 +500,6 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         # 沿用回测的缓冲区判据，不在这里另写一套（两套实现迟早漂移）
         from aplus.rebalance import buffer_hold, fill_to_top_n
 
-        from aplus.factor import composite_score
-
         scored = universe.assign(_s=composite_score(universe, weights))
         scored = scored[scored["_s"].notna()].sort_values("_s", ascending=False)
         ranked_up = list(scored["code"])
@@ -462,13 +521,46 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     # 注意**不要**在调 advance 之前自己改 `days_since_rebalance`——
     # `advance` 是从旧值 +1 的，先覆盖再 advance 等于加了两次（2026-10-11 21:50）。
     by_code = universe.drop_duplicates("code").set_index("code")
+
+    # ★★ 持仓**只在换仓日更新**（2026-10-14 修）。
+    #
+    # 原写法无条件写 `"up": trade_up`（当日新名单），于是非换仓日
+    # 也把「我持有什么」改成了「今天该看什么」。后果不是持仓漂移，
+    # 而是**缓冲区判据永远对着最新名单算**：
+    #   `held_up = prev.get("up")` 拿到的始终是上一天的新名单，
+    #   `buffer_hold(held_up, ranked_up, ...)` 于是等价于
+    #   「拿今天的名单和今天的排名比」——缓冲区完全失效，
+    #   而代码路径**不报任何错**。
+    #
+    # ⇒ 「每天出名单、N 天换一次仓」这个产品形态此前**没有被真正执行**：
+    #   名单在发，缓冲在算，但持仓记忆是假的（第 6 条：开关没焊到事实上）。
     state = dict(prev or {})
-    state.update({
-        "as_of": today, "every": every, "buffer_multiple": buf,
-        "up": trade_up, "down": trade_down,
-        "up_names": [str(n) for n in by_code.reindex(trade_up)["name"].fillna("")],
-        "down_names": [str(n) for n in by_code.reindex(trade_down)["name"].fillna("")],
-    })
+    state["as_of"] = today
+    state["every"] = every
+    state["buffer_multiple"] = buf
+    if due or not (prev or {}).get("up"):
+        # 换仓日（含首次建仓）：更新持仓 + 名字
+        state["up"] = trade_up
+        state["down"] = trade_down
+        state["up_names"] = [str(n) for n in by_code.reindex(trade_up)["name"].fillna("")]
+        state["down_names"] = [str(n) for n in by_code.reindex(trade_down)["name"].fillna("")]
+        state["held_since"] = today          # ★ 持仓是哪天定的 —— 审计与缓冲区校验都要它
+        # ⚠️ 这里**曾经**还有一段 `up_scores`，现已删除（2026-10-15）。
+        # 它调 `composite_score(universe, weights)`，而 `universe` 是否带因子列
+        # 取决于 `filter_universe` —— 测试里那个最小夹具只有 `code`/`name`，
+        # 于是**这条分支第一次真被执行时当场 KeyError**。
+        #
+        # 删它不是因为它会崩，是因为**全仓没有任何东西读 `up_scores`**：
+        # `buffer_hold(held, ranked, ...)` 比的是名次不是分数。
+        # 为一个没人消费、还会让真实路径崩的字段付出代价，是纯负债。
+        # ⇒ 记下它需要的东西（`held_since`）就够，别顺手多存。
+    else:
+        # 非换仓日：持仓**原封不动**。名单照发（每天 10 涨 10 跌是要求），
+        # 但名次变化 ≠ 该换仓。
+        print(f"[predict] 距上次换仓 {state.get('days_since_rebalance', '?')}/"
+              f"{every} 个交易日 —— 持仓沿用 {state.get('held_since', '?')} 的名单"
+              f"（{len(state.get('up') or [])} 只），今日名单只作参考")
+
     if due:
         state["days_since_rebalance"] = 0
     else:
@@ -709,7 +801,13 @@ def step_stats(reports_dir, today):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
     if len(history):
-        print(f"[stats] 累计 {len(history)} 条判定：总命中 {stats['overall_hit_rate']:.1%}，"
+        # ★ 两个数都要报：条目数是**信息量**，独立窗口数才是**样本量**。
+        #   周末出单会让多个信号日落进同一个成交窗口
+        #   （实测 3 个信号日 → 1 笔），只报条目数等于把一次交易数三遍。
+        win = stats.get("n_independent_windows")
+        win_txt = f"{win} 次独立成交" if win else "独立成交次数未知（缺 entry/exit）"
+        print(f"[stats] 累计 {len(history)} 条判定 / {win_txt}："
+              f"总命中 {stats['overall_hit_rate']:.1%}，"
               f"涨命中 {stats['hit_rate_up']:.1%}，超额 {stats['up_excess_vs_market']:+.2%}")
     else:
         print("[stats] 暂无验证历史（首个预测日）")

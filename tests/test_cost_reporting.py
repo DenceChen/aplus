@@ -255,7 +255,7 @@ def test_live_cost_share_falls_back_to_older_report_with_the_metric(tmp_path):
 #
 # 产品承诺是「10 涨 10 跌」。涨腿那一半由 `oos_decision` 的超额闸看着，
 # 跌腿那一半此前既没有闸、也没有任何展示——而实测现任权重
-# `avg_down_return = +0.126%/日`：它推的「10 只��跌」平均每天**在涨**。
+# `avg_down_return = +0.126%/日`：它推的「10 只会跌」平均每天**在涨**。
 # 半年下来用户每天收到 10 只「会跌」的股票，判决板一个字都没说。
 
 def _down_report(tmp_path, rows):

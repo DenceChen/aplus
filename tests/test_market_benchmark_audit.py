@@ -102,7 +102,7 @@ def test_audit_gate_agrees_with_production_filter_universe():
     """同一批票，审计脚本与生产 `filter_universe` 必须选出**同一批**。
 
     这是整个审计的锚。生产版还有一层名称过滤（ST 前缀）而审计脚本没有，
-    ��审计只会**更保守**（判污染的更少），方向是安全的。
+    所以审计只会**更保守**（判污染的更少），方向是安全的。
     """
     df = _align_frame()
     prod = _prod_codes(df)

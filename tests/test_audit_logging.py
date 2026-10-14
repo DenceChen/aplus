@@ -326,27 +326,36 @@ def test_setup_logging_control_arm_writable_root_works(tmp_path):
 
 
 # ═════════════════════════════════════════════════════════════
-# 缺陷 4 · launchd 的 stdout/stderr 落盘文件无人轮转
-#   aplus/log.py:209（只 glob logs/*.jsonl）
+# 缺陷 4 · launchd 的 stdout/stderr 落盘文件无人轮转  ✅ 2026-10-15 已修
+#   根因：aplus/log.py 的 rotate_logs 只 glob logs/*.jsonl，不碰 data/*.log
+#   现为**截断留尾**（保留 8 KB + 盖轮转标记），不删文件 —— 见下面那条测试
+#   ⚠️ 已知的**残留局限**（实测确认，不是猜测）：按 mtime 判龄，
+#     而 launchd 常驻进程每天追加 ⇒ mtime 永远是今天 ⇒ **这条轮转永不触发**。
+#     本次修的只是「已经停更的老文件」这一段；封住磁盘增长要按**大小**轮转，未做。
 # ═════════════════════════════════════════════════════════════
 
-def test_rotate_logs_leaves_launchd_stdout_logs_untouched(tmp_path):
-    """【钉住缺陷】在守：`data/*.log` **当前不在任何轮转管辖内**。
+def test_rotate_logs_now_truncates_launchd_stdout_logs(tmp_path):
+    """【缺陷已修】在守：`data/*.log` 现在**在轮转管辖内**（截断，不删）。
 
-    缺陷：`rotate_logs` 只 `sink_dir.glob("*.jsonl")`（log.py:209），
-    即只管 `data/logs/*.jsonl`。而本仓所有常驻进程由 launchd 托管，
-    stdout/stderr 落在 `data/*.log`（plist 的 StandardOutPath /
-    StandardErrorPath）⇒ 这批文件**永远增长、无人轮转**。
+    缺陷（2026-10-14 登记，2026-10-15 修）：`rotate_logs` 只
+    `sink_dir.glob("*.jsonl")`，即只管 `data/logs/*.jsonl`。而本仓所有常驻进程
+    由 launchd 托管，stdout/stderr 落在 `data/*.log`（plist 的
+    StandardOutPath / StandardErrorPath）⇒ 这批文件**永远增长、无人轮转**。
 
-    坏掉的症状（出事那天我能不能查出来）：
-    查不到，因为它们还在，只是越滚越大：实测
-    `data/bootstrap_full.log` 595 KB（mtime 停在 10-10）、
-    `data/web_agent.err.log` 74 KB。仓库内也无 newsyslog/logrotate 配置。
-    真爆盘的那天，报错是「设备空间不足」，看不出是哪类日志撑爆的。
+    修法是**截断留尾**而不是删除：实测这批文件最大才 ~20 KB，
+    省下的磁盘不值一条排查线索（本仓铁律「不信退出码、要靠产物指纹」）。
+
+    ⚠️ **本断言 2026-10-15 被改写过，原因值得记：**
+    旧版断言 `survivors == ["run_daily.log", "web_agent.err.log"]`（老文件原地不动）。
+    修复落地后它**照样绿** —— 因为截断不删文件，文件确实还在。
+    ⇒ 「通过」与「在守东西」之间没有关系（铁律）。旧断言已经变成一个
+    恒真守卫：轮转跑不跑它都是绿的。现断言改钉**内容**（100 字节必须被清空），
+    也就是轮转真正发生的那件事。
+    ⇒ 守卫的判据必须跟着设计走，不能只跟着文件名走。
 
     复现：
-        SURVIVES: run_daily.log 100
-        SURVIVES: web_agent.err.log 100
+        run_daily.log       20 KB → 内容被清空 + 留下轮转标记
+        web_agent.err.log  20 KB → 同上（**文件仍在**）
     """
     from aplus.log import rotate_logs
 
@@ -357,19 +366,35 @@ def test_rotate_logs_leaves_launchd_stdout_logs_untouched(tmp_path):
     # 而任何按 mtime/大小轮转的修复都只对老文件生效。fixture 用新 mtime 的话，
     # 修复与不修复**行为完全一样** ⇒ 测试恒绿、什么也没守。
     # （记忆铁律：守卫只有变异后算数；变异没变红要先怀疑变异是空操作。）
+    #
+    # ⚠️ 尺寸必须是**真实的量级**（20 KB，实测 data/*.log 最大 21 KB），
+    # 不能沿用本测试原来的 100 字节：轮转保留 8 KB 尾巴，100 字节的文件
+    # 比尾巴还短 ⇒ 无内容可清 ⇒ 断言「已被清空」永远不成立。
+    # 这不是实现的问题（清一个比尾巴还小的文件只会白丢数据、换不来任何磁盘），
+    # 是**fixture 必须让判据真的走到那个分支**。
     old = datetime.datetime(2020, 1, 1).timestamp()
     for name in ("run_daily.log", "web_agent.err.log"):
         p = tmp_path / name
-        p.write_text("x" * 100, encoding="utf-8")
+        # 头尾用**可区分的标记**，不能全填同一个字符：
+        # 轮转保留最后 8 KB，若全填 'x'，截断后仍然满屏 'xxx'，
+        # 断言「xxx 不在内容里」就永远红——那是**断言写错**，不是轮转没跑。
+        p.write_text("OLD_HEAD_MARKER\n" + "filler\n" * 3000 + "OLD_TAIL_MARKER\n",
+                     encoding="utf-8")
         os.utime(p, (old, old))
 
     rotate_logs(tmp_path, keep_days=1, today="2026-10-14")
 
     survivors = sorted(p.name for p in tmp_path.glob("*.log") if p.exists())
     assert survivors == ["run_daily.log", "web_agent.err.log"], (
-        f"实测存活 {survivors}。若已被轮转 ⇒ 缺陷已修，请把本断言改成 [] "
-        f"并更新 docstring"
+        f"实测存活 {survivors}。轮转约定是**截断**不是删除，文件应当仍在。"
     )
+    for name in survivors:                       # 关键：钉内容，不是钉存在
+        p = tmp_path / name
+        body = p.read_text(encoding="utf-8")
+        assert "OLD_HEAD_MARKER" not in body, f"{name} 的超期**头部**还在 ⇒ 轮转没跑"
+        assert "OLD_TAIL_MARKER" in body, f"{name} 的**尾部**被抹掉了 ⇒ 截断不该删证据"
+        assert "rotate_logs" in body, f"{name} 缺轮转标记，过后无法判断已被清过"
+        assert p.stat().st_size < 20_000, f"{name} 体积没降 ⇒ 轮转没跑"
 
 
 def test_rotate_logs_control_arm_deletes_expired_jsonl(tmp_path):

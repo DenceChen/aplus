@@ -171,7 +171,7 @@ def test_oos_decision_allows_small_positive_out_of_sample_excess():
 # ## 这道闸立刻抓得到一个真东西
 #
 # 现任权重实测 `avg_down_return = +0.126%/日`：
-# 它推的「10 只��跌」平均每天**在涨**。不是统计口径问题，是承诺没兑现。
+# 它推的「10 只会跌」平均每天**在涨**。不是统计口径问题，是承诺没兑现。
 
 def test_oos_decision_blocks_candidate_whose_down_leg_rises():
     r = _with_t({_k(CHAMP): (0.50, 0.50, 0.002),

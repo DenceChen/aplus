@@ -676,7 +676,8 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
                      bottom_n: int = 10, dates: list | None = None,
                      rebalance_every: int = 1,
                      buffer_multiple: float | None = None,
-                     execution_gate: bool = True) -> pd.DataFrame:
+                     execution_gate: bool = True,
+                     score_transform=None) -> pd.DataFrame:
     """在**已算好的**横截面上跑一组权重（与 walk_forward 逐行等价）。
 
     dates 可限定子区间——样本外验证（训练段选权重、测试段验收）就靠它，
@@ -707,7 +708,25 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
 
     `False` 是 A/B 对照用的旧口径，生产路径不得传。默认值是 True：
     fail-open 的默认值会让「忘了传闸门」和「闸门生效」在报告里长得一模一样。
+
+    ## `score_transform`（安慰剂钩子，默认 None）
+
+    逐日把 `score` 交出去改一遍（协议见 `aplus.predict.ScoreTransform`），
+    用来跑安慰剂臂。**只在调仓日生效** —— 非调仓日走 `_held_predictions`，
+    本来就不重新选股，三条臂在这条路径上完全一致。
+
+    ★ 与 `buffer_multiple` **互斥**，同时给会当场报错：
+      缓冲带那条路径自己调 `composite_score(universe, day_weights)` 重排名，
+      拿的是**未被置换的原始 score**。于是 `buffer_multiple=2` + 安慰剂 =
+      一半的行按打乱后的顺序选、一半按原顺序选，
+      而报告里看不出任何区别 —— 那是「看起来能调，实际调了别的东西」。
     """
+    if score_transform is not None and buffer_multiple:
+        raise ValueError(
+            "score_transform（安慰剂）与 buffer_multiple 不许同时给："
+            "缓冲带那条路径自己重算 `composite_score`，拿到的是**未置换**的 score，"
+            "结果是一部分行按打乱后的顺序选、一部分按原顺序选，"
+            "而报告里看不出任何区别。")
     daily_map = cross_sections.get("_daily_map") or {}
     market = cross_sections.get("_market") or {}
     entry_lag = cross_sections.get("_entry_lag", ENTRY_LAG)
@@ -740,7 +759,8 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
         if rebalance or held_up is None:
             day_weights = weights(universe) if callable(weights) else weights
             up, down = build_predictions(universe, top_n=top_n, bottom_n=bottom_n,
-                                         weights=day_weights)
+                                         weights=day_weights,
+                                         score_transform=score_transform, as_of=day)
             if buffer_multiple and held_up is not None:
                 sc = composite_score(universe, day_weights)
                 ranked_up = list(universe.assign(_s=sc).dropna(subset=["_s"])

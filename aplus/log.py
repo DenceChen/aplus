@@ -19,8 +19,12 @@ import time
 import traceback
 import uuid
 import warnings
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
+
+# `data/*.log` 超期轮转后保留的尾部字节数。留尾巴而不是删文件：
+# 本仓铁律「不信退出码、要靠产物指纹」，日志被删等于当场抹掉排查线索。
+LOG_TAIL_BYTES = 8192
 
 # 唯一允许压掉的警告：pandas/numpy 在**全 NaN 滚动窗口**上做方差运算时会发
 # 这条，结果就是 NaN，属良性。但它一次赛马能刷几百行，把真正的异常埋掉。
@@ -201,14 +205,67 @@ def read_logs(data_root, level: str | None = None, tail: int = 200) -> list:
 
 
 def rotate_logs(data_root, keep_days: int = 14, today: str | None = None):
+    """轮转日志：`logs/*.jsonl` 超期**删除**，`data/*.log` 超期**截断留尾**。
+
+    两族走两套规矩，理由是它们根本不是一类文件：
+
+    - **`logs/*.jsonl`**：文件名就是日期（`2026-10-14.jsonl`），同一天追加、
+      每天一个文件，超期即无价值 ⇒ 直接删（既有行为，未改）。
+    - **`<data_root>/*.log`**：launchd 的 StandardOutPath / StandardErrorPath
+      落点（`run_daily.log`、`web_agent.err.log` …）。名字里**没有日期**，
+      所以判龄只能用 mtime；且它们是**排查线索**——
+      本仓铁律「不信退出码、要靠产物指纹」已经被假退出码坑过（2026-10-15）。
+      ⇒ 超期**截断**、保留最后 `LOG_TAIL_BYTES` 字节并盖一条轮转标记，**不删文件**。
+      实测这批文件最大才 ~20 KB，省下的磁盘远不值这条线索。
+
+    幂等；单个文件坏掉（权限/已消失/是目录）不影响其余文件。
+    """
     today = today or date.today().isoformat()
-    cutoff = date.fromisoformat(today) - timedelta(days=keep_days)
-    sink_dir = Path(data_root) / "logs"
-    if not sink_dir.exists():
-        return
-    for f in sink_dir.glob("*.jsonl"):
-        try:
-            if date.fromisoformat(f.stem) < cutoff:
-                f.unlink()
-        except ValueError:
-            continue
+    cutoff_date = date.fromisoformat(today) - timedelta(days=keep_days)
+    root = Path(data_root)
+
+    sink_dir = root / "logs"
+    if sink_dir.exists():
+        for f in sink_dir.glob("*.jsonl"):
+            try:
+                if date.fromisoformat(f.stem) < cutoff_date:
+                    f.unlink()
+            except (ValueError, OSError):
+                continue          # 文件名解析不了 / 删不掉：跳过，不拖垮整轮
+
+    # 只扫 data_root **顶层**：logs/ 子目录归上面那条分支管，不重复扫。
+    if root.is_dir():
+        for f in root.glob("*.log"):
+            try:
+                if not f.is_file():
+                    continue
+                if f.stat().st_mtime >= _ts(cutoff_date):
+                    continue
+                _truncate_keep_tail(f, today)
+            except OSError:
+                continue          # 单个文件坏掉不得让整轮失败（与既有语义一致）
+
+
+def _ts(d: date) -> float:
+    """date → 当日 00:00 本地时间戳。判龄统一用 `<` 于当日零点。"""
+    return datetime(d.year, d.month, d.day).timestamp()
+
+
+def _truncate_keep_tail(path: Path, today: str) -> None:
+    """清空超期内容，留下最后 `LOG_TAIL_BYTES` 字节 + 一条轮转标记。
+
+    **不删文件**——文件还在这件事本身就是一条信息（「跑过，但已轮转」）。
+    """
+    size = path.stat().st_size
+    if size <= LOG_TAIL_BYTES:
+        return                    # 已经比尾巴还短：无可清，空转（幂等）
+    with path.open("rb") as fh:
+        fh.seek(size - LOG_TAIL_BYTES)
+        tail = fh.read()
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    header = (f"=== [rotate_logs] {today} 已轮转：原 {size} 字节，"
+              f"保留最后 {LOG_TAIL_BYTES} 字节（{stamp}）===\n").encode("utf-8")
+    # 读全再整块写回：避免 seek/truncate 之间被追加写进来的新内容被抹掉。
+    with path.open("wb") as fh:
+        fh.write(header)
+        fh.write(tail)

@@ -28,14 +28,27 @@ up, down = build_predictions(universe, top_n=10, bottom_n=10, weights=weights)
 
 ## 这道闸现在只做一件事
 
-**说清楚实盘到底在执行什么**。真正的持仓状态机还没接，
-但静默地按日频跑一个为月频设计的配置，是这个平台今天最危险的状态。
+**说清楚实盘到底在执行什么**。
 
 `live_execution_status` 必须能回答：
 「线上这份名单，是在执行 weights.json 里声明的那个配置吗？」
 
-真正的持仓状态机还没接。默认保持日频（`rebalance_every=1`）不变，
-**不改变任何已验证行为**；只有当 weights.json 声明了实盘无法执行的东西时才报警。
+## ★ 2026-10-15：事故已修，守卫随之反转
+
+上面那次事故（**测的是月频、实盘做的是日频**）的根因是
+**实盘没有持仓状态机**。今天补上了：
+
+- `run_daily.py` 的持仓写入收进 `if due` 分支（非换仓日沿用旧持仓）
+- `every` 从 `LIVE_REBALANCE_EVERY = 21` 下发，不显式传时 `save_weights`
+  也不再退回 K=1
+
+⇒ 「实盘执行不了月频」这个前提**不再成立**，
+于是 `test_monthly_champion_is_flagged_as_unexecutable` 的方向翻转成
+`..._is_now_honored_because_live_has_a_state_machine`。
+
+⚠️ **翻转不是因为事故消失了，而是因为事故被修了。**
+若哪天状态机被摘掉，`test_honored_depends_on_a_real_state_machine`
+会先红 —— 它钉的正是 `honored=True` 的依据。
 """
 import json
 
@@ -51,12 +64,18 @@ def _write(tmp_path, payload):
 
 
 def test_legacy_weights_file_is_honored(tmp_path):
-    """旧文件没有 execution 字段 = 当日频跑 = 实盘确实这么做。"""
-    from aplus.evolve import live_execution_status
+    """旧文件没有 execution 字段 ⇒ 走 `load_weights` 的回落 ⇒ K=LIVE_REBALANCE_EVERY。
+
+    ⚠️ 2026-10-15 起这个值是 **21** 而不是 1。
+    旧文件「没写 K」从来就没有一个独立于回落策略的确定含义 ——
+    它取的是回落值，而回落值现在是月频。
+    实盘读的是**同一个** `load_weights`，所以两者天然一致，`honored=True`。
+    """
+    from aplus.evolve import LIVE_REBALANCE_EVERY, live_execution_status
     d = _write(tmp_path, {"weights": {"mom20": 1.0}, "evidence": None})
     st = live_execution_status(d)
     assert st["honored"] is True
-    assert st["rebalance_every"] == 1
+    assert st["rebalance_every"] == LIVE_REBALANCE_EVERY == 21
     assert st["buffer_multiple"] is None
 
 
@@ -108,33 +127,94 @@ def test_fallback_default_is_labelled_as_untested_not_blessed(tmp_path):
     assert "未经" in (cfg.get("caveat") or "")
 
 
-def test_monthly_champion_is_flagged_as_unexecutable(tmp_path):
+def test_monthly_champion_is_now_honored_because_live_has_a_state_machine(tmp_path):
+    """★ 这条守卫在 2026-10-15 **反转了方向**，理由记在这里。
+
+    原断言是 `honored is False`，理由写着「实盘没有持仓状态机」。
+    那个前提**已经不成立**：`scripts/run_daily.py` 的持仓写入已收进
+    `if due` 分支，非换仓日沿用旧持仓 —— 事故本身被修掉了。
+
+    事故被修掉之后，正确的行为就变成 `honored is True`。
+    **但这不是「把测试改成能过」**：
+    `honored=True` 这个说法**只有在状态机真的存在时才是真的**，
+    所以下面必须同时钉住那个前提（`test_honored_depends_on_a_real_state_machine`），
+    否则这条测试就是一句没有依据的话。
+    """
     from aplus.evolve import live_execution_status
     d = _write(tmp_path, {"weights": {"mom20": -1.0},
                           "execution": {"rebalance_every": 21, "buffer_multiple": None},
                           "evidence": {"promoted_on": "2026-10-11"}})
     st = live_execution_status(d)
-    assert st["honored"] is False
+    assert st["honored"] is True
     assert st["rebalance_every"] == 21
     assert "21" in st["reason"]
 
 
-def test_buffer_only_champion_is_also_flagged(tmp_path):
-    """缓冲区与频率正交：只声明缓冲区同样执行不了。"""
+def test_buffer_only_champion_is_also_honored(tmp_path):
+    """缓冲区与频率正交；缓冲区也已由 `if due and buf and held_up` 实现。"""
     from aplus.evolve import live_execution_status
     d = _write(tmp_path, {"weights": {"mom20": 1.0},
                           "execution": {"rebalance_every": 1, "buffer_multiple": 3.0}})
     st = live_execution_status(d)
-    assert st["honored"] is False
+    assert st["honored"] is True
     assert "缓冲" in st["reason"]
 
 
-def test_reason_mentions_the_net_gap_not_just_the_field_name(tmp_path):
-    """理由必须说清**后果**：日频全换会让年成本从 0.35% 变成 3.5%。"""
+def test_honored_depends_on_a_real_state_machine():
+    """★ `honored=True` 这个主张的**唯一依据**是状态机真的存在。
+
+    `live_execution_status` 自己看不到 `run_daily.py`，它只是**声称**实盘
+    在按 `due` 换仓。要让这句话不是空话，必须在这里钉住它的依据。
+
+    ⇒ 这是一条**跨文件**守卫：产品里那三行一旦回退，这两条测试同时失去意义，
+    而这一条会先红。
+    """
+    import ast
+    import re
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "scripts" / "run_daily.py").read_text(
+        encoding="utf-8")
+    body = re.search(r"^def step_predict_and_allocate\(.*?(?=^def |\Z)", src, re.S | re.M)
+    assert body, "step_predict_and_allocate 不见了"
+
+    # ① 确实按 every 判到期
+    assert re.search(r"is_due\(\s*prev\s*,\s*every\s*,\s*buf\s*\)", body.group(0)), (
+        "实盘不再用 `is_due(prev, every, buf)` 判换仓日 —— "
+        "`live_execution_status` 声称的「按声明执行」就没有依据了"
+    )
+    # ② 持仓写入确实只在 due 时发生
+    tree = ast.parse(body.group(0))
+    unguarded = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        cond = ast.unparse(node.test)
+        for sub in ast.walk(node):
+            tgt = (ast.unparse(sub.targets[0])
+                   if isinstance(sub, ast.Assign) and sub.targets else None)
+            if tgt and re.match(r"^state\[?['\"](up|down)['\"]", tgt) and "due" not in cond:
+                unguarded.append((cond, tgt))
+    assert not unguarded, (
+        f"持仓写入又跑出 `if due` 了：{unguarded} ⇒ "
+        "`honored=True` 变成一句假话，K 与缓冲区都只是名义上的"
+    )
+
+
+def test_reason_states_what_is_executed_not_the_old_daily_claim(tmp_path):
+    """理由必须说**实盘在执行什么**，不能再喊「正在按日频全换」。
+
+    事故修好之后继续输出旧警告，比不输出更坏 ——
+    **它训练人忽略这道闸**（第 6 条：过期的前提变成对正确行为的报警）。
+    """
     from aplus.evolve import live_execution_status
     d = _write(tmp_path, {"weights": {"mom20": -1.0},
                           "execution": {"rebalance_every": 21, "buffer_multiple": None}})
-    assert "日频" in live_execution_status(d)["reason"]
+    reason = live_execution_status(d)["reason"]
+    assert "日频" not in reason, (
+        f"理由仍在喊日频：{reason!r} —— 实盘已经按 K=21 执行了"
+    )
+    assert "21" in reason
 
 
 def test_save_weights_round_trips_execution(tmp_path):
@@ -148,19 +228,25 @@ def test_save_weights_round_trips_execution(tmp_path):
     assert cfg["weights"] == {"mom20": -1.0}
 
 
-def test_execution_defaults_to_daily_on_save(tmp_path):
+def test_execution_defaults_to_monthly_on_save(tmp_path):
+    """★ 2026-10-15 改：不显式传 execution 时，落盘的 K 必须是 21 而不是 1。
+
+    留一个通往日频的默认后门，等于让「月频换仓」这个决策**只接了一半**：
+    `load_weights` 回落给 21、`save_weights` 不传时写 1，
+    实盘拿到哪个全看走哪条路。**半接的开关比不接更坏。**
+    """
     from aplus.evolve import load_weights, save_weights
     reports = tmp_path / "reports"
     reports.mkdir()
     save_weights(reports, {"mom20": 1.0}, {})
-    assert load_weights(reports)["execution"] == {"rebalance_every": 1,
+    assert load_weights(reports)["execution"] == {"rebalance_every": 21,
                                                    "buffer_multiple": None}
 
 
 def test_load_weights_without_weights_file_has_execution(tmp_path):
     from aplus.evolve import load_weights
     cfg = load_weights(tmp_path / "reports")
-    assert cfg["execution"] == {"rebalance_every": 1, "buffer_multiple": None}
+    assert cfg["execution"] == {"rebalance_every": 21, "buffer_multiple": None}
 
 
 def test_corrupt_execution_field_falls_back_to_daily_loudly(tmp_path):

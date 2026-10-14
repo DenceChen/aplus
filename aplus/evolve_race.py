@@ -645,7 +645,7 @@ def _judge_candidate(best: dict, champ: dict, champ_key: tuple, race_result: dic
     #
     # ## 它立刻抓得到一个真东西
     #
-    # 现任权重实测 `avg_down_return = +0.126%/日`——它推的「10 只��跌」
+    # 现任权重实测 `avg_down_return = +0.126%/日`——它推的「10 只会跌」
     # 平均每天**在涨**。这不是统计口径问题，是产品承诺没兑现。
     td_stats = best["test"].get("stats", {})
     td_ret = td_stats.get("avg_down_return")

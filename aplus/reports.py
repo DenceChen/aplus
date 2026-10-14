@@ -251,8 +251,19 @@ def _alloc_path(reports_dir, date: str) -> Path:
 
 
 def save_allocation(reports_dir, date: str, plan_dict: dict) -> None:
+    """写每日资产配置方案。
+
+    ★ `date` **必须同时进内容**，不能只拿去拼文件名。
+    曾经只拼文件名（`alloc_<date>.json`）而内容里一个日期都没有，
+    于是**产物没有身份**：任何消费者问「这份方案是哪天的」只能去猜文件名，
+    而「猜文件名」和「写文件名」是两个可以各自漂移的通道。
+    ⇒ 内容里的 `date` 与文件名由**同一个入参**派生，两者**构造上不可能不一致**。
+    """
+    payload = dict(plan_dict)
+    # 不覆盖调用方显式给的日期（那才是权威）；只在缺省时补上
+    payload.setdefault("date", date)
     _alloc_path(reports_dir, date).write_text(
-        json.dumps(plan_dict, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
@@ -260,7 +271,12 @@ def load_allocation(reports_dir, date: str):
     path = _alloc_path(reports_dir, date)
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    obj = json.loads(path.read_text(encoding="utf-8"))
+    # 🚨 **不静默回填**：内容里缺 date 就是缺，不能拿文件名日期假装它有。
+    #    旧文件靠调用侧自己判（`obj.get("date")`），这里保持 None 而不是编一个。
+    if isinstance(obj, dict) and not obj.get("date"):
+        obj["date"] = None
+    return obj
 
 
 def _run_status_path(reports_dir) -> Path:

@@ -133,3 +133,55 @@ def is_nan_column(df, col: str) -> bool:
     if col not in getattr(df, "columns", []):
         return True
     return bool(df[col].isna().all())
+
+
+def require_run_completed(path, sibling_suffixes=(".daily.parquet",)) -> Ready:
+    """★ **副产物比主产物新 ⇒ 这一轮在中途死了。**
+
+    ## 要抓的具体事故（2026-10-15）
+
+    `scripts/backtest_walk_forward_weights.py` 的落盘顺序是
+    「先 `.daily.parquet`、后 `.json`」。而两行之间有一句
+    `sum(... for r in results)` —— `results` 从未定义，`NameError`。
+
+    于是那次运行的结果是：
+
+        wf_weights_backtest_k21.daily.parquet   00:17  ← 新
+        wf_weights_backtest_k21.json            （不存在）
+
+    **目录里有这一轮的文件**。任何用「产物 mtime 是最新的吗」判断
+    「这轮跑完了」的办法，都会判成**跑完了**。
+
+    ## 为什么 `require_keys` 抓不到
+
+    主文件**根本不存在**，而 `require_keys` 的用途是
+    「主文件在，但内容不齐」。**缺文件与内容旧是两回事**，
+    混在一起就会出现「因为主文件不存在，所以读到了上一轮的那份」——
+    这正是本模块 docstring 记的那次事故。
+
+    ⇒ 所以需要一条**独立**的判据：**主产物必须不早于任何副产物**。
+
+    ## 这条判据的强度：它不需要知道任何字段
+
+    只比两个 mtime。它能覆盖**任意**在两处落盘之间崩溃的原因
+    （`NameError` / `KeyError` / OOM / 断电 / 被 kill），
+    因为这些在文件系统上留下的痕迹**是一样的**：
+    副产物新、主产物旧或缺失。
+    """
+    p = Path(path)
+    if not p.is_file():
+        return Ready(False, f"{p} 不存在 —— 主产物没落盘，这轮没跑完")
+    main_mtime = p.stat().st_mtime
+    for suf in sibling_suffixes:
+        sib = p.with_suffix(suf)
+        if not sib.is_file():
+            continue
+        if sib.stat().st_mtime > main_mtime:
+            import datetime
+            return Ready(
+                False,
+                f"🚨 {sib.name} 比 {p.name} **更新** —— 这一轮在中途死了："
+                f"副产物 {datetime.datetime.fromtimestamp(sib.stat().st_mtime):%H:%M:%S} "
+                f"落在主产物 {datetime.datetime.fromtimestamp(main_mtime):%H:%M:%S} 之后。"
+                "目录里有本轮的文件，但**本轮的主报告没有**。")
+    return Ready(True, f"{p.name} 不早于任何副产物（{len(sibling_suffixes)} 个）")

@@ -149,7 +149,7 @@ def test_resume_spike_between_clamp_and_invalidation_is_compressed():
     存活的那个正是这条测试本该杀掉的）。
 
     压缩真正起作用的区间是 **10% < |收益| ≤ 40%**：合法但任意。
-    造出这个区间��置，才测得到它。
+    造出这个区间位置，才测得到它。
     """
     from aplus.panel import _factor_series
     frame = _frame_with_suspension(spike=0.25)     # 复牌首日 +25%

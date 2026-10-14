@@ -314,7 +314,7 @@ MUTATIONS: list[tuple[str, str, str, str, str, list[str]]] = [
     ("downleg", "aplus/evolve_race.py",
      "    if td_ret >= max_test_down_return:\n",
      "    if td_ret >= float('inf'):\n",
-     "跌腿闸永��成立——推的「10 跌」即使平均每天在涨也能晋级。"
+     "跌腿闸永远成立——推的「10 跌」即使平均每天在涨也能晋级。"
      "实测现任权重就是这样：`avg_down_return = +0.126%/日`",
      ["tests/test_evolve_race.py::test_oos_decision_blocks_candidate_whose_down_leg_rises"]),
 
