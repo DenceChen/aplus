@@ -647,12 +647,19 @@ async function loadChrome() {
        「没测过」与「测过、是坏的」方向完全相反。
 
        取不到时降级为 null（`docketWarning` 会静默）。 */
-    const [status, evo, weights] = await Promise.all([
+    const [status, evo, weights, pred] = await Promise.all([
       jget('/api/status'),
       jget('/api/evolution/summary').catch(() => null),
       jget('/api/weights').catch(() => null),
+      /* 榜单出处（2026-10-14）。与上面 `weights` 的 `caveat` 是**两回事**：
+         那条讲「现在跑的权重有没有被验收」，这条讲「**你屏幕上这张榜单**
+         是不是用现在这组权重排的」。判据来自 predictions 的 weights_check。
+
+         这里也必须取：loadChrome 是**外壳**，深链进任何 tab 都会调它。
+         若只有 loadOverview 取，深链进「进化」页时概览顶部看不到警示。 */
+      jget('/api/predictions/latest').catch(() => null),
     ]);
-    renderDocket(status.stats, evo, weights);
+    renderDocket(status.stats, evo, weights, pred);
   } catch {
     $('docket-word').textContent = '平台状态未知';
     $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
@@ -679,7 +686,7 @@ async function loadOverview() {
     renderRows($('pred-rows-down'), pred.down, 'down');
     $('up-count').textContent = `${pred.up.length} 只`;
     $('down-count').textContent = `${pred.down.length} 只`;
-    renderDocket(status.stats, evo, weights);
+    renderDocket(status.stats, evo, weights, pred);
   } catch (e) { $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`; }
   try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
 }
@@ -688,7 +695,7 @@ async function loadOverview() {
    3 笔是硬门槛，与转债纸面账户「调仓期不足 3 次不给年化判决」同一条规矩：
    两三天的命中率是噪音，报出来会被读成信号。 */
 const MIN_JUDGED = 3;
-function renderDocket(stats, evo, weights) {
+function renderDocket(stats, evo, weights, predictions) {
   const judged = stats?.judged ?? 0;
   const has = judged >= MIN_JUDGED;
   const rate = stats?.overall_hit_rate ?? null;
@@ -730,7 +737,7 @@ function renderDocket(stats, evo, weights) {
      测试在 `tests/test_docket_warning.py`。留在这层是为了让每条分支都可测——
      「打开浏览器看一眼」验证不了分支覆盖。 */
   const warn = $('docket-warn');
-  const warnOut = docketWarning(stats, evo, weights);
+  const warnOut = docketWarning(stats, evo, weights, predictions);
   warn.hidden = !warnOut;
   if (warnOut) {
     warn.className = 'docket-warn ' + warnOut.level;

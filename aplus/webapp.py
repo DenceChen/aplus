@@ -163,11 +163,41 @@ def create_app(data_root, llm=None) -> FastAPI:
 
     @app.get("/api/predictions/latest")
     def predictions_latest():
+        """最新榜单 + **它是用哪组权重排出来的**。
+
+        ## 为什么必须带上 `weights_check`
+
+        2026-10-14 实测：概览页显示的榜单来自 `pred_2026-10-13.parquet`，
+        那是默认权重符号**整体翻转之前**生成的。那份榜单的看涨前 6 名
+        20 日动量全是正的（+164.5% / +122.8% / +71.7% / +105.7% / +98.0% / +79.2%），
+        而实测 IC（`factor_ic_7y.json`）说 `mom20` 为负（全段 IC −0.0357）——
+        符号修正后，看涨榜应该全是低动量股。用户要的是「明天会涨的 10 只」，
+        屏幕上这张榜却是用一把实测会挑反的尺子排出来的。
+
+        三态（`match` / `mismatch` / `unknown`）见 `reports.prediction_weights_verdict`。
+        **`unknown` 必须被前端当报警处理**，理由是无法证明一致 ≠ 一致。
+
+        ## 参考权重走 `load_weights`，不写死 DEFAULT_WEIGHTS
+
+        `weights.json` 一旦落盘（赛马晋级），参考就该是晋级权重；
+        写死默认值会在晋级那一刻把每张榜单都误报成 mismatch。
+
+        ## 归档接口（`/api/predictions/history`）**不带**这个状态
+
+        那个接口一次返回几十天。带着状态字段过去，「所有历史文件一起报警」
+        才会成立——而那正是这套机制唯一站得住脚的地方：只判概览页正在
+        显示的那一张。
+        """
+        from .evolve import load_weights
+        from .reports import prediction_weights_verdict
+
         lp = latest_prediction_date(reports_dir)
         if lp is None:
             raise HTTPException(404, "尚无预测记录")
         up, down = load_predictions(reports_dir, lp)
-        return {"date": lp, "up": _json_safe(up), "down": _json_safe(down)}
+        check = prediction_weights_verdict(reports_dir, lp, load_weights(reports_dir)["weights"])
+        return {"date": lp, "up": _json_safe(up), "down": _json_safe(down),
+                "weights_check": check}
 
     @app.get("/api/verification/history")
     def verification_history():

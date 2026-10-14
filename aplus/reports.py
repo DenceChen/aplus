@@ -5,10 +5,14 @@
     verification.parquet              全部验证判定（追加式，唯一调参依据）
     allocation/alloc_{date}.json      每日资产配置方案
 """
+import hashlib
 import json
 from pathlib import Path
 
 import pandas as pd
+
+# 预测文件里那一列的名字：它记的是「本文件是用哪组权重排出来的」。
+WEIGHTS_HASH_COLUMN = "weights_hash"
 
 
 def _pred_path(reports_dir, pred_date: str) -> Path:
@@ -17,10 +21,134 @@ def _pred_path(reports_dir, pred_date: str) -> Path:
     return d / f"pred_{pred_date}.parquet"
 
 
-def save_predictions(reports_dir, pred_date: str, up: pd.DataFrame, down: pd.DataFrame) -> None:
+def weights_fingerprint(weights: dict | None) -> str | None:
+    """一组权重的**稳定指纹**（12 位十六进制），无权重时返回 None。
+
+    ## 为什么指纹必须与 dict 插入顺序无关
+
+    它的用途是**跨进程、跨天**回答「是不是同一组权重」。它一旦对顺序敏感，
+    `load_weights` 在保存时给出的顺序与 `/api/weights` 读回的顺序稍有不同
+    就会算出两个指纹，于是每次都报 `mismatch` —— 一个永远在响的假警报。
+
+    假警报的杀伤力不比漏报小：用户学会忽略它之后，连真的那条一起忽略。
+
+    排序发生在 **hash 之前**（`json.dumps(..., sort_keys=True)`），
+    不在 dict 上排序后取 items —— 后者同样可行但更啰嗦，而且
+    `ensure_ascii=False` 那一层就得多解释一句「为什么排序不改变编码」。
+
+    ## 为什么是 12 位
+
+    够短才能直接印在页面警示条上（用户要能自己核对两个指纹）；
+    48 位熵对于「同一台机器上两组配置」这个比较场景，撞车概率可以忽略。
+
+    ## 空权重返回 None 而不是某个字符串
+
+    空 dict 的 `json.dumps` 是合法的 `"{}"`，会算出一个**看起来合法**的指纹。
+    拿它去和真权重的指纹比必然 mismatch，而真相是「压根没有权重可谈」——
+    那属于 unknown，不属于 mismatch。
+    """
+    if not weights:
+        return None
+    payload = json.dumps(weights, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+
+
+def save_predictions(reports_dir, pred_date: str, up: pd.DataFrame, down: pd.DataFrame,
+                    weights: dict | None = None) -> None:
+    """落盘预测榜单，并**记下自己用了哪组权重**。
+
+    ## 为什么必须记
+
+    2026-10-14 实测：概览页显示的榜单来自 `pred_2026-10-13.parquet`，
+    那是 `DEFAULT_WEIGHTS` 符号**整体翻转之前**生成的
+    （`{mom20:+1.0, ...}` → `{mom20:-1.0, ...}`）。那份榜单的看涨前 6 名
+    20 日动量**全是正的**（+164.5% / +122.8% / +71.7% / +105.7% / +98.0% / +79.2%），
+    而实测 IC（`data/reports/factor_ic_7y.json`）说 `mom20` 是负的
+    （全段 IC −0.0357；8 因子 × 8 年逐年符号 63/63 一致——`turnratio` 缺 2019
+    只有 7 条逐年记录，缺口不补也不外推，分母是有记录的那 63 条）。
+    符号修正后，看涨榜**应该全是低动量股**。
+
+    也就是说：用户要的是「明天会涨的 10 只」，而屏幕上这张榜是用一把
+    实测会挑反的尺子排出来的，且**没有任何一处说明它早于当前权重**。
+
+    本函数此前只写 `pred_date`，不记权重，于是任何权重变更都会让概览页
+    静默显示过期榜单：HTTP 200、字段类型正确、前端不报错。
+
+    ## 没传 weights 就不写这一列
+
+    留一个全空串或全 NaN 的僵尸列，看起来「有字段」，读出来还是不可知，
+    还得每次额外判空。不如干脆没有——缺列就是缺列，判定见
+    `prediction_weights_verdict` 的 `unknown` 档。
+    """
     both = pd.concat([up, down], ignore_index=True)
     both["pred_date"] = pred_date
+    fp = weights_fingerprint(weights)
+    if fp is not None:
+        both[WEIGHTS_HASH_COLUMN] = fp
     both.to_parquet(_pred_path(reports_dir, pred_date), index=False)
+
+
+def load_prediction_weights_hash(reports_dir, pred_date: str) -> str | None:
+    """读回某份预测文件记下的权重指纹；**读不出就返回 None**。
+
+    三种「读不出」，一律折成 None，因为它们对使用者的含义是同一句
+    「出处不可知」：
+
+    - 文件不存在
+    - 文件没有 `weights_hash` 列（2026-10-14 之前生成的全部文件）
+    - 文件损坏（抛异常）——**出处读不出来本来就是一个合法结论**，不是故障。
+      让它抛出去会把 `/api/predictions/latest` 整个打成 500，
+      而页面上只剩一片空白：把「结论」和「故障」混在一起，最该说话时反而不说话。
+    - 列存在但一行里出现了两个不同的指纹 —— 矛盾等于不可知。
+      取第一个或取最后一个都是替这份文件做主。
+    """
+    # 不用 `_pred_path`：它会 mkdir，而这是一条**读**路径——
+    # 查一个不存在的预测日不该顺手把 predictions 目录建出来。
+    path = Path(reports_dir) / "predictions" / f"pred_{pred_date}.parquet"
+    if not path.exists():
+        return None
+    try:
+        raw = pd.read_parquet(path, columns=[WEIGHTS_HASH_COLUMN])[WEIGHTS_HASH_COLUMN]
+    except Exception:  # noqa: BLE001 — 缺列 / 文件损坏 / 格式不对，都是「不可知」
+        return None
+    vals = {str(v).strip() for v in raw.dropna().tolist() if str(v).strip()}
+    return vals.pop() if len(vals) == 1 else None
+
+
+def prediction_weights_verdict(reports_dir, pred_date: str, current_weights: dict | None) -> dict:
+    """榜单用的权重，与当前权重，是否一致——三态。
+
+        match     —— 榜单记下的指纹 == 当前权重的指纹
+        mismatch  —— 两边指纹都读得出，且不相等
+        unknown   —— **任一边读不出**（老文件没有这一列；或当前权重为空）
+
+    ## `unknown` 为什么必须报警，而不能当成 `match`
+
+    **无法证明一致 ≠ 一致。**
+
+    一个缺失的列若被静默当成「一致」，这个字段就退化成了摆设：
+    所有权重变更仍然静默通过，只是多了一个从不报警的列。
+
+    ## 「太吵」不成立
+
+    本函数每次只看**被点名的那一份**文件。历史归档走
+    `/api/predictions/history`，那个接口不带这个状态。
+    所以永远只有概览页正在显示的那一张被判——不是「所有历史文件一起报警」。
+    """
+    board_hash = load_prediction_weights_hash(reports_dir, pred_date)
+    current_hash = weights_fingerprint(current_weights)
+    if board_hash is None or current_hash is None:
+        status = "unknown"
+    elif board_hash == current_hash:
+        status = "match"
+    else:
+        status = "mismatch"
+    return {
+        "status": status,
+        "board_hash": board_hash,
+        "current_hash": current_hash,
+        "current_weights": current_weights or None,
+    }
 
 
 def load_predictions(reports_dir, pred_date: str):

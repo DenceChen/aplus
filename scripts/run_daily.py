@@ -421,7 +421,10 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
                 print(f"    {r['name']} 情绪 {sent} {r.get('news_reason') or ''}")
     except Exception as exc:  # noqa: BLE001
         print(f"[news] 覆盖层跳过：{exc!r}")
-    save_predictions(reports_dir, today, up, down)
+    # `weights` 必须传下去：预测文件要记下「自己是用哪组权重排的」。
+    # 不传的话概览页拿到的是一份出处不可知的榜单——权重一改，
+    # 屏幕上那张榜静默地变成过期榜单，而页面上一处说明都没有。
+    save_predictions(reports_dir, today, up, down, weights=weights)
 
     # ── 持仓指令（2026-10-11 21:45）────────────────────────────────
     # **推荐照旧每天出**——用户要的是「每天 10 涨 10 跌」，那是排序产品。
