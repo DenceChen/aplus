@@ -76,9 +76,12 @@ def test_build_predictions_top10_bottom10():
     df = _cross_section(30)
     up, down = build_predictions(df, top_n=10, bottom_n=10)
     assert len(up) == 10 and len(down) == 10
-    # mom 单调递增 → 分数最高者是 600029，最低者是 600000
-    assert up["code"].iloc[0] == "600029.SH"
-    assert down["code"].iloc[0] == "600000.SH"
+    # mom 单调递增，而 `mom20` 的实测 IC 为负（−0.0357，逐年 8/8 全负），
+    # 所以**动量最高者分数最低** → 600029 进跌榜首位、600000 进涨榜首位。
+    # 这条期望值在 2026-10-14 翻转默认权重符号时对调过一次：翻转前
+    # `mom20:+1.0`，高分是 600029。方向由实测 IC 定，不由权重约定定。
+    assert down["code"].iloc[0] == "600029.SH"
+    assert up["code"].iloc[0] == "600000.SH"
     # up 与 down 无交集
     assert not set(up["code"]) & set(down["code"])
     # 每条带方向与分数

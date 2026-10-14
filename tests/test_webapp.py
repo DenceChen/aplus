@@ -154,7 +154,11 @@ def test_backtest_endpoint(tmp_path):
 def test_weights_endpoint_reports_current_strategy(tmp_path):
     app = create_app(tmp_path, llm=FakeLLM())
     body = TestClient(app).get("/api/weights").json()
-    assert body["weights"]["mom20"] == 1.0  # 未进化过 → 默认 v1
+    # 未进化过 → 回落到 DEFAULT_WEIGHTS。`mom20` 于 2026-10-14 由 +1.0
+    # 翻成 −1.0（实测 IC 逐年全负），所以这里不再钉「1.0」这个魔数，
+    # 改为引用真实常量——复制默认值就是本文件 2026-10-14 修掉的毛病。
+    from aplus.factor import DEFAULT_WEIGHTS
+    assert body["weights"] == DEFAULT_WEIGHTS
     # `source` 于 2026-10-14 从 `default` 改成 `fallback`。
     # 原值把「weights.json 不存在、什么都没跑过」显示成 `default`，
     # 读起来像「一份已知的默认配置」——而 `load_weights` 自己区分得更准。

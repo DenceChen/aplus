@@ -169,9 +169,18 @@ def test_compute_factors_ivol_computed_when_mkt_given():
 # ---------- 合成分 ----------
 
 def test_composite_score_equal_weight_average():
+    """等权合成 = 各因子标准化值的平均，且关于原点反对称。
+
+    **显式传等权正权重**，不靠 `DEFAULT_WEIGHTS`（2026-10-14 修）。
+    本条要验的是「合成的平均/对称性质」，与默认配置的方向无关。
+    之前它隐式吃 `DEFAULT_WEIGHTS`，于是默认权重一翻符号，这条就红——
+    但它红得毫无道理：反对称性（下一行）依然成立，坏掉的只是第一条断言
+    的符号，那本来就依赖默认权重的正负。
+    """
+    equal = {"mom20": 1.0, "rev5": 1.0, "vol20": 1.0, "vsur": 1.0}
     f1 = pd.Series({"mom20": 1.0, "rev5": 1.0, "vol20": 1.0, "vsur": 1.0})
     f2 = pd.Series({"mom20": -1.0, "rev5": -1.0, "vol20": -1.0, "vsur": -1.0})
-    scores = composite_score(pd.DataFrame([f1, f2]))
+    scores = composite_score(pd.DataFrame([f1, f2]), weights=equal)
     assert scores.iloc[0] > 0 > scores.iloc[1]
     assert scores.iloc[0] == pytest.approx(-scores.iloc[1])
 

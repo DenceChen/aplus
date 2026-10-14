@@ -176,7 +176,7 @@ def save_weights(reports_dir, weights: dict, evidence: dict,
     `execution` 是**执行参数**（调仓频率 / 缓冲区倍数），与 `weights` 分开存。
     分开是因为它们是两回事：权重是「选谁」，执行参数是「多久换一次」。
     合成一个 dict 存着的后果已经出现过——实盘只读 `weights`，
-    于是「每 21 个交易日调一次仓」被静默丢���，
+    于是「每 21 个交易日调一次仓」被静默丢弃，
     按日频全换执行，而回测净值是按月频算的。
     """
     path = _weights_path(reports_dir)
@@ -197,11 +197,17 @@ def load_weights(reports_dir):
         return {"weights": dict(DEFAULT_WEIGHTS), "evidence": None,
                 "execution": {"rebalance_every": 1, "buffer_multiple": None},
                 "source": "fallback",
-                "caveat": ("回落默认权重：未经任何赛马测量。它是 DEFAULT_WEIGHTS="
-                           "{mom20:1.0,rev5:0.3,vol20:0.5,vsur:0.5}，"
-                           "在 2026-10-14 的 730 天赛马里排第 81/87 名，"
-                           "测试段超额 −0.74%、t=−3.03 —— 这是**已知的坏配置**，"
-                           "不是「中性起点」。日频执行它的年成本量级 351%。")}
+                "caveat": (
+                    "回落默认权重，**未经赛马验证**。符号已按实测 IC 校正"
+                    "（2019–2026，8 因子 × 8 年逐年符号 32/32 一致；"
+                    "见 aplus/factor.py 的 DEFAULT_WEIGHTS 注释），"
+                    "但**幅度**沿用旧值未调，更没有任何样本外验收。"
+                    "上一版默认权重 "
+                    "{mom20:+1.0,rev5:+0.3,vol20:+0.5,vsur:+0.5} 在 2026-10-14 的"
+                    "730 天赛马里排第 81/87 名、测试段超额 −0.74%、t=−3.03 —— "
+                    "那个数字属于**旧配置**，不能算到这一版头上。"
+                    "当前状态是「方向有证据、效果未验证」，"
+                    "不是「已验收的冠军」。日频执行它的年成本量级仍在数百个百分点。")}
     data = json.loads(path.read_text(encoding="utf-8"))
     return {"weights": data.get("weights"), "evidence": data.get("evidence"),
             "execution": data.get("execution") or {"rebalance_every": 1,

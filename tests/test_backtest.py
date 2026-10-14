@@ -52,11 +52,23 @@ def test_walk_forward_produces_verified_rows(tmp_path):
 
 
 def test_trending_stocks_get_high_hit_rate(tmp_path):
-    """稳涨股应被预测涨且命中；稳跌股反之——策略在趋势市的基本有效性。"""
+    """合成趋势数据上，跟随趋势的权重应满命中——验的是「打分与数据同向时能兑现」。
+
+    ## 为什么显式传权重（2026-10-14）
+
+    这条原本吃 `DEFAULT_WEIGHTS`，隐含前提是「动量预测延续」。在它人造的
+    确定性漂移数据里该前提成立；**在真实 A 股上不成立**——`factor_ic_7y.json`
+    实测 `mom20` 的 IC 逐年全为负（2019–2026，8/8 年）。
+
+    所以这条测试的世界观与平台目标无关，它验的是一件更朴素也更该被验的事：
+    **打分方向和数据方向一致时，走回测能正确兑现**。为此显式给定正动量权重，
+    让前提显式化，而不是让它藏在默认配置里随配置漂移。
+    """
     store = LocalStore(tmp_path)
     _populate(store)
     dates = store.read_daily("600001.SH")["date"].tolist()
-    results = walk_forward(store, dates[60], dates[70], top_n=3, bottom_n=3)
+    results = walk_forward(store, dates[60], dates[70], top_n=3, bottom_n=3,
+                           weights={"mom20": 1.0, "rev5": 0.0, "vol20": 0.0, "vsur": 0.0})
     up_rows = results[results["direction"] == "up"]
     down_rows = results[results["direction"] == "down"]
     assert (up_rows["result"] == "hit").mean() == 1.0
@@ -65,7 +77,12 @@ def test_trending_stocks_get_high_hit_rate(tmp_path):
 
 def test_walk_forward_respects_as_of_no_future_leak(tmp_path):
     """D 日的预测不得使用 D 之后的数据：构造一只前 62 天涨、之后崩盘的股票，
-    D=61 的预测仍应为涨（崩溃尚未发生）。"""
+    D=61 的预测仍应为涨（崩溃尚未发生）。
+
+    显式传正动量权重（同上条的理由：让「动量跟随」这个前提显式化）。
+    本条的目的是 `as_of` 不泄漏，不是「动量有效」——所以权重的取值不该
+    影响它是否该红。
+    """
     store = LocalStore(tmp_path)
     df = _make_stock("600001.SH", n=80, drift=0.012)
     crash_dates = df["date"] >= df["date"].iloc[62]
@@ -74,7 +91,8 @@ def test_walk_forward_respects_as_of_no_future_leak(tmp_path):
     for i in range(2, 7):
         store.upsert_daily(f"60000{i}.SH", _make_stock(f"60000{i}.SH", drift=-0.005 - i * 0.001))
     dates = df["date"].tolist()
-    results = walk_forward(store, dates[61], dates[62], top_n=1, bottom_n=1)
+    results = walk_forward(store, dates[61], dates[62], top_n=1, bottom_n=1,
+                           weights={"mom20": 1.0, "rev5": 0.0, "vol20": 0.0, "vsur": 0.0})
     up_row = results[results["direction"] == "up"].iloc[0]
     assert up_row["code"] == "600001.SH"  # 崩盘前它动量最高
 

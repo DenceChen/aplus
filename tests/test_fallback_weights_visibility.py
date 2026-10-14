@@ -10,6 +10,11 @@
     排第 81/87 名，测试段超额 −0.74%、t=−3.03 —— 这是**已知的坏配置**，
     不是「中性起点」。日频执行它的年成本量级 351%。
 
+（**2026-10-14 更新**：默认权重的符号已按实测 IC 整体翻转，上面这段是
+**翻转前**的配置与它的实测结论。现在在跑的权重是未经赛马验证的新配置，
+caveat 已改写为「方向有证据、效果未验证」，并显式标注 81/87 属于旧配置。
+原文保留，因为**它记录了本文件要修的那个 bug 是怎么发生的**。）
+
 但 `/api/weights` 的路由**把这句 caveat 整个丢掉了**，只回
 `source: 'default'`。前端于是显示「未经赛马验收的默认值」——
 听起来像「还没验证过」，而真相是「**验证过，是坏的**」。
@@ -55,13 +60,42 @@ def client(tmp_path):
 
 
 def test_fallback_must_expose_the_caveat(client):
-    """回落时必须把 caveat 递出去。"""
+    """回落时必须把 caveat 递出去。
+
+    ## 断言从「已知的坏配置」改成「证据状态」（2026-10-14 默认权重翻转后）
+
+    本条原本要求 caveat 含「已知的坏配置」。那句话**对旧配置成立**
+    （`{mom20:+1.0,...}` 确实在 730 天赛马里排 81/87、t=−3.03），
+    对翻转后的新配置**不成立**——新配置符号按实测 IC 校正过，但根本没被
+    赛马测过。把旧配置的实测结论挂到新配置头上就是撒谎，而撒谎的代价正是
+    这份 caveat 存在的理由。
+
+    警示的职责是**如实陈述当前在跑的那组权重的证据状态**。状态变了：
+    从「已测量的坏」变成「方向有证据、效果未验证」。两者都是危险状态，
+    只是不同的危险——所以下面两条分别钉住「未验收」和「不得冒领旧数字」。
+    """
     tc, _ = client
     body = tc.get("/api/weights").json()
     assert "caveat" in body, "/api/weights 丢弃了 load_weights 的 caveat"
     assert body["caveat"], "caveat 不得为空串——空串等于「没有警告」"
-    assert "已知的坏配置" in body["caveat"], (
-        f"caveat 必须写明这是**已测量的坏配置**，实得：{body['caveat'][:80]}")
+    assert "未经赛马验证" in body["caveat"], (
+        f"caveat 必须写明这组权重**未经赛马验证**，实得：{body['caveat'][:80]}")
+
+
+def test_caveat_must_not_claim_the_old_measurement_belongs_to_the_current_weights(client):
+    """「排 81/87、t=−3.03」是**旧权重**的实测值，不得挂到新权重头上。
+
+    这是本文件最要紧的一条：把一段真实但不相关的实测数字说成当前配置的
+    实绩，比没有数字更坏——它会让用户以为「已经验过了，结论是不好」，
+    而真实状态是「根本没验过」。两种谎言导致完全不同的下一步动作。
+    """
+    tc, _ = client
+    caveat = tc.get("/api/weights").json()["caveat"]
+    assert "81/87" in caveat, (
+        "应保留旧配置的实测记录作为背景——删掉它等于丢失已知信息")
+    assert "属于**旧配置**" in caveat, (
+        "出现别的配置的实测数字时，必须显式标注它属于旧配置。"
+        f"实得：{caveat[:200]}")
 
 
 def test_fallback_must_expose_execution_parameters(client):

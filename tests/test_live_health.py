@@ -4,7 +4,10 @@
 
 ivol 前视泄露修好后重跑 31 组终裁，得到一个此前被掩盖的事实：
 
-线上正在跑的默认权重 `{mom20:1.0, rev5:0.3, vol20:0.5, vsur:0.5}`
+线上当时正在跑的默认权重 `{mom20:1.0, rev5:0.3, vol20:0.5, vsur:0.5}`
+（注：这组符号已于 2026-10-14 按实测 IC 整体翻转——`factor_ic_7y.json`
+显示这三个因子的 IC 逐年全为负。本事故的记录保留原值，因为**测出
+这个负数的正是当时那组错号权重**；新符号的那一组尚未做同样的验收。）
 在 2 年样本外测试段：
 
 - 涨腿超额 **−0.5978%/日**
@@ -48,7 +51,13 @@ def _setup(tmp_path, weights=None, race_table=None):
     return TestClient(create_app(data_root=tmp_path))
 
 
-DEFAULT_W = {"mom20": 1.0, "rev5": 0.3, "vol20": 0.5, "vsur": 0.5}
+# **引用真实的 DEFAULT_WEIGHTS，不复制一份**（2026-10-14 修）。
+# 复制的那份会与线上配置悄悄脱钩：默认权重翻转符号后，本文件仍写
+# `{mom20:+1.0,...}`，而 `champion_health` 按真实默认权重找冠军 →
+# 找不到 → 判决板退回 `unknown` / `champion_falsified=False`。
+# 三条测试同时变红，读起来像「判决板坏了」，实际是测试在验一个
+# 世界上已经不存在的配置。
+from aplus.factor import DEFAULT_WEIGHTS as DEFAULT_W
 
 
 def _race(weights, excess, t, hit):
