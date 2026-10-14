@@ -15,8 +15,11 @@
     --line: rgba(160,180,205,.11);
     --line-strong: rgba(160,180,205,.20);
     --text: #E7EBF0;
-    --muted: #8792A2;
-    --faint: #5A6473;
+    --muted: #8D97A6;
+    /* --faint 原来是 #5A6473，在 --panel(#141A23) 上只有 2.9:1。
+       它承担的是 11px 的表头、时间戳、单位小字 —— 全页最小的那批字，
+       却是对比度最差的那批。抬到 4.7:1，暗而不断，比「若隐若现」能读。 */
+    --faint: #7C8695;
     --up: #F04A4F;
     --up-soft: rgba(240,74,79,.12);
     --down: #1FB981;
@@ -114,6 +117,13 @@
   .panel-head h2 { font-family: var(--serif); font-size: 17px; font-weight: 700; letter-spacing: .03em; }
   .panel-head .sub { font-size: 12.5px; color: var(--muted); }
   .panel-head .right { margin-left: auto; font-size: 12px; color: var(--faint); }
+  /* 窄屏下 h2 会被 .sub 挤断行（「向平台/提问」断成两行，读起来像两个词）。
+     标题不许断；让副标题自己换行落到下一层，占满整宽。 */
+  @media (max-width: 700px) {
+    .panel-head { flex-wrap: wrap; gap: 2px 12px; }
+    .panel-head h2 { flex: 0 0 auto; white-space: nowrap; }
+    .panel-head .sub { flex: 1 1 100%; }
+  }
 
   /* ── 看涨 / 看跌 双栏（原来 ▲▼ 混在一张表里，边界不清要自己数） ── */
   .heroes { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
@@ -217,6 +227,24 @@
   }
 
   /* ── 配置 ── */
+  /* 转债账户 KPI：HTML 里一直写着 .kpi-row / .kpi，CSS 里却没有对应规则 ——
+     于是这一栏既没有排版也没有归属，只能裸着流。补上时按账簿科目做，
+     不做成一排圆角卡片：科目名在上、数字在下（小字紧跟），科目之间一根竖线。
+     五个数字因此横向等距、等宽、可扫读 —— 这正是它在等的那件事。 */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+    border-bottom: 1px solid var(--line); }
+  .kpi { padding: 13px 18px; border-right: 1px solid var(--line); }
+  .kpi:last-child { border-right: 0; }
+  @media (max-width: 700px) {
+    .kpi-row { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+    .kpi { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+  .kpi label { display: block; font-size: 11.5px; color: var(--faint); margin-bottom: 5px; }
+  .kpi b { display: block; font-family: var(--serif); font-size: 21px; font-weight: 700;
+    font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .kpi span { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums; }
+
   .alloc-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin: 18px 20px 8px; }
   .alloc-bar .equity { background: linear-gradient(90deg, var(--seal), #B08F4F); }
   .alloc-bar .cash { background: rgba(232,228,217,.10); }
@@ -243,18 +271,92 @@
   .src-tag { font-size: 11px; padding: 1px 8px; border-radius: 5px; background: var(--panel-2); color: var(--muted); }
   .src-tag.llm { color: var(--chart); border: 1px solid rgba(227,179,65,.35); }
 
-  /* ── 对话 ── */
+  /* ── 追问：账簿体 ──
+     这里不做聊天气泡。气泡是所有聊天产品的默认形态，而这一栏只有一个人问、
+     一个模型答，答的内容是判决依据 —— 该排成对账流水而不是对话气泡。
+     结构：左槽记「谁在什么时候说的」，右栏记「说了什么」，一问一答之间一根细线断开。
+     行高一致、数字等宽，于是整栏可以像账本一样竖着扫读。
+     问比答轻（金色只留给「需要你看一眼」，问句是次要的一方），这是对聊天气泡惯例的刻意反转。 */
   .chat-wrap { display: flex; flex-direction: column; }
-  .msgs { padding: 16px 20px; max-height: 480px; overflow-y: auto; min-height: 140px; }
-  .msg { max-width: 84%; margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; font-size: 13.5px; }
-  .msg.user { margin-left: auto; color: var(--bg); background: var(--seal); padding: 8px 13px; border-radius: 12px 12px 3px 12px; }
-  .msg.assistant { border-left: 2px solid var(--line-strong); padding-left: 13px; }
-  .msg.error { color: var(--down); font-size: 12.5px; }
-  .chat-input { display: flex; border-top: 1px solid var(--line); }
-  .chat-input textarea { flex: 1; background: transparent; border: 0; color: var(--text); font: inherit; padding: 13px 16px; resize: vertical; min-height: 50px; outline: none; }
-  .chat-input button { background: var(--seal); color: var(--bg); border: 0; padding: 0 24px; font: inherit; font-weight: 700; cursor: pointer; }
-  .chat-tools { display: flex; justify-content: space-between; padding: 9px 20px; font-size: 12px; color: var(--faint); border-top: 1px solid var(--line); }
-  .chat-tools a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+  .msgs { padding: 0; max-height: 540px; overflow-y: auto; min-height: 170px; scrollbar-width: thin; }
+  .turn { display: grid; grid-template-columns: 58px 1fr; padding: 13px 20px; border-top: 1px solid var(--line); }
+  .turn:first-child { border-top: 0; }
+  .turn .slot { text-align: right; padding-top: 2px; user-select: none; }
+  .turn .slot .who { font-size: 12px; letter-spacing: .04em; }
+  .turn .slot .at { display: block; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .turn.q .slot .who { color: var(--muted); }
+  .turn.a .slot .who { color: var(--seal); font-weight: 700; }
+  .turn.a.fail .slot .who { color: var(--seal); }
+  .turn .body { position: relative; padding-left: 13px; min-width: 0; }
+  .turn .said { white-space: pre-wrap; word-break: break-word; font-variant-numeric: tabular-nums; }
+  .turn.q .said { color: var(--muted); font-size: 13px; line-height: 1.65; }
+  .turn.a .said { color: var(--text); font-size: 14px; line-height: 1.72; }
+
+  /* 全页唯一的记忆点，也是唯一的动效：**一根记账线**。
+     每收到一块增量就沿着「答」这一行从顶端画到底 —— 一块一笔，逐笔入账。
+     写完 done 就收成 1px 暗线，回答不再动。
+     动效只由用户按下发送触发，没有入场逐段淡入上移那套。
+     （刻意避开的三个默认：打字机三点、逐句淡入、整块淡入） */
+  .turn .rule { position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px;
+    background: var(--seal); border-radius: 1px; opacity: 0; transform-origin: top; }
+  .turn.a.live .rule { opacity: 1; }
+  .turn.a.done .rule { width: 1px; background: var(--line-strong); opacity: 1; }
+  .turn.a.fail .rule { opacity: 1; }
+  @media (prefers-reduced-motion: no-preference) {
+    .turn .rule.post { animation: drawRule .7s cubic-bezier(.25,.75,.35,1); }
+    @keyframes drawRule { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  }
+
+  /* 思考块：折叠、字更小、色更暗、缩在回答左边 —— 过程是次要的，结论才是。
+     一条 thinking 都没收到时它根本不会被创建（见 newTurn 的懒建逻辑），
+     「有个空壳等着展开」比「什么都没有」更像漏了东西。 */
+  .think { margin: 0 0 9px; }
+  .think > summary { list-style: none; cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--faint); width: fit-content; }
+  .think > summary::-webkit-details-marker { display: none; }
+  .think > summary::before { content: ""; width: 0; height: 0; opacity: .75;
+    border-left: 5px solid currentColor; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+  .turn.a.live .think[open] > summary::before { transform: rotate(90deg); }
+  .think > summary:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; }
+  /* 思考块原来自己还带一根左边线，与旁边那根金色记账线叠成两条竖线。
+     删掉：次要靠「更小一号、更暗一档、缩进一格」表达已经够了，
+     再加一根线就是装饰。 */
+  .think .body { padding: 1px 0 1px 12px; margin-top: 6px;
+    color: var(--faint); font-size: 12.5px; line-height: 1.66; white-space: pre-wrap; word-break: break-word; }
+
+  /* 断线/出错：金色左边条 + 加粗的行首说明。原文案把错误染成绿色（--down），
+     而这个页面的绿色只有一个含义：达标。让「报错」和「赚钱」长一个颜色，
+     就是在制造歧义 —— 所以告警一律走金色，金色只表示「需要你看一眼」。 */
+  .fault { margin-top: 9px; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+  .fault b { color: var(--seal); font-weight: 700; }
+  .turn.a.fail .said { color: var(--text); }
+
+  .chat-input { display: flex; border-top: 1px solid var(--line-strong); }
+  .chat-input textarea { flex: 1; min-width: 0; background: transparent; border: 0;
+    border-bottom: 2px solid transparent; color: var(--text); font: inherit;
+    padding: 12px 16px; resize: vertical; min-height: 48px; }
+  /* 输入框的焦点指示从「整圈 2px 金框」改成「一条金下划线」。
+     Chrome 对文本框在鼠标点击下也命中 :focus-visible，所以那个金框不是闪一下，
+     而是只要输入框有焦点就常驻 —— 于是全页最大的一块金色，用来表示
+     「你能打字」。下划线保留可见性，把面积从一圈缩到一条。 */
+  .chat-input textarea:focus-visible { outline: none; border-bottom-color: var(--seal); }
+  .chat-input textarea:focus-visible::placeholder { color: var(--faint); }
+  .chat-input textarea[readonly] { color: var(--faint); }
+  /* 发送按钮原先是满幅金块 —— 全页最响的元素，而它只是 chrome 不是数据。
+     压回中性：靠字重和 4.5% 的抬升分层，金色留给告警与记账线。 */
+  .chat-input button { background: rgba(255,255,255,.055); color: var(--text); border: 0;
+    border-left: 1px solid var(--line); padding: 0 22px; font: inherit; font-weight: 600;
+    cursor: pointer; white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) {
+    .chat-input button { transition: background .12s; }
+    .chat-input button:hover:not(:disabled) { background: rgba(255,255,255,.10); }
+  }
+  .chat-input button:disabled { background: transparent; color: var(--faint); cursor: default; }
+  .chat-tools { display: flex; gap: 18px; flex-wrap: wrap; align-items: baseline;
+    padding: 8px 20px; font-size: 11.5px; color: var(--faint); border-top: 1px solid var(--line); }
+  .chat-tools .hints, .chat-tools .llm-info { display: flex; gap: 14px; flex-wrap: wrap; }
+  .chat-tools #new-chat { margin-left: auto; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
   .empty { padding: 34px 24px; text-align: center; color: var(--faint); font-size: 13px; line-height: 1.8; }
   .skeleton { padding: 30px; text-align: center; color: var(--faint); font-size: 13px; }
@@ -456,13 +558,18 @@
   <!-- ═══ 六 · 追问 ═══ -->
   <section role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" hidden>
     <div class="panel chat-wrap">
-      <div class="panel-head"><h2>向平台提问</h2><span class="sub">对话带记忆 · 可连续追问 · 基于平台真实数据回答</span></div>
-      <div class="msgs" id="msgs"><div class="empty">问什么都行，例如：<br>「为什么预测上海医药涨？」「命中率是怎么算的？」「现在的策略权重是什么，为什么？」</div></div>
+      <div class="panel-head"><h2>向平台提问</h2><span class="sub">按平台当日真实数据回答，可连续追问，对话带记忆</span></div>
+      <div class="msgs" id="msgs"><div class="empty">问平台自己的账，例如：<br>
+        「组合 IC 现在是多少，离门槛差几倍？」「今天的看跌名单依据是什么？」「某个因子的权重为什么被调高？」</div></div>
       <div class="chat-input">
         <textarea id="chat-text" rows="1" placeholder="输入问题，Enter 发送"></textarea>
-        <button id="send">发送</button>
+        <button id="send" type="button">发送</button>
       </div>
-      <div class="chat-tools"><span>MiniMax M3（思考模式）主链 · glm 备链</span><a id="new-chat">开始新对话</a></div>
+      <div class="chat-tools">
+        <span class="hints"><span>Shift+Enter 换行</span></span>
+        <span class="llm-info" id="llm-info">读取模型信息…</span>
+        <a id="new-chat">开始新对话</a>
+      </div>
     </div>
   </section>
 </main>
@@ -1340,49 +1447,332 @@ async function loadEvolution() {
   }).join('');
 }
 
-/* ── 对话 ── */
+/* ── 追问 ──────────────────────────────────────────────
+   契约：POST /api/chat/stream，text/event-stream，事件五种 ——
+     start   {conversation_id}
+     thinking{text}   增量，**可能一条都没有**（前端必须容忍）
+     text    {text}   增量
+     done    {conversation_id, reply}   完整正文，用来兜底校对
+     error   {message}  一次即终止，不会再有 done
+
+   两条硬要求，各自对应一个真实投诉：
+   ① 防连点 —— 按钮 disabled + 输入框 readOnly 是第一道闸，
+      send() 开头的 `if (inFlight) return` 是第二道。
+      只做前者不够：Enter 键不经过按钮，程序化调用也不经过按钮。
+      两道都要有，且恢复一律放在 finally 里（含 error 与网络异常）。
+   ② 真流式 —— 每收到一块 text 就**追加一个文本节点**，绝不 textContent 重写。
+      重写会造成长回复滚动条乱跳，而且中途到达的内容会被上一帧抹掉（闪烁的根因）。 */
 let convId = Number(localStorage.getItem('aplus_conv')) || null;
+let inFlight = false;
+/* 流静默上限（毫秒）。够长：模型思考阶段本来就可能十几秒不说话。
+   又必须有限：否则一次卡死的流能把发送框锁到刷新为止。 */
+const IDLE_ABORT_MS = 45000;
+
+const atBottom = () => { const m = $('msgs'); return m.scrollHeight - m.scrollTop - m.clientHeight < 90; };
+const scrollToEnd = () => { const m = $('msgs'); m.scrollTop = m.scrollHeight; };
+
+function setBusy(on) {
+  $('send').disabled = on;
+  $('send').textContent = on ? '发送中' : '发送';
+  $('chat-text').readOnly = on;
+  $('chat-text').placeholder = on ? '回答进行中，完成后可继续输入' : '输入问题，Enter 发送';
+}
+
+/* 一问一答 = 一行流水。左侧槽位记「谁在什么时候说的」，右侧记「说了什么」。
+   返回的 turn 对象贯穿整条流：said 是正文容器，think 懒建。 */
+function newTurn(role, text) {
+  const pin = atBottom();
+  /* 空态提示只在真的还没有对话时出现。原来越问越多它越留在顶上，
+     像一句忘了关掉的广告。 */
+  $('msgs').querySelectorAll('.empty').forEach(n => n.remove());
+  const el = document.createElement('div');
+  el.className = 'turn ' + role;
+  const slot = document.createElement('div');
+  slot.className = 'slot';
+  const who = document.createElement('span');
+  who.className = 'who';
+  who.textContent = role === 'q' ? '问' : '答';
+  slot.appendChild(who);
+  if (role === 'a') {
+    const at = document.createElement('span');
+    at.className = 'at';
+    at.textContent = new Date().toTimeString().slice(0, 5);
+    slot.appendChild(at);
+  }
+  const body = document.createElement('div');
+  body.className = 'body';
+  const rule = document.createElement('i');
+  rule.className = 'rule';
+  const said = document.createElement('div');
+  said.className = 'said';
+  if (text != null) said.textContent = text;
+  body.append(rule, said);
+  el.append(slot, body);
+  $('msgs').appendChild(el);
+  if (role === 'a') { said.setAttribute('aria-live', 'polite'); el.setAttribute('aria-busy', 'true'); }
+  if (pin) scrollToEnd();
+  return { el, said, rule, think: null, chars: 0, closed: false };
+}
+
+/* 追加一个文本节点 —— 这是「真流式」的全部秘密。
+   appendChild(文本节点) 只往末尾加，不动已有节点，浏览器也不用重排整段。
+   名字带 Text 后缀是为了不撞车：本仓有过 `fmtNum` 重名导致整页脚本
+   `Identifier has already been declared`、页面永远停在「加载…」而 pytest 全绿的事故。
+   通用短名（append/tick/pump）在这类单文件脚本里同样危险，宁可多打两个字。 */
+const appendText = (node, txt) => { if (txt) { node.appendChild(document.createTextNode(txt)); return txt.length; } return 0; };
+
+/* 每收到一块，重放一次记账线动画。强制回流让 animation 能重新开始。 */
+function postTick(turn) {
+  const r = turn.rule;
+  r.classList.remove('post');
+  void r.offsetWidth;
+  r.classList.add('post');
+  if (atBottom()) scrollToEnd();
+}
+
+/* SSE 手写解析。分包按空行切，跨 chunk 的半包留在 buf 里等下一片。
+   库是有，但这是内网本机跑的面板，不引任何依赖。 */
+function parseSse(raw) {
+  let name = 'message';
+  const data = [];
+  for (const line of raw.split('\n')) {
+    if (!line || line.startsWith(':')) continue;      // 空行已被切掉；':' 开头是注释/心跳
+    const i = line.indexOf(':');
+    const field = i < 0 ? line : line.slice(0, i);
+    let val = i < 0 ? '' : line.slice(i + 1);
+    if (val.startsWith(' ')) val = val.slice(1);
+    if (field === 'event') name = val;
+    else if (field === 'data') data.push(val);
+  }
+  if (!data.length) return null;
+  try { return { name, payload: JSON.parse(data.join('\n')) }; }
+  catch { return { name, payload: {} }; }              // 脏包不该炸掉整条流
+}
+
+function handleEvent(ev, turn) {
+  const p = ev.payload || {};
+  if (ev.name === 'start' || ev.name === 'done') {
+    if (p.conversation_id != null) { convId = p.conversation_id; localStorage.setItem('aplus_conv', String(convId)); }
+    if (ev.name === 'done') {
+      turn.closed = true;
+      /* 兜底校对：增量拼出来的和完整正文长度对不上，说明中途丢过包，
+         以完整正文为准。这比「看着差不多就算了」诚实。 */
+      if (typeof p.reply === 'string' && p.reply.length && p.reply.length !== turn.chars) {
+        /* 只换正文那几个文本节点，不动思考块 —— 直接 textContent 会把它一起抹掉。 */
+        [...turn.said.childNodes].forEach(n => { if (n.nodeType === 3) n.remove(); });
+        turn.said.appendChild(document.createTextNode(p.reply));
+        turn.chars = p.reply.length;
+      }
+      const at = turn.el.querySelector('.slot .at');
+      if (at) at.textContent = new Date().toTimeString().slice(0, 5);   // 写完时间定稿
+    }
+    return;
+  }
+  if (ev.name === 'thinking') {
+    if (!p.text) return;
+    if (!turn.think) {                                   // 懒建：没有 thinking 就没有这个壳
+      const d = document.createElement('details');
+      d.className = 'think'; d.open = true;
+      const s = document.createElement('summary');
+      s.textContent = '模型的思考';
+      const b = document.createElement('div');
+      b.className = 'body';
+      d.append(s, b);
+      turn.said.appendChild(d);
+      turn.think = b;
+    }
+    appendText(turn.think, p.text);
+    postTick(turn);
+    return;
+  }
+  if (ev.name === 'text') { turn.chars += appendText(turn.said, p.text || ''); postTick(turn); return; }
+  if (ev.name === 'error') {
+    turn.closed = true;
+    throw tagged(p.message || '模型没有给出失败原因', 'model');
+  }
+}
+
+/* ── 流中断与「问不出来」必须分开说 ──
+   它们曾共用一个 catch，于是一次拔网线会显示成「模型连接失败：TypeError」：
+   错在**网络层**的事被说成错在**模型层**，而用户会照着这句话去查上游白查半天。
+   三种失败，三种归因，三句不同的话：
+     model  后端答了但答不出来（上游 429 / 超时 / 鉴权）→ error 事件
+     link   连不上，或传到一半断了                      → fetch / reader 抛错
+     trunc  流读完了但没收到 done                        → 服务端半路停写
+   `label` 就是这个归因，fault() 直接用它，不再自己猜。 */
+function tagged(msg, label) { const e = new Error(msg); e.label = label; return e; }
+
+async function pumpStream(body, turn, arm) {
+  const reader = body.getReader();
+  const dec = new TextDecoder('utf-8');
+  let buf = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();       // 断连在这里抛
+      if (done) break;
+      arm();                                             // 收到字节就续命
+      buf += dec.decode(value, { stream: true });
+      let cut;
+      while ((cut = buf.indexOf('\n\n')) >= 0) {
+        const raw = buf.slice(0, cut);
+        buf = buf.slice(cut + 2);
+        const ev = parseSse(raw);
+        if (ev) handleEvent(ev, turn);
+      }
+    }
+    buf += dec.decode();                                 // 冲掉多字节字符被切断的尾巴
+    if (buf.trim()) { const ev = parseSse(buf); if (ev) handleEvent(ev, turn); }
+  } catch (e) {
+    /* 已带归因的（error 事件）不改写；其余一律算「流断了」。 */
+    throw e.label ? e : tagged('流中断：' + (e && e.message ? e.message : '连接被关闭'), 'link');
+  } finally {
+    try { reader.cancel(); } catch {}
+  }
+  if (!turn.chars) throw tagged('流结束了，但一个字的正文都没收到。', 'trunc');
+}
+
+/* 浏览器的网络报错自述没有信息量（"signal is aborted without reason"、
+   "network error"、"Failed to fetch"…）。把它们原样端给使用者，
+   等于让他去查一个自己改不了的东西 —— 只在原因本身有信息时才留下。 */
+const BROWSER_NOISE = /aborted without reason|network\s?error|failed to fetch|load failed|terminated/i;
+
+function showFault(turn, e) {
+  turn.el.classList.add('fail');
+  turn.el.querySelector('.slot .who').textContent = '断';
+  const n = document.createElement('div');
+  n.className = 'fault';
+  const label = (e && e.label) || 'link';
+  const raw = e && e.message ? e.message : '';
+  const why = BROWSER_NOISE.test(raw) ? '' : raw;
+  const head = label === 'model' ? '这次没答出来'
+    : label === 'trunc' ? '回答没收尾' : '连接中断';
+  n.innerHTML = `<b>${head}</b>` + (why ? `　${esc(why)}` : '');
+  const hint = document.createElement('div');
+  hint.textContent = label === 'trunc'
+    ? '这是断开前收到的部分，末尾可能不完整，可以直接重发一次。'
+    : turn.chars
+      ? '断开前的部分保留在上面，可以直接重发一次。'
+      : '可以直接重发一次。';
+  n.appendChild(hint);
+  const pin = atBottom();
+  turn.said.appendChild(n);
+  if (pin) scrollToEnd();
+}
+
+async function send() {
+  if (inFlight) return;                                  // 第二道闸
+  const box = $('chat-text');
+  const text = box.value.trim();
+  if (!text) return;
+  box.value = '';
+
+  inFlight = true;
+  setBusy(true);
+  newTurn('q', text);
+  const turn = newTurn('a');
+  turn.el.classList.add('live');                          // 记账线开始画
+  /* 只在**键盘**用户点了发送按钮时才把焦点抢回输入框。
+     鼠标点击走 mousedown 那一招，焦点根本没离开过 textarea；
+     而抢一次就会刷出一圈金色焦点环 —— 每发一条在最显眼处闪一下，纯噪音。
+     必须在 setBusy 之前判定：disabled 的元素不再是 :focus-visible 的匹配对象。 */
+  const refocus = document.activeElement === $('send') && $('send').matches(':focus-visible');
+
+  /* 静默看门狗。实测到的真实故障：服务端半路硬断（RST）时，浏览器里的
+     reader 既不 resolve 也不 reject —— 于是 finally 永远不跑，按钮永久锁死，
+     而页面上没有任何报错。此后连点被 disabled 挡掉，看起来像「按钮坏了」。
+     TCP 还活着但上游一个字节都不吐时同理。所以给流一个静默上限：
+     超过 IDLE_ABORT_MS 没收到新字节就主动 abort，保证 finally 一定会执行。 */
+  const ac = new AbortController();
+  let watchdog = null;
+  const arm = () => { clearTimeout(watchdog); watchdog = setTimeout(() => ac.abort(), IDLE_ABORT_MS); };
+  arm();
+
+  try {
+    const res = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, conversation_id: convId }),
+      cache: 'no-store',
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      /* HTTP 层失败 = 服务端确实应答了，只是这次没答出来 ⇒ 归 model，不归 link。 */
+      if (res.status === 404) throw tagged('服务还没有 /api/chat/stream 这个接口。', 'model');
+      let d = 'HTTP ' + res.status;
+      try { const b = await res.json(); d = b.detail || b.message || d; } catch {}
+      throw tagged(d, 'model');
+    }
+    if (!res.body) throw tagged('这个浏览器不返回流式响应体。', 'link');
+    await pumpStream(res.body, turn, arm);
+    /* 流正常结束但没收到 done/error —— 归 trunc，不能静默当成成功。
+       那是本仓 CLAUDE.md 说的「看起来正常」的静默失效：正文缺了尾巴，
+       页面却一切正常，只有事后逐字比对才发现少了一段。 */
+    if (!turn.closed) throw tagged('服务端在回答结束前停住了，以上是已到达的部分。', 'trunc');
+  } catch (e) {
+    showFault(turn, (e && e.name === 'AbortError')
+      ? tagged(`上游连续 ${Math.round(IDLE_ABORT_MS / 1000)} 秒没有新内容，连接已断开。`, 'link')
+      : e);
+  } finally {
+    clearTimeout(watchdog);
+    inFlight = false;
+    setBusy(false);
+    turn.el.classList.remove('live');
+    turn.el.removeAttribute('aria-busy');
+    if (!turn.el.classList.contains('fail')) turn.el.classList.add('done');
+    turn.said.removeAttribute('aria-live');
+    if (refocus) box.focus();
+  }
+}
+$('send').onclick = send;
+/* 点按钮不抢焦点：默认行为会把焦点从输入框挪到按钮，于是「发完接着问」
+   每次都要先点一下输入框。mousedown 上 preventDefault 是这里的通行做法。 */
+$('send').addEventListener('mousedown', e => e.preventDefault());
+$('chat-text').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  e.preventDefault();                                     // 在飞时 send() 自己会挡掉第二条
+  send();
+});
+
+function turnHtml(role, text) {
+  const q = role === 'user';
+  return `<div class="turn ${q ? 'q' : 'a'}"><div class="slot"><span class="who">${q ? '问' : '答'}</span></div>`
+    + `<div class="body"><i class="rule"></i><div class="said">${esc(text)}</div></div></div>`;
+}
 async function loadConversation() {
   if (!convId) return;
   try {
     const msgs = await jget('/api/conversations/' + convId);
     if (msgs.length) {
-      $('msgs').innerHTML = msgs.map(m => `<div class="msg ${m.role}">${esc(m.content)}</div>`).join('');
-      $('msgs').scrollTop = $('msgs').scrollHeight;
+      $('msgs').innerHTML = msgs.map(m => turnHtml(m.role, m.content)).join('');
+      scrollToEnd();
     }
   } catch { convId = null; localStorage.removeItem('aplus_conv'); }
 }
-function addMsg(cls, text) {
-  const el = document.createElement('div');
-  el.className = 'msg ' + cls; el.textContent = text;
-  $('msgs').appendChild(el); $('msgs').scrollTop = $('msgs').scrollHeight;
-  return el;
+
+/* 模型角标：运行时问后端「现在跑的是谁」，页面上不写死任何模型名。
+   硬编码的模型名天生会漂 —— 代码里的旧客户端删了，界面还挂着旧名字，
+   而没有任何测试会为这种不一致报警。让后端开口，界面只负责显示。 */
+async function loadLlmInfo() {
+  const el = $('llm-info');
+  el.textContent = '模型信息不可用';
+  let d;
+  try { d = await jget('/api/llm/info'); } catch { return; }
+  const chain = Array.isArray(d && d.chain) ? d.chain : [];
+  const known = chain.filter(c => c && c.model);
+  if (!known.length) return;                              // model 为 null 时不猜名字
+  const at = known.findIndex(c => c.name === d.primary);
+  const order = at > 0 ? known.slice(at).concat(known.slice(0, at)) : known;
+  el.innerHTML = order
+    .map(c => `<span>${esc(c.model)}${c.kind === 'direct' ? '（思考）' : ''}</span>`)
+    .join('');
 }
-async function send() {
-  const text = $('chat-text').value.trim();
-  if (!text) return;
-  $('chat-text').value = '';
-  addMsg('user', text);
-  const thinking = addMsg('assistant', '思考中…');
-  try {
-    const r = await fetch('/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, conversation_id: convId }),
-    });
-    const body = await r.json();
-    if (!r.ok) throw new Error(body.detail || r.status);
-    convId = body.conversation_id;
-    localStorage.setItem('aplus_conv', convId);
-    thinking.textContent = body.reply;
-  } catch (e) {
-    thinking.className = 'msg error';
-    thinking.textContent = '模型连接失败：' + e.message;
-  }
-}
-$('send').onclick = send;
-$('chat-text').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
-$('new-chat').onclick = () => { convId = null; localStorage.removeItem('aplus_conv'); $('msgs').innerHTML = '<div class="empty">已开始新对话。</div>'; };
+
+$('new-chat').onclick = () => {
+  convId = null; localStorage.removeItem('aplus_conv');
+  $('msgs').innerHTML = '<div class="empty">已开始新对话。</div>';
+};
 loadConversation();
+loadLlmInfo();
 
 /* ── 启动 ── */
 const TABS = ['overview', 'history', 'backtest', 'evolution', 'bond', 'chat', 'logs'];

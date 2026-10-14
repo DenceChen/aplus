@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -136,6 +137,60 @@ class ChatIn(BaseModel):
     conversation_id: int | None = None
 
 
+class _UserFacing(Exception):
+    """可以直接发给用户的中文错误（不暴露 traceback 细节）。"""
+
+
+def _sse(event: str, data: dict) -> str:
+    """一个 SSE 事件 = `event:` 行 + `data:` 行 + **空行**。
+
+    少那个空行，浏览器会把相邻两个事件并成一块（这是 SSE 最经典的静默失效：
+    不报错，只是前端丢一个事件）。`ensure_ascii=False` 让中文原样出行，
+    配合 `charset=utf-8` 免得前端拿到 `\\uXXXX`。
+    """
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+SSE_HEADERS = {
+    # 不缓存：每个事件都是一次性数据，被代理缓存等于前端拿到空流。
+    "Cache-Control": "no-cache",
+    # nginx 默认会缓冲整个响应再转发 ⇒ 流式看起来还是「一次性」。
+    # 这是唯一能关掉它的响应头（应用层无能为力）。
+    "X-Accel-Buffering": "no",
+}
+
+
+def _sse_response(iterator) -> StreamingResponse:
+    # media_type 不带 charset：starlette 对 text/* 自动补 "; charset=utf-8"，
+    # 写全反而会变成 "charset=utf-8; charset=utf-8"。
+    return StreamingResponse(iterator, media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+def _chain_members(chain) -> list:
+    """把注入的 LLM 对象拆成链的成员列表（按 `default_llm_chain` 的真实结构）。
+
+    `default_llm_chain()` 返回 `FallbackChain(primary, backup)`——它**没有**
+    候选列表属性，只有 `.primary` / `.backup` / `.last_served_by`。
+    """
+    members = [c for c in (getattr(chain, "primary", None), getattr(chain, "backup", None))
+               if c is not None]
+    return members or [chain]
+
+
+def _chain_entry(client) -> dict:
+    """**运行态事实**：模型名只能从活着的客户端对象上读。
+
+    写死字符串等于把本仓记过的那条漂移再请回来一次
+    （「代码是 3.1」≠「界面显示 3.1」）。取不到就 `null`，不回退。
+    """
+    model = getattr(client, "model", None)
+    return {
+        "name": getattr(client, "name", None) or type(client).__name__,
+        "model": model if isinstance(model, str) else None,
+        "kind": getattr(client, "kind", None),
+    }
+
+
 def create_app(data_root, llm=None) -> FastAPI:
     data_root = Path(data_root)
     reports_dir = data_root / "reports"
@@ -248,6 +303,116 @@ def create_app(data_root, llm=None) -> FastAPI:
                 (conv_id, reply, time.strftime("%Y-%m-%d %H:%M:%S")),
             )
         return {"conversation_id": conv_id, "reply": reply}
+
+    @app.post("/api/chat/stream")
+    def chat_stream(body: ChatIn):
+        """SSE 真流式对话。事件契约（前端按此写死分支，一个字都不能改）：
+
+        | event | data | 语义 |
+        |---|---|---|
+        | start | `{"conversation_id"}` | 消息已入库、开始调模型 |
+        | thinking | `{"text": 增量}` | 思考增量，可以一个都没有 |
+        | text | `{"text": 增量}` | 正文增量 |
+        | done | `{"conversation_id", "reply"}` | 结束；text 增量拼接 == reply |
+        | error | `{"message": 中文}` | 只发一次，之后结束，不发 done |
+
+        ## 三条「不这样写就会静默出错」的纪律
+
+        ① **一切错误都走 error 事件，不用 HTTP 4xx/5xx**：
+        前端此时已经连上 SSE，拿到非流式响应只能显示空白。
+        所以空消息 / 会话不存在 / 代理断线，返回的都是 200 + error。
+
+        ② **assistant 在 done 之前一次性入库**：
+        先发 done 再落库 ⇒ 刷新页面回复就没了，而前端**不报错**。
+        （`tests/test_chat_stream.py` 在读到 done 的当口查库来钉这个顺序。）
+
+        ③ **断流不入库**：模型吐了一半才断时**不**落 assistant，
+        否则 `/api/conversations/{id}` 会原样返回半截正文，前端刷新后
+        半句话永久留在对话里，且此后每轮都带着它进 history。
+        """
+        message = body.message.strip()
+        if not message:
+            return _sse_response(iter([_sse("error", {"message": "消息不能为空"})]))
+
+        # 与非流式端点同样的三段式：连接内插 user + 读全量 history，连接外调模型。
+        try:
+            with _connect(db_path) as conn:
+                conv_id = body.conversation_id
+                if conv_id is None:
+                    cur = conn.execute(
+                        "INSERT INTO conversations (title, created_at) VALUES (?, ?)",
+                        (message[:24], time.strftime("%Y-%m-%d %H:%M:%S")),
+                    )
+                    conv_id = cur.lastrowid
+                else:
+                    exists = conn.execute(
+                        "SELECT 1 FROM conversations WHERE id=?", (conv_id,)).fetchone()
+                    if not exists:
+                        raise _UserFacing("会话不存在")
+                conn.execute(
+                    "INSERT INTO messages (conv_id, role, content, created_at) "
+                    "VALUES (?, 'user', ?, ?)",
+                    (conv_id, message, time.strftime("%Y-%m-%d %H:%M:%S")),
+                )
+                rows = conn.execute(
+                    "SELECT role, content FROM messages WHERE conv_id=? ORDER BY id", (conv_id,)
+                ).fetchall()
+            history = [{"role": r, "content": c} for r, c in rows]
+            system = (
+                f"{SYSTEM_PROMPT}\n\n平台当日状态（回答须以此为准）：\n"
+                f"{_platform_context(reports_dir)}"
+            )
+        except _UserFacing as exc:
+            return _sse_response(iter([_sse("error", {"message": str(exc)})]))
+        except Exception as exc:  # noqa: BLE001 — 建上下文失败也要给人话，不能 500
+            return _sse_response(iter([_sse("error", {"message": f"服务端错误：{exc}"})]))
+
+        def gen():
+            yield _sse("start", {"conversation_id": conv_id})
+            parts: list = []
+            try:
+                for kind, delta in llm.chat_stream(history, system=system):
+                    if kind == "text":
+                        parts.append(delta)
+                        yield _sse("text", {"text": delta})
+                    elif kind == "thinking":
+                        yield _sse("thinking", {"text": delta})
+                    else:
+                        # 不认识就喊出来。默认当 thinking/text 处理 = 静默吞掉一类事件。
+                        raise ValueError(f"未知的增量类型：{kind!r}")
+            except Exception as exc:  # noqa: BLE001 — 断连必须变成人话
+                yield _sse("error", {"message": f"模型连接失败：{exc}"})
+                return  # 不落半截 assistant，也绝不发 done
+            reply = "".join(parts)
+            with _connect(db_path) as conn:
+                conn.execute(
+                    "INSERT INTO messages (conv_id, role, content, created_at) "
+                    "VALUES (?, 'assistant', ?, ?)",
+                    (conv_id, reply, time.strftime("%Y-%m-%d %H:%M:%S")),
+                )
+            yield _sse("done", {"conversation_id": conv_id, "reply": reply})
+
+        return _sse_response(gen())
+
+    @app.get("/api/llm/info")
+    def llm_info():
+        """**运行态**的链路事实，供界面显示「现在到底在跑哪个模型」。
+
+        ## 为什么不允许写死模型名
+
+        2026-10-14：`aplus/llm.py` 里 M3 客户端已被删除（只剩 M3.1），
+        而 `web/index.html` 硬编码着「MiniMax M3（思考模式）主链」——
+        界面显示的模型与实际跑的模型不一致，没有任何测试或告警。
+        **硬编码的标签天生会漂移，因为它不受任何运行态约束。**
+        所以这里每个值都从活着的客户端对象上读；取不到就是 `null`，
+        **绝不回退到硬编码名字**——回退等于把要消灭的漂移又请回来一次。
+        """
+        members = _chain_members(app.state.llm)
+        return {
+            "chain": [_chain_entry(c) for c in members],
+            "primary": _chain_entry(members[0])["name"],
+            "last_served_by": getattr(app.state.llm, "last_served_by", None),
+        }
 
     @app.get("/api/conversations/{conv_id}")
     def conversation(conv_id: int):

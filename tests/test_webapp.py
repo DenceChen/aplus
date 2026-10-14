@@ -13,7 +13,13 @@ from aplus.webapp import create_app
 
 
 class FakeLLM:
-    """假模型：回显系统提示里的平台状态（验证 grounding 注入）。"""
+    """假模型：回显系统提示里的平台状态（验证 grounding 注入）。
+
+    `chat_stream` 与 `chat` 一起实现：生产代码现在要求链上的客户端**两样都有**
+    （`aplus.llm.FallbackChain` / `GlmProxyClient` / `MiniMaxM31FlashClient` 都是）。
+    替身只实现一半的话，真去调流式端点会得到 `AttributeError`——
+    那看起来像「测试坏了」，实际是替身缺了契约。
+    """
 
     def __init__(self):
         self.last_system = ""
@@ -23,6 +29,12 @@ class FakeLLM:
         self.last_system = system
         self.last_messages = messages
         return f" Echo {len(messages)} messages. Top: {system.splitlines()[0][:40] if system else 'none'}"
+
+    def chat_stream(self, messages, system=""):
+        self.last_system = system
+        self.last_messages = messages
+        yield "text", f" Echo {len(messages)} messages. Top: " \
+            f"{system.splitlines()[0][:40] if system else 'none'}"
 
 
 @pytest.fixture
@@ -101,8 +113,18 @@ def test_chat_llm_failure_returns_502_but_saves_user_message(client):
     tc, _, _ = client
 
     class BrokenLLM:
+        """两个方法都必须抛：少一个，流式路径就会绕过故障守卫静默「成功」。
+
+        `test_chat_llm_failure_returns_502_but_saves_user_message` 靠 chat() 的
+        抛错维持 502 守卫；`chat_stream` 的抛错则让流式端点发 error 事件。
+        """
+
         def chat(self, messages, system=""):
             raise ConnectionError("proxy down")
+
+        def chat_stream(self, messages, system=""):
+            raise ConnectionError("proxy down")
+            yield  # pragma: no cover — 生成器：抛错发生在第一次迭代之前
 
     app = create_app(client[2], llm=BrokenLLM())
     tc2 = TestClient(app)

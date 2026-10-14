@@ -2,13 +2,78 @@
 
 5 账号轮循、冷却、周限全部由代理处理——本客户端只管一件事：把 OpenAI 风格的
 消息列表转成 Anthropic Messages 格式发出去，拿回文本。
+
+## `chat()` 与 `chat_stream()` 的分工（别合并）
+
+`chat()` 返回 **str**，这个签名被两个**非 Web** 调用方依赖：
+`aplus/news.py`（→ `parse_sentiment`）和 `aplus/evolve_researcher.py`
+（→ `parse_candidates`）。两处都把调用包在 `except Exception` 里，
+所以一旦 `chat()` 变成生成器：生成器喂给解析函数会失败 → 被 except 吞掉 →
+**新闻情绪恒为 None、进化研究恒返回空候选，全程零告警，报告照常出数**。
+流式一律走新增的 `chat_stream()`。
 """
+import json
 import time
 
 import requests
 
 
+def _anthropic_sse_deltas(resp):
+    """Anthropic 兼容 SSE → `("thinking"|"text", 增量)` 生成器。
+
+    ## 为什么自己解 utf-8 而不用 `iter_lines(decode_unicode=True)`
+
+    requests 用响应头里的 charset 决定解码，**缺 charset 时默认 ISO-8859-1**。
+    思考与正文都是中文，按 ISO-8859-1 解出来是乱码，而且不报错——
+    一路拼进页面，用户看到的是「模型答非所问」。所以这里固定 utf-8。
+
+    ## 上游 SSE 里的 error 必须抛，不能吞
+
+    吞掉它 = 页面拿到一个「成功但空白」的回复：不报错、有 HTTP 200、
+    前端照常渲染空正文。这正是本仓记过的静默失效形状。
+    """
+    resp.raise_for_status()
+    name = None
+    for raw in resp.iter_lines(decode_unicode=False):
+        if raw is None:
+            continue
+        line = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+        line = line.strip()
+        if not line:
+            name = None
+            continue
+        if line.startswith("event:"):
+            name = line[len("event:"):].strip()
+            continue
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if payload == "[DONE]":
+            return
+        try:
+            obj = json.loads(payload)
+        except ValueError as exc:
+            raise RuntimeError(f"SSE data 不是 JSON: {payload[:200]}") from exc
+        if name == "error" or obj.get("type") == "error":
+            detail = (obj.get("error") or {}).get("message") or json.dumps(obj, ensure_ascii=False)
+            raise RuntimeError(f"上游 SSE 报错：{str(detail)[:200]}")
+        if obj.get("type") != "content_block_delta":
+            continue  # message_start / ping / message_stop / content_block_start
+        delta = obj.get("delta") or {}
+        if delta.get("type") == "thinking_delta":
+            text = delta.get("thinking") or ""
+            if text:
+                yield "thinking", text
+        elif delta.get("type") == "text_delta":
+            text = delta.get("text") or ""
+            if text:
+                yield "text", text
+
+
 class GlmProxyClient:
+    name = "glm-proxy"
+    kind = "proxy"  # 只读端点 /api/llm/info 从**对象**上读，不写死模型名
+
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:8787/api/anthropic",
@@ -23,7 +88,12 @@ class GlmProxyClient:
         self.timeout = timeout
         self.max_tokens = max_tokens
 
-    def chat(self, messages: list, system: str = "") -> str:
+    def _build_request(self, messages: list, system: str = ""):
+        """请求构造的**唯一出口**：chat() 与 chat_stream() 都委派到这里。
+
+        两份 payload 就会各自漂移——流式忘带 system、非流式忘带 max_tokens，
+        而且两处都不报错，只是答案悄悄变差。
+        """
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -31,15 +101,37 @@ class GlmProxyClient:
         }
         if system:
             payload["system"] = system
+        headers = {"x-api-key": self.api_key, "anthropic-version": "2023-06-01"}
+        return payload, headers
+
+    def chat(self, messages: list, system: str = "") -> str:
+        payload, headers = self._build_request(messages, system)
         resp = requests.post(
             f"{self.base_url}/v1/messages",
             json=payload,
-            headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01"},
+            headers=headers,
             timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()
         return "".join(block.get("text", "") for block in data.get("content", []))
+
+    def chat_stream(self, messages: list, system: str = ""):
+        """SSE 真流式。请求构造委派 `_build_request`，只多一个 `stream: True`。
+
+        代理侧已强制 `stream:true` 与思考开关，这里显式声明是为了让
+        「打到别的端点也能流」——依赖代理的隐式行为就是依赖一个看不见的约定。
+        """
+        payload, headers = self._build_request(messages, system)
+        payload["stream"] = True
+        resp = requests.post(
+            f"{self.base_url}/v1/messages",
+            json=payload,
+            headers=headers,
+            timeout=self.timeout,
+            stream=True,
+        )
+        return _anthropic_sse_deltas(resp)
 
 
 class FallbackChain:
@@ -59,6 +151,27 @@ class FallbackChain:
             reply = self.backup.chat(messages, system=system)
             self.last_served_by = getattr(self.backup, "name", "backup")
             return reply
+
+    def chat_stream(self, messages: list, system: str = ""):
+        """流式故障转移：**只在还没吐出任何增量时**才切备链。
+
+        中途断流切备链重来会重发已发过的增量，
+        页面上的正文直接翻倍——而 `"".join(text) == reply` 仍是绿的，
+        因为两边一起变长。已吐增量就往上抛，让上层发 error。
+        """
+        emitted = False
+        try:
+            for kind, delta in self.primary.chat_stream(messages, system=system):
+                emitted = True
+                yield kind, delta
+            self.last_served_by = getattr(self.primary, "name", "primary")
+            return
+        except Exception:  # noqa: BLE001
+            if emitted:
+                raise
+        for kind, delta in self.backup.chat_stream(messages, system=system):
+            yield kind, delta
+        self.last_served_by = getattr(self.backup, "name", "backup")
 
 
 class ClaudePClient:
@@ -130,6 +243,7 @@ class MiniMaxM31FlashClient:
     """
 
     name = "minimax-m31-flash"
+    kind = "direct"  # 只读端点 /api/llm/info 从**对象**上读，不写死模型名
 
     def __init__(
         self,
@@ -172,7 +286,8 @@ class MiniMaxM31FlashClient:
         parts = [b.get("text", "") for b in blocks if b.get("type") == "text"]
         return "".join(parts)
 
-    def chat(self, messages: list, system: str = "") -> str:
+    def _build_request(self, messages: list, system: str = ""):
+        """请求构造的**唯一出口**：chat() 与 chat_stream() 都委派到这里。"""
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -180,17 +295,23 @@ class MiniMaxM31FlashClient:
         }
         if system:
             payload["system"] = system
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        return payload, headers
+
+    def _post_with_529_retry(self, payload: dict, headers: dict, **post_kwargs):
+        """只对 529 重试——其他 5xx/4xx 是真故障，重试会掩盖错误。"""
         last_err = None
         for attempt in range(self.max_retries):
             resp = requests.post(
                 f"{self.base_url}/v1/messages",
                 json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "anthropic-version": "2023-06-01",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 timeout=self.timeout,
+                **post_kwargs,
             )
             if self._is_overloaded(resp):
                 last_err = RuntimeError(
@@ -200,6 +321,11 @@ class MiniMaxM31FlashClient:
             break
         else:
             raise last_err  # noqa: F821 — 仅 529 路径走到这里
+        return resp
+
+    def chat(self, messages: list, system: str = "") -> str:
+        payload, headers = self._build_request(messages, system)
+        resp = self._post_with_529_retry(payload, headers)
 
         if resp.status_code != 200:
             raise RuntimeError(
@@ -209,6 +335,20 @@ class MiniMaxM31FlashClient:
             raise RuntimeError(
                 f"minimax m3.1 error: {data['base_resp'].get('status_msg')}")
         return self._extract_text(data)
+
+    def chat_stream(self, messages: list, system: str = ""):
+        """流式增量。M3.1 强制思考 ⇒ `thinking_delta` 是常态增量，
+        与正文 `text_delta` 靠 `delta.type` 区分，不可混为一谈。
+
+        与 `chat()` 同一个 `_build_request`，只多 `stream: True`。
+        """
+        payload, headers = self._build_request(messages, system)
+        payload["stream"] = True
+        resp = self._post_with_529_retry(payload, headers, stream=True)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"minimax m3.1 http {resp.status_code}: {resp.text[:200]}")
+        return _anthropic_sse_deltas(resp)
 
 
 def load_secrets(path) -> dict:
