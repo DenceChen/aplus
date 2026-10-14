@@ -64,9 +64,11 @@ def test_registered_days_ignores_malformed_entries(tmp_path):
 # ── 缺口检测 ────────────────────────────────────────────────────────
 
 def test_a_gap_inside_the_span_is_detected(tmp_path):
+    """日历覆盖范围内，缺登记的日子必须被抓出来。"""
     root = tmp_path / "v"
     _register(root, ["2026-10-12", "2026-10-15"])
-    missed = days_missed(root, today="2026-10-15")
+    cal = {"2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15"}
+    missed = days_missed(root, today="2026-10-15", cal=cal)
     assert missed == ["2026-10-13", "2026-10-14"], (
         f"缺口没被识别：{missed}——**那两天的原始值永久丢失了**")
 
@@ -74,13 +76,15 @@ def test_a_gap_inside_the_span_is_detected(tmp_path):
 def test_no_gap_means_nothing_to_rerun(tmp_path):
     root = tmp_path / "v"
     _register(root, ["2026-10-12", "2026-10-13", "2026-10-14"])
-    assert days_missed(root, today="2026-10-14") == []
+    cal = {"2026-10-12", "2026-10-13", "2026-10-14"}
+    assert days_missed(root, today="2026-10-14", cal=cal) == []
 
 
 def test_an_empty_collection_is_not_reported_as_a_giant_gap(tmp_path):
     """一天快照都没有时**不该报缺口**——那是「还没开始」，不是「漏了」。
     从第一天到今天整段报成缺口，会让守卫第一次运行时喊几百天。"""
-    assert days_missed(tmp_path / "empty", today="2026-10-14") == []
+    cal = {"2026-10-13", "2026-10-14"}
+    assert days_missed(tmp_path / "empty", today="2026-10-14", cal=cal) == []
 
 
 def test_todays_absence_is_not_yet_a_gap_before_collection_time(tmp_path):
@@ -92,7 +96,8 @@ def test_todays_absence_is_not_yet_a_gap_before_collection_time(tmp_path):
     """
     root = tmp_path / "v"
     _register(root, ["2026-10-12", "2026-10-13"])
-    assert "2026-10-14" in days_missed(root, today="2026-10-14")
+    cal = {"2026-10-12", "2026-10-13"}
+    assert "2026-10-14" in days_missed(root, today="2026-10-14", cal=cal)
 
 
 def test_guard_main_does_not_rerun_when_today_is_registered(tmp_path,
@@ -205,3 +210,79 @@ def test_a_past_gap_is_reported_as_permanent_loss(tmp_path, monkeypatch,
     out = capsys.readouterr().out
     assert "2026-10-13" in out and "永久丢失" in out, (
         "缺口没有出现在输出里——在 launchd 下没有人会看到它")
+
+
+# ── 交易日历：周末/节假日不该被报成缺口 ──────────────────────────────
+
+def test_the_trading_calendar_is_the_union_of_daily_dates(tmp_path):
+    """**单只股票的日期集不是交易日历。**
+
+    实测：000005.SZ 只有 1290 天（上市晚 + 停牌），而全市场是 1884 天。
+    只看一只票，上市前的日子会被误判成「没采集」——
+    而那恰恰是一个不该报警的噪声源。
+    """
+    import scripts.guard_vintage as g
+    d = tmp_path / "daily"
+    d.mkdir()
+    pd.DataFrame({"date": ["2026-10-09", "2026-10-12", "2026-10-13"]}).to_parquet(
+        d / "000001.SZ.parquet", index=False)
+    pd.DataFrame({"date": ["2026-10-13", "2026-10-14", "2026-10-15"]}).to_parquet(
+        d / "000002.SZ.parquet", index=False)      # 停牌 → 缺 10-12
+    got = g.trading_days(daily_dir=d, refresh=True)
+    assert got == {"2026-10-09", "2026-10-12", "2026-10-13",
+                   "2026-10-14", "2026-10-15"}
+
+
+def test_an_unknown_date_is_treated_as_a_trading_day(tmp_path):
+    """**误判方向不对称，判据必须朝「宁可多采」偏。**
+
+    日历来自日线数据，而日线由 `run_daily`（18:30）推进。
+    所以采集器在 22:30 跑时，日历通常**还停在昨天**——
+    「今天是不是交易日」这件事当时根本无从得知。
+    若把未知当作非交易日，就等于在最需要采集的那天主动跳过它。
+    """
+    import scripts.guard_vintage as g
+    d = tmp_path / "daily"
+    d.mkdir()
+    pd.DataFrame({"date": ["2026-10-13"]}).to_parquet(
+        d / "000001.SZ.parquet", index=False)
+    cal = g.trading_days(daily_dir=d, refresh=True)
+    assert g.is_gap_day("2026-10-14", cal=cal), (
+        "日历之外的日期被当成了非交易日——那是最容易丢数据的一天")
+
+
+def test_a_known_non_trading_day_is_not_a_gap(tmp_path):
+    """反过来也必须成立，否则每个周末都会报一次「永久丢失」——
+    **告警疲劳会让防永久损失的探测器在几周内失效**。"""
+    import scripts.guard_vintage as g
+    cal = {"2026-10-09", "2026-10-12", "2026-10-13", "2026-10-14"}
+    assert not g.is_gap_day("2026-10-10", cal=cal)   # 周六
+    assert not g.is_gap_day("2026-10-11", cal=cal)   # 周日
+    assert g.is_gap_day("2026-10-13", cal=cal)
+
+
+def test_weekends_are_not_reported_as_missed_days(tmp_path):
+    """端到端：10-09(五) 与 10-12(一) 都登记，中间那个周末不算缺口。"""
+    import scripts.guard_vintage as g
+    root = tmp_path / "v"
+    _register(root, ["2026-10-09", "2026-10-12"])
+    cal = {"2026-10-09", "2026-10-12"}
+    assert g.days_missed(root, today="2026-10-12", cal=cal) == []
+
+
+def test_a_real_gap_inside_trading_days_is_still_reported(tmp_path):
+    """**过滤非交易日不能把真缺口一起滤掉。**"""
+    import scripts.guard_vintage as g
+    root = tmp_path / "v"
+    _register(root, ["2026-10-09", "2026-10-13"])   # 缺 10-12(周一)
+    cal = {"2026-10-09", "2026-10-12", "2026-10-13"}
+    assert g.days_missed(root, today="2026-10-13", cal=cal) == ["2026-10-12"]
+
+
+def test_the_real_calendar_covers_the_last_three_months():
+    """拿真实数据验一遍：日历本身不能是空的或短得离谱。"""
+    import scripts.guard_vintage as g
+    cal = g.trading_days()
+    assert len(cal) > 1000, f"交易日历只有 {len(cal)} 天——来源坏了"
+    assert max(cal) >= "2026-09-01", (
+        f"日历最新只到 {max(cal)}，落后太多，缺口判定会失效")

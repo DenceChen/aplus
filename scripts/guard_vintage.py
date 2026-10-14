@@ -35,10 +35,96 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pandas as pd
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from aplus.vintage import VINTAGE_ROOT, span  # noqa: E402
+
+#: 交易日历从日线数据的日期并集反推。
+DAILY_DIR = ROOT / "data" / "master" / "daily"
+
+#: 取前 N 只取并集。实测 5 只就收敛到 1884 天、400 只仍是 1884，
+#: 40 只是安全余量，代价 0.26 秒。
+CALENDAR_SAMPLE = 40
+
+_CAL: dict[str, set[str]] = {}
+
+
+def trading_days(daily_dir: Path = DAILY_DIR,
+                 sample: int = CALENDAR_SAMPLE,
+                 refresh: bool = False) -> set[str]:
+    """交易日历 = 日线日期的**并集**（不是单只股票的日期集）。
+
+    ## 为什么必须取并集
+
+    单只股票有停牌和上市时间。实测 000005.SZ 只有 1290 天，
+    而全市场是 1884 天。只看一只，上市前的日子会被误判成「没采集」。
+
+    ## 为什么样本 40 只就够
+
+    实测并集从 5 只起就不再增长（5/40/400 只全是 1884 天）——
+    因为**只要有一只票在交易，那天就是交易日**。
+    40 只是余量，不是精度需求。
+
+    ## 缓存按**路径**分键
+
+    首版只有一个全局槽位，于是 `trading_days(daily_dir=X)`
+    会返回由 `Y` 建出来的日历——参数形同虚设，
+    而测试替身与真实目录会互相污染。
+    """
+    key = str(Path(daily_dir).resolve())
+    if key in _CAL and not refresh:
+        return _CAL[key]
+    out: set[str] = set()
+    for p in sorted(Path(daily_dir).glob("*.parquet"))[:sample]:
+        try:
+            d = pd.read_parquet(p, columns=["date"])["date"].astype(str)
+        except Exception:
+            continue
+        out |= set(d)
+    _CAL[key] = out
+    return out
+
+
+def is_gap_day(day: str, cal: set[str] | None = None) -> bool:
+    """这一天该不该报缺口。
+
+    ## 「不在日历里」有两种，判法相反
+
+    | 情况 | 判法 | 理由 |
+    |---|---|---|
+    | 在日历覆盖**范围内**但不在日历里 | 非交易日 | 日历说了算，那就是周末/节假日 |
+    | **超出**日历覆盖范围（通常是今天） | 假定为交易日 | 见下 |
+
+    首版把两者混成一句 `day not in cal`，于是
+    **每个周末都会被报成「永久丢失」**——而告警疲劳会让一个
+    防永久损失的探测器在几周内失效。真缺口被日常噪声淹没，比没告警更糟。
+
+    ## 为什么范围外的未知要当作交易日
+
+    日历来自日线数据，而日线由 `run_daily`（18:30）推进。
+    采集在 22:30 跑，日历通常**还停在昨天**，
+    「今天是不是交易日」当时根本无从得知。
+
+    两种误判的代价完全不对称：
+    - 误判为交易日 → 多抓一次，多花 36 MB
+    - 误判为非交易日 → **那一天永久丢失**
+
+    所以判据必须朝「宁可多采」偏。
+    """
+    if cal is None:
+        cal = trading_days()
+    if not cal:
+        return True                     # 完全没有日历 → 全部按交易日
+    lo, hi = min(cal), max(cal)
+    if day < lo or day > hi:
+        return True                     # 超出覆盖范围 → 未知，假定是交易日
+    # 日历里**有**的才是交易日。范围内但不在日历里 → 周末/节假日 → 不报。
+    # （首版这里写成 `day not in cal`，方向反了，于是每个周末都报「永久丢失」。
+    #   而告警疲劳会让防永久损失的探测器在几周内失效。）
+    return day in cal
 
 
 def registered_days(root: Path = VINTAGE_ROOT) -> set[str]:
@@ -72,25 +158,28 @@ def registered_days(root: Path = VINTAGE_ROOT) -> set[str]:
     return out
 
 
-def days_missed(root: Path = VINTAGE_ROOT, today: str | None = None) -> list[str]:
-    """从第一天快照到今天之间，**缺登记的日期**。
+def days_missed(root: Path = VINTAGE_ROOT, today: str | None = None,
+                cal: set[str] | None = None) -> list[str]:
+    """从第一天快照到今天之间，**缺登记的交易日**。
 
-    只查 `[first, today]`，不查未来——今天的快照要等 22:30 才该出现，
-    而这个守卫自己在 23:30 跑，所以今天已由 `--ensure` 覆盖。
+    只查 `[first, today]`，不查未来。
 
-    周末/节假日**不算缺**：源站在非交易日同样服务「当前值」，
-    而 PIT 关心的是「某个信号日当时看到什么」。
-    非交易日要不要落盘，是另一个还没定的问题（见账本第 80 条的 open）。
+    **周末与节假日不算缺**——它们由 `is_gap_day` 排除。
+    不排除的话，每个周末都会报一次「永久丢失」，
+    而**告警疲劳会让一个防永久损失的探测器在几周内失效**。
+    真缺口被日常噪声淹没，比没有告警更糟。
     """
     days = registered_days(root)
     days.discard(None)
     if not days:
         return []
     today = today or date.today().isoformat()
+    if cal is None:
+        cal = trading_days()
     first = min(days)
     out, cur = [], _next(first)
     while cur <= today:
-        if cur not in days:
+        if cur not in days and is_gap_day(cur, cal=cal):
             out.append(cur)
         cur = _next(cur)
     return out
