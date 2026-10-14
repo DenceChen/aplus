@@ -16,26 +16,38 @@
 
 `aplus/backtest.py` 的 `_up_leg_exit` 对 up 腿判 `can_sell`：
 
-| 腿 | 门禁 | 一字跌停（≤−9.9%）时 |
+| 腿 | 门禁 | 出场 bar 封跌停时 |
 |---|---|---|
-| **up**（真持仓） | `can_buy` + `can_sell` | **不成交 → 持有到复牌 → 该样本不按 −10% 计入** |
+| **up**（真持仓） | `can_buy` + `can_sell` | **持有到复牌首根可卖 bar**（`sell_extended`） |
 | **down**（回避清单） | 只判停牌 | **原样保留，−10% 照记** |
 
-于是**同一个 −10% 的封跌停**：
-
-- 出现在 down 腿 → 计入（预测对了就该算对）
-- 出现在 up 腿 → **被门禁吃掉**（真持仓卖不掉，不按当日价记）
-
-`breadth = E[r_up] − E[r_down]` 里，**极端负值只在分母侧出现**。
-分母的左尾比分子厚 → 价差被**机械地做大**。
+于是 `breadth = E[r_up] − E[r_down]` 里，**两腿的左尾不是一个形状**。
 
 > 这不是 bug——`backtest.py:172` 写明了理由：
 > 「对跌腿判 `can_sell` 等于凭空惩罚一笔没做过的交易」。
 > 那个理由本身站得住。**问题在于 `breadth` 把两条门禁不同的腿相减。**
 
+## 实测：子代理的方向假设**是反的**（2026-10-14）
+
+子代理推测厚尾在 **down** 侧（分母），从而价差被抬高。
+用真实数据（`data/reports/backtest_reversal_2y.parquet`，540 日）实测：
+
+| 腿 | ≤−9.9% 占比 | 最小值 |
+|---|---|---|
+| **up** | **11.39%**（615/5400） | −26.86% |
+| **down** | 1.17%（63/5400） | −25.70% |
+
+**厚尾在分子侧。** 而真实 `breadth_t = −1.17`（不显著、为负），
+**远低于零信号基线 +4.88**。
+
+> 所以这个构造物把价差**压低**，**没有**替任何正结论背书。
+> 子代理的翻转观察**在这份数据上不成立**——
+> 但**机制本身是真的**（合成数据 +4.88 证明），
+> 两者不矛盾：**机制存在，方向与推测相反，真实读数低于基线。**
+
 ## 三条纪律
 
-1. **不许顺手否掉**：本文件先复现现象，确认它是真的，再谈结论。
+1. **不许顺手否掉**：本文件先复现机制，再拿真实数据定向。
 2. **区分「机制存在」与「量级够大」**：前者用合成数据证明，
    后者必须实测——**别用合成数据的量级去否定真实结论**。
 3. **门禁不对称是设计，不是缺陷**；要问的是
@@ -178,27 +190,50 @@ def test_both_legs_must_cover_the_same_days():
     )
 
 
-# ── 三、真正要答的问题（需实测，此处只钉住「不许假装答了」）──────
+# ── 三、真实数据上的实测结论（已答，不再是待办）────────────────────
 
-def test_the_real_report_has_not_yet_been_re_examined_for_this_asymmetry():
-    """**诚实的边界**：本文件证明机制存在，**不**证明真实报告里它够大。
+def test_on_real_data_the_construct_pushes_breadth_down_not_up():
+    """**实测结论**：子代理的方向推测**是反的**，而真实读数**低于基线**。
 
-    真实量级必须在**逐腿收益**上实测，而现有报告只有汇总行。
-    这条测试的作用是：一旦有人补上实测，让它转绿并写下结论；
-    **红着就说明真实量级仍未验证**。
+    用 `data/reports/backtest_reversal_2y.parquet`（540 个交易日、每腿 5400 笔）
+    实测厚尾分布：
 
-    > 与 `test_yearly_tail_decomposition.py` 里那条故意红的测试同形——
-    > **待办的可执行形式，比文档里的一行字更难被忽略**。
+    | 腿 | ≤−9.9% 占比 |
+    |---|---|
+    | up | **11.39%** |
+    | down | 1.17% |
+
+    **厚尾在分子侧**，所以门禁构造把价差**压低**。
+    真实 `breadth_t = −1.17`——**远低于零信号基线 +4.88**。
+
+    > 所以这个构造物**没有**替任何正结论背书。
+    > 「机制是真的」与「子代理的翻转在此数据上不成立」**不矛盾**：
+    > 机制存在，方向相反，真实读数低于基线。
+
+    这条测试**曾经是红的**（等实测）。现在它钉住的是实测结果：
+    若日后数据或门禁变了、`breadth_t` 反而高于基线，
+    **那才是需要重新审视的信号**。
     """
-    import json
     from pathlib import Path
 
-    path = Path("data/reports/FOSSAL_reversal_freq_2019_2023.json")
+    from aplus.evolve_race import breadth_tstat
+
+    path = Path("data/reports/backtest_reversal_2y.parquet")
     if not path.is_file():
-        pytest.skip("报告不在（data/ 被 gitignore）")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload.get("breadth_gate_asymmetry") is not None, (
-        "报告里还没有「门禁不对称实测」这一节。"
-        "机制已由本文件证明，但**真实量级未测**——"
-        "在补上之前，不能引用 breadth_t 当作排序能力的证据。"
+        pytest.skip("parquet 不在（data/ 被 gitignore）")
+    res = pd.read_parquet(path)
+
+    up_tail = (res[(res["direction"] == "up")]["actual_pct"] <= -0.099).mean()
+    dn_tail = (res[(res["direction"] == "down")]["actual_pct"] <= -0.099).mean()
+    assert up_tail > dn_tail * 5, (
+        f"实测厚尾应在 up 侧（up={up_tail:.2%} vs down={dn_tail:.2%}）。"
+        "若反过来了，说明门禁或数据变了，"
+        "`evolve_race.breadth_tstat` 的 docstring 与本文件的基线都要重写"
+    )
+
+    t, n_obs = breadth_tstat(res)
+    assert n_obs > 0 and t is not None
+    assert t < 0, (
+        f"真实 breadth_t={t:.2f} 应为负——它**低于**零信号基线，"
+        "所以这个构造物在压低价差，没有替正结论背书"
     )
