@@ -27,42 +27,42 @@
   "note": "净超额 = 涨篮子 − 市场，日频序列按调仓周期分块后求 t；观测单位是「一次调仓决策」。可成交性闸门已开。两个成本口径都报：回测默认低估真实现况 1.84 倍。",
   "years": [
     {
-      "n_rows": 4733,
+      "n_rows": 4734,
       "n_days": 243,
       "bt003": {
         "cost_per_round": 0.003,
-        "daily_excess": -0.0003704007911158206,
-        "daily_sd": 0.008048387657373243,
-        "annual_gross_pct": -0.09037779303226022,
-        "t_blocked": -1.2405059308647564,
+        "daily_excess": -0.00024466224448658173,
+        "daily_sd": 0.007903723838510677,
+        "annual_gross_pct": -0.059697587654725943,
+        "t_blocked": -0.7828283634436402,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.01742857142857143,
         "annual_cost_pct": 0.015965432098765428,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.09037779303226022,
+        "annual_net_pct": -0.059697587654725943,
         "hit_threshold": false
       },
       "real": {
         "cost_per_round": 0.0055,
-        "daily_excess": -0.000424927540087014,
-        "daily_sd": 0.00804913846520003,
-        "annual_gross_pct": -0.10368231978123141,
-        "t_blocked": -1.311853465387978,
+        "daily_excess": -0.0002991889934577752,
+        "daily_sd": 0.007931613194505046,
+        "annual_gross_pct": -0.07300211440369714,
+        "t_blocked": -0.8424519468669935,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.03195238095238095,
-        "annual_cost_pct": 0.029269958847736616,
+        "annual_cost_pct": 0.029269958847736623,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.10368231978123141,
+        "annual_net_pct": -0.07300211440369714,
         "hit_threshold": false
       },
       "gross": {
-        "daily_excess": -0.00030496869235038847,
-        "annual_pct": -0.07441236093349479
+        "daily_excess": -0.00017923014572114964,
+        "annual_pct": -0.043732155555960515
       },
       "unfillable_execution": {
-        "": 21,
+        "": 18,
         "_by": {
-          "buy_unfillable": 17,
+          "buy_unfillable": 14,
           "sell_extended": 0,
           "sell_void": 4,
           "price_implausible": 0
@@ -85,47 +85,47 @@
       "weights_source": "walk_forward"
     },
     {
-      "n_rows": 4708,
+      "n_rows": 4711,
       "n_days": 242,
       "bt003": {
         "cost_per_round": 0.003,
-        "daily_excess": 0.00020941889651208216,
-        "daily_sd": 0.008757911047132484,
-        "annual_gross_pct": 0.05109821074894805,
-        "t_blocked": 0.8775841657715575,
+        "daily_excess": 0.00014192255956064492,
+        "daily_sd": 0.008971123361898245,
+        "annual_gross_pct": 0.03462910453279736,
+        "t_blocked": 1.037339529891474,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.01742857142857143,
         "annual_cost_pct": 0.016636363636363644,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": 0.05109821074894805,
+        "annual_net_pct": 0.03462910453279736,
         "hit_threshold": false
       },
       "real": {
         "cost_per_round": 0.0055,
-        "daily_excess": 0.00015260071469390036,
-        "daily_sd": 0.008790827629934791,
-        "annual_gross_pct": 0.037234574385311685,
-        "t_blocked": 0.7272632828932849,
+        "daily_excess": 8.510437774246318e-05,
+        "daily_sd": 0.008986422773639511,
+        "annual_gross_pct": 0.020765468169161017,
+        "t_blocked": 0.7946921051232546,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.03195238095238095,
-        "annual_cost_pct": 0.030500000000000006,
+        "annual_cost_pct": 0.03049999999999999,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": 0.037234574385311685,
+        "annual_net_pct": 0.020765468169161017,
         "hit_threshold": false
       },
       "gross": {
-        "daily_excess": 0.0002776007146939004,
-        "annual_pct": 0.06773457438531169
+        "daily_excess": 0.00021010437774246314,
+        "annual_pct": 0.051265468169161006
       },
       "unfillable_execution": {
-        "": 27,
+        "": 22,
         "_by": {
-          "buy_unfillable": 20,
+          "buy_unfillable": 17,
           "sell_extended": 0,
-          "sell_void": 7,
+          "sell_void": 5,
           "price_implausible": 0
         },
-        "_codes": 16
+        "_codes": 11
       },
       "unadjusted_touch": {},
       "year": 2022,
@@ -143,37 +143,37 @@
       "weights_source": "walk_forward"
     },
     {
-      "n_rows": 4778,
+      "n_rows": 4775,
       "n_days": 242,
       "bt003": {
         "cost_per_round": 0.003,
-        "daily_excess": 4.2317027061807664e-05,
-        "daily_sd": 0.007436848400611656,
-        "annual_gross_pct": 0.01032535460308107,
-        "t_blocked": 0.0650023848470141,
+        "daily_excess": 0.000441706625902139,
+        "daily_sd": 0.00612023565541681,
+        "annual_gross_pct": 0.10777641672012192,
+        "t_blocked": 2.004338382660361,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.01742857142857143,
-        "annual_cost_pct": 0.016636363636363626,
+        "annual_cost_pct": 0.016636363636363616,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": 0.01032535460308107,
+        "annual_net_pct": 0.10777641672012192,
         "hit_threshold": false
       },
       "real": {
         "cost_per_round": 0.0055,
-        "daily_excess": -1.450115475637419e-05,
-        "daily_sd": 0.007475495136175603,
-        "annual_gross_pct": -0.0035382817605553022,
-        "t_blocked": -0.1569240214046108,
+        "daily_excess": 0.00038488844408395717,
+        "daily_sd": 0.006153996945192169,
+        "annual_gross_pct": 0.09391278035648555,
+        "t_blocked": 1.8266733333408434,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.03195238095238095,
-        "annual_cost_pct": 0.0305,
+        "annual_cost_pct": 0.030499999999999985,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.0035382817605553022,
+        "annual_net_pct": 0.09391278035648555,
         "hit_threshold": false
       },
       "gross": {
-        "daily_excess": 0.00011049884524362581,
-        "annual_pct": 0.026961718239444696
+        "daily_excess": 0.0005098884440839571,
+        "annual_pct": 0.12441278035648554
       },
       "unfillable_execution": {
         "": 5,
@@ -201,42 +201,42 @@
       "weights_source": "walk_forward"
     },
     {
-      "n_rows": 4690,
+      "n_rows": 4685,
       "n_days": 242,
       "bt003": {
         "cost_per_round": 0.003,
-        "daily_excess": -0.0002957150456599861,
-        "daily_sd": 0.008770022277097583,
-        "annual_gross_pct": -0.07215447114103661,
-        "t_blocked": -0.3276425776840748,
+        "daily_excess": -0.0004543284599230483,
+        "daily_sd": 0.009209927753233253,
+        "annual_gross_pct": -0.11085614422122379,
+        "t_blocked": -0.9777613659405672,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.01742857142857143,
-        "annual_cost_pct": 0.016333884297520668,
+        "annual_cost_pct": 0.016031404958677692,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.07215447114103661,
+        "annual_net_pct": -0.11085614422122379,
         "hit_threshold": false
       },
       "real": {
         "cost_per_round": 0.0055,
-        "daily_excess": -0.0003515001696269283,
-        "daily_sd": 0.00878927647574681,
-        "annual_gross_pct": -0.08576604138897051,
-        "t_blocked": -0.5406545913124999,
+        "daily_excess": -0.0005090805260387508,
+        "daily_sd": 0.009233935520856867,
+        "annual_gross_pct": -0.12421564835345521,
+        "t_blocked": -1.1712334041382697,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.03195238095238095,
-        "annual_cost_pct": 0.029945454545454567,
+        "annual_cost_pct": 0.029390909090909106,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.08576604138897051,
+        "annual_net_pct": -0.12421564835345521,
         "hit_threshold": false
       },
       "gross": {
-        "daily_excess": -0.0002287728968996555,
-        "annual_pct": -0.05582058684351594
+        "daily_excess": -0.00038862598058420533,
+        "annual_pct": -0.0948247392625461
       },
       "unfillable_execution": {
-        "": 33,
+        "": 37,
         "_by": {
-          "buy_unfillable": 22,
+          "buy_unfillable": 26,
           "sell_extended": 0,
           "sell_void": 11,
           "price_implausible": 0
@@ -263,33 +263,33 @@
       "n_days": 243,
       "bt003": {
         "cost_per_round": 0.003,
-        "daily_excess": -0.00020967844936802988,
-        "daily_sd": 0.006826578505107043,
-        "annual_gross_pct": -0.051161541645799294,
-        "t_blocked": -1.5049929838057108,
+        "daily_excess": -0.0006508324700235906,
+        "daily_sd": 0.006590862371319989,
+        "annual_gross_pct": -0.1588031226857561,
+        "t_blocked": -1.7030823759691862,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.01742857142857143,
-        "annual_cost_pct": 0.01656790123456791,
+        "annual_cost_pct": 0.016266666666666707,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.051161541645799294,
+        "annual_net_pct": -0.1588031226857561,
         "hit_threshold": false
       },
       "real": {
         "cost_per_round": 0.0055,
-        "daily_excess": -0.00026626281150794756,
-        "daily_sd": 0.006851035292108967,
-        "annual_gross_pct": -0.0649681260079392,
-        "t_blocked": -1.6777702792563265,
+        "daily_excess": -0.0007063880255791462,
+        "daily_sd": 0.0066152943165957555,
+        "annual_gross_pct": -0.17235867824131168,
+        "t_blocked": -1.791264567452325,
         "n_independent_obs": 5,
         "annual_cost_nominal_pct": 0.03195238095238095,
-        "annual_cost_pct": 0.03037448559670782,
+        "annual_cost_pct": 0.029822222222222278,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": -0.0649681260079392,
+        "annual_net_pct": -0.17235867824131168,
         "hit_threshold": false
       },
       "gross": {
-        "daily_excess": -0.00014177721480012863,
-        "annual_pct": -0.034593640411231384
+        "daily_excess": -0.0005841658033569238,
+        "annual_pct": -0.1425364560190894
       },
       "unfillable_execution": {
         "": 16,
@@ -317,47 +317,47 @@
       "weights_source": "walk_forward"
     },
     {
-      "n_rows": 3510,
+      "n_rows": 3527,
       "n_days": 183,
       "bt003": {
         "cost_per_round": 0.003,
-        "daily_excess": 0.0004899054400722269,
-        "daily_sd": 0.00947750883447346,
-        "annual_gross_pct": 0.11953692737762336,
-        "t_blocked": 1.7097105520110385,
+        "daily_excess": 0.00037974785903671567,
+        "daily_sd": 0.009571007326849908,
+        "annual_gross_pct": 0.09265847760495863,
+        "t_blocked": 0.9868892976363768,
         "n_independent_obs": 4,
         "annual_cost_nominal_pct": 0.01742857142857143,
-        "annual_cost_pct": 0.018098901098901138,
+        "annual_cost_pct": 0.017999999999999988,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": 0.11953692737762336,
+        "annual_net_pct": 0.09265847760495863,
         "hit_threshold": false
       },
       "real": {
         "cost_per_round": 0.0055,
-        "daily_excess": 0.00042809225325904024,
-        "daily_sd": 0.009465266291906227,
-        "annual_gross_pct": 0.10445450979520582,
-        "t_blocked": 1.487763621168099,
+        "daily_excess": 0.00031827244920065007,
+        "daily_sd": 0.009555995629900149,
+        "annual_gross_pct": 0.07765847760495861,
+        "t_blocked": 0.8389302417002712,
         "n_independent_obs": 4,
         "annual_cost_nominal_pct": 0.03195238095238095,
-        "annual_cost_pct": 0.03318131868131868,
+        "annual_cost_pct": 0.033,
         "_selfcheck_cost_single_deduction": 0.0,
-        "annual_net_pct": 0.10445450979520582,
+        "annual_net_pct": 0.07765847760495861,
         "hit_threshold": false
       },
       "gross": {
-        "daily_excess": 0.0005640812642480512,
-        "annual_pct": 0.1376358284765245
+        "daily_excess": 0.00045351835083999435,
+        "annual_pct": 0.11065847760495862
       },
       "unfillable_execution": {
-        "": 12,
+        "": 11,
         "_by": {
-          "buy_unfillable": 10,
+          "buy_unfillable": 9,
           "sell_extended": 0,
           "sell_void": 2,
           "price_implausible": 0
         },
-        "_codes": 7
+        "_codes": 6
       },
       "unadjusted_touch": {},
       "year": 2026,

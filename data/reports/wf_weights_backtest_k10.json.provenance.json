@@ -1,0 +1,8 @@
+{
+  "code_sha": "a09fbdb7183fbac6679b13602d31a934cc39bef8",
+  "code_dirty": true,
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/backtest_walk_forward_weights.py",
+  "stamped_at": "2026-10-14T19:34:48+00:00"
+}
