@@ -112,7 +112,19 @@ def write_snapshot(root: Path | str, day: str, df: pd.DataFrame,
         #
         # 改成读回再摘要，manifest 就成了关于**产物**的陈述，
         # `verify_integrity` 才可能只凭文件本身复现它。
-        persisted = pd.read_parquet(path).drop(
+        persisted = pd.read_parquet(path)
+        # 摘要要**排除 `snapshot_date`**（它是本模块自己加的列，
+        # 不属于「源站那天服务的内容」，且 `verify_integrity` 按同样规则重算）。
+        # 但 **`n_cols` 必须记文件的真实列数**，不能跟着 drop 一起减 1。
+        #
+        # 初版直接用 drop 之后的 shape，于是 manifest 记 141、文件实际 142。
+        # `n_rows` 侥幸没错（删列不改行数），所以这个 off-by-one
+        # **躲过了所有交叉检查**——两个字段里只有一个错，比两个都错更难发现。
+        # 后果不是「算错了」，是审计记录不自证：
+        # 谁打开文件数一遍列得到 142，翻 manifest 写 141——
+        # 在一份专门用来让人相信「这份数据没被动过」的账本里，
+        # 一条对不上的记录足以让人开始怀疑整本账。
+        digest_frame = persisted.drop(
             columns=["snapshot_date"], errors="ignore")
         entry = {
             "snapshot_date": day,
@@ -120,7 +132,7 @@ def write_snapshot(root: Path | str, day: str, df: pd.DataFrame,
                 timespec="seconds"),
             "n_rows": int(len(persisted)),
             "n_cols": int(persisted.shape[1]),
-            "sha256": _digest(persisted),
+            "sha256": _digest(digest_frame),
         }
         # **追加，不覆盖。** 覆盖就抹掉了「这一天的值后来变过」这个事实，
         # 而那个事实正是 vintage 唯一要回答的问题。

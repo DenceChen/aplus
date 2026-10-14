@@ -285,3 +285,61 @@ def test_pit_frame_never_invents_rows_for_a_day_with_no_snapshot(tmp_path):
     _write(root, "2026-10-13")
     with pytest.raises(ValueError):
         pit_frame(root, "2020-01-02")
+
+
+def test_the_manifest_shape_matches_the_file_on_disk(tmp_path):
+    """**manifest 的 `n_cols` 必须是文件的真实列数。**
+
+    `write_snapshot` 自己加了一列 `snapshot_date`，而摘要为了可复现
+    把它 `drop` 掉。初版把 drop 之后的 shape 直接写进 manifest，
+    于是 manifest 记 141、文件实际 142。
+
+    `n_rows` 侥幸没错（删列不改行数），所以这个 off-by-one
+    **躲过了所有交叉检查**——两个字段里只有一个错，比两个都错更难发现。
+
+    后果不是「算错了」，是**审计记录不自证**：打开文件数一遍列，
+    和 manifest 对不上。在一份专门用来让人相信「这份数据没被动过」
+    的账本里，一条对不上的记录足以让人开始怀疑整本账。
+    """
+    import json
+
+    from aplus.vintage import manifest_path, write_snapshot
+    df = pd.DataFrame({"SECURITY_CODE": ["000001", "000002"],
+                       "REPORT_DATE": ["2026-06-30"] * 2,
+                       "ROE": [0.11, 0.22]})
+    write_snapshot(tmp_path, "2026-10-14", df)
+
+    entry = json.loads(manifest_path(tmp_path).read_text(
+        encoding="utf-8").strip())
+    written = pd.read_parquet(
+        next(tmp_path.rglob("date=*/financial.parquet")))
+    assert entry["n_cols"] == written.shape[1], (
+        f"manifest 记 {entry['n_cols']} 列，文件实际 {written.shape[1]} 列——"
+        "审计记录与它描述的产物对不上")
+    assert entry["n_rows"] == written.shape[0]
+
+
+def test_the_digest_still_excludes_the_snapshot_column(tmp_path):
+    """摘要是**排除** `snapshot_date` 算的，且这个规则必须留在原地。
+
+    上一条测试把 `n_cols` 改回真实列数，容易顺手把 drop 一起删掉——
+    那样 `sha256` 就变了，`verify_integrity` 会永远红。
+    所以单独钉住：**形状用真实帧，摘要用剔除帧。**
+    """
+    import json
+
+    from aplus.vintage import (manifest_path, verify_integrity,
+                               write_snapshot)
+    df = pd.DataFrame({"SECURITY_CODE": ["000001"],
+                       "REPORT_DATE": ["2026-06-30"],
+                       "ROE": [0.11]})
+    write_snapshot(tmp_path, "2026-10-14", df)
+    write_snapshot(tmp_path, "2026-10-14", df)      # 同日重跑：追加而非覆盖
+    entry = json.loads(manifest_path(tmp_path).read_text(
+        encoding="utf-8").strip().splitlines()[-1])
+    written = pd.read_parquet(
+        next(tmp_path.rglob("date=*/financial.parquet")))
+    # 文件里有这一列，但摘要的范围里没有——所以两者不能相等地来自同一帧
+    assert "snapshot_date" in written.columns
+    assert verify_integrity(tmp_path)["ok"], (
+        "摘要在被篡改后没被抓到——drop 掉 snapshot_date 的规则被破坏了")
