@@ -477,3 +477,121 @@ def test_pearson_outside_the_domain_is_refused_too():
     implied_spread(1.0, sigma_r=0.023, kind="pearson")   # 恰好合法
     with pytest.raises(ValueError):
         implied_spread(1.4, sigma_r=0.023, kind="pearman")
+
+
+# ── 口径标注（第 7 种静默失效，2026-10-14） ────────────────────────
+#
+# `implied_spread` 算的是 `顶 − 底`（**多空**），而账户能做的是
+# `顶 − 市场`（**多头**）。实测两者在同一天的数据上差 16 倍。
+#
+# 这类错误的特点是**算得对、但量错了**，所以只能靠**标注**防，
+# 靠断言防不住 —— 断言只能验证公式，验证不了「读者会怎么用这个数」。
+#
+# 所以这里守的是**标注还在不在**，并且**做过变异验证**。
+
+def test_implied_spread_declares_that_it_is_a_long_short_caliber():
+    """docstring 必须说清这是多空口径。
+
+    这条测试的价值不在于「验证公式对不对」——那是别的测试的事——
+    而在于**防止这个警告在未来被悄悄删掉**。
+    """
+    from aplus.ic_to_return import implied_spread
+    doc = implied_spread.__doc__ or ""
+
+    assert "多空" in doc, (
+        "`implied_spread` 的 docstring 必须写明它算的是多空价差。"
+        "删掉这句话，读者就会把 β≈0 的组合当成账户收益 —— "
+        "实测这两个口径差 16 倍。")
+    assert "顶 − 底" in doc, "必须写出**具体是哪两个桶**的差，不是只说「价差」"
+    assert "融不到券" in doc, (
+        "必须说明这个口径在 A 股**做不了** —— "
+        "否则读者会以为它是一个可执行的目标。")
+
+
+def test_the_caliber_warning_would_actually_fail_if_deleted():
+    """反向测试：把警告从 docstring 抠掉，上面那条守卫必须红。
+
+    没有这一节，上面那条只是在断言「我写它时它就在」——
+    而那恰恰是第 20 层「自指恒绿」的形状：
+    **断言恒真时，它证明不了自己守得住任何东西。**
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from aplus.ic_to_return import implied_spread
+
+    src = inspect.getsource(implied_spread)
+    stripped = src.replace("多空", "某个口径").replace("融不到券", "可以做")
+    assert stripped != src, "变异没能应用 —— 源码已变，本测试会失去意义"
+
+    tree = ast.parse(textwrap.dedent(stripped))
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef))
+    doc = ast.get_docstring(fn) or ""
+
+    # 这就是第一条守卫的判据；抠掉警告后它必须**不成立**。
+    assert not ("多空" in doc and "融不到券" in doc), (
+        "变异没生效——这条反向测试已经失去意义")
+    with pytest.raises(AssertionError):
+        assert "多空" in doc and "顶 − 底" in doc and "融不到券" in doc
+
+
+# ── 文档级守卫：多空口径的数字不许裸引 ────────────────────────────
+#
+# 「108.34%/年」这个数**本身是对的**（多空顶−底，t=5.35）。
+# 危险的不是它，是**脱离口径单独出现**。
+# 所以守的不是「文档里不能有这个数」，而是
+# 「**它每次出现，旁边都得有口径说明**」。
+#
+# 这类守卫有个通则：它必须能容忍**合法**用法，
+# 否则为了变绿就会把正确的东西也删掉 —— 那比不守更坏。
+
+_LONG_SHORT_DOCS = [
+    "CLAUDE.md",
+    "docs/TODO_measure_sigma_r.md",
+    "docs/MISTAKE_LOG_2026-10-14.md",
+]
+_CALIBER_MARKERS = ("多空", "顶−底", "顶 − 底", "长在空头腿", "做不了", "不可执行")
+
+
+def _context(text: str, idx: int, width: int = 420) -> str:
+    return text[max(0, idx - width): idx + width]
+
+
+@pytest.mark.parametrize("doc", _LONG_SHORT_DOCS)
+def test_the_108_number_is_never_cited_without_its_caliber(doc):
+    """108.34%/年 必须带口径标签 —— 它是多空价差，不是账户收益。"""
+    from pathlib import Path
+    p = Path(__file__).resolve().parent.parent / doc
+    if not p.is_file():
+        pytest.skip(f"{doc} 不存在")
+    text = p.read_text(encoding="utf-8")
+
+    assert "108.34" in text, (
+        f"{doc} 里居然没有 108.34 —— 如果它已被正确撤回，"
+        "这条守卫就没有存在的理由了，请连同本测试一起删")
+
+    lines = text.splitlines()
+    for i, line in enumerate(lines, 1):
+        if "108.34" not in line:
+            continue
+        # 上下文取**以该行为中心**的窗口，而不是靠字符偏移算——
+        # 后者一旦前面有空行就会错位，报出莫须有的失败。
+        lo, hi = max(0, i - 1 - 8), min(len(lines), i + 8)
+        ctx = "\n".join(lines[lo:hi])
+        assert any(mk in ctx for mk in _CALIBER_MARKERS), (
+            f"{doc}:{i} 出现了 108.34% 但附近没有口径说明。"
+            "这个数是多空价差（顶−底），A 股做不了；"
+            "裸引会被读成「策略年赚 108%」。\n"
+            f"  行：{line.strip()[:100]}")
+
+
+def test_the_guard_would_catch_a_bare_citation():
+    """反向测试：造一段裸引的文本，本守卫的判据必须判它不合格。"""
+    bare = ("实测 top-9 的毛超额 108.34%/年，分块 t 5.35，"
+            "所以策略年化收益很高。")
+    assert not any(mk in _context(bare, 0) for mk in _CALIBER_MARKERS)
+
+    tagged = ("实测 top-9 多空价差 108.34%/年，t 5.35；"
+              "但多头口径只有 11.10%/年。")
+    assert any(mk in _context(tagged, 0) for mk in _CALIBER_MARKERS)
