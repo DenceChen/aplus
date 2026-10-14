@@ -208,16 +208,25 @@ def test_the_real_store_has_no_amount_contradiction():
 def test_the_real_store_amount_has_no_null_values():
     """`amount` 的空值率必须为 0 —— 那是那条注释里 59.4% 的来源，已被修掉。
 
-    缺列的 2 只由 coverage 判 `missing_columns`，是**独立**问题；
-    这里只要求它们被**报出来**，而不是被静默跳过（见脚本 docstring）。
+    📅 **2026-10-15：缺列判据从「不多不少就是那 2 只」改成「必须为 0」。**
+
+    这一条以前把**缺陷状态写死成了期望**：它断言 `n_files_without_column == 2`，
+    于是「正好有 2 只缺列」反而是绿灯。数据修好之后它如实变红 ——
+    **这正说明它是真在守东西，而不是一个恒真的装饰。**
+
+    根因不是「降级写入」，是 `convert.py` 对**停牌日空串**抛 `ValueError`
+    ⇒ 主源报错 ⇒ 流水线降级到腾讯 7 列 ⇒ 文件只剩 7 列，且每次重试撞同一个错。
+    真正的守卫在 `tests/test_backfill_coverage.py::test_the_real_store_has_the_full_schema_on_every_file`
+    （schema 层，只读元数据、秒级）；本条只做**内容层**的交叉确认。
     """
     files = M.pick_files(M.DEFAULT_DAILY, None)      # 全库，不用抽样
     m = M.measure(files, verbose=False)
     assert m["nan_rows"] == 0, (
         f"{m['n_files_with_nan']} 只股票的 amount 有空值："
         f"{m['files_with_nan'][:5]}")
-    # 缺列文件必须被点名，且不多不少就是那 2 只
-    assert m["n_files_without_column"] == 2, (
+    # ★ 缺列必须为 0。变多 ⇒ 去查 convert.py 的停牌日解析与 degraded_source_write 日志；
+    #   变少也不放过 —— 扫不到文件（路径/过滤器坏了）同样会让它变小。
+    assert m["n_files_without_column"] == 0, (
         f"缺 amount 列的文件变成 {m['n_files_without_column']} 只："
         f"{m['files_without_column']}——若变多，去查 coverage 的 missing_columns")
     assert m["volume0_but_amount_gt0"] == 0, "没有成交却有成交额，方向反了"

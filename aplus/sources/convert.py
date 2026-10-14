@@ -87,16 +87,47 @@ def _from_baostock_code(code: str) -> str:
 
 
 def baostock_frame_to_unified(df: pd.DataFrame) -> pd.DataFrame:
+    """baostock 原始帧 → 统一 schema。
+
+    ★ **停牌日的空串语义**（2026-10-15 实测后写死，别再改回去）：
+    baostock 对停牌日返回 `open/high/low/close/volume/amount/turn/pctChg` **全为空串**、
+    `tradestatus=0`。**同一个函数里对这个语义的处理曾经自相矛盾** ——
+    `volume`/`amount` 走 `.replace("", "0")`，附加列走 `to_numeric(errors="coerce")`，
+    唯独 OHLC 四列是裸 `astype(float)`，遇 `''` 直接 `ValueError`。
+
+    后果不是「某天缺个数」，而是一条**自我维持的洞**：
+    主源抛异常 → 流水线降级到腾讯（只有 7 列 OHLCV）→ 整份文件只剩 7 列；
+    而**下一次重试会撞同一个异常**，所以永远补不回来。
+    实测两只：`000043.SZ`(221 行) / `300114.SZ`(640 行)，
+    共 **861 行的 `isST` 全程失明** —— ST 过滤对这两只完全无效。
+
+    停牌日的价格取**上一根有效收盘价**，这与库里既有的 1.5 万条停牌行一致
+    （实测 400 文件样本：`O=H=L=C=` 前收盘、`volume=amount=0`、`tradestatus=0`）。
+    🚨 **不写 0**：0 收盘价会造出 −100% 的假跌幅。
+    🚨 **不写 NaN**：`close.pct_change()` 会从该行起整段断链。
+    ⚠️ 首根就停牌时没有「上一根」，此时留 NaN —— **不编值**（baostock 未请求 preclose）。
+    """
     # 停牌日 volume/amount 为空字符串——语义是「当日无成交」，转 0.0
     volume = df["volume"].replace("", "0")
     amount = df["amount"].replace("", "0")
+
+    ohlc = pd.DataFrame({
+        name: pd.to_numeric(df[name], errors="coerce")
+        for name in ("open", "high", "low", "close")
+    })
+    # 任一价缺失 ⇒ 判为停牌行，四个价统一取上一根有效收盘价
+    halted = ohlc.isna().any(axis=1)
+    carried = ohlc["close"].ffill()
+    for name in ohlc.columns:
+        ohlc[name] = ohlc[name].where(~halted, carried)
+
     out = pd.DataFrame({
         "date": df["date"].astype(str),
         "code": df["code"].astype(str).str.lower().map(_from_baostock_code),
-        "open": df["open"].astype(float),
-        "high": df["high"].astype(float),
-        "low": df["low"].astype(float),
-        "close": df["close"].astype(float),
+        "open": ohlc["open"],
+        "high": ohlc["high"],
+        "low": ohlc["low"],
+        "close": ohlc["close"],
         "volume": volume.astype(float),
         "amount": amount.astype(float),
     })

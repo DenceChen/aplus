@@ -95,7 +95,7 @@ def main() -> int:
     long_ok = dfm["long_cov"] >= MIN_TURN_COVERAGE
     short_ok = dfm["short_cov"] >= MIN_TURN_COVERAGE
     tr_ok = long_ok & short_ok
-    print(f"{'  └ 其���长窗口覆盖 ≥0.9':<34}{int(long_ok.sum()):>6} 只  "
+    print(f"{'  └ 其中长窗口覆盖 ≥0.9':<34}{int(long_ok.sum()):>6} 只  "
           f"{long_ok.mean():>7.2%}")
     print(f"{'  └ 且短窗口覆盖 ≥0.9':<34}{int(tr_ok.sum()):>6} 只  "
           f"{tr_ok.mean():>7.2%}")

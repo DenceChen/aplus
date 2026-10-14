@@ -309,3 +309,164 @@ def test_fetch_adjust_factor_never_yields_garbage_magnitude(monkeypatch):
     df = BaostockSource().fetch_adjust_factor("000003.SZ", "2020-01-01", "2030-01-01")
     assert (df["adjust_factor"] > 50).all()
     assert df["adjust_factor"].is_monotonic_increasing
+
+
+# ══════════════════════════════════════════════════════════════════
+# baostock 停牌日的空串语义（2026-10-15）
+# ══════════════════════════════════════════════════════════════════
+
+def _halted_frame(**overrides):
+    """按 **baostock 的真实返回**构造：停牌行 OHLC 全为空串、`tradestatus=0`。
+
+    样本取自 000043.SZ 的实测原始行（2019-12-16），不是编的。
+    """
+    import pandas as pd
+
+    rows = [
+        ["2019-12-12", "sz.000043", "20.2000", "20.2400", "19.3300", "19.8600",
+         "5856617", "116232118.5700", "1", "0", "0.8783", "-0.7992"],
+        ["2019-12-13", "sz.000043", "19.9100", "20.4900", "19.7100", "20.2500",
+         "7096940", "142983766.5000", "1", "0", "1.0643", "1.9637"],
+        # ↓ 停牌日：OHLC/volume/amount/turn/pctChg **全空串**，只有 tradestatus=0
+        ["2019-12-16", "sz.000043", "", "", "", "", "", "", "0", "0", "", ""],
+    ]
+    cols = ["date", "code", "open", "high", "low", "close",
+            "volume", "amount", "tradestatus", "isST", "turn", "pctChg"]
+    df = pd.DataFrame(rows, columns=cols)
+    for k, v in overrides.items():
+        df[k] = v
+    return df
+
+
+def test_a_halted_row_no_longer_crashes_the_baostock_converter():
+    """★ 停牌日的空串曾让转换层**抛异常**，进而把整份文件打成 7 列。
+
+    机制是一条**自我维持的洞**：
+        主源 `astype(float)` 遇 `''` 抛 `ValueError`
+        → 流水线降级到腾讯（只有 7 列 OHLCV）
+        → 文件只剩 7 列，**下次重试撞同一个异常**，永远补不回来。
+    实测受害者：`000043.SZ`(221 行) / `300114.SZ`(640 行)，
+    共 **861 行的 `isST` 全程失明**。
+
+    🚨 这条以前根本走不到 —— 调用方先崩了。守卫的第一职责是「不许崩」。
+    """
+    from aplus.sources.convert import baostock_frame_to_unified
+
+    out = baostock_frame_to_unified(_halted_frame())      # 崩在这里就是红
+    assert len(out) == 3
+    assert list(out.columns)[:12] == [
+        "date", "code", "open", "high", "low", "close",
+        "volume", "amount", "tradestatus", "isST", "turn", "pctChg",
+    ], "转换后缺列 —— 这正是降级路径留下的 7 列形态"
+
+
+def test_a_halted_row_carries_the_last_close_rather_than_zero_or_nan():
+    """★ 停牌日的价格取**上一根有效收盘价**，与库里既有的停牌行同构。
+
+    🚨 **不写 0**：0 收盘价会造出 −100% 的假跌幅。
+    🚨 **不写 NaN**：`close.pct_change()` 会从该行起整段断链。
+    实测库里的约定（400 文件样本）：`O=H=L=C=` 前收盘、`volume=amount=0`。
+    """
+    from aplus.sources.convert import baostock_frame_to_unified
+
+    out = baostock_frame_to_unified(_halted_frame())
+    h = out.iloc[-1]
+    assert h["close"] == 20.25, f"停牌行收盘价应结转上一根 20.25，实测 {h['close']}"
+    for col in ("open", "high", "low"):
+        assert h[col] == 20.25, f"停牌行 {col} 应等于结转价 20.25，实测 {h[col]}"
+    assert h["volume"] == 0.0 and h["amount"] == 0.0, "停牌日成交必须为 0"
+    assert h["tradestatus"] == 0
+
+    # ★ 收益率链不许断：停牌日的 pct_change 必须是 0，不是 NaN
+    chg = out["close"].pct_change()
+    assert chg.iloc[-1] == 0.0, (
+        f"停牌日收益率应恰好为 0（价格没动），实测 {chg.iloc[-1]} —— "
+        "若是 NaN，说明 pct_change 链被切断了"
+    )
+
+
+def test_the_halt_convention_matches_what_the_real_store_already_holds():
+    """★ 转换层产出的停牌行形态，必须与**真实库**里已有的停牌行一致。
+
+    这是本条的判别式：不是「我以为该是结转」，而是
+    「库里 1.5 万条既有停牌行就是这么存的，转换层必须与它们同构」。
+    约定写错 ⇒ 新写入的数据与历史数据对不上，而这种不一致极难被发现。
+    """
+    import pathlib
+
+    import pandas as pd
+
+    from aplus.sources.convert import baostock_frame_to_unified
+
+    out = baostock_frame_to_unified(_halted_frame())
+    mine = out[out["tradestatus"] == 0].iloc[0]
+
+    root = pathlib.Path(__file__).resolve().parents[1] / "data" / "master" / "daily"
+    checked = 0
+    for p in sorted(root.glob("*.parquet"))[:400]:
+        df = pd.read_parquet(p)
+        if "tradestatus" not in df.columns:
+            continue
+        z = df[(df["tradestatus"] == 0) & (df["volume"] == 0)]
+        if not len(z):
+            continue
+        row = z.iloc[0]
+        # 库里的停牌行：四个价相等且非 0，成交为 0
+        assert row["open"] == row["high"] == row["low"] == row["close"], (
+            f"{p.stem} 的停牌行四个价不相等：{row[['open','high','low','close']].to_dict()}"
+        )
+        assert row["close"] > 0, f"{p.stem} 的停牌行收盘价为 {row['close']}（不该是 0）"
+        assert mine["open"] == mine["high"] == mine["low"] == mine["close"], (
+            "转换层产出的停牌行四个价不相等，与库里的既有形态不同构"
+        )
+        checked += 1
+        if checked >= 20:
+            break
+    assert checked >= 5, f"只核到 {checked} 条真实停牌行，样本不足，结论不可信"
+
+
+def test_a_leading_halted_row_stays_nan_instead_of_inventing_a_price():
+    """★ 首根就停牌 ⇒ 没有「上一根」⇒ **留 NaN，不编值**。
+
+    为什么不拿 `preclose` 兜底：baostock 的 `_DAILY_FIELDS` 没有请求这一列，
+    要用就得改字段列表（会牵动全链路）。**宁可空着，也不造一个没验证过的价。**
+    """
+    import pandas as pd
+
+    from aplus.sources.convert import baostock_frame_to_unified
+
+    df = _halted_frame()
+    df = pd.concat([df.iloc[[2]], df.iloc[[0, 1]]], ignore_index=True)  # 停牌行提到最前
+    out = baostock_frame_to_unified(df)
+
+    assert pd.isna(out.iloc[0]["close"]), (
+        f"首根停牌的收盘价应为 NaN（不编值），实测 {out.iloc[0]['close']}"
+    )
+    # 但停牌日的成交仍必须是 0 —— 这个有源可依
+    assert out.iloc[0]["volume"] == 0.0
+
+
+def test_the_old_astype_float_path_really_did_crash_on_this_input():
+    """★ **守卫只有变异后算数**（本仓铁律）—— 证明缺陷是**真的**，不是想象。
+
+    🚨 这里刻意**不走「改被测函数再恢复」那条路**：
+    那是第 14 次同族错误的温床（探针打在自己复制的代码上）。
+    本条的判别式更直接 —— **同一份输入，旧写法崩、新写法不崩**。
+    崩了，说明 `ValueError` 是真的；不崩，说明守卫挂在一条真实的数据通路上。
+    """
+    import pandas as pd
+
+    df = _halted_frame()
+
+    # 旧写法：OHLC 用裸 astype(float)
+    with pytest.raises(ValueError, match="could not convert string to float"):
+        _ = df["open"].astype(float)
+
+    # 新写法：同一列，errors="coerce"
+    assert pd.to_numeric(df["open"], errors="coerce").isna().sum() == 1, (
+        "新写法没能把空串转成 NaN —— 那它同样过不了下一道"
+    )
+
+    # ★ 而且新写法必须真的让整条转换跑通（守卫不是在验一个无关的等价物）
+    from aplus.sources.convert import baostock_frame_to_unified
+    assert len(baostock_frame_to_unified(df)) == len(df)

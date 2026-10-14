@@ -72,6 +72,17 @@ class WriteLock:
 
     def __init__(self, path, *, force: bool = False):
         self.path = Path(path)
+        # ★ `path` 是**锁文件本身**，不是它所在的目录。
+        #   传错成目录时，`os.open(..., O_CREAT|O_EXCL)` 因为目录已存在而抛
+        #   `FileExistsError` ⇒ 报成「锁被占用 / pid 未知」——
+        #   一个**假警报**，真相是「你传了个目录」。
+        #   2026-10-15 实测踩中，白排查了一轮「谁持有锁」。
+        #   ⇒ 这里直接拒掉并说清正确写法。
+        if self.path.is_dir():
+            raise NotADirectoryError(
+                f"WriteLock 的参数是**锁文件路径**，不是数据目录：{self.path} 是目录。"
+                f"正确写法：WriteLock({self.path} / 'bootstrap.lock')"
+            )
         self.force = force
         self._held = False
 

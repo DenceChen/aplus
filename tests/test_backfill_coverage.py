@@ -468,3 +468,132 @@ def test_guard_commits_are_idempotent_upsert(tmp_path):
     store.upsert_daily("600000.SH", new)
     merged = pd.read_parquet(path)
     assert len(merged) == len(set(old["date"]) | set(new["date"]))
+
+# ══════════════════════════════════════════════════════════════════
+# 真实库的 schema 守卫（2026-10-15）
+# ══════════════════════════════════════════════════════════════════
+
+# ★ 形状对齐 `test_measure_amount_availability.py` 里已有的 KNOWN_BAD：
+#   **新增即红**，数据补上后**要求自己删条目**（`KNOWN_BAD - got` 必须为空）。
+#   白名单是「登记已知例外」，不是「把有洞合法化」。
+# ★ 白名单形状对齐 `test_measure_amount_availability.py` 里已有的 KNOWN_BAD：
+#   **新增即红**，数据补上后**要求自己删条目**（`KNOWN_BAD - got` 必须为空）。
+#   白名单是「登记已知例外」，不是「把有洞合法化」。
+#
+# 📅 历史：2026-10-15 曾登记 `000043.SZ`(221 行) / `300114.SZ`(640 行) 两只整列缺失。
+#    根因不是「降级写入」，而是 `convert.py` 对**停牌日空串**抛 ValueError
+#    ⇒ 主源报错 ⇒ 流水线降级 ⇒ 文件只剩 7 列，且**每次重试撞同一个错**（自我维持的洞）。
+#    已修根因（停牌日结转上一收盘价）+ 全历史重拉 ⇒ 两只分别补到 6127 / 3511 行，
+#    ⇒ 登记随之清空。**留空是正确状态，不是待办。**
+KNOWN_BAD_SCHEMA: dict[str, str] = {}
+
+
+def _store_dir():
+    from pathlib import Path
+    return Path(__file__).resolve().parents[1] / "data" / "master" / "daily"
+
+
+def _files_missing_columns():
+    """只读 parquet **元数据**（schema），不碰数据页 ⇒ 5460 个文件约 1.3 秒。
+
+    ⚠️ 这一条是 `test_the_real_store_amount_has_no_null_values` 补不上的：
+    那条量的是「**在的**列尾部有没有值」，而**整列不存在**时它连数都数不到。
+    """
+    import pyarrow.parquet as pq
+
+    from aplus.coverage import REQUIRED_COLUMNS
+
+    out = {}
+    for p in sorted(_store_dir().glob("*.parquet")):
+        have = set(pq.ParquetFile(p).schema.names)
+        miss = [c for c in REQUIRED_COLUMNS if c not in have]
+        if miss:
+            out[p.stem] = miss
+    return out
+
+
+def _assert_schema_ok(got: dict, known_bad: dict) -> None:
+    """★ 守卫的**纯逻辑**部分：与「扫库」彻底分开。
+
+    拆开是为了让变异自测不依赖真实库的当前状态 ——
+    白名单清空后（正确状态），靠 `next(iter(known_bad))` 取样本会直接 `StopIteration`。
+    """
+    unlisted = set(got) - set(known_bad)
+    assert not unlisted, (
+        f"{len(unlisted)} 个文件缺列且未登记：{sorted(unlisted)[:10]}"
+        f"（样例缺 {got[sorted(unlisted)[0]]}）。"
+        "先查 data/logs/ 里的 degraded_source_write 与 convert.py 的停牌日解析，"
+        "别直接加白名单。"
+    )
+    # ★ 数据修好后，KNOWN_BAD 必须自己瘦下来 —— 否则它会变成永久合法的洞
+    stale = set(known_bad) - set(got)
+    assert not stale, (
+        f"KNOWN_BAD 里 {sorted(stale)} 已经不缺列了 —— 数据补好了，"
+        "请把条目删掉（白名单只登记**当前仍存在**的例外）"
+    )
+    # 登记在案的也要说清缺的是哪几列，防止「登记」被当成「解释」
+    for code, cols in got.items():
+        assert cols == ["amount", "tradestatus", "isST", "turn", "pctChg"], (
+            f"{code} 缺的列变了：{cols} —— 若形态已变，请更新 KNOWN_BAD 的说明"
+        )
+
+
+def test_the_real_store_has_the_full_schema_on_every_file():
+    """★ **整列缺失会让 `isST` 过滤对整份文件失明** —— 而此前无人看守。
+
+    这两只是 2026-10-14 主源网络事故的**第三种形态**：
+    前两种是「尾根缺 5 列」（53 只，已修）和「正常」，
+    这一种是**整份文件只有 7 列**，日志里对应另外 2 条 `degraded_source_write`。
+
+    ⚠️ 危害不对称：`amount` 空只影响成交额口径，
+    **`isST` 空影响「这只票能不能进候选池」** —— 一个 ST 票会被当成正常票。
+    """
+    got = _files_missing_columns()
+    _assert_schema_ok(got, KNOWN_BAD_SCHEMA)
+
+
+def test_the_schema_guard_would_catch_a_new_degraded_file():
+    """★ **守卫只有变异后算数**（本仓铁律）。
+
+    🚨 第一版这条守卫**是恒真的装饰**：`KNOWN_BAD` 有 2 条，真实库也恰好缺 2 只，
+    于是「未登记 == 空集」与「登记 == 实测」同时成立 —— 它只是在跟自己比。
+    **测试通过 ≠ 在守东西**（本仓铁律）。
+
+    ★ 数据修好后白名单清空了，若还按老写法 `next(iter(KNOWN_BAD))` 取变异样本，
+    会直接 `StopIteration` —— 所以变异打在**纯逻辑**上，不依赖真实库当前状态。
+    """
+    got = {"688999.SH": ["amount", "tradestatus", "isST", "turn", "pctChg"]}
+
+    # 未登记 ⇒ 必须红
+    with pytest.raises(AssertionError, match="未登记"):
+        _assert_schema_ok(got, {})
+
+    # 登记了但实测不缺 ⇒ 必须红（白名单瘦不下来）
+    with pytest.raises(AssertionError, match="已经不缺列"):
+        _assert_schema_ok({}, {"000043.SZ": "早已修好"})
+
+    # 登记在案且确实缺 ⇒ 绿（白名单是「登记已知例外」）
+    _assert_schema_ok(got, {"688999.SH": "降级写入"})
+
+
+def test_the_real_store_schema_scan_actually_sees_the_two_files_it_used_to():
+    """★ 扫描器本身**不是恒真的** —— 它曾经真的看见过那两只。
+
+    守卫可以因为「扫不出来东西」而全绿（扫描器坏了 / 路径错了 / 全被白名单吃掉）。
+    本条用**两个仍然存在的对照**证明扫描器在工作：
+      ① 主库里**确实有** parquet 文件被扫到（数量 > 5000）
+      ② `REQUIRED_COLUMNS` 里**确实有**会被判缺的列（否则「缺列」永远为空）
+    ③ 而当前扫描结果为空 —— 这意味着「**真的没有洞了**」，不是「扫不到」。
+    """
+    from aplus.coverage import REQUIRED_COLUMNS
+
+    files = list(_store_dir().glob("*.parquet"))
+    assert len(files) > 5000, f"只扫到 {len(files)} 个文件 —— 路径或过滤器不对"
+
+    assert "isST" in REQUIRED_COLUMNS and "amount" in REQUIRED_COLUMNS, (
+        "REQUIRED_COLUMNS 变了，缺列判据可能已失效"
+    )
+
+    got = _files_missing_columns()
+    # 2026-10-15 修复后应当为空；非空说明洞还在（或又长出来了）
+    assert got == {}, f"真实库仍有整列缺失的文件：{got}"
