@@ -388,13 +388,13 @@
 </div>
 
 <nav class="tabs" role="tablist" aria-label="主导航">
-  <button class="tab" role="tab" id="tab-overview" aria-selected="true" data-panel="overview">概览</button>
-  <button class="tab" role="tab" id="tab-history" aria-selected="false" data-panel="history">历史 · 对比</button>
-  <button class="tab" role="tab" id="tab-backtest" aria-selected="false" data-panel="backtest">回测</button>
-  <button class="tab" role="tab" id="tab-evolution" aria-selected="false" data-panel="evolution">进化</button>
-  <button class="tab" role="tab" id="tab-bond" aria-selected="false" data-panel="bond">转债纸面</button>
-  <button class="tab" role="tab" id="tab-chat" aria-selected="false" data-panel="chat">追问</button>
-  <button class="tab" role="tab" id="tab-logs" aria-selected="false" data-panel="logs">日志</button>
+  <button class="tab" role="tab" id="tab-overview" aria-selected="true" tabindex="0" data-panel="overview">概览</button>
+  <button class="tab" role="tab" id="tab-history" aria-selected="false" tabindex="-1" data-panel="history">历史 · 对比</button>
+  <button class="tab" role="tab" id="tab-backtest" aria-selected="false" tabindex="-1" data-panel="backtest">回测</button>
+  <button class="tab" role="tab" id="tab-evolution" aria-selected="false" tabindex="-1" data-panel="evolution">进化</button>
+  <button class="tab" role="tab" id="tab-bond" aria-selected="false" tabindex="-1" data-panel="bond">转债纸面</button>
+  <button class="tab" role="tab" id="tab-chat" aria-selected="false" tabindex="-1" data-panel="chat">追问</button>
+  <button class="tab" role="tab" id="tab-logs" aria-selected="false" tabindex="-1" data-panel="logs">日志</button>
 </nav>
 
 <main>
@@ -568,7 +568,7 @@
       <div class="chat-tools">
         <span class="hints"><span>Shift+Enter 换行</span></span>
         <span class="llm-info" id="llm-info">读取模型信息…</span>
-        <a id="new-chat">开始新对话</a>
+        <a id="new-chat" href="#" role="button" tabindex="0">开始新对话</a>
       </div>
     </div>
   </section>
@@ -585,11 +585,23 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 function nextTradingDayLabel(from = new Date()) {
   const d = new Date(from);
   const dow = d.getDay();
-  const add = dow === 6 ? 2 : dow === 0 ? 1 : 1;          // 周六→下周一(2天)，周日→下周一(1天)，其余→次日
+  // ★ 用查表，不用三元链。原来的 `dow === 6 ? 2 : dow === 0 ? 1 : 1`
+  //   最后一个 `: 1` 同时承担「周四→周五」和「**周五→周六**」两条路径 ——
+  //   三元表达式把真值相同的两支合并成一支，于是每个周五都把「下一交易日」
+  //   说成周六（周六不开盘）。
+  //   查表让 7 个星期几**各自占一行**，少写一天是一行缺失，不是一支塌陷。
+  //   ⚠️ 这里只避周末，**不含法定节假日** —— 节假日需要交易日历，
+  //      客户端拿不到；要修必须由后端下发，那是独立的一处改动。
+  const add = { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 3, 6: 2 }[dow];
+  if (add == null) throw new Error('nextTradingDayLabel: 非法 getDay() ' + dow);
   d.setDate(d.getDate() + add);
   const md = `${d.getMonth() + 1}月${d.getDate()}日`;
   const wd = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
-  return (dow === 6 || dow === 0) ? `${wd} ${md}` : `下一交易日 ${md}`;
+  // ★ 一律带「下一交易日」。原来的三元 `(dow===6||dow===0) ? wd+md : …` 是
+  //   「只有周末才换格式」，而周五现在也会跳过 3 天落到周一 —— 于是周五的标题
+  //   退化成裸的「周一 10月19日」，恰好在这个产品最需要那句话的那天把它丢了。
+  //   跳过 ≥2 天时补一个星期几，是信息增量，不是第三支分支。
+  return add > 1 ? `下一交易日 ${md}（${wd}）` : `下一交易日 ${md}`;
 }
 
 /* ── Tab 路由 ── */
@@ -598,6 +610,13 @@ function activate(tabName, push = true) {
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.panel === tabName ? 'true' : 'false'));
   document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== `panel-${tabName}`);
   if (push) history.replaceState(null, '', '#/' + tabName);
+  // ★ roving tabindex（WAI-ARIA APG 的 tabs 模式）：整个 tablist 在 Tab 序列里
+  //   只占**一个**停靠点，选中的那个 tabindex=0，其余 -1。
+  //   不这么做的话键盘用户每次穿过导航都要按 7 次 Tab。
+  //   注意：原生 <button> 本来就可聚焦，所以这不是「够不到」，
+  //   是「够得到但太贵」—— 修复前别把它说成完全不可达。
+  document.querySelectorAll('.tab').forEach(x =>
+    x.setAttribute('tabindex', x.getAttribute('aria-selected') === 'true' ? '0' : '-1'));
   if (!loaded[tabName]) { loaded[tabName] = true; loaders[tabName]?.(); }
 }
 document.querySelectorAll('.tab').forEach(t => {
@@ -719,7 +738,16 @@ function caveatHtml(s) {
 }
 
 async function loadLogs(level = '') {
-  const rows = await fetch('/api/logs?tail=300' + (level ? `&level=${level}` : '')).then(r => r.json()).catch(() => []);
+  // ★ 走 jget：它检查 r.ok 并把状态码挂到 e.status 上。
+  //   原先 `.then(r => r.json()).catch(() => [])` **不查 r.ok**，
+  //   于是后端 500 时 rows=[]，页面显示「暂无日志」——
+  //   运维由此得出「系统很干净」。这是排障面板自己把故障擦掉了。
+  let rows;
+  try { rows = await jget('/api/logs?tail=300' + (level ? `&level=${level}` : '')); }
+  catch (e) {
+    $('log-rows').innerHTML = `<tr><td colspan="5" class="empty" style="color:var(--up)">日志接口失败：${esc(e.message || '未知错误')}（这不是「暂无日志」）</td></tr>`;
+    return;
+  }
   const lvlColor = { error: 'var(--up)', warn: 'var(--chart)', info: 'var(--muted)' };
   $('log-rows').innerHTML = rows.slice().reverse().map(e => `
     <tr>
@@ -736,7 +764,33 @@ document.querySelectorAll('#log-filters .chip').forEach(c => c.addEventListener(
   loadLogs(c.dataset.lvl);
 }));
 
-async function jget(url) { const r = await fetch(url); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status); return r.json(); }
+/* ★ 把 HTTP 状态码**挂在错误对象上**，而不是只塞进 message。
+ *
+ * 为什么要多这一层：下游有 3 处 `catch { … }` 把失败渲染成「本来就没有」
+ * （历史页空表、回测页「尚无回测记录」、日志页「暂无日志」）。
+ * 那是 CLAUDE.md「静默失效」第 1 号形状 —— **不崩、不报警、界面照常出数**，
+ * 运维据此得出「系统很干净」，而真相是后端 500。
+ *
+ * 关键在于：**该分的信息本来就在手上**（`r.status`），是 `catch {` 把它丢了。
+ * 只把状态塞进 message 是不够的 —— 字符串匹配去猜状态码，
+ * 等于让文案决定语义（detail 也可能是数字）。
+ * 字段是数据，字符串是给人看的，两者不能互相替代。
+ */
+async function jget(url) {
+  const r = await fetch(url);
+  if (!r.ok) {
+    const detail = (await r.json().catch(() => ({}))).detail;
+    const e = new Error(detail || ('HTTP ' + r.status));
+    e.status = r.status;          // ← 调用方靠它分流，不再靠猜文案
+    e.url = url;
+    throw e;
+  }
+  return r.json();
+}
+
+/* 失败与「空」的**唯一分界**：一个由外部锚（HTTP 状态码）判定，
+   一个由数据本身判定。没有状态码就没有这个判断的依据 —— 那就不许假装有。 */
+function isApiMissing(e) { return e && (e.status === 404 || e.status === 204); }
 
 /* 判决板 + 运行状态属于外壳，不属于任何一个 tab。
    原来它们挂在 loadOverview() 里，于是深链进「进化」「日志」时，顶部永远停在
@@ -937,7 +991,7 @@ function renderAlloc(a) {
       <span>本金 <em>${(a.capital ?? 0).toLocaleString()}</em> 元</span>
     </div>
     <table><thead><tr><th>持仓</th><th class="num">权重</th><th class="num">金额</th><th class="num">综合分</th></tr></thead><tbody>
-      ${(a.positions || []).map(p => `<tr><td><b>${esc(p.name ?? p.code)}</b> <span style="color:var(--faint);font-size:11px">${p.code}</span></td>
+      ${(a.positions || []).map(p => `<tr><td><b>${esc(p.name ?? p.code)}</b> <span style="color:var(--faint);font-size:11px">${esc(p.code)}</span></td>
         <td class="num">${(p.weight * 100).toFixed(0)}%</td><td class="num">${p.amount.toLocaleString()} 元</td><td class="num">${p.score.toFixed(2)}</td></tr>`).join('')}
     </tbody></table>
     <ul class="notes-list">${(a.risk_notes || []).map(n => `<li>${esc(n)}</li>`).join('')}</ul>`;
@@ -945,7 +999,13 @@ function renderAlloc(a) {
 
 /* ── 历史 · 对比 ── */
 async function loadHistory() {
-  try { state.history = await jget('/api/predictions/history'); } catch { state.history = { rows: [], dates: [] }; }
+  try { state.history = await jget('/api/predictions/history'); }
+  catch (e) {
+    // ★ 「后端挂了」与「本来就没有」必须渲染成**不同的东西**。
+    //   原来 `catch { state.history = {rows:[],dates:[]} }` 两者输出逐字相同，
+    //   页面安静显示「首日预测已生成…」—— 看着像新系统，不像坏系统。
+    state.history = { rows: [], dates: [], error: isApiMissing(e) ? null : (e.message || '加载失败') };
+  }
   try { state.backtest = await jget('/api/backtest'); } catch { state.backtest = null; }
   renderHistory();
   renderCompareSummary();
@@ -961,10 +1021,15 @@ async function loadHistory() {
 }
 
 function renderHistory() {
-  const { rows, dates } = state.history;
+  const { rows, dates, error } = state.history;
   $('hist-count').textContent = dates.length ? `${dates.length} 个预测日 · ${rows.length} 条记录` : '';
   if (!dates.length) {
-    $('history-body').innerHTML = '<div class="empty">首日预测已生成。<br>之后每个交易日的预测与对错都会沉淀在这里，形成你观察平台的第一手证据。</div>';
+    // ★ 加载失败与「还没有数据」分开渲染。原先两者共用这一句，
+    //   于是后端 500 时用户读到的是「首日预测已生成」——
+    //   一句关于未来的陈述，出现在系统已经坏掉的时候。
+    $('history-body').innerHTML = error
+      ? `<div class="empty" style="color:var(--up)">加载失败：${esc(error)}<br><span style="font-size:11.5px">这不是「还没有数据」，是接口没返回成功。</span></div>`
+      : '<div class="empty">首日预测已生成。<br>之后每个交易日的预测与对错都会沉淀在这里，形成你观察平台的第一手证据。</div>';
     return;
   }
   const verdictZh = { hit: '命中', miss: '未中', flat: '平', no_data: '无数据' };
@@ -984,7 +1049,7 @@ function renderHistory() {
       : `<span class="hit-badge ${rate >= 0.55 ? 'good' : rate >= 0.45 ? 'mid' : 'bad'}">${(rate * 100).toFixed(0)}% 命中（${judged.filter(r => r.result === 'hit').length}/${judged.length}）</span>`;
     const col = dir => day.filter(r => r.direction === dir && passes(r)).map(r => `
       <div class="compare-row">
-        <div class="who"><b>${esc(r.name ?? r.code)}</b><span>${r.code}</span></div>
+        <div class="who"><b>${esc(r.name ?? r.code)}</b><span>${esc(r.code)}</span></div>
         <div class="actual ${r.actual_pct == null ? '' : r.actual_pct >= 0 ? 'pct-up' : 'pct-down'}">${r.actual_pct == null ? '—' : fmtPct(r.actual_pct, 2)}</div>
         <span class="verdict ${r.result ?? 'pending'}">${verdictZh[r.result] ?? '待判定'}</span>
       </div>`).join('') || '<div class="empty" style="padding:14px">无</div>';
@@ -1020,7 +1085,14 @@ function renderCompareSummary() {
 /* ── 回测 ── */
 async function loadBacktest() {
   let bt;
-  try { bt = await jget('/api/backtest'); } catch { $('bt-sub').textContent = '尚无回测记录'; return; }
+  try { bt = await jget('/api/backtest'); }
+  catch (e) {
+    // ★ 404 = 真的没跑过回测（webapp.py:442 抛的）；5xx = 跑了但服务坏了。
+    //   原先两者都显示「尚无回测记录」，用户读到的是「还没跑过」，
+    //   而真相是「跑失败了」—— 这会把一次故障读成一个尚未开始的项目。
+    $('bt-sub').textContent = isApiMissing(e) ? '尚无回测记录' : `回测接口失败：${e.message || '未知错误'}`;
+    return;
+  }
   const s = bt.summary;
   $('bt-sub').textContent = `${s.window?.[0] ?? ''} ~ ${s.window?.[1] ?? ''} · ${s.rows ?? 0} 条判定 · ${s.codes ?? s.judged} 只股票`;
   lineChart($('chart-hit'), bt.daily.map(d => d.hit_rate).filter(v => v != null), {
@@ -1083,7 +1155,7 @@ function dualLineChart(svg, series, opt) {
     <line x1="${P.l}" y1="${y(opt.ref)}" x2="${W - P.r}" y2="${y(opt.ref)}" stroke="#8B95A1" stroke-dasharray="4 4" stroke-width="1"/>
     ${lines}${legend}`;
   const tip = opt.tip;
-  svg.parentElement.addEventListener('mousemove', e => {
+  svg.parentElement.addEventListener('pointermove', e => {
     const rect = svg.getBoundingClientRect();
     const px = (e.clientX - rect.left) / rect.width * W;
     const idx = Math.round((px - P.l) / ((W - P.l - P.r) || 1) * (n - 1));
@@ -1093,7 +1165,7 @@ function dualLineChart(svg, series, opt) {
     tip.style.top = `${(y(series[series.length - 1].values[idx] ?? opt.ref) / H * 100).toFixed(2)}%`;
     tip.textContent = opt.tips?.[idx] ?? opt.fmt(opt.ref);
   });
-  svg.parentElement.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  svg.parentElement.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
 }
 
 function lineChart(svg, values, opt) {
@@ -1115,7 +1187,7 @@ function lineChart(svg, values, opt) {
     <text x="${W - P.r}" y="${y(opt.ref) - 4}" text-anchor="end" font-size="9.5" fill="#8B95A1">${opt.refLabel}</text>
     <polyline points="${pts}" fill="none" stroke="#E3B341" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     ${values.length ? `<circle cx="${x(values.length - 1)}" cy="${y(values[values.length - 1])}" r="3" fill="#E3B341"/>` : ''}`;
-  svg.parentElement.addEventListener('mousemove', e => {
+  svg.parentElement.addEventListener('pointermove', e => {
     const rect = svg.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width - P.l / W) / ((W - P.l - P.r) / W));
     const idx = Math.round(frac * (values.length - 1));
@@ -1125,7 +1197,7 @@ function lineChart(svg, values, opt) {
     tip.style.top = `${y(values[idx]) / H * 100}%`;
     tip.textContent = (opt.tips?.[idx] ?? opt.fmt(values[idx]));
   });
-  svg.parentElement.addEventListener('mouseleave', () => { opt.tip.style.display = 'none'; });
+  svg.parentElement.addEventListener('pointerleave', () => { opt.tip.style.display = 'none'; });
 }
 
 /* ── 进化 ── */
@@ -1388,7 +1460,7 @@ async function loadEvolution() {
     $('w-date').textContent = w.evidence ? `目标分 ${w.evidence.objective}` : '未经赛马';
     const factorNames = { mom20: '动量', rev5: '反转', vol20: '波动', vsur: '量能', turn20: '换手' };
     $('weights-row').innerHTML = Object.entries(w.weights).map(([k, v]) => `
-      <div class="weight-chip ${w.source === 'evolved' ? 'champion' : ''}"><b>${v > 0 ? '+' : ''}${v}</b><span>${factorNames[k] ?? k} ${k}</span></div>`).join('');
+      <div class="weight-chip ${w.source === 'evolved' ? 'champion' : ''}"><b>${v > 0 ? '+' : ''}${v}</b><span>${esc(factorNames[k] ?? k)} ${esc(k)}</span></div>`).join('');
     if (w.evidence?.reason) { $('w-reason').style.display = 'block'; $('w-reason').textContent = `晋级依据：${w.evidence.reason}`; }
   } catch { $('weights-row').innerHTML = '<div class="empty">加载失败</div>'; }
   let evo;
@@ -1425,7 +1497,7 @@ async function loadEvolution() {
       : '<tr><th>候选</th><th>调仓</th><th class="num">命中率</th><th class="num">超额</th><th>来源</th></tr>';
     const row = ev => {
       const s = ev.stats || {}, t = ev.train_stats || s;
-      const wts = `<td style="font-size:12px">${Object.entries(ev.weights).map(([k, v]) => `${k}:${v}`).join(' ')}</td>`;
+      const wts = `<td style="font-size:12px">${Object.entries(ev.weights).map(([k, v]) => `${esc(k)}:${v}`).join(' ')}</td>`;
       const tag = `<span class="src-tag ${ev.source === 'researcher' ? 'llm' : ''}">${ev.source === 'researcher' ? 'LLM 研究员' : '内置'}</span>`;
       return hasSplit
         ? `<tr>${wts}${cadence(ev)}<td class="num">${hit(t.overall_hit_rate)}</td><td class="num ${cls(t.up_excess_vs_market)}">${ex(t.up_excess_vs_market)}</td>`
@@ -1774,9 +1846,20 @@ async function loadLlmInfo() {
     .join('');
 }
 
-$('new-chat').onclick = () => {
+$('new-chat').onclick = e => {
+  // ★ 补了 href="#" 之后必须 preventDefault，否则每次点击/回车
+  //   都会往 URL 塞一个 # 并把页面滚回顶部 —— 用一个 a11y 修复换来一个新 bug。
+  e.preventDefault();
   convId = null; localStorage.removeItem('aplus_conv');
   $('msgs').innerHTML = '<div class="empty">已开始新对话。</div>';
+};
+// <a role="button"> 不会像原生 <button> 那样自动响应 Enter/Space，得自己接。
+// （原生 button 免费给这套语义；既然标了 role=button 就要补齐这份责任。）
+$('new-chat').onkeydown = e => {
+  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+    $('new-chat').click();
+  }
 };
 loadConversation();
 loadLlmInfo();
