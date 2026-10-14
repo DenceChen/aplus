@@ -1,0 +1,169 @@
+"""因子合成的滚动扩展窗判决 —— 按**预注册**规则执行。
+
+## 判决规则在看到任何合成数据之前就已定死
+
+见 `docs/TODO_measure_sigma_r.md`「预注册判据（2026-10-14，抽取之前）」：
+
+- **门槛 0.04167** —— 由 σ_r 实测值与月频成本假设推导，**不是字面量**。
+  它只认两个外部锚（σ_r 与成本），与信号侧的一切选择无关。
+- **权重不许看全段**：2019/2020 等权（真实起点没有历史），
+  2021 起滚动扩展窗只用**该年之前**的数据定权。
+- **判决年份 2021 ~ 2026** —— 2019/2020 只报不判。
+- **6 个判决年全部 ≥ 0.04167 才算过**；任何一年不过就是不过。
+
+## 两个独立的问题
+
+1. **过没过线** —— 上面的规则。
+2. **合成的样本外 IC 是否真的高于最好的单因子** —— 与过线无关，
+   但没高就说明组合没起作用，即便碰巧过线也必须知道。
+
+用法：
+    .venv/bin/python scripts/verdict_composite.py \
+        --matrices data/reports/ic_matrices.parquet
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import numpy as np
+import pandas as pd
+
+from aplus.composite import daily_ic_series, unpack, walk_forward
+from aplus.factor import FACTOR_NAMES
+from aplus.hurdle import DAYS_PER_YEAR, hurdle_rate, rounds_per_year
+from aplus.ic_to_return import annualise, implied_spread, required_ic
+
+#: σ_r **实测值**，出处 `data/reports/xsec_sigma_r.json`（带溯源章）。
+#: 不写死门槛的理由与 `verdict_monthly_hurdle.py` 相同：
+#: 门槛必须是算出来的，σ_r 一改它就跟着变。
+SIGMA_R = 0.02656
+
+#: 调仓周期，与月频路线同一口径。
+K = 21
+
+#: 判决起始年 —— 之前的年只有等权，没有历史可用，只报不判。
+JUDGED_FROM = 2021
+
+#: 真实起点用等权的年份。
+EQUAL_WEIGHT_YEARS = (2019, 2020)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--matrices", type=Path,
+                    default=Path("data/reports/ic_matrices.parquet"))
+    ap.add_argument("--factors", default="",
+                    help="逗号分隔，默认全部 8 个")
+    args = ap.parse_args()
+
+    if not args.matrices.is_file():
+        raise SystemExit(f"抽取表不存在：{args.matrices}\n"
+                         f"先跑 scripts/extract_ic_matrices.py")
+
+    factors = [f.strip() for f in args.factors.split(",") if f.strip()] \
+        or list(FACTOR_NAMES)
+    df = pd.read_parquet(args.matrices)
+
+    need = hurdle_rate(rounds_per_year=rounds_per_year(K))
+    ic_need = required_ic(need / DAYS_PER_YEAR, sigma_r=SIGMA_R)
+
+    print(f"月频门槛（K={K}，年调仓 {rounds_per_year(K):.1f} 次）{need:.2%}")
+    print(f"σ_r（实测 {SIGMA_R}）→ 过关所需组合 IC = {ic_need:.5f}")
+    print(f"因子 {len(factors)} 个 · 抽取 {len(df)} 天 "
+          f"{df['date'].min()} ~ {df['date'].max()}")
+    print(f"权重：{', '.join(str(y) for y in EQUAL_WEIGHT_YEARS)} 等权，"
+          f"{JUDGED_FROM} 起滚动扩展窗（只用当年之前）\n")
+
+    rows = walk_forward(df, factors, need_ic=ic_need,
+                        judged_from=JUDGED_FROM,
+                        equal_weight_years=EQUAL_WEIGHT_YEARS)
+
+    print(f"{'年':<6}{'权重来源':>10}{'n':>6}{'组合IC':>10}"
+          f"{'年毛超额':>11}{'t':>8}{'判决':>12}")
+    print("─" * 63)
+    judged = []
+    for r in rows:
+        ic = r.get("ic_mean")
+        if ic is None:
+            print(f"{r['year']:<6}{'—':>10}{r['n_days']:>6}{'缺':>10}"
+                  f"{'—':>11}{'—':>8}  {r.get('reason', '无数据')}")
+            continue
+        gross = annualise(implied_spread(ic, sigma_r=SIGMA_R))
+        t = r.get("t")
+        if r["judged"]:
+            judged.append(r)
+            mark = "✅ 过" if r["pass_"] else "❌ 差"
+            gap = f"  {(gross - need) * 100:+.2f}pp"
+        else:
+            mark = "— 只报"
+            gap = ""
+        print(f"{r['year']:<6}{r.get('weights_source', '—'):>10}"
+              f"{r.get('n_used', 0):>6}{ic:>10.5f}{gross:>10.2%}"
+              f"{t:>8.2f}{mark:>12}{gap}")
+
+    # ── 第二问：合成的样本外 IC 是否真的高于最好的单因子 ──────────
+    print("\n=== 样本外 vs 单因子（同一份 Σ_f，口径一致） ===")
+    dates, Rs, sf = unpack(df, factors)
+    yrs = np.array([int(str(d)[:4]) for d in dates])
+    judged_years = {r["year"] for r in judged}
+    if judged_years:
+        by_year = {r["year"]: r for r in judged}
+        singles = {}
+        for y in sorted(judged_years):
+            yr = yrs == y
+            # 用**当年自己的权重**才算真样本外——逐年对比最干净
+            wr = np.array([by_year[y]["weights"][f] for f in factors])
+            ic_c = daily_ic_series(Rs[yr], sf[yr], wr)
+            ic_c = ic_c[np.isfinite(ic_c)]
+            per = {}
+            for j, nm in enumerate(factors):
+                e = np.zeros(len(factors))
+                e[j] = 1.0
+                ic_s = daily_ic_series(Rs[yr], sf[yr], e)
+                ic_s = ic_s[np.isfinite(ic_s)]
+                per[nm] = ic_s.mean() if len(ic_s) else float("nan")
+            singles[y] = (ic_c.mean() if len(ic_c) else float("nan"), per)
+
+        hdr = f"{'年':<6}{'合成':>9}{'最好单因子':>11}{'哪个':>10}{'增量':>9}"
+        print(hdr)
+        print("─" * 45)
+        wins = 0
+        for y, (ic_c, per) in sorted(singles.items()):
+            best_nm = max(per, key=lambda k: abs(per[k]))
+            d = abs(ic_c) - abs(per[best_nm])
+            wins += (d > 0)
+            print(f"{y:<6}{ic_c:>9.5f}{per[best_nm]:>11.5f}{best_nm:>10}"
+                  f"{d:>+9.5f}")
+        print(f"\n合成在 {wins} / {len(singles)} 个判决年超过当年最好的单因子")
+        if wins < len(singles):
+            print("→ 组合**没有**在样本外普遍占优——即便过线也不能当成"
+                  "「找到了更好的信号」，只能说「这条路还没死」。")
+
+    print()
+    if not judged:
+        raise SystemExit("没有任何判决年份——抽取表太短或年份不对")
+    n_fail = sum(1 for r in judged if not r["pass_"])
+    print(f"判决年份：{len(judged)} 个（{min(judged_years)} ~ "
+          f"{max(judged_years)}）")
+    print(f"不及格年份：{n_fail} / {len(judged)}")
+    if n_fail == 0:
+        print("→ 合成月频在**每一个判决年**都够得着。")
+        print("  但这**不是充分条件**：只做了信号侧判决，")
+        print("  成本假设（0.55%/轮）与实盘滑点尚未进账，")
+        print("  且回测尚未在合成权重下重跑。")
+    else:
+        years = [str(r["year"]) for r in judged if not r["pass_"]]
+        print(f"→ **{n_fail} 个判决年够不到**（{', '.join(years)}）。")
+        print("  按预注册规则：「合成月频可行」**不成立**。")
+        print("  下一步是收缩因子数重来一轮——**门槛不许动**。")
+
+    print(f"\n（抽取表：{args.matrices}）")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
