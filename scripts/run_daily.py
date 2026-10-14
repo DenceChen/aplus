@@ -344,7 +344,26 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     # 但**有多少只处于这个状态必须出现在出单里**——缺数据不等于「不是 ST」，
     # 而降级写入会把 isST 削空且不留痕迹（2026-10-12 缺陷 24）。
     unknown_st: dict = {}
-    universe = filter_universe(cross, unknown_st=unknown_st)
+    # 陈旧透传与买不进的剔除计数必须**接进实盘**（2026-10-14 接线缺口）。
+    #
+    # `filter_universe` 的 `stale` / `unfillable` 是可选出参：不给就静默剔除。
+    # 回测路径接了，实盘这条路径当时没接——于是实盘每天都在剔股票，
+    # 而出单里看不出剔了什么。实测那 78 条陈旧记录 **100% 落在跌腿**，
+    # 也就是它在凭空造看空信号，而这一点在实盘日志里完全不可见。
+    stale_hits: dict = {}
+    unfillable_hits: dict = {}
+    universe = filter_universe(cross, unknown_st=unknown_st,
+                               stale=stale_hits, unfillable=unfillable_hits)
+    if stale_hits:
+        print(f"[predict] ⚠️ 陈旧剔除 {len(stale_hits)} 只（末根 K 线早于全池最新"
+              f"交易日，滞后再按 max_stale_days 复核）——时点不可比，名次无意义："
+              f"{' '.join(list(stale_hits)[:6])}{' …' if len(stale_hits) > 6 else ''}")
+    if unfillable_hits:
+        print(f"[predict] ⚠️ 买不进剔除 {len(unfillable_hits)} 只（一字板 / 涨停收盘 /"
+              f"停牌无成交）——推荐一只买不进的股票是无效输出，"
+              f"塞进跌篮子等于把「买不到」当成「会跌」："
+              f"{' '.join(list(unfillable_hits)[:6])}"
+              f"{' …' if len(unfillable_hits) > 6 else ''}")
     if unknown_st:
         print(f"[predict] ⚠️ ST 状态未知 {len(unknown_st)} 只（末根 isST 缺失，"
               f"已按「不是 ST」放行）——数据补齐后此项应归零："

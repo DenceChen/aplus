@@ -128,7 +128,8 @@ def ic_candidates(ic: dict, freqs=IC_GUIDED_FREQS) -> list[dict]:
             out.append({"weights": dict(w), "rebalance_every": k,
                         "buffer_multiple": None, "source": name})
 
-    emit("ic_sign_all", {f: 1.0 for f in usable})
+    emit("ic_sign_all", {f: 1.0 if v["mean"] > 0 else -1.0
+                         for f, v in usable.items()})
     emit("ic_mag_all", {f: v["mean"] for f, v in usable.items()})
     for k in (3, 5):
         top = sorted(usable.items(), key=lambda kv: -abs(kv[1]["mean"]))[:k]
