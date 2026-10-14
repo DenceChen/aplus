@@ -81,6 +81,7 @@ from aplus.factor import FACTOR_NAMES
 from aplus.factor_ic import (FWD_WINDOWS, TAIL_Q, build_price_cache,
                              forward_returns)
 from aplus.ic_to_return import annualise, implied_spread
+from aplus.report_ready import require_keys
 from aplus.snapshot import load_factors_map
 from aplus.store import LocalStore
 
@@ -106,20 +107,33 @@ def _verdict():
     return _VERDICT
 
 
-def quintile_spread(score: np.ndarray, ret: np.ndarray,
-                    tail_q: float = TAIL_Q) -> tuple[float | None, int]:
-    """最高 `tail_q` 与最低 `tail_q` 的均值收益之差。
+def bucket_means(score: np.ndarray, ret: np.ndarray, tail_q: float,
+                 ) -> tuple[float | None, float | None, float | None, int]:
+    """切出最高/最低 `tail_q` 两桶，返回 `(top 均值, bottom 均值, 价差, n)`。
 
-    并列用 `kind="stable"` 稳定排序切开——**并列不给权重差别**，
-    否则同分的票会被算进一半桶里，价差凭空多出一截。
+    **分桶只有这一个实现。** 并列用 `kind="stable"` 稳定排序切开
+    ——**并列不给权重差别**，否则同分的票会被算进一半桶里，
+    价差凭空多出一截。
+
+    为什么多返回 `top` 与 `bottom` 而不只是它们的差：差值是
+    **多空**口径，账户能做的是**多头**口径，两个不是同一个量。
+    只留差值就等于把多空结果直接交给读者当收益用。
     """
     n = len(score)
     k = int(n * tail_q)
     if k < 1 or n < 3:
-        return None, n
+        return None, None, None, n
     order = np.argsort(score, kind="stable")
     lo, hi = order[:k], order[-k:]
-    return float(ret[hi].mean() - ret[lo].mean()), n
+    top, bot = float(ret[hi].mean()), float(ret[lo].mean())
+    return top, bot, top - bot, n
+
+
+def quintile_spread(score: np.ndarray, ret: np.ndarray,
+                    tail_q: float = TAIL_Q) -> tuple[float | None, int]:
+    """最高 `tail_q` 与最低 `tail_q` 的均值收益之差。"""
+    _, _, spread, n = bucket_means(score, ret, tail_q)
+    return spread, n
 
 
 def measured_kurtosis(ret: np.ndarray) -> float:
@@ -153,13 +167,28 @@ def measure(dates, xs, cache, factors, wmap, windows, tail_qs,
             min_n: int = MIN_N, verbose_every: int = 200):
     """逐日：定权重 → 打分 → 分桶 → 测价差。返回长表。
 
-    **每个窗口都要扫全部分位宽度**——因为 20% 分位的价差
-    **不能**代表策略真正交易的地方：策略买 top-10 / ~4800 只
-    ≈ **0.2% 分位**。IC 完全可能住在中段而尾巴为零，
-    那时按 20% 测出来的数字是好消息，按 0.2% 测就是坏消息。
+    ## 每个窗口都要扫全部分位宽度
 
-    > 只测一个宽度然后拿它当答案，是**用池子深浅掩盖信号深浅**。
+    20% 分位的价差**不能**代表策略真正交易的地方：策略买
+    top-10 / ~4600 ≈ **0.2% 分位**。只测一个宽度然后拿它当答案，
+    是**用池子深浅掩盖信号深浅**。
+
+    ## 🚨 而且必须**同时**记「多空价差」与「多头减市场」
+
+    这两个是**不同的量**，我今天把它们当成同一个量比过一次：
+
+    | | 定义 | 市场暴露 | A 股能不能做 |
+    |---|---|---|---|
+    | `spread` | top − bottom | ≈ 0（β≈0） | **不能**（散户基本融不到券） |
+    | `long_vs_mkt` | top − 市场 | β≈1 | **能**（这就是账户真实收益） |
+
+    实测 top-9：多空价差 108.34%/年，而**多头减市场只有 6.78%/年**——
+    **差 16 倍**。若只报前者，读者会以为「策略能赚 100%」。
+
+    > 所以两个口径**必须成对出现**。只报一个的脚本必然被误读，
+    > 而误读方向**永远是朝乐观**。
     """
+    market = xs.get("_market") or {}
     records = []
     skipped = []
     t0 = time.time()
@@ -193,16 +222,24 @@ def measure(dates, xs, cache, factors, wmap, windows, tail_qs,
             if int(m.sum()) < min_n:
                 for q in tail_qs:
                     row[f"spread_{label}_q{q:g}"] = None
+                    row[f"top_{label}_q{q:g}"] = None
+                    row[f"bot_{label}_q{q:g}"] = None
+                    row[f"long_vs_mkt_{label}_q{q:g}"] = None
                 row[f"kurt_{label}"] = None
                 row[f"sd_{label}"] = None
                 continue
             s, r2 = score[m], r[m]
+            mkt = float(market.get(day, float("nan")))
+            row[f"mkt_{label}"] = mkt
             for q in tail_qs:
-                # 刻意**调用** `quintile_spread` 而不是把它的逻辑再抄一遍：
+                # 刻意**调用** `bucket_means` 而不是把分桶逻辑再抄一遍：
                 # 抄一遍就等于造了第二台测量仪，两台之间的差永远查不出来。
-                # 多排序几次的成本（~3s）远小于「两台仪器」这个风险。
-                sp, _ = quintile_spread(s, r2, tail_q=q)
+                top, bot, sp, _ = bucket_means(s, r2, tail_q=q)
+                row[f"top_{label}_q{q:g}"] = top
+                row[f"bot_{label}_q{q:g}"] = bot
                 row[f"spread_{label}_q{q:g}"] = sp
+                row[f"long_vs_mkt_{label}_q{q:g}"] = (
+                    None if top is None or not np.isfinite(mkt) else top - mkt)
             row[f"kurt_{label}"] = measured_kurtosis(r2)
             row[f"sd_{label}"] = float(r2.std(ddof=1))
         records.append(row)
@@ -294,8 +331,9 @@ def main() -> int:
     # ★ 主表改口径：**hold21 × 每个分位宽度**。
     # 只有 20% 那一列的话，池子最深的那一档会替尾巴说话。
     print(f"\n{'年':<6}{'n':>6}{'组合IC':>10}{'桥:年毛超额':>13}"
-          + "".join(f"{'hold21 q=' + format(q, 'g'):>15}" for q in tail_qs))
-    print("─" * (37 + 15 * len(tail_qs)))
+          + "".join(f"{'多头/年 q=' + format(q, 'g'):>15}"
+                     f"{'多头-市场/年':>14}" for q in tail_qs))
+    print("─" * (37 + 29 * len(tail_qs)))
     table = []
     for y in sorted(set(long_df["year"])):
         yr = long_df[long_df["year"] == y]
@@ -304,26 +342,42 @@ def main() -> int:
                       if ic_y is not None else float("nan"))
 
         cells = ""
-        per_q = {}
+        per_q, per_lv, per_top, per_bot = {}, {}, {}, {}
         for q in tail_qs:
-            col = f"spread_hold21_q{q:g}"
-            v = float(np.nanmean(yr[col])) if len(yr) else float("nan")
-            per_q[q] = v
-            cells += f"{v * (244.0 / K):>15.2%}"
+            key = format(q, "g")
+            per_q[q] = float(np.nanmean(yr[f"spread_hold21_q{key}"])) if len(yr) else float("nan")
+            per_top[q] = float(np.nanmean(yr[f"top_hold21_q{key}"])) if len(yr) else float("nan")
+            per_bot[q] = float(np.nanmean(yr[f"bot_hold21_q{key}"])) if len(yr) else float("nan")
+            per_lv[q] = (float(np.nanmean(yr[f"long_vs_mkt_hold21_q{key}"]))
+                        if len(yr) else float("nan"))
+            cells += (f"{per_top[q] * (244.0 / K):>13.2%}"
+                      f"{per_lv[q] * (244.0 / K):>14.2%}")
         print(f"{y:<6}{len(yr):>6}{ic_y:>10.5f}{annualise(bridge_day):>13.2%}" + cells)
 
-        hold = yr[f"spread_hold21_q{tail_qs[0]:g}"].astype(float)
-        hold_mean = float(np.nanmean(hold)) if len(hold) else float("nan")
         table.append({
             "year": y, "n_days": int(len(yr)),
             "composite_ic": ic_y,
             "bridge_daily_spread": bridge_day,
             "bridge_annual_gross": annualise(bridge_day),
+            # 「多空」口径：top − bottom，β≈0，**A 股散户基本做不了**
             "measured_hold21_daily_by_q": {format(q, "g"): per_q[q] for q in tail_qs},
             "measured_hold21_annual_by_q": {
                 format(q, "g"): per_q[q] * (244.0 / K) for q in tail_qs},
+            # 「多头减市场」口径：账户真正拿得到的那个量
+            "measured_long_vs_mkt_daily_by_q": {format(q, "g"): per_lv[q] for q in tail_qs},
+            "measured_long_vs_mkt_annual_by_q": {
+                format(q, "g"): per_lv[q] * (244.0 / K) for q in tail_qs},
+            "measured_long_vs_mkt_t_no_overlap": {
+                format(q, "g"): _t_stat(non_overlapping(yr, f"long_vs_mkt_hold21_q{format(q, 'g')}",
+                                                         k=K))
+                for q in tail_qs},
+            "measured_top_bucket_annual_by_q": {
+                format(q, "g"): per_top[q] * (244.0 / K) for q in tail_qs},
+            "measured_bottom_bucket_annual_by_q": {
+                format(q, "g"): per_bot[q] * (244.0 / K) for q in tail_qs},
             "measured_hold21_t_no_overlap": {
-                format(q, "g"): _t_stat(non_overlapping(yr, f"spread_hold21_q{q:g}", k=K))
+                format(q, "g"): _t_stat(non_overlapping(yr, f"spread_hold21_q{format(q, 'g')}",
+                                                         k=K))
                 for q in tail_qs},
             "n_universe": int(np.nanmedian(yr["n"])),
             "n_per_bucket": {format(q, "g"): max(1, int(np.nanmedian(yr["n"]) * q))
@@ -340,7 +394,12 @@ def main() -> int:
            "note": ("t 一律在每 21 个交易日取一个的重叠无关子样本上计算；"
                     "对全部交易日求 t 会把有效样本高估约 21 倍。"
                     "分位宽度多扫几档是因为策略只买 top-10，"
-                    "20% 那一档不代表策略真正吃到的价差。"),
+                    "20% 那一档不代表策略真正吃到的价差。"
+                    "⚠️ 同一行里有**两个口径**：`measured_hold21_*` 是"
+                    "**多空价差（顶-底）**，β≈0 且 A 股散户做不了；"
+                    "`measured_long_vs_mkt_*` 是**多头减市场**，"
+                    "那才是账户能拿到的量。**引用时必须带口径标签**——"
+                    "只报前者会被读成「能赚 100%/年」。"),
            "years": table}
 
     if table:
@@ -353,15 +412,24 @@ def main() -> int:
               f"{bl / need:>10.2f}×")
         for q in tail_qs:
             key = format(q, "g")
-            vals = [r["measured_hold21_annual_by_q"][key] for r in table]
-            ts = [r["measured_hold21_t_no_overlap"][key] for r in table]
-            ts = [t for t in ts if t is not None]
-            tag = f"实测 hold21 q={key}"
+            sp = [r["measured_hold21_annual_by_q"][key] for r in table]
+            lv = [r["measured_long_vs_mkt_annual_by_q"][key] for r in table]
+            ts_ls = [t for t in (r["measured_hold21_t_no_overlap"][key]
+                                 for r in table) if t is not None]
+            ts_lv = [t for t in (r["measured_long_vs_mkt_t_no_overlap"][key]
+                                 for r in table) if t is not None]
+            tag = f"q={key}"
             if len(tail_qs) > 1:
-                tag += f"（top{int(4600 * q)}）"
-            print(f"{tag:<24}{np.mean(vals):>10.2%}{np.min(vals):>10.2%}"
-                  f"{np.max(vals):>10.2%}{np.mean(vals) / need:>10.2f}×"
-                  + (f"   t 均 {np.mean(ts):.2f}" if ts else ""))
+                tag += f" top{int(4600 * q)}"
+            print(f"  {'多空 顶-底':<22}{np.mean(sp):>10.2%}{np.min(sp):>10.2%}"
+                  f"{np.max(sp):>10.2%}{np.mean(sp) / need:>10.2f}×"
+                  + (f"  t {np.mean(ts_ls):>5.2f}" if ts_ls else ""))
+            print(f"  {'多头 - 市场':<24}{np.mean(lv):>10.2%}{np.min(lv):>10.2%}"
+                  f"{np.max(lv):>10.2%}{np.mean(lv) / need:>10.2f}×"
+                  + (f"  t {np.mean(ts_lv):>5.2f}" if ts_lv else ""))
+            if abs(np.mean(sp)) > 1e-12:
+                print(f"  {'└ 两口径之比':<24}{np.mean(sp) / np.mean(lv):>9.1f}×"
+                      f" ← 多空比多头大这么多，**差的那部分是空头腿**")
 
         print(f"\n门槛（年毛超额）{need:.2%}；年调仓 {244 / K:.1f} 次；"
               f"超额峰度 年均 {np.mean([r['kurtosis_hold21'] for r in table]):.2f}")
@@ -370,13 +438,31 @@ def main() -> int:
             dm = np.mean([r["measured_hold21_annual_by_q"][deep] for r in table])
             sm = np.mean([r["measured_hold21_annual_by_q"][format(tail_qs[0], "g")]
                           for r in table])
-            print(f"★ 最深一档 / 最宽一档 = {dm / sm:.2f}×"
+            print(f"★【多空口径】最深一档 / 最宽一档 = {dm / sm:.2f}×"
                   f"（< 1 说明信号住在中段，池子越深钱越少）")
+            dlv = np.mean([r["measured_long_vs_mkt_annual_by_q"][deep] for r in table])
+            slv = np.mean([r["measured_long_vs_mkt_annual_by_q"][format(tail_qs[0], "g")]
+                           for r in table])
+            print(f"★【多头口径】最深一档 / 最宽一档 = "
+                  f"{dlv / slv:.2f}×" if abs(slv) > 1e-12 else "")
+            print("  → 两个口径**可以给出相反的深度结论**，"
+                  "所以引用时必须带口径标签。")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(res, ensure_ascii=False, indent=2),
                         encoding="utf-8")
     long_df.to_parquet(args.out.with_suffix(".long.parquet"), index=False)
+
+    # ── 自查：写完之后，用**产物指纹**确认本轮该有的列真的在 ──────
+    #
+    # 不靠退出码、不靠「进程还活着」—— 2026-10-14 踩过：
+    # `nohup … &` 配 `run_in_background` 会**立刻**返回 exit 0，
+    # 而 python 还在跑。于是我差点把**上一轮**的报告读成本轮结论
+    # （旧文件里连 `measured_long_vs_mkt_*` 都没有）。
+    ready = require_keys(args.out, ["years.0.measured_long_vs_mkt_annual_by_q"])
+    print(f"\n产物自检：{ready.reason}")
+    if not ready.ok:
+        raise SystemExit(f"产物不完整，后续任何引用都不可信：{ready.reason}")
     print(f"\n→ {args.out}")
     print(f"→ {args.out.with_suffix('.long.parquet')}")
     print(f"跳过：{skipped['reason'].value_counts().to_dict() if len(skipped) else '（无）'}")

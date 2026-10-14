@@ -287,3 +287,183 @@ def test_more_than_one_bucket_width_is_measured_by_default():
     )
     for q in qs:
         assert 0 < q < 0.5
+
+# ── ⑤ 两个口径必须成对存在（2026-10-14 新增） ──────────────────────
+#
+# 背景：测量台长期只报「多空价差」（顶−底，β≈0），
+# 而账户能做的是「多头减市场」。两者在真实数据上差 16 倍，
+# 只报前者会让人以为「策略年赚 100%」。
+#
+# 这里的测试不能只断言「有个新列」——那证明不了口径是对的。
+# 真正要钉的是：**当空头腿贡献被人为抹掉时，两列必须分开动。**
+# 若有人把 `long_vs_mkt` 也接成多空价差，本测试会立刻变红。
+
+def test_bucket_means_returns_the_top_and_the_bottom_not_just_their_difference():
+    """分桶函数必须把两头都交出来 —— 只交差值就等于把口径藏起来。"""
+    score = np.arange(100, dtype=float)
+    ret = score.copy()                      # 单调 ⇒ 桶均值可直接手算
+    top, bot, spread, n = M.bucket_means(score, ret, tail_q=0.2)
+
+    assert n == 100
+    assert top == pytest.approx(score[-20:].mean())
+    assert bot == pytest.approx(score[:20].mean())
+    assert spread == pytest.approx(top - bot)
+
+
+def test_the_two_calibers_are_different_quantities():
+    """★ 外部锚，不是自指：**只动空头腿，多空价差动、多头腿纹丝不动。**
+
+    分数、头部收益、基准全部不变，只把最低 20% 桶整体砸下去：
+      多空口径（顶−底）必须变化 —— 它**含**空头腿；
+      多头口径（顶−基准）必须完全不变 —— 它**不含**。
+
+    真实数据上这两个口径差 16 倍，所以「只报多空」等于
+    把一个含空头的数当成账户收益。若有人把 `long_vs_mkt`
+    错接到多空价差上，本测试立刻变红。
+    """
+    rng = np.random.default_rng(7)
+    score = rng.normal(size=600)
+    ret = rng.normal(scale=0.02, size=600)
+    order = np.argsort(score, kind="stable")
+
+    crushed = ret.copy()
+    crushed[order[:120]] -= 0.05          # 只砸底桶
+
+    top_a, _, sp_a, _ = M.bucket_means(score, ret, tail_q=0.2)
+    top_b, _, sp_b, _ = M.bucket_means(score, crushed, tail_q=0.2)
+
+    market = 0.0                            # 基准取 0，两口径 = top − (bot 或 mkt)
+    assert top_b == pytest.approx(top_a), "头部被动了，样本构造有误"
+    assert sp_b == pytest.approx(sp_a + 0.05), "多空口径必须吃进空头腿的损失"
+
+    # 两个口径因此**在数值上可分离** —— 这正是不能混用的理由。
+    assert (top_a - market) != pytest.approx(sp_a)
+
+
+# ── `measure()` 运行时守卫用的假 fixture ───────────────────────────
+#
+# `forward_returns` 要 `cache.get(code) -> (dates, closes, raw, has_adj)`，
+# 且 `raw` 得让 `_bars_tradable` 判为可交易。**形状不对就全 NaN**，
+# 而全 NaN 会让 `np.allclose(..., equal_nan=True)` **恒为 True** ——
+# 那正是第一版守卫全绿却什么也没守住的原因。
+
+_FAKE_DATES = np.array(["2021-01-04", "2021-01-05", "2021-01-06",
+                        "2021-01-07", "2021-01-08", "2021-01-11",
+                        "2021-01-12", "2021-01-13", "2021-01-14",
+                        "2021-01-15", "2021-01-18", "2021-01-19",
+                        "2021-01-20", "2021-01-21", "2021-01-22",
+                        "2021-01-25", "2021-01-26", "2021-01-27",
+                        "2021-01-28", "2021-01-29", "2021-02-01",
+                        "2021-02-02", "2021-02-03", "2021-02-04",
+                        "2021-02-05", "2021-02-08", "2021-02-09",
+                        "2021-02-10", "2021-02-11", "2021-02-12"])
+
+
+def _fake_cache(codes, rng):
+    """形状与真实 cache 一致的最小 fixture。
+
+    每只票给一条**确定性**的随机游走收盘价；同一 seed 下两次调用
+    拿到完全相同的数据，所以反向测试能复现同一批数。
+    """
+    out = {}
+    for i, c in enumerate(codes):
+        drift = (i % 17) - 8                       # 让排序与收益真的相关
+        steps = rng.normal(scale=0.01, size=len(_FAKE_DATES)) + drift * 0.002
+        closes = 10.0 * np.exp(np.cumsum(steps))
+        # `raw` 的形状是 `(volume, amount)` 两个序列，不是 K 线字典。
+        volume = np.full(len(_FAKE_DATES), 1e6)
+        amount = volume * closes
+        out[c] = (_FAKE_DATES, closes, (volume, amount), True)
+    return out
+
+
+def _wmap():
+    return {2021: {"weights": {"f1": 1.0, "f2": -0.5}, "ic_mean": 0.05,
+                   "weights_source": "test"}}
+
+def test_measure_records_both_calibers_for_every_tail_q(tmp_path, monkeypatch):
+    """★ 真跑一遍 `measure()`，逐日检查列。
+
+    ## 第一版是 AST 静态扫描 —— 它**守不住**
+
+    变异验证时：把 `long_vs_mkt` 错接成多空价差、
+    或把 `bot_*` 列删掉，**全仓 16 个测试依然全绿**。
+    静态扫描只证明「代码里出现了这几个字面量」，
+    而这两个 bug 都发生在**运行时的那几行**。
+
+    > 没做变异的守卫是安慰剂，做了变异仍是安慰剂的更少见：
+    > 它看起来覆盖了这件事，于是让人不去做真正的运行时检查。
+
+    所以这里真的调 `measure()`，用**假缓存**（不进 GB 级面板）。
+    """
+    import pandas as pd
+    days = ["2021-01-04", "2021-01-05", "2021-01-06", "2021-01-07"]
+    codes = [f"C{i:04d}" for i in range(400)]
+    factors = ["f1", "f2"]
+    rng = np.random.default_rng(11)
+    xs = {
+        "_market": {d: 0.001 for d in days},
+        **{d: pd.DataFrame({"code": codes,
+                            "f1": rng.normal(size=400),
+                            "f2": rng.normal(size=400)}) for d in days},
+    }
+    rows, _skipped = M.measure(days, xs, _fake_cache(codes, rng), factors,
+                               _wmap(), {"hold21": (0, 21)},
+                               tail_qs=[0.2, 0.01], verbose_every=0)
+    assert len(rows) == len(days), rows
+    # 数据必须真的流进来了 —— 全 NaN 的列会让下面所有断言变成恒真。
+    assert rows["spread_hold21_q0.2"].notna().all(), rows
+
+    for q in (0.2, 0.01):
+        key = f"{q:g}"
+        need = [f"spread_hold21_q{key}", f"top_hold21_q{key}",
+                f"bot_hold21_q{key}", f"long_vs_mkt_hold21_q{key}"]
+        for col in need:
+            assert col in rows.columns, f"缺列 {col}"
+        # 恒等关系：两个口径必须能被**同一批原始数**分别复现出来。
+        top = rows[f"top_hold21_q{key}"].to_numpy(float)
+        bot = rows[f"bot_hold21_q{key}"].to_numpy(float)
+        sp = rows[f"spread_hold21_q{key}"].to_numpy(float)
+        lvm = rows[f"long_vs_mkt_hold21_q{key}"].to_numpy(float)
+        assert np.allclose(sp, top - bot, equal_nan=True)
+        # 基准恒为 0.001 ⇒ 多头口径 = top − 0.001
+        assert np.allclose(lvm, top - 0.001, equal_nan=True)
+        # ★ 而多头口径 **不等于** 多空价差 —— 否则口径串了
+        assert not np.allclose(lvm, sp, equal_nan=True)
+
+
+def test_the_guard_catches_a_caliber_wired_to_the_short_leg(tmp_path, monkeypatch):
+    """反向测试：把这个守卫本身证伪一次。
+
+    用一份**故意接错**的 `measure` 副本替换模块里的实现，
+    上面那条运行时断言必须变红。守卫不响 = 守卫无效。
+    """
+    src = _SCRIPT.read_text(encoding="utf-8")
+    broken = src.replace(
+        "None if top is None or not np.isfinite(mkt) else top - mkt)",
+        "None if top is None or not np.isfinite(mkt) "
+        "else (top - bot) if bot is not None else None)")
+    assert broken != src, "变异没能应用 —— 源码已变，这条反向测试会失去意义"
+
+    import types
+    fake = types.ModuleType("_mbe_broken")
+    fake.__file__ = str(_SCRIPT)
+    exec(compile(broken, str(_SCRIPT), "exec"), fake.__dict__)
+
+    import pandas as pd
+    days = ["2021-01-04", "2021-01-05", "2021-01-06", "2021-01-07"]
+    codes = [f"C{i:04d}" for i in range(400)]
+    rng = np.random.default_rng(11)
+    xs = {"_market": {d: 0.001 for d in days},
+          **{d: pd.DataFrame({"code": codes, "f1": rng.normal(size=400),
+                              "f2": rng.normal(size=400)}) for d in days}}
+    rows, _ = fake.measure(days, xs, _fake_cache(codes, rng), ["f1", "f2"],
+                           _wmap(), {"hold21": (0, 21)},
+                           tail_qs=[0.2], verbose_every=0)
+    assert rows["long_vs_mkt_hold21_q0.2"].notna().all(), rows
+    top = rows["top_hold21_q0.2"].to_numpy(float)
+    lvm = rows["long_vs_mkt_hold21_q0.2"].to_numpy(float)
+    # 变异把 long_vs_mkt 接成了 top−bot（这正是真实数据里被混淆的量）。
+    # 这里断言它**不再是** top−基准 —— 若守卫还绿，说明守卫无效。
+    assert not np.allclose(lvm, top - 0.001, equal_nan=True), \
+        "接错口径后守卫竟然还绿 —— 这条守卫无效"
