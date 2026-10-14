@@ -66,7 +66,7 @@ import pandas as pd
 from aplus.backtest import (ENTRY_LAG, STOCK_COST_DEFAULT, build_cross_sections,
                             cost_drag, evaluate_weights)
 from aplus.composite import unpack, walk_forward
-from aplus.factor import FACTOR_NAMES
+from aplus.factor import FACTOR_NAMES, robust_z
 from aplus.hurdle import COST_REAL_50K, DAYS_PER_YEAR, hurdle_rate, rounds_per_year
 from aplus.snapshot import load_factors_map
 from aplus.store import LocalStore
@@ -150,9 +150,147 @@ def _rescale_check() -> dict:
             "linear": bool(abs(ratio - COST_REAL_50K / STOCK_COST_DEFAULT) < 1e-12)}
 
 
+def _up_exposure(res, xs, days, factors) -> dict:
+    """涨腿逐日对每个因子的暴露 = **持仓票**的稳健 z 在横截面上的均值。
+
+    ## 三个必须说清的选择
+
+    **1. 用 `robust_z` 而不是 `rank_zscore`。**
+    策略排序走的是 `composite_score` → `robust_z`（见 `aplus/factor.py`）。
+    暴露若换成 `rank_zscore`，就变成「用另一把尺子量这把尺子量出来的东西」——
+    数字照样能算，但和合成权重不在同一个空间里，读数无从对照。
+
+    **2. 排名在**全横截面**上做，均值只取持仓票。**
+    先在全体上定 z，再对持仓取均值 ⇒ 这个值是「组合相对全市场的倾斜」。
+    顺序反过来（先取持仓再排名）不会让读数「偏大」，而是让它**恒等于 0** ——
+    `robust_z` 是仿射变换，**永远以自身均值为中心**，在 10 只票内部排名，
+    那 10 只的 z 均值按构造就是 0。
+    实测（200 只正态、取 mom20 最强 10 只、30 个种子）：
+    全横截面排名 **1.83 ~ 2.28**，持仓内排名 **−0.00 ~ 0.02**。
+    ⇒ 这个 bug 会让**全部 8 个 β 塌成 0，把所有超额都归给 α**，
+    得出「这信号几乎全是 α」的相反结论。**它不会让任何断言变红**，
+    所以必须有反向测试盯着。
+
+    **3. 只算涨腿。**
+    账户真实建仓的是涨腿；空头腿在 A 股融不到券，不存在。
+    分解的因变量本身就是涨腿超额，解释变量必须是同一组持仓。
+
+    `days` 传的是**已经进过统计的天**（`gross.index`），
+    不是全部调仓日 —— 成分不足 `MIN_BASKET` 的日子已被上游丢掉，
+    暴露若覆盖更宽的天数，回归的 X 和 y 就不再是同一批观测。
+    """
+    if res is None or res.empty or not len(days):
+        return {f: [float("nan")] * len(days) for f in factors}
+    up = res[res["direction"] == "up"]
+    held = {d: set(g["code"]) for d, g in up.groupby("pred_date")}
+    out = {f: [] for f in factors}
+    for day in days:
+        uni = xs.get(day)
+        codes = held.get(day)
+        if uni is None or uni.empty or not codes or "code" not in uni.columns:
+            for f in factors:
+                out[f].append(float("nan"))
+            continue
+        # 只对**因子列**做，和 `composite_score` 的写法逐字一致
+        # （`factor_rows[list(weights)].apply(robust_z, axis=0)`）。
+        # 对整张表 apply 也能跑通——字符串列会被 `robust_z` 变成全 NaN——
+        # 但那是**靠它的宽容度兜着**，哪天它改成对字符串抛错就整条线断。
+        cols = [f for f in factors if f in uni.columns]
+        if not cols:
+            for f in factors:
+                out[f].append(float("nan"))
+            continue
+        # 逐列显式构造，而不是 `uni[cols].apply(robust_z, axis=0)`：
+        # **单列时 `apply(axis=0)` 会退化成 Series**（不是 DataFrame），
+        # 于是后面的 `z[mask]` 与 `.columns` 全部失效 —— 8 因子时正常、
+        # 只留 1 个因子就崩，而「只留 1 个因子」正是最常做的诊断跑法。
+        z = pd.DataFrame({f: robust_z(uni[f]) for f in cols})
+        sel = z[uni["code"].isin(codes)]
+        for f in factors:
+            out[f].append(float(sel[f].mean())
+                          if f in sel.columns and sel[f].notna().any()
+                          else float("nan"))
+    return out
+
+
+def _daily_frame(chunks: list, factors) -> "pd.DataFrame":
+    """把逐年落盘的 chunk 拼成一张表：日期 + 毛超额 + 逐日因子暴露。
+
+    ## 为什么抽成独立函数（第 66 层失效的直接修法）
+
+    这段逻辑第一次写出来时是内联在 `main()` 里的，
+    `pd.concat([...Series...])` 返回 **Series** 而不是 DataFrame，
+    `to_parquet` 当场崩 —— 而**在它被真实执行之前，一次都没发现**，
+    因为 K=5/10/42 跑的是更早的版本。
+
+    抽出来之后它能被单元测试直接跑：
+    「返回类型必须是 DataFrame」这条断言，
+    由一个几毫秒的测试守住，而不是由下一个 sweep 的 3.5 分钟守住。
+
+    ## 三个必须写死的细节
+
+    - **日期先转字符串再建表。** 晚一步就是拿 Timestamp 索引去
+      reindex 字符串索引，`reindex` 全变 NaN —— 不报错，
+      而回归会安静地把 NaN 行丢掉，于是分解「看起来正常」。
+    - **先按列聚合，再一次性建表。** 绝不能
+      `pd.concat([每段一根Series...], axis=1)` ——
+      **`axis=1` 是按索引对齐的 join，不是堆叠**：
+      6 个年份就是 6 根同名的 `expo_mom20`，每根只在自己那一段有值，
+      其余全 NaN；而 `df["expo_mom20"]` 返回的是 **DataFrame**，
+      下游 `frame[["expo_mom20"]]` 照样不报错，只是拿到二维数组。
+      **单段 chunk 的测试永远看不见这个 bug。**
+    - **后写覆盖先写**（= `keep="last"`）。同一天跨年边界可能出现两次。
+    """
+    def _label(d):
+        """`Timestamp` → `2023-01-03`（**不带时分秒**），其余走 `str`。
+
+        `str(Timestamp)` 会给出 `2023-01-03 00:00:00`，
+        落盘之后再读回来按日期 join 就对不上 —— 而 join 对不上
+        表现为一整列 NaN，没有任何异常。
+        """
+        return d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else str(d)
+
+    # `{列名: {日期: 值}}`。dict 保留插入顺序 ⇒ 列序 = 写入序。
+    # ⚠️ 列名**必须**显式给：`pd.Series(...)` 不给名字时列名就是 `0`，
+    # 而下游 `decompose_alpha_beta.py` 读的正是 `gross_excess` 那一列。
+    cols: dict = {}
+    for c in chunks:
+        labels = [_label(d) for d in c["dates"]]
+        wanted = [("gross_excess", c["excess"])]
+        wanted += [(f"expo_{f}", c.get("exposure", {}).get(f)) for f in factors]
+        for name, vals in wanted:
+            if vals is None:
+                continue          # 该年缺这个因子 → 该段日期留 NaN
+            bucket = cols.setdefault(name, {})
+            for lab, v in zip(labels, vals):
+                bucket[lab] = v   # 后一次覆盖前一次
+
+    labels = sorted({lab for bucket in cols.values() for lab in bucket})
+    df = pd.DataFrame(
+        {name: [bucket.get(lab, float("nan")) for lab in labels]
+         for name, bucket in cols.items()},
+        index=pd.Index(labels, name="date"))
+    # 某因子在**所有**年份里都没测 ⇒ 补一整列 NaN。
+    # 填 0 不行：那会把「没这个因子」读成「完全不暴露」。
+    for f in factors:
+        if f"expo_{f}" not in df.columns:
+            df[f"expo_{f}"] = float("nan")
+    return df
+
+
 def run_year(xs, weights, dates, top_n: int, bottom_n: int,
-             rebalance_every: int) -> dict:
-    """跑一个年份，返回三个口径的逐年数字。"""
+             rebalance_every: int, daily_out: list | None = None) -> dict:
+    """跑一个年份，返回三个口径的逐年数字。
+
+    `daily_out` 非空时，把**毛超额逐日序列 + 逐日因子暴露**追加进去。
+    α/β 分解需要这两样，而它们只在这里产生 ——
+    让它们落到 `daily_out`，是为了**同一台测量仪出两次数**。
+    另写一个脚本重算逐日超额 = 造第二台测量仪，两台之间的差永远查不出来。
+
+    ⚠️ 暴露**必须在 `xs` 还在手上时算完**。落盘之后要重算就得
+    再加载一次 GB 级面板，而那正是本项目 OOM 的唯一来源
+    （实测并发面板作业 RSS 2.9 GB）。
+    """
     res = evaluate_weights(xs, weights=weights, top_n=top_n, bottom_n=bottom_n,
                            dates=dates, rebalance_every=rebalance_every,
                            execution_gate=True)
@@ -180,6 +318,14 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
 
     gm = float(gross.mean()) if gross is not None and len(gross) else float("nan")
     out["gross"] = {"daily_excess": gm, "annual_pct": gm * DAYS_PER_YEAR}
+
+    if daily_out is not None and gross is not None and len(gross):
+        days = list(gross.index)
+        daily_out.append({
+            "dates": days,
+            "excess": [float(v) for v in np.asarray(gross, float)],
+            "exposure": _up_exposure(res, xs, days, list(FACTOR_NAMES)),
+        })
     out["unfillable_execution"] = {
         k[len("unfillable_execution"):]: v
         for k, v in getattr(res, "attrs", {}).items()
@@ -253,9 +399,11 @@ def main() -> int:
     print("─" * 95)
 
     rows = []
+    daily_chunks: list = []
     for y in judged:
         r = run_year(xs, wmap[y]["weights"], by_year[y],
-                     args.top_n, args.bottom_n, args.rebalance_every)
+                     args.top_n, args.bottom_n, args.rebalance_every,
+                     daily_out=daily_chunks)
         if r.get("n_rows", 0) == 0:
             print(f"{y:<6}空")
             continue
@@ -276,6 +424,26 @@ def main() -> int:
         rows.append(r)
         print(f"      不可成交计数：{r['unfillable_execution'] or '（无）'}"
               f"   未复权触碰：{r['unadjusted_touch'] or '（无）'}", flush=True)
+
+    if daily_chunks:
+        # 逐日毛超额 + 逐日因子暴露落盘。
+        #
+        # **毛超额**而不是净值 —— α/β 分解问的是「排序的信息量」，
+        # 成本与它无关，把成本混进来会让分解同时回答两个问题。
+        #
+        # 暴露与超额**同一张表**：分开放两个文件就得靠日期对齐拼回来，
+        # 而「对齐错了」肉眼完全看不出来。
+        dg = _daily_frame(daily_chunks, FACTOR_NAMES)
+        if dg.empty:
+            raise SystemExit("逐日产物为空 —— 后续任何引用都不可信")
+        dg.to_parquet(args.out.with_suffix(".daily.parquet"))
+        # ⚠️ 这里的行数**不等于**上面那句「横截面 N 个交易日」——
+        #   `_daily_series` 会丢掉成分不足 `MIN_BASKET` 的日子。
+        #   两个数并排打印却不写差在哪，读起来就像「少了一天」。
+        dropped = sum(int(r["n_days"]) for r in results) - len(dg)
+        print(f"→ {args.out.with_suffix('.daily.parquet')}（{len(dg)} 行逐日序列 × "
+              f"1 毛超额 + {len(FACTOR_NAMES)} 因子暴露；"
+              f"比横截面少 {dropped} 行，差额 = `_daily_series` 丢掉的日子）")
 
     if rows:
         print("─" * 95)
