@@ -138,7 +138,16 @@ def filter_universe(cross_section: pd.DataFrame, as_of: str | None = None,
             for code in df.loc[~buyable, "code"]:
                 unfillable[code] = unfillable.get(code, 0) + 1
         mask &= buyable
-    st_by_name = df["name"].map(is_st_name) if "name" in df.columns else False
+    # `name` 列缺失时必须给**同 dtype 的 Series**，不能给标量 `False`。
+#
+# 标量会走到 Python 的 `~False` → `-1`（bitwise inversion of int），
+# 而不是布尔取反。现在结果碰巧正确，因为 `-1` 在 numpy 里是非零值，
+# `bool_series & -1` 恰好等于「不做名称过滤」——**但这是巧合**。
+# Python 3.16 移除 `~` 对 bool 的支持后，这条兜底会静默变义，
+# 而它兜的正是 `isST` 列对 88.2% 股票不可判定的那部分。
+    st_by_name = (df["name"].map(is_st_name).astype(bool)
+                  if "name" in df.columns
+                  else pd.Series(False, index=df.index))
     if unknown_st is not None:
         # **「ST 状态未知」必须按日计数上报**，而不是被 `!= 1` 悄悄放行。
         # 放行本身在数据有洞时是对的（docstring：要求 `isST == 0` 会砍掉 88% 的

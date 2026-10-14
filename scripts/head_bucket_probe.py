@@ -188,6 +188,35 @@ def _score(universe: pd.DataFrame, weights: dict | None, rng) -> pd.Series:
     return composite_score(universe, weights)
 
 
+def head_vs_rest(daily: pd.DataFrame) -> tuple[float | None, float, float]:
+    """桶0 对「桶1..末」**合并**的配对 t，以及两者年均。
+
+    ## 为什么必须是「合并」而不是逐桶比
+
+    首版的主判据 `head_inverted` 是「桶0 低于其余**每一个**桶」。那是一个
+    **15 选 1** 的单次比较——零假设下概率就是 1/15。对同一批数，
+    我在读桶2 的 t=2.69 时明确说过「15 个桶 = 15 次比较，2.69 是噪声该给
+    的数」，然后转头用**一次没做多重比较修正**的布尔判据宣布头部反了，
+    还据此把榜宽扫描扩到 200。**同一套判据，两个方向，两种标准。**
+
+    把桶1..末合并成一个序列，比较就只剩**一次**：2 选 1，没有多重比较。
+    代价是丢掉了「哪一段更好」的信息——但那段信息本来就不该用来下结论
+    （实测每桶标准误约 10.9%/年，桶间差异全在 1 SE 内）。
+
+    返回 `(配对 t, 桶0年均, 其余合并年均)`；样本不足返回 `(None, ...)`。
+    """
+    if 0 not in daily.columns:
+        return None, float("nan"), float("nan")
+    head = daily[0].dropna()
+    rest = daily[[c for c in daily.columns if c != 0]].mean(axis=1).dropna()
+    d = pd.concat([head, rest], axis=1, keys=["h", "r"]).dropna()
+    if len(d) < 3:
+        return None, float(head.mean()) * DAYS_PER_YEAR, float(rest.mean()) * DAYS_PER_YEAR
+    diff = d["h"] - d["r"]
+    return _paired_t(d["h"], d["r"]), float(d["h"].mean()) * DAYS_PER_YEAR, \
+        float(d["r"].mean()) * DAYS_PER_YEAR
+
+
 def probe(xs: dict, dates: list, weights: dict | None, label: str,
           seed: int = RANDOM_SEED) -> dict:
     """对单个权重配置做一次分桶扫描。返回逐日逐桶的毛收益矩阵。"""
@@ -215,17 +244,25 @@ def probe(xs: dict, dates: list, weights: dict | None, label: str,
             continue
         bars["actual_pct"] = bars["close"] / bars["prev_close"] - 1.0
         m = dict(zip(bars["code"], bars["actual_pct"]))
+        # 流动性诊断量：横截面已经带着 volume（成交股数）。它**不是**主指标，
+        # 只用来回答「桶0 里装的到底是什么」。量级上与流动性同向，够用。
+        vol = (dict(zip(universe["code"], universe["volume"]))
+               if "volume" in universe.columns else {})
         for rank, code in enumerate(codes):
             r = m.get(code)
             if r is None or pd.isna(r):
                 continue          # 买不进 / 停牌 / 未上市——不许猜，缺就是缺
-            rows.append({"pred_date": day, "bucket": bucket_of(rank), "actual_pct": r})
+            rows.append({"pred_date": day, "bucket": bucket_of(rank), "actual_pct": r,
+                         "volume": vol.get(code)})
 
     df = pd.DataFrame(rows)
     if df.empty:
         return {"kind": label, "n_days": 0, "daily": pd.DataFrame()}
+    med_vol = (df.groupby("bucket")["volume"].median().to_dict()
+               if "volume" in df.columns else {})
     return {"kind": label, "n_days": int(df["pred_date"].nunique()),
-            "n_obs": len(df), "daily": df.groupby(["pred_date", "bucket"])["actual_pct"].mean().unstack()}
+            "n_obs": len(df), "median_volume": med_vol,
+            "daily": df.groupby(["pred_date", "bucket"])["actual_pct"].mean().unstack()}
 
 
 def main() -> int:
@@ -282,6 +319,14 @@ def main() -> int:
         max_t = max(_ts) if _ts else float("nan")
 
         print(f"\n  头部反了（桶0 低于其余每一桶）: {head_inverted}")
+        print(f"    ⚠ 这是 **15 选 1** 的单次比较，零假设下概率 1/15 ——"
+              f"不得单独作为结论")
+        hr_t, h_ann, r_ann = head_vs_rest(daily)
+        print(f"  【正式判据】桶0 vs 桶1..末**合并**：")
+        print(f"    桶0 年均 {h_ann:+.2%}   其余合并年均 {r_ann:+.2%}   "
+              f"差 {r_ann - h_ann:+.2%}   配对 t = "
+              f"{hr_t if hr_t is None else round(hr_t, 2)}"
+              f"{'   ← 唯一一次比较，无多重比较' if hr_t is not None else ''}")
         print(f"  严格单调递减: {monotone}")
         print(f"  桶0 在 {len(vals)} 个桶里排第 {head_rank} 低")
         print(f"  显著优于桶0 的桶（配对 t ≥ 3.0）: "
@@ -307,7 +352,30 @@ def main() -> int:
             "head_rank_lowest": head_rank,
             "max_paired_t_vs_head": max_t,
             "better_than_head": better,
+            "head_vs_rest_paired_t": hr_t,
+            "head_annual": h_ann, "rest_annual": r_ann,
+            "median_volume_by_bucket": {str(k): v for k, v in (r["median_volume"] or {}).items()},
         }
+
+        # 流动性诊断：桶0 相对「最优桶」的成交股数倍数。
+        #
+        # 这是「头部是流动性假象」还是「头部是因子假象」的直接读数：
+        #   倍数 < 1/3  → 桶0 是明显的微盘/低流动性簇，加 universe 门槛即可，
+        #                  且**无需**平移榜段（平移只是换个方式选回同一批大票）
+        #   倍数 ≈ 1    → 桶0 与最优桶流动性相当，问题在**因子极端方向**本身
+        # 只有随机对照能区分「A 股横截面普遍如此」与「本因子特有」。
+        mv = r["median_volume"] or {}
+        if mv and 0 in mv:
+            best_b = max(vals, key=lambda k: vals[k])
+            v0, vb = mv.get(0), mv.get(best_b)
+            if v0 and vb:
+                ratio = float(v0) / float(vb)
+                best_bk = int(best_b)
+                print(f"  【诊断】桶0 中位成交股数 {v0:,.0f}；最优桶 桶{best_bk} {vb:,.0f}"
+                      f"；比值 {ratio:.3f}"
+                      f"  → {'桶0 显著更小更冷清：疑似流动性假象' if ratio < 1/3 else '量级相当，问题在因子方向本身'}")
+                out["configs"][label]["head_vs_best_volume_ratio"] = ratio
+                out["configs"][label]["best_bucket"] = best_bk
 
     # 三臂并排的最终判决。放在循环外，是因为这个问题的答案**由对照决定**，
     # 单看符号修正那一臂会得出相反的结论——这正是首版踩的坑。
@@ -315,25 +383,40 @@ def main() -> int:
     sign = out["configs"].get("符号修正", {})
     if rnd:
         print(f"\n{'='*88}\n三臂判决：头部反了是**因子性质**还是**A 股横截面普遍事实**？\n{'='*88}")
-        print(f"  符号修正  桶0 排第 {sign.get('head_rank_lowest')} 低   头部反了: {sign.get('head_inverted')}")
-        print(f"  随机对照  桶0 排第 {rnd.get('head_rank_lowest')} 低   头部反了: {rnd.get('head_inverted')}")
-        rnd_inv, sign_inv = rnd.get("head_inverted"), sign.get("head_inverted")
-        if rnd_inv and sign_inv:
-            verdict = ("**普遍结构事实** → 修 universe（流动性/市值过滤），"
-                       "平移榜段无效")
+        for nm, c in (("符号修正", sign), ("随机对照", rnd)):
+            t = c.get("head_vs_rest_paired_t")
+            print(f"  {nm:<6} 桶0 {c.get('head_annual', float('nan')):+.2%}"
+                  f"   其余合并 {c.get('rest_annual', float('nan')):+.2%}"
+                  f"   配对 t = {t if t is None else round(t, 2)}"
+                  f"   （15选1布尔: 桶0排第 {c.get('head_rank_lowest')} 低）")
+        # 判决只读**合并配对 t**。布尔 `head_inverted` 是 15 选 1，
+        # 零假设下概率就有 1/15 —— 拿它下结论是本项目在 2026-10-14
+        # 犯下的同一个错误（对桶2 的 t=2.69 做了多重比较修正，
+        # 对主判据一次都没做）。
+        rnd_t, sign_t = rnd.get("head_vs_rest_paired_t"), sign.get("head_vs_rest_paired_t")
+        rnd_bad = rnd_t is not None and rnd_t < -3.0
+        sign_bad = sign_t is not None and sign_t < -3.0
+        if rnd_bad and sign_bad:
+            verdict = ("**普遍结构事实** → 修 universe；平移榜段无效")
             out["fork"] = {"conclusion": "market_structure",
+                           "random_t": rnd_t, "sign_t": sign_t,
                            "fix": "universe_filter(liquidity, size)",
                            "rank_shift": "无效，不要做"}
-        elif rnd_inv and not sign_inv:
-            verdict = ("**随机排序的头部反而最差** → 这是排序机制本身的性质，"
-                       "两臂同向但含义不同，须先查 universe 组成")
-            out["fork"] = {"conclusion": "contradictory_needs_investigation"}
+        elif rnd_bad and not sign_bad:
+            verdict = ("随机排序的头部也显著更差，而因子排序没有 —— "
+                       "说明**因子其实避开了**结构性问题。因子无用，"
+                       "但不是因子有害")
+            out["fork"] = {"conclusion": "factor_avoids_structure",
+                           "random_t": rnd_t, "sign_t": sign_t,
+                           "fix": "先修 universe 再谈因子"}
         else:
-            verdict = ("**因子特有** → 榜段平移可能有效，但符号修正最大 t = "
-                       f"{sign.get('max_paired_t_vs_head')} 未过 3.0，仍不算结论")
-            out["fork"] = {"conclusion": "factor_specific",
-                           "fix": "rank_segment_shift",
-                           "caveat": "未过 3.0 显著性前不得实施"}
+            verdict = ("两臂的「桶0 vs 其余合并」都未过 -3.0 —— "
+                       "**桶级差异整体不显著**。此前基于分桶表做的任何"
+                       "「毛收益平台期」「最优桶」推断全部作废，"
+                       "包括把榜宽扫描扩到 200 这项决定")
+            out["fork"] = {"conclusion": "inconclusive_all_noise",
+                           "random_t": rnd_t, "sign_t": sign_t,
+                           "action": "撤回基于分桶表的全部推断"}
         print(f"\n  → {verdict}")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

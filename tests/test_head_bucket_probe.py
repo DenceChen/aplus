@@ -162,3 +162,52 @@ def test_random_control_actually_reorders_the_universe():
               .sort_values("_s", ascending=False)
     assert list(ranked["code"])[:10] != list(u["code"])[:10], (
         "随机对照的前 10 名与原始顺序前 10 名相同——随机对照没生效")
+
+
+# ── 合并检验：为什么必须比「合并」而不是逐桶比 ────────────────────────
+#
+# 首版主判据 `head_inverted` =「桶0 低于其余**每一个**桶」，那是 **15 选 1**：
+# 零假设下概率就是 1/15 ≈ 6.7%。我却在读桶2 的 t=2.69 时明确写过
+# 「15 个桶 = 15 次比较，2.69 是噪声该给的数」，然后对**主判据**一次
+# 多重比较修正都没做，还据此把榜宽扫描扩到 200。
+# 同一套判据，两个方向，两种标准。
+
+def test_head_vs_rest_is_one_comparison_not_fourteen():
+    """合并后只剩一次比较。逐桶比较是 14 次——这里钉住差别。"""
+    import pandas as pd
+    from scripts.head_bucket_probe import head_vs_rest
+
+    rng = __import__("numpy").random.default_rng(3)
+    n = 400
+    # 全部 15 个桶**完全同分布**（纯零假设）
+    daily = pd.DataFrame({b: rng.normal(0.0, 0.02, n) for b in range(15)})
+    t, h, rest = head_vs_rest(daily)
+    assert t is not None
+    # 单次比较：|t| 超过 3.0 的概率约 0.3%
+    assert abs(t) < 3.0, f"纯零假设下合并 t={t:.2f}，说明检验本身有偏"
+
+def test_head_vs_rest_detects_a_real_head_penalty():
+    """桶0 真的系统性更差时，合并检验必须显著。"""
+    import numpy as np
+    import pandas as pd
+    from scripts.head_bucket_probe import head_vs_rest
+
+    rng = np.random.default_rng(5)
+    n = 800
+    daily = pd.DataFrame({0: rng.normal(-0.004, 0.015, n)})
+    for b in range(1, 15):
+        daily[b] = rng.normal(0.0, 0.015, n)
+    t, h, rest = head_vs_rest(daily)
+    assert t is not None and t < -3.0, f"真实的头部惩罚没被抓到，t={t}"
+    assert rest > h, "其余合并必须高于头部"
+
+def test_head_vs_rest_returns_none_on_degenerate_difference():
+    """全部桶完全相同 → 差值恒为 0 → 标准误退化 → 必须 None，不能吐 inf。"""
+    import pandas as pd
+    from scripts.head_bucket_probe import head_vs_rest
+
+    n = 200
+    same = pd.Series(0.01, index=range(n))
+    daily = pd.DataFrame({b: same.copy() for b in range(15)})
+    t, _, _ = head_vs_rest(daily)
+    assert t is None, f"退化差值必须返回 None，实得 {t}"
