@@ -40,6 +40,7 @@ from aplus.backtest import ENTRY_LAG, build_cross_sections, evaluate_weights
 from aplus.evolve import (candidate_key, dedupe_candidates, load_weights,
                           objective, save_weights)
 from aplus.log import setup_logging
+from aplus.provenance import stamp
 from aplus.evolve_race import excess_tstat, oos_decision, race
 from aplus.rebalance import BUFFER_MULTIPLE
 from aplus.snapshot import load_factors_map
@@ -437,10 +438,17 @@ def main():
                 buffer_multiple=champ_exec["buffer_multiple"])
             final_stats = rolling_stats(final_res)
             final_res.to_parquet(reports_dir / "backtest.parquet", index=False)
-            (reports_dir / "backtest_summary.json").write_text(
+            summary_path = reports_dir / "backtest_summary.json"
+            summary_path.write_text(
                 json.dumps({**final_stats, "window": [start, end],
                             "entry_lag": ENTRY_LAG, "rows": len(final_res)},
                            ensure_ascii=False, indent=2), encoding="utf-8")
+            # **盖溯源章。** 这份报告的数字会被判决板当赛马展示、被人引用，
+            # 而 2026-10-14 正是我引用了一份 14:02 被修掉的逻辑算出来的
+            # 11:45 报告，把「信号符号反了」当结论讲了出去。
+            # 没有章，就无从判断一份数字是不是早于某次修复。
+            stamp(summary_path, "aplus/backtest.py", root=ROOT,
+                  extra={"window": [start, end], "rows": len(final_res)})
 
             rec = build_log_record(r, today, [start, end], champion_weights,
                                    proposed=len(researcher_raw),
