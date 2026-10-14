@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aplus import panel_cache as PC  # noqa: E402
+from aplus.provenance import stamp  # noqa: E402
 from aplus.backtest import build_cross_sections, evaluate_weights  # noqa: E402
 from aplus.store import LocalStore  # noqa: E402
 
@@ -101,7 +102,7 @@ def main() -> int:
     dates = sorted(xs["_dates"])
     rows = []
     print(f"\n{'候选':<16} {'K':>3} {'缓冲':>5} {'日数':>7} {'年成本':>7} {'年超额':>8} "
-          f"{'净':>8} {'t':>6} {'广度t':>6} {'n_ranked':>9}")
+          f"{'净':>8} {'t':>6} {'广度t':>6} {'中位可排名/覆盖率':>15}")
     for name, w in CANDIDATES:
         for k in FREQS:
             for buf in BUFFERS:
@@ -127,19 +128,27 @@ def main() -> int:
                 # excess_tstat 内部已经 `actual_pct - cost`，是**净值**口径的 t。
                 # 两者混用会重复扣一次成本。
                 ann_x = float(st.get("up_excess_vs_market", 0.0)) * DAYS_PER_YEAR
+                # `n_ranked` 只反映**探针那一天**的可排名只数，不能代表全程。
+                # 第一版拿区间内第一个非空日当探针，于是含 `turnratio` 的候选
+                # 打印出 `n_ranked=0`——看着像策略失败，其实是 `turnratio`
+                # 需要累积成交量历史、缺 2019（aplus/factor.py 已记录）。
+                # **更糟的是表格因此藏了一件事：该候选只交易了 988/1154 天。**
+                # 覆盖率必须和收益一起印出来，否则「净收益最高」是在比不同长度的赛程。
                 from aplus.backtest import scoreable_count
-                probe = next((d for d in dates if not xs[d].empty), None)
-                nr = scoreable_count(xs[probe], w) if probe else 0
+                probe = dates[len(dates) // 2]
+                nr = scoreable_count(xs[probe], w) if not xs[probe].empty else 0
+                cover = len(up) / max(len(pred), 1)
                 net = ann_x - cost
                 rows.append({"name": name, "weights": w, "rebalance_every": k,
                              "buffer_multiple": buf, "annual_cost": cost,
                              "annual_excess": ann_x, "net": net,
                              "t": float(t) if t is not None else 0.0,
                              "breadth_t": float(bt) if bt is not None else 0.0,
-                             "n_ranked": nr})
+                             "n_ranked_mid": nr, "coverage": cover,
+                             "days_traded": n_days})
                 print(f"{name:<16} {k:>3} {str(buf):>5} {n_days:>7} {cost:>7.1%} "
                       f"{ann_x:>+8.1%} {net:>+8.1%} {t or 0:>6.2f} {bt or 0:>6.2f} "
-                      f"{nr:>9}", flush=True)
+                      f"{nr:>6}/{cover:>5.0%}", flush=True)
 
     best = max(rows, key=lambda r: r["net"])
     print(f"\n净收益最高：{best['name']} K={best['rebalance_every']} "
@@ -154,6 +163,18 @@ def main() -> int:
            "elapsed_s": round(time.time() - t0)}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # ── 溯源章：必须带上**所用面板的市场指纹** ──────────────────────
+    # 只盖时间戳不够。本项目 2026-10-14 中过一次：报告是当天写的、
+    # mtime 比基准修复还新，但它读的是修复前的面板缓存——
+    # **按 mtime 分类的审计会把它判成干净。**
+    # 指纹让作废与时间无关；章盖在写盘之后，因为章要描述最终状态。
+    _sc = PC.sidecar_path(cache)
+    _cs = json.loads(_sc.read_text(encoding="utf-8")) if _sc.is_file() else {}
+    stamp(args.out, "aplus/backtest.py", root=ROOT,
+          extra={"window": [args.start, args.end],
+                 "panel_market_mean": _cs.get("market_mean"),
+                 "panel_window": _cs.get("window")})
     print(f"→ {args.out}")
     return 0
 

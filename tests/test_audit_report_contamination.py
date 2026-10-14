@@ -5,7 +5,7 @@
 切割点**必须从代码推导**（`git log -S`），**不许退回硬编码时间戳**。
 
 退回的那一刻是最危险的：下一次基准被修好、脚本却还按旧时间切，
-于是**新报告被判成干净**。错的��向恰好是「继续引用坏数字」。
+于是**新报告被判成干净**。错的方向恰好是「继续引用坏数字」。
 
 所以「找不到判据」必须**报错退出**，而不是用一个默认值糊过去。
 """
@@ -84,6 +84,61 @@ def test_nested_rows_are_searched_too():
     assert "excess_tilt" in A.carries_market_metrics(obj)
 
 
+# ── 派生字段：按分母判定，不按字段名判定 ──────────────────────────
+
+def test_a_derived_market_metric_is_still_caught():
+    """**「没扫到字段名」不等于「没有污染」——这是审计今天漏掉自己化石的原因。**
+
+    `reversal_freq_2019_2023.json` 里没有 `up_excess_vs_market`，只有
+    `annual_excess`（= up_excess_vs_market × 244）和 `net`（再减成本）。
+    污染一点没少，只是换了名字。原版审计因此把这份报告判成无辜。
+    """
+    obj = {"rows": [{"name": "纯 20 日反转", "annual_excess": -0.2169,
+                     "net": -0.3385, "annual_cost": 0.1222}]}
+    keys = A.carries_market_metrics(obj)
+    assert "annual_excess" in keys
+    assert "net" in keys
+
+
+def test_a_market_free_excess_is_not_swept_in_with_the_derived_ones():
+    """**反方向同样要钉住，否则守卫会变成大扫帚。**
+
+    `bond_excess_analysis.json` 的 `excess_ann` 分母是「等权持有当期合格
+    宇宙全池」——那是策略自己的对照组，不是被污染的 A 股市场基准。
+    把它染红，就是又一次「误伤」，而误伤的成本是守卫被静音。
+    """
+    obj = {"benchmark": {"name": "ew_pool"},
+           "segments": {"full": {"excess_ann": 0.1139}}}
+    assert A.carries_market_metrics(obj) == []
+
+
+def test_a_metric_with_proven_immunity_must_not_be_red_flagged():
+    """**全项目最强的一条证据，最容易被误伤，所以要单独钉住。**
+
+    `excess_breadth = up_excess − down_excess = (up−mkt) − (down−mkt)
+    = up − down`：市场项在减法里**自动抵消**。所以它是全项目唯一
+    不依赖基准的可信锚，也是「排序方向对不对」唯一能看的指标。
+
+    2026-10-14 实测：污染前后同为 −4.65，逐位相同。
+    若哪天有人「顺手」把 `breadth_t` 加进污染字段，这份守卫就会
+    把唯一不受污染影响的证据作废——**代价远大于多报一份报告。**
+    """
+    obj = {"rows": [{"breadth_t": -4.65, "hit": 0.47, "days": 1154}]}
+    assert A.carries_market_metrics(obj) == []
+    assert "breadth_t" in A.NOT_MARKET_DERIVED, \
+        "免疫证明要留在代码里，否则下一个人凭什么知道它免疫？"
+
+
+def test_the_same_key_name_can_mean_different_denominators():
+    """`excess` 这个名字有两副面孔：`_verify_reversal` 与 `champion_health`
+    里它来自 `up_excess_vs_market`（受污染），`_diag_mom121` 里它来自横截面
+    等权均值（不受污染）。所以登记的是**分母来源**，不是名字。"""
+    assert "excess" in A.MARKET_DERIVED, \
+        "excess 在冠军健康度与独立验证里都以 A 股市场为分母，必须登记"
+    assert "excess_ann" not in A.MARKET_DERIVED, \
+        "excess_ann 的分母是等权池，登记它就是误伤"
+
+
 def test_a_report_carrying_nothing_is_not_listed(tmp_path):
     d = tmp_path / "reports"
     d.mkdir()
@@ -118,12 +173,17 @@ def test_a_contaminated_report_cited_by_a_registry_batch_is_flagged(tmp_path):
 
 
 def test_a_cited_but_clean_report_is_not_flagged(tmp_path):
-    """报告干净、也��被引用 → 不是问题。审计不该把所有引用都染红，
+    """报告干净、也被引用 → 不是问题。审计不该把所有引用都染红，
     否则红名单三天后就没人看了——**静音的守卫等于没有守卫**。"""
     d = tmp_path / "reports"
     d.mkdir()
     (d / "fresh_race.json").write_text(
         json.dumps({"up_excess_vs_market": 0.01}), encoding="utf-8")
+    # **三档判定下，「干净」是有条件的**：光有 mtime 不算干净，
+    # 必须在溯源章里自报面板指纹。所以这里连 sidecar 一起写。
+    (d / "fresh_race.json.provenance.json").write_text(
+        json.dumps({"generator": "aplus/backtest.py",
+                    "panel_market_mean": 0.00066}), encoding="utf-8")
     (d / "forward_registry.json").write_text(
         json.dumps([{"registered_on": "2026-10-12", "evidence": "fresh_race.json"}]),
         encoding="utf-8")
@@ -131,7 +191,37 @@ def test_a_cited_but_clean_report_is_not_flagged(tmp_path):
     future = time.time() + 10_000
     os.utime(d / "fresh_race.json", (future, future))
     rep = A.audit(d, root=Path("."))
+    assert rep["n_clean"] == 1
     assert rep["contaminated_and_cited"] == []
+
+
+def test_a_post_fix_report_without_a_fingerprint_is_unverified_not_clean(tmp_path):
+    """**这是假重跑留下的坑，也是三档判定的全部理由。**
+
+    mtime 晚于修复、报告里也确实有市场指标——看起来完全干净。
+    但它没有溯源章，章里没有面板指纹，所以我**判不了它是干净还是脏**。
+
+    如果只有「干净/作废」两档，它会被归到干净那一侧，然后被注册表引用，
+    然后所有引用它的结论都继承一个我根本没验证过的前提。
+    第三档 `unverified` 就是把它显式拎出来：**不知道 ≠ 没事**。
+    """
+    d = tmp_path / "reports"
+    d.mkdir()
+    (d / "fresh_but_unproven.json").write_text(
+        json.dumps({"up_excess_vs_market": 0.01}), encoding="utf-8")
+    (d / "forward_registry.json").write_text(
+        json.dumps([{"registered_on": "2026-10-12",
+                     "evidence": "fresh_but_unproven.json"}]),
+        encoding="utf-8")
+    import os, time
+    future = time.time() + 10_000
+    os.utime(d / "fresh_but_unproven.json", (future, future))
+
+    rep = A.audit(d, root=Path("."))
+    assert rep["n_clean"] == 0, "没有指纹就不许自称干净"
+    assert rep["n_unverified"] == 1
+    assert rep["unverified"][0]["report"] == "fresh_but_unproven.json"
+    assert rep["contaminated_and_cited"][0]["report"] == "fresh_but_unproven.json"
 
 
 def test_sidecars_are_not_counted_as_reports(tmp_path):
