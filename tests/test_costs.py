@@ -262,3 +262,66 @@ def test_the_docstring_numbers_match_what_the_code_produces():
     assert by_label["日频"]["annual_cost_on_equity"] == pytest.approx(1.38, abs=0.005)
     assert by_label["日频"]["gross_needed"] == pytest.approx(1.58, abs=0.005)
     assert by_label["每月"]["annual_cost_on_capital"] == pytest.approx(0.0331, abs=0.0005)
+
+
+# ── 结构性约束：本金量决定了费率区 ───────────────────────────────────
+
+def test_at_50k_no_position_split_ever_escapes_the_minimum_commission():
+    """**本金 ¥50,000 永远在最低佣金区——这是量的问题，不是调参的问题。**
+
+    走出费率区要单笔 ≥ ¥16,667。仓位越多、单笔越小、越陷得深；
+    仓位越少、单笔越大——但 5 个仓位满仓也只有 ¥10,000/笔。
+    要 ¥16,667/笔需要 ¥83,333 敞口，**比本金还多**。
+
+    所以「本金太小不适合做量化」这句话在这套费率下是**量化成立**的，
+    不是免责声明。它同时说明：**降成本只能靠降调仓频率，不能靠调仓位。**
+    """
+    cap = 50_000.0
+    best = min(cap / n for n in range(1, 21))     # 最好的情况是单仓位满仓
+    assert best < C.COMMISSION_MIN_BINDS_BELOW, (
+        f"单仓位满仓也只有 ¥{best:,.0f}，低于 ¥{C.COMMISSION_MIN_BINDS_BELOW:,.0f} "
+        "的费率门槛——任何仓位切分都在最低佣金区内")
+
+
+def test_deploying_less_capital_does_not_make_the_deployed_part_cheaper():
+    """**「少投点省手续费」是错的——这是本文件最反直觉的一条。**
+
+    月度调仓下：
+        半仓（¥5,000/笔）→ 已投部分的年摩擦 6.62%
+        满仓（¥10,000/笔）→ 已投部分的年摩擦 5.42%
+
+    满仓反而**更便宜**。原因：最低佣金是每笔固定 ¥5，
+    单笔金额越小，这 ¥5 占的比例越高。闲置一半资本
+    没有让已投那半边变便宜，只是让另外一半**完全不产生收益**。
+
+    ## 为什么这条要写测试
+
+    「少投点省手续费」是个非常自然、且**看起来正确**的直觉。
+    不钉住它，下次做仓位配置时一定会有人（包括我）再犯一次。
+    """
+    fee = C.FeeSchedule()
+    cap = 50_000.0
+    drag_on_deployed = lambda w: (                       # noqa: E731
+        fee.rebalance(cap * w, 5) * 12 / cap) / w
+    assert drag_on_deployed(0.5) > drag_on_deployed(1.0), (
+        "半仓的已投部分摩擦率应当更高——若这条红了，说明费率结构变了")
+    assert drag_on_deployed(1.0) == pytest.approx(0.0542, abs=0.0005)
+    assert drag_on_deployed(0.5) == pytest.approx(0.0662, abs=0.0005)
+
+
+def test_fewer_positions_is_the_only_lever_left_for_cost():
+    """既然调仓频率和仓位数都能动，**哪个才是有效的杠杆**？
+
+    两者都降摩擦，但降的量级差一个数量级：
+    5 仓位→2 仓位省 22%（138→108）；
+    月度→季度省 67%（138×12→138×4）。
+
+    **结论：降调仓频率是主杠杆，降仓位数是次要的。**
+    而降频率会牺牲信号时效性——**这是真实的权衡，不能两头都要**。
+    """
+    fee = C.FeeSchedule()
+    monthly_5 = fee.rebalance(25_000.0, 5) * 12
+    quarterly_5 = fee.rebalance(25_000.0, 5) * 4
+    monthly_2 = fee.rebalance(25_000.0, 2) * 12
+    # 降频率省的绝对额远大于降仓位数
+    assert (monthly_5 - quarterly_5) > (monthly_5 - monthly_2)
