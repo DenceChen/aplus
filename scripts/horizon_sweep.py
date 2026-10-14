@@ -80,7 +80,13 @@ N_COMPARISONS = len(HORIZONS)   # 4 次，不是 4×榜宽数
 
 # 随机对照的**稳健性种子组**。见 `seed_panel` 的说明——这不是"多试几次直到
 # 过闸"，那会增加比较次数；这是给**参照本身**降噪，且全部报出。
-SEED_PANEL = [42, 43, 44, 45, 46]
+# **必须包含 RANDOM_SEED 本身，且排在第一位。**
+# 主表那一行用的就是它，而首轮 K=20 的 t=-2.70 也来自它——
+# 若面板漏掉它，得到的「多种子都不显著」与那条结论之间毫无关系：
+# 那等于在没测过那颗种子的前提下宣布它不成立。
+# 这个错误很容易犯，因为直觉上 42 是「默认种子」，而实际上
+# RANDOM_SEED = 20261014（当日日期），没人会想到去面板里找它。
+SEED_PANEL = [RANDOM_SEED, 42, 43, 44, 45, 46]
 
 
 def per_year(daily_mean: float, k: int) -> float:
@@ -323,9 +329,22 @@ def main() -> int:
         print(f"\n  ⚠️ K={','.join(str(p['k']) for p in fragile)} 的结论**依赖随机种子**，"
               f"作废——单种子跑出的过闸结果不得引用")
 
+    # 种子脆弱的 K **不得计入过闸**。否则同一屏会先打「结论依赖种子，作废」
+    # 再打「K=20 过闸」——两句话互相否定，而读的人只会记住后一句。
+    fragile_set = {p["k"] for p in panels if p.get("robust") is False}
     hits = [r for r in rows if r.get("paired_t") is not None
-            and abs(r["paired_t"]) >= r.get("t_crit", 99)]
-    print(f"\n  → {'K=' + ','.join(str(r['k']) for r in hits) + ' 过闸' if hits else '**所有持仓周期都与随机不可区分**'}")
+            and abs(r["paired_t"]) >= r.get("t_crit", 99)
+            and r["k"] not in fragile_set]
+    solo = [r for r in rows if r.get("paired_t") is not None
+            and abs(r["paired_t"]) >= r.get("t_crit", 99)
+            and r["k"] in fragile_set]
+    if hits:
+        print(f"\n  → 种子稳健且过闸：K={','.join(str(r['k']) for r in hits)}")
+    else:
+        print("\n  → **没有任何持仓周期在多种子上稳健过闸**")
+    if solo:
+        print(f"  ⚠️ K={','.join(str(r['k']) for r in solo)} 单种子压线，"
+              f"但换个种子就消失 → **作废**。单种子过闸不是发现，是运气。")
     print(f"  ⚠️ 功效警告：K=20 时有效日约 {len(days)//20} 个，"
           f"「没检出」远弱于「检出」——**不出结果不等于没效果**")
 

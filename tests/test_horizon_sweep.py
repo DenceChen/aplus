@@ -427,3 +427,29 @@ def test_seed_panel_refuses_to_judge_with_too_few_usable_seeds():
     sp = hs.seed_panel(xs, xs["_dates"], 20, seeds=hs.SEED_PANEL)
     if sp["robust"] is None:
         assert "不足" in sp["verdict"]
+
+
+def test_seed_panel_must_contain_the_seed_the_main_table_uses():
+    """**面板必须包含主表用的那颗种子，且排在第一位。**
+
+    这个坑是实打实踩过的：`RANDOM_SEED` 实际是 **20261014**（当日日期），
+    不是 42。首版面板写成 `[42,43,44,45,46]`——看着齐全，
+    实际上首轮那条 t=-2.70 的「发现」用的是 20261014，**压根没进面板**。
+    于是一句「多种子全部不显著」会建立在从未检验过那颗种子的基础上，
+    而读起来却像是把它也否掉了。
+
+    面板漏掉关键种子这种错，**测不出来**——因为它让结论显得更保守，
+    不显得更激进。这类错只能靠一条「面板必须包含主表种子」的测试钉住。
+    """
+    from scripts.horizon_sweep import RANDOM_SEED, SEED_PANEL
+    assert SEED_PANEL[0] == RANDOM_SEED, (
+        f"面板首位是 {SEED_PANEL[0]}，主表用的是 {RANDOM_SEED}——"
+        f"面板在检验另一批种子，却会被读成检验了主表那一行")
+    assert RANDOM_SEED in SEED_PANEL, (
+        f"面板 {SEED_PANEL} 里没有主表种子 {RANDOM_SEED}")
+
+
+def test_seed_panel_is_strictly_wider_than_one_seed():
+    """面板必须多于一颗，否则它证明不了任何稳健性。"""
+    from scripts.horizon_sweep import SEED_PANEL
+    assert len(set(SEED_PANEL)) >= 4, f"只有 {len(set(SEED_PANEL))} 颗种子"
