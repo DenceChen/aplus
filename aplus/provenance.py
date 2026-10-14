@@ -88,6 +88,9 @@ DEFAULT_GENERATORS: dict[str, str] = {
         "aplus/backtest.py",
     "regime_control_sweep.json": "aplus/backtest.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
+    # σ_r 的**读面板口径**在脚本，纯函数在 aplus/xsec_sigma.py——
+    # 公式不该跟着口径变（换池子/缩尾比例时只改脚本）。
+    "xsec_sigma_r.json": "scripts/measure_xsec_sigma.py",
     "fundamental_ic.json": "aplus/factor_ic.py",
     "forward_registry.json": "aplus/forward.py",
     "financial_annual_cache.parquet": "aplus/financial.py",
