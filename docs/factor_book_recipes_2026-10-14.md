@@ -392,7 +392,7 @@ aplus 现在用 `t_block`（K 日块均值）口径（`data/reports/frequency_bl
 
 // C4 —— 反转 + 低换手 + 低特质波动【书 p.217 的 IVOL 异象，p.217 等权月均 1.27%、t=8.64】
 //   ⚠ 键名是 `ivol` 不是 `vsur`。ivol 全截面 IC = -0.0590 / t = -16.7，是全平台最强因子。
-//   ⚠⚠ 方向污染闸：`low_ivol` 仍在 `UNVERIFIED_DIRECTIONS`（evolve_race.py:623），
+//   ⚠⚠ 方向污染闸：`low_ivol` 仍在 `UNVERIFIED_DIRECTIONS`（scripts/evolve_weekly.py:70），
 //      历史成绩来自前视泄露期，**故意未解除**。跑这个候选会撞闸，属预期。
 {"weights": {"mom20": -0.5, "turnratio": -0.5, "ivol": -0.5}, "rebalance_every": 21}
 
@@ -473,7 +473,7 @@ aplus 现在用 `t_block`（K 日块均值）口径（`data/reports/frequency_bl
    `excess_days=11`（远低于 `MIN_TEST_PERIODS=189`）——**降本的那一档正好没有统计功效**。
    这个矛盾只能靠拉长回测窗口解决，不是书能解决的。
 
-2. **`low_ivol` 方向闸未解除**（`evolve_race.py:623-624`）
+2. **`low_ivol` 方向闸未解除**（`scripts/evolve_weekly.py:70`，闸在 `aplus/evolve_race.py` 的 `direction_blocked`）
    代码注释：「`low_ivol` **故意不在表里**：它的历史成绩来自前视泄露期，
    从未在干净数据上重验过。顺手把它一起解除是很自然、也完全错误的动作。」
    → **C4/C5/C6 都会撞这道闸。这是闸在正常工作，不是候选有问题。**

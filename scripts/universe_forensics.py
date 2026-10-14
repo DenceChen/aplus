@@ -58,6 +58,9 @@ WIDE = {"mom20": -1.0}
 NARROW = {"mom20": -0.5, "turnratio": -0.5}
 FREQS = (63, 21)
 
+# Bonferroni 的校正次数 = 与 ic_guided_race_7y 同口径的候选总数。
+N_COMPARISONS = 97
+
 # 252 个交易日 ≈ 1 年。书的次新阈值也是 1 年。
 MIN_LISTED_DAYS = 252
 
@@ -249,8 +252,18 @@ def main() -> int:
                   f"广度t={num(r['breadth_t'], '+.2f')} 跌腿t={num(r['down_t'], '+.2f')} "
                   f"跌腿={num(None if r['avg_down_return'] is None else r['avg_down_return']*100, '+.4f', '%')}/日 "
                   f"成本={num(None if r['cost_share'] is None else r['cost_share']*100, '.1f', '%')}")
-    print(f"\n  Bonferroni 临界（97 次比较）= "
-          f"{bonferroni_t(97):.2f}；6 组前瞻门槛另有口径")
+    # 门槛必须按**各行自己的块数**给（`bonferroni_t` 的 df 无默认值，
+    # 就是为了不让调用方假装知道样本量）。
+    #
+    # 原来这里印的是 `bonferroni_t(97)`，即 df=∞ 的 3.47——2026-10-14 那次
+    # 假阳性晋级用的就是它：`ic_guided_race_7y.json` 放行了 t=4.14 @ 11 块
+    # 的 K=63 候选，而 11 块的真门槛是 5.03。把渐近值单独立一行、紧挨着
+    # 一列 n_obs 从 11 到 35 的 t 值，读者只会拿它当统一门槛用。
+    for n_obs in sorted({r["n_obs"] for r in rows if r.get("n_obs")}):
+        crit = bonferroni_t(N_COMPARISONS, df=n_obs - 1)
+        print(f"  Bonferroni 临界（97 次比较，{n_obs} 个不重叠块）= {crit:.2f}")
+    print(f"  参考：df=∞ 的渐近极限是 {bonferroni_t(N_COMPARISONS, df=10 ** 9):.2f}——"
+          f"只在上表样本量足够大时才贴近真门槛；6 组前瞻门槛另有口径")
 
 
     out = {"kind": "universe_forensics",
