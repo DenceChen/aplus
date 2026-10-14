@@ -69,6 +69,24 @@ REQUIRED_EXTRA_COLUMNS = ("amount", "tradestatus", "isST", "turn", "pctChg")
 REQUIRED_COLUMNS = BASELINE_COLUMNS + REQUIRED_EXTRA_COLUMNS
 
 # 缺口原因（互斥分组的优先级：一个文件只归到第一个命中的原因）
+#
+# ★ **这个顺序是判据，不是排版**（CLAUDE.md「全仓判决分支审计」通则）。
+#   排的依据是「缺陷的**根本程度**」降序 —— 越靠前，越是可以解释掉后面那些：
+#
+#   1. `empty`            文件连一行都没有 ⇒ 其余诊断全部无从谈起，必须最先命中
+#   2. `missing_columns`  整列不存在（schema 级事故）⇒ 比「某些行某些值缺失」更根本
+#   3. `tail_nan_cols`    降级写入的指纹（主源挂了 → 备源只有 7 列 → 尾根写空）
+#   4. `head_truncated`   多为新股上市，起因天然良性
+#   5. `interior_gap`     中间断档
+#   6. `tail_stale`       退市/停更，末根停笔**常常是正确状态**
+#
+#   ⚠️ **危害范围要说准，别说过头**：`primary_reason` 只喂 `primary_reason_counts`
+#   这个**报告分桶**；`needs_backfill` 用的是**全量 `reasons`**（见 `audit_directory`）。
+#   ⇒ 换序**不会**导致漏补数据，但会把「多少只票是空文件 / 缺列」的诊断结论指错方向。
+#
+# 🚨 这个顺序被**编码了两次**：这里的元组，以及 `classify_frame` 里 if 链的 append 顺序。
+#    两者今天一致，但没有任何东西保证它们一致 —— 见
+#    `tests/test_coverage.py::test_the_reason_order_is_declared_once_and_holds_everywhere`。
 REASON_PRIORITY = ("empty", "missing_columns", "tail_nan_cols", "head_truncated",
                    "interior_gap", "tail_stale")
 HEALTHY_REASON = "healthy"

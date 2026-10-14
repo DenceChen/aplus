@@ -284,3 +284,128 @@ def test_excess_total_minus_one_is_not_defined():
     x = excess_of(s, b)
     assert x["excess_total"] is None
     assert x["excess_ann"] is None
+
+# ══════════════════════════════════════════════════════════════════
+# verdict 的分支顺序（2026-10-15，全仓判决分支审计）
+# ══════════════════════════════════════════════════════════════════
+
+def _br():
+    """取被测模块本体。**不复制 verdict 的实现** —— 变异探针必须打在真对象上。"""
+    import importlib
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _root = str(_Path(__file__).resolve().parents[1])
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    return importlib.import_module("scripts.bond_race")
+
+
+def test_verdict_tiers_are_declared_in_descending_severity():
+    """★ **判决分支的书写顺序是隐式判据** —— 而这里此前一条测试都没有。
+
+    `verdict(excess)` 是嵌套阈值三档：`> +0.1%/天` 强 / `> 0` 观察 / 否则淘汰。
+    三档**嵌套**（`> 0.001` ⊃ `> 0`），首命中语义 = 「先判最严」。
+    看起来显然 —— ★ 但「显然」不是守卫。实测交换前后两档会改 **10.60%** 的判决。
+
+    所以顺序必须**从书写位置里提出来**成为数据（`VERDICT_TIERS`），
+    再由本守卫钉死它确实按严厉程度降序。
+    """
+    br = _br()
+
+    tiers = br.VERDICT_TIERS
+    # 先证它**非平凡**：两档以上、且阈值确实递减（否则本守卫是恒真的）
+    assert len(tiers) >= 2, f"VERDICT_TIERS 只有 {len(tiers)} 档，钉不住顺序"
+    thresholds = [t for _, t in tiers]
+    assert thresholds == sorted(thresholds, reverse=True), (
+        f"档位阈值必须按降序（严厉→宽松）排列，实测 {thresholds}。"
+        "顺序被换过：强信号会被降级成「观察」。"
+    )
+    assert br.VERDICT_STRONG > br.VERDICT_WATCH, (
+        f"strong={br.VERDICT_STRONG} 应当严于 watch={br.VERDICT_WATCH}"
+    )
+
+
+def test_verdict_boundaries_fall_into_the_lower_tier():
+    """严格 `>` ⇒ **恰好等于阈值归低档**。`>` 被写成 `>=` 时这条当场红。"""
+    br = _br()
+    strong_t, watch_t = br.VERDICT_STRONG, br.VERDICT_WATCH
+    (strong_label, _), (watch_label, _) = br.VERDICT_TIERS[:2]
+
+    assert br.verdict(strong_t) == watch_label, (
+        f"恰好等于 strong 阈值 {strong_t} 却没归低档（拿到了 {br.verdict(strong_t)!r}）"
+    )
+    assert br.verdict(watch_t) == br.VERDICT_OUT, (
+        f"恰好等于 watch 阈值 {watch_t} 却没归低档（拿到了 {br.verdict(watch_t)!r}）"
+    )
+    # 三档各自必须有实例，否则上面两条是空转
+    assert br.verdict(strong_t * 2) == strong_label
+    assert br.verdict(watch_t + strong_t / 2) == watch_label
+    assert br.verdict(watch_t - strong_t / 2) == br.VERDICT_OUT
+
+
+def test_swapping_the_tier_order_changes_verdicts_so_the_guard_is_load_bearing():
+    """★ **守卫只有变异后算数**（本仓铁律）。
+
+    变异：把 `VERDICT_TIERS` 前后两档对调（= 那个 10.60% 的缺陷本身），
+    要求「降序」守卫必须红，且边界守卫也必须红。
+
+    🚨 变异直接改**被测模块的常量**并恢复 —— 不持有自己的副本
+      （今天第 14 次同族错误：探针打在自己复制的那份代码上）。
+    """
+    import copy  # noqa: PLC0415
+
+    import scripts.bond_race as br
+
+    saved = br.VERDICT_TIERS
+    try:
+        # ★ 先自证变异体确实与原件不同（否则下面的「必须红」是自欺）
+        swapped = tuple(reversed(saved))
+        assert swapped != saved and len(set(map(tuple, swapped))) == len(saved), (
+            "变异无的放矢：档位不足两档或本就对称"
+        )
+
+        br.VERDICT_TIERS = swapped
+        # 变异生效的证据：阈值此刻**非降序**
+        mutated_t = [t for _, t in br.VERDICT_TIERS]
+        assert mutated_t != sorted(mutated_t, reverse=True), (
+            "变异没生效（阈值仍降序）—— 这条变异本身是无效的"
+        )
+
+        with pytest.raises(AssertionError, match="降序"):
+            test_verdict_tiers_are_declared_in_descending_severity()
+
+        # 顺序换掉后，落在两档之间的样本必须改判 —— 这是顺序承重的直接证据
+        n, changed = 5000, 0
+        for _ in range(n):
+            x = _sample_excess()
+            if _verdict_with(br.VERDICT_TIERS, x) != _verdict_with(saved, x):
+                changed += 1
+        assert changed / n > 0.5, (
+            f"换序只改了 {100 * changed / n:.2f}% 的判决 —— "
+            "说明这处顺序其实不承重，那这条守卫只是在钉一个装饰"
+        )
+    finally:
+        br.VERDICT_TIERS = saved   # ★ 必须恢复，否则后面的用例被污染
+
+
+def _verdict_with(tiers, x: float) -> str:
+    """按给定档位复刻判决。**只用于比较换序的影响，不参与主守卫的断言。**"""
+    for label, threshold in tiers:
+        if x > threshold:
+            return label
+    return br_out()
+
+
+def br_out() -> str:
+    import scripts.bond_race as br
+    return br.VERDICT_OUT
+
+
+def _sample_excess() -> float:
+    """在两档阈值之间取样：换序只可能在这里改判。"""
+    import random
+    br = _br()
+    rng = random.Random(20261015)
+    lo, hi = sorted((br.VERDICT_WATCH, br.VERDICT_STRONG))
+    return rng.uniform(lo, hi + (hi - lo))

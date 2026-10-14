@@ -39,6 +39,17 @@ CANDIDATES = {
 
 VERDICT_STRONG, VERDICT_WATCH = 0.001, 0.0  # +0.1%/天以上强；0~0.1% 观察
 
+# ★ 判决档位按「结论的严厉程度」降序排列 —— **这个顺序是判据，不是排版**
+#   （CLAUDE.md「全仓判决分支审计」通则）。
+#   三档是**嵌套阈值**（`> 0.001` ⊃ `> 0`），不是多个独立条件恰好同时为真，
+#   所以 `if/elif` 的首命中语义 = 「先判最严」。交换前后两档，
+#   10.60% 的样本会从「观察」被抬成「强」——⇒ 顺序必须显式钉住。
+VERDICT_TIERS: tuple[tuple[str, float], ...] = (
+    ("强（> +0.1%/天）", VERDICT_STRONG),
+    ("观察（0 ~ +0.1%/天）", VERDICT_WATCH),
+)
+VERDICT_OUT = "淘汰（< 0）"  # 兜底档：不设阈值，低于最后一档即落这里
+
 
 def window_of(bond_map: dict) -> tuple[str, str]:
     """回测窗口以数据实际覆盖为准。
@@ -75,11 +86,15 @@ def market_results(cross_sections: list) -> pd.DataFrame:
 
 
 def verdict(excess: float) -> str:
-    if excess > VERDICT_STRONG:
-        return "强（> +0.1%/天）"
-    if excess > VERDICT_WATCH:
-        return "观察（0 ~ +0.1%/天）"
-    return "淘汰（< 0）"
+    """**判决分支的顺序已提到 `VERDICT_TIERS`**，不在书写位置里。
+
+    边界语义：严格 `>`，所以**恰好等于阈值归低档**
+    （`excess == 0.001` → 观察，不是强）。这条语义由守卫钉死。
+    """
+    for _label, _threshold in VERDICT_TIERS:
+        if excess > _threshold:
+            return _label
+    return VERDICT_OUT
 
 
 def main():

@@ -128,24 +128,42 @@ def table(target: float = TARGET_NET, freqs=FREQS,
     return rows
 
 
-if __name__ == "__main__":
-    # 标签**必须由 rounds_per_year 推出**，不能按 K 值查表。
-    # 第一版按 `k` 查 {1:日频, 5:周频…}，于是 K=63（季频）那一行
-    # 标签写着「季频」、数据却是日频的——行标签与行数据两套口径，
-    # 比没有这张表更坏。
-    def _label(k: int) -> str:
-        n = DAYS_PER_YEAR / k
-        for name, thr in (("日频", 200), ("周频", 30), ("双周", 15),
-                          ("月频", 6), ("季频", 2.5)):
-            if n >= thr:
-                return name
-        return f"K={k}"
+# 频率档位，**阈值严格递减**。
+# ★ **这个顺序是判据，不是排版**（CLAUDE.md「全仓判决分支审计」通则）：
+#   `n = DAYS_PER_YEAR / k` 是**递减**于 K 的量，而这里的判定是**首命中**，
+#   所以阈值必须按降序排列，「年化次数越多 ⇒ 标签越靠前」才成立。
+#   阈值一旦换序，K=1（n=365）会先命中「季频」——日频被标成季频。
+#   守卫见 `tests/test_hurdle_rate.py::test_the_frequency_tiers_are_in_descending_threshold_order`。
+FREQ_TIERS: tuple[tuple[str, float], ...] = (
+    ("日频", 200.0),
+    ("周频", 30.0),
+    ("双周", 15.0),
+    ("月频", 6.0),
+    ("季频", 2.5),
+)
 
+
+def freq_label(k: int) -> str:
+    """把 K（每年调仓次数）标成中文频率名。
+
+    ★ 标签**必须由 `DAYS_PER_YEAR / k` 推出**，不能按 K 值查表。
+    第一版按 `k` 查 `{1: 日频, 5: 周频…}`，于是 K=63（季频）那一行
+    标签写着「季频」、数据却是日频的 —— **行标签与行数据两套口径，
+    比没有这张表更坏**。
+    """
+    n = DAYS_PER_YEAR / k
+    for name, thr in FREQ_TIERS:
+        if n >= thr:
+            return name
+    return f"K={k}"
+
+
+if __name__ == "__main__":
     print(f"目标 {TARGET_NET:.0%} 净值 · 每轮双边 {COST_REAL_50K:.2%}"
           f"（年成本上限按每期全换仓算）\n")
     print(f"{'K':>4}{'周期':<8}{'年调仓':>8}{'年成本':>10}{'需毛超额':>12}")
     print("─" * 46)
     for r in table():
-        print(f"{r['k']:>4}{_label(r['k']):<8}"
+        print(f"{r['k']:>4}{freq_label(r['k']):<8}"
               f"{r['rounds_per_year']:>8.1f}{r['annual_cost']:>10.1%}"
               f"{r['gross_excess_needed']:>12.1%}")

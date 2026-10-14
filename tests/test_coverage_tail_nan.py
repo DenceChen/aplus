@@ -9,7 +9,7 @@
 ## 关键约束：不能把停牌误报成缺口
 
 停牌日 `volume=0`，`turn`/`amount`/`pctChg` 为空是**正常的**（当天根本没成交，
-没有换手率可言）。若不排除停牌，这��判据会对长期停牌股全线误报，比原来的
+没有换手率可言）。若不排除停牌，这条判据会对长期停牌股全线误报，比原来的
 盲区更吵。所以「有成交」是前置条件，不是加分项。
 
 复刻的真实样本：`601607.SH` 末根 `turn=NaN` 而前一根有值 0.6231，
@@ -187,3 +187,164 @@ def test_absent_column_is_not_double_reported():
     """列根本不存在时归 missing_columns，不该又被算成尾部空值。"""
     df = make_frame(turn_tail=1).drop(columns=["turn"])
     assert "turn" not in tail_nan_columns(df)
+
+
+# ══════════════════════════════════════════════════════════════════
+# REASON_PRIORITY 的顺序（2026-10-15，全仓判决分支审计）
+# ══════════════════════════════════════════════════════════════════
+
+def _reasons_of(frame, s, e):
+    """**直接调 `classify_frame`**，不在测试里重抄它那串 if。
+
+    🚨 第一版我把 `classify_frame` 的 if 链又抄了一遍进测试
+    （`if rows==0: append("empty")` …）。
+    那是今天第 102 层的同一个错误：**探针打在自己的副本上**。
+    `classify_frame` 明天加一个原因，这条守卫就会静默漂移，
+    而排列实验量的仍是**旧的那组条件** —— 结果照样「绿」，且绿得毫无意义。
+    """
+    from aplus import coverage as cv
+
+    return cv.classify_frame("X", frame, s, e)["reasons"]
+
+
+def _primary_with(frame, s, e, priority):
+    return _primary_from(_reasons_of(frame, s, e), priority)
+
+
+def _primary_from(reasons, priority):
+    """**顺序实验要用的纯函数**：只吃已算好的原因集合。
+
+    ⚠️ 昂贵的那半（`coverage_gaps` 读 DataFrame）必须与被测的那半
+    （纯顺序比较）彻底分开 —— 否则 720 种排列会重算 23040 次，
+    守卫本身就要跑近一分钟，门禁会被它拖垮。
+    """
+    from aplus import coverage as cv
+    for r in priority:
+        if r in reasons:
+            return r
+    return cv.HEALTHY_REASON
+
+
+def _multi_hit_frames():
+    """造出**同时命中多个原因**的样本 —— 单命中样本对顺序完全无感，
+    用它们测顺序等于没测。"""
+    import numpy as np
+    import pandas as pd
+
+    s = pd.Timestamp("2024-01-01").date()
+    e = pd.Timestamp("2025-06-01").date()
+
+    def base():
+        return pd.DataFrame({
+            "date": pd.bdate_range("2023-01-02", periods=120), "code": "X",
+            "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0,
+            "amount": 1.0, "tradestatus": 1, "isST": 0, "turn": 1.0, "pctChg": 0.0,
+        })
+
+    frames = []
+    for mask in range(32):
+        df = base()
+        if mask & 1:  frames.append(df.iloc[0:0]); continue          # empty
+        if mask & 2:  df = df.drop(columns=["amount"])
+        if mask & 4:  df = df.copy(); df.loc[df.index[-1], "turn"] = np.nan
+        if mask & 8:  df = df.iloc[20:]
+        if mask & 16: df = pd.concat([df.iloc[:40], df.iloc[90:]])
+        frames.append(df)
+    multi = [(f, s, e) for f in frames if len(_reasons_of(f, s, e)) >= 2]
+    assert len(multi) >= 8, f"只造出 {len(multi)} 个多命中样本，样本不够，守卫会失真"
+    return multi
+
+
+def test_the_reason_order_is_declared_once_and_holds_everywhere():
+    """★ **同一个顺序被编码了两次，且两者一致却无守卫。**
+
+    `REASON_PRIORITY` 元组，与 `classify_frame` 里 if 链的 append 顺序，
+    是**同一个东西的两份拷贝**。今天它们一致 —— 但没有任何东西保证它们一致。
+    哪天有人给 if 链重排（以为「只是整理」），`REASON_PRIORITY` 就成了过时的文档，
+    而分桶逻辑默默改了；反过来改元组，if 链不动，两者当场分裂。
+
+    ⇒ 本守卫要求：**if 链能产出的原因集合 == REASON_PRIORITY，且顺序逐位相同。**
+    """
+    import inspect
+    import re
+
+    from aplus import coverage as cv
+
+    declared = list(cv.REASON_PRIORITY)
+
+    # 1) 从源码里把 if 链实际 append 的顺序抠出来（AST 太重，正则足够且可读）
+    src = inspect.getsource(cv.classify_frame)
+    appended = re.findall(r'reasons\.append\(\s*"([a-z_]+)"\s*\)', src)
+    assert appended, "没抓到 if 链的 append —— classify_frame 结构变了，先更新本守卫"
+
+    # 2) 集合必须完全相等：既不许漏，也不许多出（`unreadable` 由异常分支直写，
+    #    不经 classify_frame，所以不该出现在这里 —— 若哪天它进来了，这条会提醒你）
+    assert set(appended) == set(declared), (
+        f"if 链能产出 {sorted(set(appended))}，"
+        f"而 REASON_PRIORITY 声明 {sorted(set(declared))} —— 两者必须完全一致"
+    )
+    assert len(appended) == len(set(appended)) == len(declared), (
+        f"原因里有重复：if链={appended} 声明={declared}"
+    )
+
+    # 3) ★ 顺序逐位相同 —— 这是双编码漂移的直接探针
+    assert appended == declared, (
+        f"if 链 append 顺序 {appended} 与 REASON_PRIORITY {declared} 已漂移。"
+        "分桶由元组决定，if 链顺序只是巧合 —— 别让它继续骗人。"
+    )
+
+
+def test_the_reason_order_puts_the_fundamental_defect_first():
+    """★ 顺序按「缺陷的根本程度」降序；空文件必须最先命中。
+
+    理由：`empty` 时其余诊断全部无从谈起（没有行就没有尾根、没有断档）。
+    这不是排版偏好 —— 换序会让「空文件」被归到 `tail_stale` 这类
+    **常常是正确状态**的原因下面去（退市票末根停笔本属正常）。
+    """
+    import itertools
+
+    from aplus import coverage as cv
+
+    declared = list(cv.REASON_PRIORITY)
+    assert declared[0] == "empty", f"最根本的 `empty` 不在首位：{declared}"
+
+    multi = _multi_hit_frames()
+    # ★ 只算一次：把 DataFrame 换成它的原因集合，排列阶段全是纯字符串运算
+    reason_sets = [_reasons_of(f, s, e) for f, s, e in multi]
+    base = [_primary_from(rs, declared) for rs in reason_sets]
+
+    perms = list(itertools.permutations(declared))
+    changed = total = 0
+    for perm in perms:
+        for rs, b in zip(reason_sets, base):
+            total += 1
+            changed += _primary_from(rs, perm) != b
+
+    # 先证明这条守卫**承重**：换序确实会改分桶（否则下面都是装饰）
+    assert changed / total > 0.10, (
+        f"穷举 {len(perms)} 种排列只改了 {100 * changed / total:.2f}% 的分桶 —— "
+        "若真这么低，说明这处顺序根本不承重，本守卫是在钉一个装饰"
+    )
+
+
+def test_needing_backfill_does_not_depend_on_the_primary_bucket():
+    """★ **危害范围要说准。** 顺序错了**不会**漏补数据。
+
+    `audit_directory` 判 `needs_backfill` 用的是 `is_healthy = not reasons`
+    （**全量** reasons），不是 `primary_reason`。
+    ⇒ 换序只改**报告分桶**（`primary_reason_counts`），补数清单不变。
+
+    这条守卫存在的意义是**钉住这个区别**：哪天有人图省事把 `needs_backfill`
+    改成按 `primary_reason` 过滤，这条当场红 —— 那才会真的漏补。
+    """
+    import inspect
+
+    from aplus import coverage as cv
+
+    src = inspect.getsource(cv.audit_directory)
+    assert "info[\"is_healthy\"]" in src, "audit_directory 不再按 is_healthy 分流了，先读代码"
+    body = src.split("needs_backfill.append")[0].rsplit("if", 1)[-1]
+    assert "primary_reason" not in body, (
+        "needs_backfill 改成了按 primary_reason 过滤 —— "
+        "primary 是**互斥分桶**，用它会把「一个文件命中多个原因」的情况整个丢掉"
+    )

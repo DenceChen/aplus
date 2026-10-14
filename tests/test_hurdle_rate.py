@@ -125,3 +125,96 @@ def test_negative_cost_is_an_error_not_a_free_lunch():
 def test_negative_rounds_is_an_error():
     with pytest.raises(ValueError):
         hurdle_rate(0.20, 0.003, -1)
+
+
+# ══════════════════════════════════════════════════════════════════
+# FREQ_TIERS 的档位顺序（2026-10-15，全仓判决分支审计）
+# ══════════════════════════════════════════════════════════════════
+
+def test_the_frequency_tiers_are_in_descending_threshold_order():
+    """★ **档位阈值必须严格递减** —— 这条顺序承载标签正确性。
+
+    `n = DAYS_PER_YEAR / k` 随 K **递减**，而 `freq_label` 是**首命中**判定。
+    两件事合起来要求阈值降序：否则 K=1（n=365）会先命中末尾那条「季频」，
+    **日频被标成季频** —— 正是 docstring 里记的那个原始 bug 的另一面。
+
+    这段代码此前长在 `if __name__ == "__main__":` 里，**结构上无法测试**，
+    所以顺序既没写下来也没被钉住；现已提到模块级 `FREQ_TIERS`。
+    """
+    from aplus.hurdle import FREQ_TIERS
+
+    thresholds = [t for _, t in FREQ_TIERS]
+    assert len(thresholds) >= 2, f"档位只有 {len(thresholds)} 个，钉不住顺序"
+    assert all(b < a for a, b in zip(thresholds, thresholds[1:])), (
+        f"档位阈值必须**严格递减**（年化次数多 → 频率高 → 排前面），实测 {thresholds}。"
+        "顺序被换过会让高频率的票被标成低频率。"
+    )
+    # 阈值本身也应当是从宽到紧收拢的正数（200 → 2.5）
+    assert all(t > 0 for t in thresholds), f"阈值必须为正，实测 {thresholds}"
+
+
+def test_freq_label_agrees_with_the_actual_frequency():
+    """★ 标签必须与**这一行的数据口径**一致。
+
+    `table()` 真实使用的四个 K 各有归属；`双周` 在默认表里**没有实例**
+    （需要 K≈16），所以这里显式构造，否则它是死代码而没人发现。
+    """
+    from aplus.hurdle import DAYS_PER_YEAR, freq_label, table
+
+    # 覆盖 table() 里的每一个 K —— 标签错一个，下面那条「行标签 vs 行数据」就红
+    for row in table():
+        k = row["k"]
+        n = DAYS_PER_YEAR / k
+        label = freq_label(k)
+        assert label != f"K={k}", f"K={k}（n={n:.1f}）没落到任何档上"
+        # 行数据的年调仓次数必须真的配得上这个标签
+        assert abs(row["rounds_per_year"] - n) < 0.1, (
+            f"K={k}: 表里 rounds_per_year={row['rounds_per_year']} 与 DAYS/K={n:.1f} 不符"
+        )
+
+    # 具体档位：K=1 必须是日频（第一版的 bug 就是把它标成了别的）
+    assert freq_label(1) == "日频"
+    assert freq_label(5) == "周频"
+    assert freq_label(21) == "月频"
+    assert freq_label(63) == "季频"
+    # 双周：n=244/15=16.3 落在 (15, 30)
+    assert freq_label(15) == "双周", f"双周档没被命中，实测 {freq_label(15)}"
+
+    # 低于最后一档的兜底
+    assert freq_label(244 * 2) == f"K={244 * 2}"
+
+
+def test_reversing_the_tier_order_breaks_the_label_and_is_caught():
+    """★ **守卫只有变异后算数**（本仓铁律）。
+
+    变异：把 `FREQ_TIERS` 倒序 —— 正是「阈值换序」这个缺陷本身。
+    要求降序守卫必须红，且日频标签当场变味。
+
+    🚨 直接改**被测模块的常量**再恢复，不持有自己的副本
+      （今天第 14 次同族错误：探针打在自己复制的那份代码上）。
+    """
+    import aplus.hurdle as H
+
+    saved = H.FREQ_TIERS
+    try:
+        swapped = tuple(reversed(saved))
+        assert swapped != saved and len(set(map(tuple, swapped))) == len(saved), (
+            "变异无的放矢：档位不足或本就对称"
+        )
+        H.FREQ_TIERS = swapped
+
+        # 自证变异生效：阈值此刻非递减
+        mutated = [t for _, t in H.FREQ_TIERS]
+        assert not all(b < a for a, b in zip(mutated, mutated[1:])), (
+            "变异没生效（阈值仍严格递减）—— 这条变异本身是无效的"
+        )
+
+        with pytest.raises(AssertionError, match="递减"):
+            test_the_frequency_tiers_are_in_descending_threshold_order()
+
+        # 顺序换掉后日频标签必须变味 —— 顺序承重的直接证据
+        assert H.freq_label(1) != "日频", (
+            f"倒序后 K=1 仍标成 {H.freq_label(1)!r}，说明这处顺序并不决定标签"
+        )
+    finally:
+        H.FREQ_TIERS = saved
