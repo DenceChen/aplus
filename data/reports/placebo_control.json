@@ -1,0 +1,621 @@
+{
+  "generated": "2026-10-15",
+  "prereg": "docs/TODO_placebo_control_2026-10-15.md",
+  "window": [
+    "2021-01-01",
+    "2026-10-14"
+  ],
+  "k_rebalance_every": 21,
+  "t_crit": 1.9599639845400532,
+  "caliber": {
+    "prereg": "docs/TODO_placebo_control_2026-10-15.md",
+    "primary_basket_n": 200,
+    "k_rebalance_every": 21,
+    "window": [
+      "2021-01-01",
+      "2026-10-14"
+    ],
+    "window_start_is_the_judgement_window": true,
+    "min_basket": 50,
+    "min_basket_rule": "N≥50 → max(10, N//4)（**从 factor_width_mde import**，不重新推导）",
+    "placebo_seed": 20261015,
+    "n_reps_requested": 20,
+    "n_reps_preregistered": 20,
+    "rep_seed_rule": "第 rep 个种子 = PLACEBO_SEED + rep（预注册 §2）；再由 (rep 种子, 信号日, 用途盐) 派生当日随机流 ⇒ 逐日期独立",
+    "t_crit": 1.9599639845400532,
+    "t_crit_source": "scripts/factor_attribution.T_CRIT_5PCT（math.erf 二分反解）",
+    "median_rule": "numpy.median（偶数个取中间两个的均值）",
+    "code_path": {
+      "shared": "三个臂调用**同一个** backtest_walk_forward_weights.run_year → aplus.backtest.evaluate_weights → aplus.predict.build_predictions；同一条成本链（_daily / at_cost / cost_drag）、同一个 MIN_BASKET、同一个分块 t（evolve_race._tstat, block=K）、同一个 `series_from_chunks` 聚合",
+      "only_difference": "score_transform 钩子：P0=None，P1=横截面内置换，P2=随机名次覆盖全池",
+      "forbidden": "禁止为安慰剂另写更快的路径 —— 那测的是另一个东西",
+      "composite_score_untouched": "钩子只改 score 列；`aplus.factor.composite_score` 的实现一个字没动（预注册 §4）"
+    },
+    "arm_pools": {
+      "P0_observed": "当日可交易池中**因子完整**的那些（即 `build_predictions` 的 notna 过滤后）",
+      "P1_shuffle_score": "**与 P0 完全同一个池**（NaN 原地不动，只换顺序）",
+      "P2_shuffle_list": "当日**可交易池**（含因子不完整者，预注册原文「随机抽 200 只」）"
+    },
+    "p0_t_source": "本脚本 P0 臂实测的分块 t。**不硬编码 2.44**：预注册正文里的 2.44 是榜宽实验产物上的数，硬编码它就等于免掉「P0 必须真的重跑一遍」。"
+  },
+  "arms": {
+    "P0_observed": {
+      "runs": [
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.06887105190511594,
+          "annual_sd_pct": 0.08852115874246506,
+          "MDE_annual_pct": 0.10368194401415749,
+          "t_naive": 1.8609616438800303,
+          "t_blocked": 1.7272132346592737,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 546482
+        }
+      ],
+      "summary": {
+        "n_reps": 1,
+        "n_reported": 1,
+        "t_list": [
+          1.7272132346592737
+        ],
+        "min": 1.7272132346592737,
+        "median": 1.7272132346592737,
+        "max": 1.7272132346592737,
+        "median_rule": "numpy.median（偶数个取中间两个的均值）",
+        "n_ge_p0": 1,
+        "n_ge_p0_rule": "逐个 rep 的分块 t ≥ P0 的分块 t（按符号比，不取绝对值，与预注册写法一致）",
+        "missing_reps": 0
+      }
+    },
+    "P1_shuffle_score": {
+      "runs": [
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.012401498073757173,
+          "annual_sd_pct": 0.04756566934422252,
+          "MDE_annual_pct": 0.05571211601840215,
+          "t_naive": 0.623631916519171,
+          "t_blocked": 0.6377648233075813,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551351
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.017301567093755816,
+          "annual_sd_pct": 0.048217584409518156,
+          "MDE_annual_pct": 0.0564756828566833,
+          "t_naive": 0.8582776191137264,
+          "t_blocked": 0.8759367093917202,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550849
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.0060620580367987,
+          "annual_sd_pct": 0.04915525965385989,
+          "MDE_annual_pct": 0.05757395126582312,
+          "t_naive": -0.29498361348910535,
+          "t_blocked": -0.25661569325755257,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551092
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.001621821003712959,
+          "annual_sd_pct": 0.050650527357339215,
+          "MDE_annual_pct": 0.05932530952322412,
+          "t_naive": 0.07658906100858436,
+          "t_blocked": 0.06808368617358043,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551025
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.011718332411560136,
+          "annual_sd_pct": 0.05008320556093607,
+          "MDE_annual_pct": 0.05866082401977731,
+          "t_naive": -0.5596564217047558,
+          "t_blocked": -0.5199690458908036,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551163
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.020802300357394672,
+          "annual_sd_pct": 0.04953538613937116,
+          "MDE_annual_pct": 0.058019181011445195,
+          "t_naive": 1.0044853472255406,
+          "t_blocked": 1.0785967524997793,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550759
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.004560504371561734,
+          "annual_sd_pct": 0.04906570155847307,
+          "MDE_annual_pct": 0.05746905479176176,
+          "t_naive": 0.22232211197492094,
+          "t_blocked": 0.25514677291896953,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551053
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.011435636035221117,
+          "annual_sd_pct": 0.04911807662661041,
+          "MDE_annual_pct": 0.05753039999961373,
+          "t_naive": 0.5568866004097064,
+          "t_blocked": 0.47301435440120104,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550996
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.006246578720900734,
+          "annual_sd_pct": 0.0490688406904506,
+          "MDE_annual_pct": 0.05747273155458967,
+          "t_naive": 0.30449783984309275,
+          "t_blocked": 0.25208485640141004,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551089
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.0031641099761660616,
+          "annual_sd_pct": 0.04795138639755242,
+          "MDE_annual_pct": 0.05616389381364097,
+          "t_naive": 0.15783314040020524,
+          "t_blocked": 0.13822465702229844,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551017
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.02158657521961366,
+          "annual_sd_pct": 0.048138115260089855,
+          "MDE_annual_pct": 0.05638260323573246,
+          "t_naive": 1.0726115250852106,
+          "t_blocked": 1.1427928503057254,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550912
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.006295881899683239,
+          "annual_sd_pct": 0.047620164693721205,
+          "MDE_annual_pct": 0.05577594464260929,
+          "t_naive": 0.3162375783710688,
+          "t_blocked": 0.33417885007995934,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550990
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.0138150392328963,
+          "annual_sd_pct": 0.04790166359712612,
+          "MDE_annual_pct": 0.05610565512039222,
+          "t_naive": 0.6898415074109988,
+          "t_blocked": 0.6421535292471008,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550765
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.00874784888636242,
+          "annual_sd_pct": 0.048615349573461024,
+          "MDE_annual_pct": 0.056941572210647697,
+          "t_naive": 0.4304033622334042,
+          "t_blocked": 0.45191132229287445,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550908
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.01170247552953537,
+          "annual_sd_pct": 0.04884794549577028,
+          "MDE_annual_pct": 0.057214004222805946,
+          "t_naive": 0.5730324752520375,
+          "t_blocked": 0.5717111954260561,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551020
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.015840330397103992,
+          "annual_sd_pct": 0.04795246987636812,
+          "MDE_annual_pct": 0.05616516285701439,
+          "t_naive": 0.7901345466322234,
+          "t_blocked": 0.7507945027219455,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551049
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.010185559920523307,
+          "annual_sd_pct": 0.04780348197864266,
+          "MDE_annual_pct": 0.05599065819518886,
+          "t_naive": 0.5096513424090092,
+          "t_blocked": 0.44535536353813415,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551216
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.008778740439161594,
+          "annual_sd_pct": 0.04844812123885321,
+          "MDE_annual_pct": 0.056745703120447105,
+          "t_naive": 0.43341412821693637,
+          "t_blocked": 0.34143546263099844,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550964
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.007648335380310354,
+          "annual_sd_pct": 0.04843806557244829,
+          "MDE_annual_pct": 0.056733925246591516,
+          "t_naive": -0.3776834275350134,
+          "t_blocked": -0.2996725148142985,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551199
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.01894786800581793,
+          "annual_sd_pct": 0.04769034360236028,
+          "MDE_annual_pct": 0.05585814290774566,
+          "t_naive": -0.9503371246610878,
+          "t_blocked": -0.7751125804830945,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551154
+        }
+      ],
+      "summary": {
+        "n_reps": 20,
+        "n_reported": 20,
+        "t_list": [
+          0.6377648233075813,
+          0.8759367093917202,
+          -0.25661569325755257,
+          0.06808368617358043,
+          -0.5199690458908036,
+          1.0785967524997793,
+          0.25514677291896953,
+          0.47301435440120104,
+          0.25208485640141004,
+          0.13822465702229844,
+          1.1427928503057254,
+          0.33417885007995934,
+          0.6421535292471008,
+          0.45191132229287445,
+          0.5717111954260561,
+          0.7507945027219455,
+          0.44535536353813415,
+          0.34143546263099844,
+          -0.2996725148142985,
+          -0.7751125804830945
+        ],
+        "min": -0.7751125804830945,
+        "median": 0.39339541308456627,
+        "max": 1.1427928503057254,
+        "median_rule": "numpy.median（偶数个取中间两个的均值）",
+        "n_ge_p0": 0,
+        "n_ge_p0_rule": "逐个 rep 的分块 t ≥ P0 的分块 t（按符号比，不取绝对值，与预注册写法一致）",
+        "missing_reps": 0
+      }
+    },
+    "P2_shuffle_list": {
+      "runs": [
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.0007068551268472546,
+          "annual_sd_pct": 0.04837627101015423,
+          "MDE_annual_pct": 0.056661547292674384,
+          "t_naive": -0.03494989052264488,
+          "t_blocked": -0.011564351514028933,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550995
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.007880718821824154,
+          "annual_sd_pct": 0.04858130434324288,
+          "MDE_annual_pct": 0.05690169614368729,
+          "t_naive": -0.3880113749786103,
+          "t_blocked": -0.3305096849362671,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550989
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.021518730830423865,
+          "annual_sd_pct": 0.04837512229874763,
+          "MDE_annual_pct": 0.05666020184449636,
+          "t_naive": -1.0640018256998705,
+          "t_blocked": -0.8230911455728457,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551156
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.015076406619775757,
+          "annual_sd_pct": 0.04799582953599052,
+          "MDE_annual_pct": 0.05621594861112456,
+          "t_naive": -0.7513497320912561,
+          "t_blocked": -0.7155638974648906,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551099
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.010116500885319573,
+          "annual_sd_pct": 0.04827362189087695,
+          "MDE_annual_pct": 0.05654131772960492,
+          "t_naive": -0.5012659852548526,
+          "t_blocked": -0.5264693068752146,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550861
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.02068911238450473,
+          "annual_sd_pct": 0.047396619643705215,
+          "MDE_annual_pct": 0.05551411362175889,
+          "t_naive": -1.0441004575382056,
+          "t_blocked": -1.040801265558527,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551133
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.012352386182399139,
+          "annual_sd_pct": 0.048287770947830835,
+          "MDE_annual_pct": 0.05655789005820733,
+          "t_naive": -0.6118732948031971,
+          "t_blocked": -0.5896260156417001,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551029
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.006644963272894231,
+          "annual_sd_pct": 0.046256411636465704,
+          "MDE_annual_pct": 0.05417862519785523,
+          "t_naive": 0.3436120944793006,
+          "t_blocked": 0.34301554511507604,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551185
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.007645056256031862,
+          "annual_sd_pct": 0.048129260080681094,
+          "MDE_annual_pct": 0.05637223145311305,
+          "t_naive": 0.3799437426271716,
+          "t_blocked": 0.3862517647661921,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550880
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.023974318085783722,
+          "annual_sd_pct": 0.04702198686658192,
+          "MDE_annual_pct": 0.05507531847746383,
+          "t_naive": -1.219531670814643,
+          "t_blocked": -1.1015431138320344,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551175
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.00020406144475482917,
+          "annual_sd_pct": 0.04779873496271634,
+          "MDE_annual_pct": 0.05598509817037107,
+          "t_naive": 0.010211566039808486,
+          "t_blocked": 0.013135395407571228,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551164
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.003999538736967121,
+          "annual_sd_pct": 0.047750629576437095,
+          "MDE_annual_pct": 0.05592875390152237,
+          "t_naive": -0.20034504298963648,
+          "t_blocked": -0.16328731273928293,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551219
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.009716738538960263,
+          "annual_sd_pct": 0.04873352219413386,
+          "MDE_annual_pct": 0.05707998394423393,
+          "t_naive": 0.47691448346613613,
+          "t_blocked": 0.5520379008412583,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550919
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.0050142707199651105,
+          "annual_sd_pct": 0.0470053891472377,
+          "MDE_annual_pct": 0.05505587811052494,
+          "t_naive": 0.25515725497048075,
+          "t_blocked": 0.31639582875706473,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550737
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.008916135755733794,
+          "annual_sd_pct": 0.04759031615147162,
+          "MDE_annual_pct": 0.05574098401929177,
+          "t_naive": -0.448131919007871,
+          "t_blocked": -0.36824843110443467,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551121
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.00047574978712832484,
+          "annual_sd_pct": 0.04727518693634467,
+          "MDE_annual_pct": 0.05537188345504054,
+          "t_naive": 0.024070945179629346,
+          "t_blocked": 0.014867676027293107,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550982
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.003112518845286351,
+          "annual_sd_pct": 0.04849513940137535,
+          "MDE_annual_pct": 0.05680077395959475,
+          "t_naive": -0.1535188023010963,
+          "t_blocked": -0.05588418153008934,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550944
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.011004162255375967,
+          "annual_sd_pct": 0.04932922195544258,
+          "MDE_annual_pct": 0.057777707631753036,
+          "t_naive": -0.5335811955169218,
+          "t_blocked": -0.4911684588671376,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 550972
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": 0.0039611776855101285,
+          "annual_sd_pct": 0.0493089549472224,
+          "MDE_annual_pct": 0.05775396954651478,
+          "t_naive": 0.19215262495690758,
+          "t_blocked": 0.22593440991567137,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551092
+        },
+        {
+          "n_days": 1396,
+          "enough_for_a_verdict": true,
+          "gross_annual_pct": -0.025267148201921812,
+          "annual_sd_pct": 0.049024661585051234,
+          "MDE_annual_pct": 0.05742098601038662,
+          "t_naive": -1.2327908979753373,
+          "t_blocked": -1.1573949962144898,
+          "n_independent_obs": 66,
+          "n_prediction_rows": 551183
+        }
+      ],
+      "summary": {
+        "n_reps": 20,
+        "n_reported": 20,
+        "t_list": [
+          -0.011564351514028933,
+          -0.3305096849362671,
+          -0.8230911455728457,
+          -0.7155638974648906,
+          -0.5264693068752146,
+          -1.040801265558527,
+          -0.5896260156417001,
+          0.34301554511507604,
+          0.3862517647661921,
+          -1.1015431138320344,
+          0.013135395407571228,
+          -0.16328731273928293,
+          0.5520379008412583,
+          0.31639582875706473,
+          -0.36824843110443467,
+          0.014867676027293107,
+          -0.05588418153008934,
+          -0.4911684588671376,
+          0.22593440991567137,
+          -1.1573949962144898
+        ],
+        "min": -1.1573949962144898,
+        "median": -0.246898498837775,
+        "max": 0.5520379008412583,
+        "median_rule": "numpy.median（偶数个取中间两个的均值）",
+        "n_ge_p0": 0,
+        "n_ge_p0_rule": "逐个 rep 的分块 t ≥ P0 的分块 t（按符号比，不取绝对值，与预注册写法一致）",
+        "missing_reps": 0
+      }
+    }
+  },
+  "p0_t_blocked": 1.7272132346592737,
+  "p0_t_is_measured_not_hardcoded": true,
+  "conditions": {
+    "t_p0": 1.7272132346592737,
+    "p1_min": -0.7751125804830945,
+    "p1_median": 0.39339541308456627,
+    "p1_max": 1.1427928503057254,
+    "n_reps": 20,
+    "n_ge_p0": 0,
+    "t_crit": 1.9599639845400532,
+    "PASSES__t_p0_gt_p1_max": true,
+    "BENCHMARK__p1_median_ge_tcrit": false,
+    "MIXED__median_lt_tcrit_and_some_ge_p0": false,
+    "NULL__all_lt_tcrit_and_max_lt_p0": true
+  },
+  "condition_note": "四条分支的布尔条件**全部**求值后一起落盘。它们不互斥：NULL ⊆ PASSES（`max < t(P0)` 是 NULL 的合取项之一），所以判决码按 `_BRANCH_ORDER` 取第一条命中，而**哪个条件成立过**在 `conditions` 里看得见。",
+  "width_report_cross_check": {
+    "path": "data/reports/factor_width_mde.json",
+    "t_blocked": 1.7272132346592737,
+    "note": "可选交叉核对，**不是判决输入**。文件缺失即 null —— 不猜、不从预注册正文里抄一个 2.44 顶上。"
+  },
+  "verdict": "PLACEBO_NULL",
+  "verdict_branch": "P1 全部 < 1.96（max 1.14）且 max < t(P0)=1.73 ⇒ 干净的阴性对照；且 t(P0) 高于全部 20 个 placebo rep。⚠️ 这只等于「随机臂在**能测的量级上**测不出超额」，**不等于「因子无效」**；P0 的 1.73 值得往下走，但「P1 跑赢 P0」与「P1 能赚钱」是两件事。",
+  "verdict_suppressed_reasons": [],
+  "rules_from_prereg_section_3": [
+    "① 不得在看到 P1 之后再改 P0 的档位或窗口（脚本对 --start/--n 直接拒绝）",
+    "② 不得只报对自己有利的那一臂（三个臂的 20 个 t 全部在产物里）",
+    "③ PLACEBO_BENCHMARK 不许解释成「因子也许还有一点」——正确动作是换基准（等权 → 流通市值加权）后整轮重测"
+  ],
+  "what_this_cannot_prove": [
+    "不能证明前瞻有效（全样本内）",
+    "不能证明 20%/年的目标可达 —— P0 的毛超额离门槛差得远，且 200 只 × 250 元/只的形态 5 万本金也无法交付",
+    "PLACEBO_PASSES 只说明「横截面排序有信息量」，**不说明这个信息量扣成本后还剩多少**（后者是 K 扫描的事，两者不合并）",
+    "P1 与 P2 的池子不同（P1 与 P0 同池、P2 是全可交易池），两者的差不能当成同一件事的两个读数"
+  ]
+}
