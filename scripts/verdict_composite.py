@@ -105,6 +105,41 @@ def main() -> int:
               f"{r.get('n_used', 0):>6}{ic:>10.5f}{gross:>10.2%}"
               f"{t:>8.2f}{mark:>12}{gap}")
 
+    # ── 第三问：石川说的「等权往往就很好」，在 A 股成立吗 ────────
+    print("\n=== 对照臂：全程等权（石川 7.4，行 14500） ===")
+    print("原话：「理论上，变量的权重应和它们预测未来收益率的能力成正比。")
+    print("      **然而在实践中，等权重配置所有变量往往就是很好的选择。**」")
+    print("主判决用的 R⁻¹Σ_f 正是**偏离等权**——这个警告方向相反，")
+    print("所以并列跑一遍，让数据回答，而不是因为读到它就改判据（第 63 条）。")
+    wf_by_year = {r["year"]: r for r in judged}
+    eq_all = [r for r in walk_forward(df, factors, need_ic=ic_need,
+                                      judged_from=JUDGED_FROM,
+                                      equal_weight_years=EQUAL_WEIGHT_YEARS,
+                                      all_years_equal=True)
+              if r.get("judged")]
+    # 只比**两臂都判了的年份**。等权臂不需要历史，所以它能判主臂
+    # 「无历史」而不判的年份——年份集合不同，比较就没有意义。
+    eq = [r for r in eq_all if r["year"] in wf_by_year]
+    dropped = sorted({r["year"] for r in eq_all} - set(wf_by_year))
+    if dropped:
+        print(f"（等权臂多出的 {dropped} 年**不参与对比**：主臂无历史不判，"
+              f"两臂年份集合必须一致）")
+    print(f"\n{'年':<6}{'等权IC':>10}{'滚动IC':>10}{'差':>10}{'等权判决':>12}")
+    print("─" * 48)
+    eq_wins = 0
+    for r in sorted(eq, key=lambda x: x["year"]):
+        y = r["year"]
+        a, b = r["ic_mean"], wf_by_year[y]["ic_mean"]
+        eq_wins += (a >= b)
+        print(f"{y:<6}{a:>10.5f}{b:>10.5f}{a - b:>+10.5f}"
+              f"{('✅ 过' if r['pass_'] else '❌ 差'):>12}")
+    print(f"\n等权在 {eq_wins} / {len(eq)} 个判决年不劣于滚动定权")
+    n_eq_fail = sum(1 for r in eq if not r["pass_"])
+    print(f"等权臂不及格：{n_eq_fail} / {len(eq)}"
+          + ("　← **书上这条在 A 股也成立**，"
+             "偏离等权没带来好处" if n_eq_fail <= len(eq) - eq_wins
+             else ""))
+
     # ── 第二问：合成的样本外 IC 是否真的高于最好的单因子 ──────────
     print("\n=== 样本外 vs 单因子（同一份 Σ_f，口径一致） ===")
     dates, Rs, sf = unpack(df, factors)
@@ -124,7 +159,7 @@ def main() -> int:
                 e = np.zeros(len(factors))
                 e[j] = 1.0
                 ic_s = daily_ic_series(Rs[yr], sf[yr], e)
-                ic_s = ic_s[np.isfinite(ic_s)]
+                ic_s = np.asarray(ic_s)[np.isfinite(ic_s)]
                 per[nm] = ic_s.mean() if len(ic_s) else float("nan")
             singles[y] = (ic_c.mean() if len(ic_c) else float("nan"), per)
 

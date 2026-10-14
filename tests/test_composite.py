@@ -339,3 +339,53 @@ def test_degenerate_days_are_skipped_not_zero_filled():
     ic = daily_ic_series(Rs, sf, np.array([1.0, -1.0]))
     assert np.isnan(ic[1]), "退化那天必须是 NaN"
     assert np.isfinite(ic[0]) and np.isfinite(ic[2])
+
+
+def test_the_equal_weight_arm_exists_as_a_separate_control():
+    """**石川 7.4 的警告必须能被告数据回答**。
+
+    原文（行 14500）：「理论上，变量的权重应和它们预测未来收益率的能力
+    成正比。**然而在实践中，等权重配置所有变量往往就是很好的选择。**」
+
+    而 `R⁻¹Σ_f` **正是偏离等权**。所以必须有一个**全程等权**的对照臂，
+    与主判决跑**同一门槛**。
+
+    > 本测试只钉「对照臂存在且逐年都用等权」。
+    > 它**不是**主判决——读到书上那句就改判据，是第 63 条。
+    """
+    factors = ["0", "1", "2"]
+    df = _long_table(years=tuple(range(2019, 2024)))
+    out = walk_forward(df, factors, need_ic=0.99, all_years_equal=True)
+    assert {r["weights_source"] for r in out} == {"equal"}, (
+        "对照臂必须**每年**都用等权，否则它不是对照臂"
+    )
+    for r in out:
+        w = list(r["weights"].values())
+        assert all(abs(x - 1 / np.sqrt(3)) < 1e-12 for x in w)
+
+
+def test_the_control_arm_never_sees_even_one_past_day():
+    """对照臂若也读了历史，它就成了第二个主判决——
+    「等权」和「滚动」的分界就没了。
+
+    > **只断「定权」不看过去**：篡改 2022 的数据**当然**会改变 2022
+    > 自己的 IC——那是它自己的样本，不是历史。
+    > 断言若把这件事也算进泄漏，会逼实现去冻结当年的数据，那是错的。
+    """
+    factors = ["0", "1", "2"]
+    df = _long_table(years=tuple(range(2019, 2024)))
+    tampered = df.copy()
+    tampered.loc[tampered["date"].str.startswith("2022"), "sf__0"] = 0.9
+    a = {r["year"]: r for r in
+         walk_forward(df, factors, need_ic=0.04, all_years_equal=True)}
+    b = {r["year"]: r for r in
+         walk_forward(tampered, factors, need_ic=0.04, all_years_equal=True)}
+
+    for y in a:
+        # 任何一年，权重都必须与「过去发生了什么」无关
+        assert a[y]["weights"] == b[y]["weights"]
+        # 当年自己的 IC 只在该年数据被改动时才变
+        if y != 2022:
+            assert a[y]["ic_mean"] == pytest.approx(b[y]["ic_mean"]), (
+                f"{y} 年既不是被篡改的年份，IC 就不该变"
+            )

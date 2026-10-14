@@ -156,3 +156,25 @@ def test_a_missing_matrix_table_fails_loudly():
     assert "extract_ic_matrices" in (r.stdout + r.stderr), (
         "报错要指路——让人知道该跑哪个脚本，而不是只说文件不存在"
     )
+
+def test_the_control_arm_is_restricted_to_the_same_years_as_the_main_arm(tmp_path):
+    """两臂**必须**在同一年份集合上比较。
+
+    等权臂不需要历史，所以它能判主臂「无历史而不判」的年份——
+    若放任它多判，比较就成了「不同的年份集合」对打，结论没有意义。
+
+    > 这条是被真实的 `KeyError` 逼出来的：抽取表只有 2026 一年时，
+    > 等权臂判 2026，主臂说「无历史」不判，脚本在 `wf_by_year[y]` 上崩。
+    >
+    > **要构造出这个情形，数据起点必须晚于判决起始年**——
+    > 若数据从 2019 起，主臂在 2021+ 永远有历史，测不出来。
+    """
+    p = _synthetic_table(tmp_path, years=range(2026, 2029))
+    r = _run("--matrices", str(p), "--factors", "0,1,2,3")
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = r.stdout
+    assert "等权臂多出的" in out, (
+        f"等权臂多判的年份必须**显式报出**并排除，不能静默混入：\n{out}"
+    )
+    assert "两臂年份集合必须一致" in out
+    assert "2026" in out

@@ -191,16 +191,31 @@ def daily_ic_series(Rs: np.ndarray, sf: np.ndarray, w: np.ndarray) -> np.ndarray
 
 
 def walk_forward(df, factors, need_ic: float, judged_from: int = 2021,
-                 equal_weight_years: tuple[int, ...] = (2019, 2020)):
+                 equal_weight_years: tuple[int, ...] = (2019, 2020),
+                 all_years_equal: bool = False):
     """滚动扩展窗逐年判决。**判决规则在 `docs/` 里预注册。**
 
     | 年 | 权重来源 |
     |---|---|
-    | `equal_weight_years` | **等权**（真实起点没有历史可用） |
+    | `equal_weight_years`（或 `all_years_equal`） | **等权**（真实起点没有历史可用） |
     | 其余 | **只用该年之前**的日定权 |
 
     `judged_from` 之前的年**只报不判**——
     用它们判决等于承认「你事先就知道它们的 IC」。
+
+    ## `all_years_equal` 是**对照臂**，不是主判决
+
+    石川《因子投资方法与实践》7.4（行 14500）原话：
+
+        理论上，变量的权重应和它们预测未来收益率的能力成正比。
+        **然而在实践中，等权重配置所有变量往往就是很好的选择。**
+
+    7.5 更直接：「金融领域数据信噪比极低，时序上可利用的相关性非常有限」。
+
+    而 `R⁻¹Σ_f` **正是偏离等权**（按预测能力加权）。
+    这个警告与本项目的主张**方向相反**，所以必须并列跑一遍，
+    让数据回答「书里这条在 A 股成不成立」——
+    而不是**因为读到了这句话就改主判决**（那是第 63 条）。
 
     返回逐年记录。每条含 `judged`（是否计入判决）与 `pass_`。
     """
@@ -211,7 +226,7 @@ def walk_forward(df, factors, need_ic: float, judged_from: int = 2021,
     out = []
     for y in sorted(set(yrs.tolist())):
         mask = yrs == y
-        if y in equal_weight_years:
+        if all_years_equal or y in equal_weight_years:
             w = np.full(k, 1.0 / np.sqrt(k))
             src = "equal"
         else:
