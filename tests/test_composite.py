@@ -28,7 +28,7 @@ import pytest
 import pandas as pd
 
 from aplus.composite import (DegenerateFactor, composite_ic,
-                             daily_ic_series, unpack, walk_forward,
+                             daily_ic_series, r_column, unpack, walk_forward,
                              daily_stats, optimal_weights, zscore)
 
 
@@ -227,8 +227,9 @@ def test_a_zero_variance_combination_raises_rather_than_returning_zero():
 # ── 四、滚动扩展窗：权重**不许**看见当年之后的数据 ───────────────
 
 def _long_table(years=(2019, 2020, 2021, 2022), k=3, seed=5, noise=0.7):
-    """造一份与抽取脚本同列名的长表。"""
+    """造一份与抽取脚本同列名的长表（因子就叫 `"0" "1" "2"`）。"""
     rng = np.random.default_rng(seed)
+    names = [str(j) for j in range(k)]
     recs = []
     for y in years:
         for _ in range(120):
@@ -241,10 +242,11 @@ def _long_table(years=(2019, 2020, 2021, 2022), k=3, seed=5, noise=0.7):
             _, sf = daily_stats(F, ret)
             rec = {"date": f"{y}-06-{rng.integers(1, 28):02d}"}
             for j in range(k):
-                rec[f"sf__{j}"] = float(sf[j])
+                rec[f"sf__{names[j]}"] = float(sf[j])
             for a in range(k):
                 for b in range(k):
-                    rec[f"R__{a}{b}"] = float(R[a, b]) if a != b else 1.0
+                    rec[r_column(names[a], names[b])] = \
+                        float(R[a, b]) if a != b else 1.0
             recs.append(rec)
     return pd.DataFrame(recs)
 
@@ -262,7 +264,7 @@ def test_walk_forward_never_lets_a_year_see_its_own_future():
     tampered = base.copy()
     later = tampered["date"].str.startswith("2024")
     tampered.loc[later, "sf__0"] = 0.9        # 2024 彻底翻转
-    tampered.loc[later, "R__01"] = -0.85
+    tampered.loc[later, r_column("0", "1")] = -0.85
 
     w_before = walk_forward(base, factors, need_ic=0.04)
     w_after = walk_forward(tampered, factors, need_ic=0.04)
@@ -319,7 +321,7 @@ def test_missing_matrix_columns_raise_instead_of_reindexing():
     但若有人写成 `df.get(c, 0)` 就会**静默填 0**——
     那等于把某个因子当成恒等于零的相关矩阵，还照样出结果。
     """
-    df = _long_table().drop(columns=["R__21"])
+    df = _long_table().drop(columns=[r_column("2", "1")])
     with pytest.raises(KeyError):
         unpack(df, ["0", "1", "2"])
 
@@ -591,3 +593,125 @@ def test_the_sign_arm_is_never_stronger_than_the_optimal_arm_by_construction():
     w_sgn = sign_weights(sf)
     assert composite_ic(w_opt, Rs.mean(0), sf.mean(0)) >= \
         composite_ic(w_sgn, Rs.mean(0), sf.mean(0)) - 1e-12
+
+
+# ══════════════════════════════════════════════════════════════
+# 七、R 必须**按名字**索引：位置索引是静默的错标
+# ══════════════════════════════════════════════════════════════
+
+def _labeled_table(names, n_days=40, seed=3):
+    """造一份 R 的**每个格子都不同**的长表。
+
+    为什么 R 不能是常数：常数 R 里所有非对角元相等，
+    错标出来的矩阵和标对了的矩阵**逐位相同**，
+    测试会**假绿**。这正是真实 fixture 踩过的坑——
+    它让我以为子集读取是对的，而前两个因子的位置恰好吻合。
+
+    `R[a,b] = 0.05·(a·len+b)·(a·len+b+1) + (a!=b)`：
+    对称、唯一、且**顺序敏感**——打乱因子顺序，矩阵必然跟着变。
+    """
+    rng = np.random.default_rng(seed)
+    k = len(names)
+    # R 取**随机变量的经验相关**：天然对称、正半定、单位对角，
+    # 且每个格子几乎必然互不相同（手工按公式填既可能不正半定，
+    # 又容易不小心把某些格子填成同一个值——那正是本节要防的假绿）。
+    R = np.corrcoef(rng.normal(size=(4000, k)), rowvar=False)
+    assert np.allclose(R, R.T) and np.allclose(np.diag(R), 1.0)
+    assert len(np.unique(np.round(R[np.triu_indices(k, 1)], 6))) \
+        == k * (k - 1) // 2, "R 的每个非对角格都必须互不相同"
+
+    recs = []
+    for d in range(n_days):
+        F = rng.multivariate_normal(np.zeros(k), R, size=600)
+        ret = F @ np.array([(-1.0) ** i for i in range(k)]) \
+            + rng.normal(scale=2.0, size=600)
+        _, sf = daily_stats(F, ret)
+        rec = {"date": f"2021-{(d % 12) + 1:02d}-{(d % 28) + 1:02d}"}
+        for j, nm in enumerate(names):
+            rec[f"sf__{nm}"] = float(sf[j])
+        for a in range(k):
+            for b in range(k):
+                rec[r_column(names[a], names[b])] = float(R[a, b])
+        recs.append(rec)
+    return pd.DataFrame(recs)
+
+
+def test_reading_a_subset_must_yield_the_submatrix_not_a_relabelled_one():
+    """**本节核心断言**：`unpack(df, 子集)` 的 R 必须等于
+    `unpack(df, 全集)` 的 R 的**主子矩阵**，且与**顺序无关地**一致。
+
+    真实事故（2026-10-14）：抽取表把 `R__ab` 的 a、b 存成
+    **`FACTOR_NAMES` 里的位置**，而 `unpack` 却拿**调用方给的顺序**
+    去读。于是传子集时整块 R 被平移错标：
+
+        --factors mom20,rev5,vsur   # vsur 在全表是第 3 位
+        → 读到的 R[2,2] 是 **vol20 的对角线 = 1.0**
+        → R[2,0] 是 **vol20×mom20**，不是 vsur×mom20
+
+    而它**不报错**：`R__00`…`R__22` 这些列一个都不缺。
+    缺列检查只能证明「列在」，证明不了「列的**含义**对」。
+
+    > **这一条结构不变量抓不到**：R 无论怎么错标，
+    > 都仍然对称、对角线仍然全 1。所以「对称 + 单位对角」
+    > 这类校验在这里**恒真**，是安慰剂不是守卫。
+    > 唯一能防住错标的，是**让列名自己带上因子名**。
+    """
+    names = ["mom20", "rev5", "vol20", "vsur", "ivol"]
+    df = _labeled_table(names)
+    _, R_full, _ = unpack(df, names)
+
+    for sub in (["mom20", "rev5", "vsur"],
+                ["ivol", "mom20"],
+                ["rev5", "vol20"],
+                ["vsur", "ivol", "mom20", "vol20", "rev5"]):
+        _, R_sub, _ = unpack(df, sub)
+        idx = [names.index(f) for f in sub]
+        want = R_full[:, idx][:, :, idx]
+        assert R_sub.shape == want.shape
+        assert np.allclose(R_sub, want), (
+            f"子集 {sub} 的 R 与主子矩阵不符——说明 unpack 按**位置**"
+            f"读了按 FACTOR_NAMES 存的列。\n"
+            f"最大偏差 {np.abs(R_sub - want).max():.4f}")
+
+
+def test_the_subset_result_must_not_depend_on_the_order_you_typed():
+    """顺序只是**书写**，不是语义：`mom20,rev5` 与 `rev5,mom20` 同义。
+
+    同一组因子的两种书写若给出不同的 R，
+    那合成结果就取决于**命令行里字符串的排列**——
+    而那既没人审、也没人复现。
+    """
+    names = ["mom20", "rev5", "vol20", "vsur", "ivol"]
+    df = _labeled_table(names)
+    a = ["ivol", "vol20", "rev5"]
+    b = ["rev5", "ivol", "vol20"]
+    _, R_a, sf_a = unpack(df, a)
+    _, R_b, sf_b = unpack(df, b)
+
+    # 排列**由 `names.index` 推出来**，不手写——
+    # 手写的那一版我自己就推反了，而失败信息长得和「代码有 bug」
+    # 一模一样，分不清是测试写错还是实现写错。
+    perm = [b.index(f) for f in a]      # a 的第 j 列 = b 的第 perm[j] 列
+    assert np.allclose(sf_a, sf_b[:, perm]), "Σ_f 应随顺序一起重排"
+    assert np.allclose(R_a, R_b[:, perm][:, :, perm]), \
+        "R 应随顺序一起重排，而不是各读各的"
+
+
+def test_the_old_positional_format_must_be_refused_loudly():
+    """旧的 `R__ab` 格式**一个错都不报**——所以必须主动拒绝。
+
+    若照旧读：缺列检查看到 `R__00`…`R__22` 一列不缺，于是放行，
+    接着整块 R 被错标，而调用方拿到一个**看着正常**的结果。
+
+    > 静默失效的修复常常不是「加检查」，而是**换一个表示**，
+    > 让错误**表达不出来**。这里就是：标签自带名字，
+    > 位置这个歧义源头从数据里消失了。
+    """
+    legacy = pd.DataFrame([
+        {"date": "2021-06-01",
+         "sf__mom20": 0.1, "sf__rev5": 0.2, "sf__vsur": 0.3,
+         **{f"R__{a}{b}": (1.0 if a == b else 0.2)
+            for a in range(3) for b in range(3)}},
+    ])
+    with pytest.raises(ValueError, match="旧的位置格式"):
+        unpack(legacy, ["mom20", "rev5", "vsur"])

@@ -14,6 +14,18 @@
 存下来就是每天 72 个浮点、1882 天 ≈ 13 万个数——
 **一个几 MB 的 parquet**，之后所有权重方案**秒级**迭代。
 
+### 列名**必须带因子名**（旧格式踩过一次坑）
+
+`R__<因子a>__<因子b>` 与 `sf__<因子名>` —— **不是** `R__ab`。
+
+初版按 `FACTOR_NAMES` 的**位置**存 `R__ab`，读的时候按**调用方顺序**取。
+只要传子集（`--factors mom20,rev5,vsur`），整块 R 就**平移错标**，
+而且**一个错都不报**：`R__00`…`R__22` 一列都不缺。
+
+> R 无论怎么错标都仍然**对称**、对角线仍然**全 1**，
+> 所以这类结构校验在这里**恒真**——它是安慰剂，不是守卫。
+> 能防住错标的**只有标签本身**。
+
 ## 口径（与 `factor_ic_diagnostic.py` 逐位一致）
 
 - 因子取 `build_cross_sections` 的输出 —— 策略看到什么就量什么
@@ -71,7 +83,8 @@ import numpy as np
 import pandas as pd
 
 from aplus.backtest import ENTRY_LAG, build_cross_sections
-from aplus.composite import DegenerateFactor, daily_stats, rank_zscore
+from aplus.composite import (DegenerateFactor, daily_stats, rank_zscore,
+                             r_column)
 from aplus.factor import FACTOR_NAMES
 from aplus.factor_ic import FWD_WINDOWS, build_price_cache, forward_returns, \
     make_ranked_forward
@@ -132,7 +145,10 @@ def extract(dates, xs, cache, factors, window: str,
             rec[f"sfP__{nm}"] = float(np.corrcoef(Fv[:, j], rv)[0, 1])
         for a in range(k):
             for b in range(k):
-                rec[f"R__{a}{b}"] = float(R[a, b])
+                # **按名字**存，不按位置。见 `aplus.composite.r_column`：
+                # 位置索引过一次「平移错标」的静默事故，
+                # 而对称性/单位对角这类结构校验**恒真**，抓不到它。
+                rec[r_column(factors[a], factors[b])] = float(R[a, b])
         rows.append(rec)
 
         if verbose_every and (i + 1) % verbose_every == 0:
@@ -194,8 +210,24 @@ def main() -> int:
     loss = (df["n_any"] - df["n_common"]) / df["n_any"]
     print(f"\n记下 {len(df)} 天，跳过 {len(skipped)} 天")
     print(f"共同完整样本损失：均值 {loss.mean():.4%}  最大 {loss.max():.4%}")
-    print(f"  （即：本文件的 Σ_f 与报告里的单因子 IC 差在这 "
-          f"{loss.mean():.3%} 的样本上）")
+    print(f"  ⚠️ 这只说明**样本**一致，**没说明统计量一致**——")
+    print(f"     样本一致与统计量一致是两件事。把前者当后者，"
+          f"是我 2026-10-14 犯过的错。")
+
+    # 两套口径的比值直接**算出来**。它是逐因子而变的：
+    # 实测 0.996（ivol/vol20/turn20，波动率类）到 1.499（vsur，收益类）。
+    # 所以「秩 vs 原始值差多少」**没有全局常数**，必须逐因子看。
+    print("\n秩口径 / 原始值口径 的比值（判决年才看，判决不受早期影响）：")
+    y = df["date"].str[:4].astype(int)
+    m = y >= 2021
+    for f in factors:
+        a = df.loc[m, f"sf__{f}"].mean()
+        b = df.loc[m, f"sfP__{f}"].mean()
+        if a:
+            print(f"  {f:>10}  秩 {a:>+9.5f}  原始值 {b:>+9.5f}  "
+                  f"比值 {abs(b / a):.3f}")
+    print("  → 波动率类 ≈1.00，收益类 1.1~1.5。**没有全局常数。**")
+
     print(f"跳过的日子：{pd.DataFrame(skipped)['reason'].value_counts().to_dict()}"
           if skipped else "  （无）")
     print(f"\n→ {out}  {len(df)} 行 × {len(df.columns)} 列  "

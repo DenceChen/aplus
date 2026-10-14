@@ -109,6 +109,15 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 现在 `sf__*` 是**秩口径**（进判决），`sfP__*` 是原始值口径（只作对照），
     # 让那个比值可查而不是靠记。回归由
     # `tests/test_composite.py::test_the_identity_is_still_exact_on_ranks` 钉着。
+    #
+    # ⚠️ **2026-10-14 标签修正后再次重跑**：R 的列名曾按
+    # `FACTOR_NAMES` 里的**位置**存（`R__ab`），而 `unpack` 按
+    # **调用方顺序**读——传子集时整块 R 被**平移错标**，且一列都不缺，
+    # 所以**不报错**。R 无论怎么错标都仍然对称、对角线仍全 1，
+    # 结构不变量**恒真**，抓不到它。现在是 `R__<因子a>__<因子b>`，
+    # 位置这个歧义源头从数据里消失；旧格式由 `unpack` **响亮拒绝**。
+    # 往返由 `tests/test_extract_ic_matrices.py` 钉着（已做变异验证：
+    # 写入端退回位置索引，三条测试全部变红）。
     "ic_matrices.parquet": "scripts/extract_ic_matrices.py",
     "fundamental_ic.json": "aplus/factor_ic.py",
     "forward_registry.json": "aplus/forward.py",

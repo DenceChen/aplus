@@ -23,8 +23,10 @@ from pathlib import Path
 
 import pytest
 
+from aplus.composite import r_column
+from tests.icmat_synthetic import extract_table
+
 SCRIPT = Path("scripts/verdict_composite.py")
-SMOKE = Path("/tmp/icmat_smoke.parquet")
 
 
 def _run(*extra):
@@ -86,8 +88,7 @@ def test_equal_weight_years_are_excluded_from_the_judgement_window():
 
 # ── 二、脚本必须能跑完，并给出逐年数字 ──────────────────────────
 
-@pytest.mark.skipif(not SMOKE.is_file(), reason="冒烟抽取表不在")
-def test_a_table_with_no_judged_years_is_refused_not_declared_passing():
+def test_a_table_with_no_judged_years_is_refused_not_declared_passing(tmp_path):
     """只有 2026 一年 → **没有任何判决年份** → 必须拒绝退出。
 
     这条是**反向**测试，比端到端那条更重要：
@@ -95,7 +96,15 @@ def test_a_table_with_no_judged_years_is_refused_not_declared_passing():
     读者会把它读成「全部过关」——而真实含义是「根本没得判」。
     零判决年必须与零失败年区分开。
     """
-    r = _run("--matrices", str(SMOKE))
+    # 表**当场造**，不靠 `/tmp` 里的遗留文件。
+    # 那张遗留表有三重问题：文件不在就**静默 skip**（于是「测试通过」
+    # 可能等于「什么都没测」）、它**不受列名格式变更约束**
+    # （抽取脚本改了格式它还在，于是测试仍在测旧格式）、
+    # 以及它**来自别的会话**而没人知道它是否还兼容。
+    smoke = tmp_path / "only_2026.parquet"
+    extract_table(start="2026-06-01").to_parquet(smoke, index=False)
+
+    r = _run("--matrices", str(smoke), "--factors", "f1,f2,f3")
     assert r.returncode != 0
     assert "没有任何判决年份" in (r.stdout + r.stderr)
 
@@ -121,7 +130,7 @@ def _synthetic_table(tmp_path, years=range(2019, 2026), k=4, seed=3):
                 rec[f"sf__{j}"] = float(np.corrcoef(F[:, j], ret)[0, 1])
             for a in range(k):
                 for b in range(k):
-                    rec[f"R__{a}{b}"] = float(C[a, b])
+                    rec[r_column(str(a), str(b))] = float(C[a, b])
             recs.append(rec)
     p = tmp_path / "mat.parquet"
     pd.DataFrame(recs).to_parquet(p, index=False)

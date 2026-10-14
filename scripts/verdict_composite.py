@@ -45,6 +45,21 @@ SIGMA_R = 0.02656
 #: 调仓周期，与月频路线同一口径。
 K = 21
 
+
+def monthly_ic_threshold() -> tuple[float, float]:
+    """月频判决的 `(所需毛超额, 所需组合 IC)` —— **单一真相源**。
+
+    提成函数而不是留在 `main()` 里，是因为 `scripts/sweep_factor_count.py`
+    也要用同一个门槛。两处各算一遍 = 两个真相源，而它们**只差一点点**
+    的时候没人会发现——今天已经有三个 P0 属于「两处各自自洽，
+    合起来出事」这一族了。
+
+    返回两个数而不是只返回 IC：打印时两个都要，而
+    **只报 IC 会让人忘了它是年毛超额换算过来的**。
+    """
+    need = hurdle_rate(rounds_per_year=rounds_per_year(K))
+    return need, required_ic(need / DAYS_PER_YEAR, sigma_r=SIGMA_R)
+
 #: 判决起始年 —— 之前的年只有等权，没有历史可用，只报不判。
 JUDGED_FROM = 2021
 
@@ -68,8 +83,7 @@ def main() -> int:
         or list(FACTOR_NAMES)
     df = pd.read_parquet(args.matrices)
 
-    need = hurdle_rate(rounds_per_year=rounds_per_year(K))
-    ic_need = required_ic(need / DAYS_PER_YEAR, sigma_r=SIGMA_R)
+    need, ic_need = monthly_ic_threshold()
 
     print(f"月频门槛（K={K}，年调仓 {rounds_per_year(K):.1f} 次）{need:.2%}")
     print(f"σ_r（实测 {SIGMA_R}）→ 过关所需组合 IC = {ic_need:.5f}")

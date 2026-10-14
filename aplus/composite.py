@@ -31,6 +31,8 @@
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 #: 单因子方差低于此值视为当日无信息——秩相关对它无定义。
@@ -168,13 +170,50 @@ def optimal_weights(R: np.ndarray, sf: np.ndarray) -> np.ndarray:
 
 # ── 滚动扩展窗：从**历史日**求权重，用在**未来日** ────────────────
 
+def r_column(fa: str, fb: str) -> str:
+    """R 的列名 —— **带因子名**，因为 R 的格子必须**自解释**。
+
+    ## 为什么不是 `R__{a}{b}`
+
+    2026-10-14 的真实事故：抽取表按 `FACTOR_NAMES` 的**位置**存
+    `R__02`（= mom20 × vol20），而 `unpack` 按**调用方给的顺序**读。
+    传 `--factors mom20,rev5,vsur` 时，`vsur` 被当成第 2 位，
+    于是整块 R **平移错标**，且**一个错都不报**——
+    `R__00`…`R__22` 一列都不缺，缺列检查只证明了「列在」。
+
+    更要命的是**结构不变量抓不到它**：R 无论怎么错标都仍然
+    对称、对角线仍然全 1。所以「对称 + 单位对角」这类校验在这里
+    **恒真**——是安慰剂，不是守卫。
+
+    > **能防住错标的只有标签本身。** 把因子名写进列名，
+    > 文件就自解释，谁打乱顺序都伤不到它。
+    """
+    return f"R__{fa}__{fb}"
+
+
 def unpack(df, factors):
     """把长表拆成 `(日期数组, R 数组 n×k×k, Σ_f 数组 n×k)`。
 
-    列名约定见 `scripts/extract_ic_matrices.py`：`R__ab` 与 `sf__<因子名>`。
+    列名约定见 `r_column`：R 按**因子名**存，Σ_f 按因子名存。
+    因此本函数对**因子顺序**天然不敏感——
+    顺序只是书写，不是语义。
     """
+    factors = list(factors)
     k = len(factors)
-    Rcols = [f"R__{a}{b}" for a in range(k) for b in range(k)]
+
+    # 旧格式（按位置存）必须**响亮地拒绝**。
+    # 若照旧读，缺列检查会发现列都在，于是放行一份**错标**的 R。
+    legacy = [c for c in df.columns if re.fullmatch(r"R__\d\d", str(c))]
+    if legacy:
+        raise ValueError(
+            f"抽取表是**旧的位置格式**（{len(legacy)} 个 `R__ab` 列，"
+            f"如 {legacy[:3]}）。本格式的 a、b 是**抽取时**的因子位置，"
+            f"与调用方顺序无关——照旧读会**静默错标**，不报错。\n"
+            f"必须重跑抽取："
+            f"`python scripts/extract_ic_matrices.py --out <新路径>`"
+        )
+
+    Rcols = [r_column(a, b) for a in factors for b in factors]
     missing = [c for c in Rcols + [f"sf__{f}" for f in factors]
                if c not in df.columns]
     if missing:
