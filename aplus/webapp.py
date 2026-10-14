@@ -26,12 +26,38 @@ from .reports import (
     load_predictions,
     load_verification_history,
 )
-from .verify import rolling_stats
+from .verify import compounded_stats, rolling_stats
 
 SYSTEM_PROMPT = (
     "你是 aplus 量化平台的助手。用户不懂投资，回答用平实中文，解释术语，"
     "多用平台自己的数据说话。所有内容仅供研究参考，不构成投资建议。"
 )
+
+
+def _stats_with_compounded(history: pd.DataFrame) -> dict:
+    """`rolling_stats` + 复利口径。
+
+    ## 为什么要合并而不是二选一
+
+    `rolling_stats` 出的是**统计量**（命中率、逐笔平均、超额），回答
+    「排序准不准」；复利口径出的是**组合曲线**（累计、CAGR、波动拖累），
+    回答「照着名单建仓到底赚不赚钱」。用户的年化 20% 目标只对后者。
+
+    两者的 `avg_up_return` 口径**故意不同**且都不算错：
+    `rolling_stats` 是逐笔平均（每天成分数不同，权重不同），
+    复利的 `arith_daily` 是先按日等权、再对日等权。后者才是
+    「10 只等权组合一天赚多少」的读数，也是 CAGR 的输入。
+
+    ## 为什么键是平铺而不是嵌套
+
+    前端 `renderDocket(stats)` 直接读 `stats.hit_rate_up` 这类平铺键。
+    嵌套一层会让所有既有读取点静默拿到 `undefined`——而 `undefined`
+    在模板里不报错，只是**渲染成空白**。所以这里平铺，`cagr` 这类新键
+    由新代码显式消费。
+    """
+    out = dict(rolling_stats(history))
+    out.update(compounded_stats(history))
+    return out
 
 
 def _json_safe(df: pd.DataFrame) -> list:
@@ -86,7 +112,7 @@ def _platform_context(reports_dir: Path) -> str:
                 parts.append(
                     f"配置方案：{positions}；现金比例 {alloc.get('cash_weight', 0):.0%}；本金 {alloc.get('capital', 0):.0f} 元"
                 )
-    stats = rolling_stats(load_verification_history(reports_dir))
+    stats = _stats_with_compounded(load_verification_history(reports_dir))
     hist = load_verification_history(reports_dir)
     if len(hist):
         parts.append(
@@ -131,7 +157,7 @@ def create_app(data_root, llm=None) -> FastAPI:
             "as_of": date.today().isoformat(),
             "last_prediction_date": latest_prediction_date(reports_dir),
             "universe_size": universe,
-            "stats": rolling_stats(load_verification_history(reports_dir)),
+            "stats": _stats_with_compounded(load_verification_history(reports_dir)),
             "paper_mode": True,
         }
 

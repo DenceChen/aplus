@@ -1,0 +1,231 @@
+"""判决板警示判定 —— TDD（2026-10-14）。
+
+## 这次要解决什么
+
+概览页的判决板 `renderDocket(stats)` **只按命中率分档**：
+`>=0.55` 初步有效 / `>=0.45` 与抛硬币无异 / 否则暂时跑输。
+
+问题有三个，每一个都已经被实测数据钉死：
+
+1. **它看不到复利。** 命中率与赚钱是两件事。一个 51% 命中的策略完全
+   可以稳定亏钱——赢的时候赚得少、输的时候亏得多。实测现任权重正是
+   这个形态：命中率落在「与抛硬币无异」档，但真实 CAGR **−84.70%**。
+
+2. **它看不到证伪。** 进化页早就在红字写「现任权重已被证伪（4 段独立
+   窗口一致显著为负）」，概览页**一个字都没有**。用户在概览页看到的
+   是「暂时跑输，等下一轮权重赛马换掉它」——把它说成「等换」，
+   弱化了「已经判负」的严重性。
+
+3. **样本不足时会展示荒谬的年化。** 归档只有 1 天时，CAGR 会被算成
+   (1+r)^252−1 = **−99.9%**。那不是「年化亏 99.9%」，而是「没测过」。
+
+## 为什么用 python 驱动 node
+
+前端此前**零测试基建**。判定逻辑若留在 `renderDocket` 里，只能靠
+「打开浏览器看一眼」验证——那验证不了分支覆盖。抽出纯函数
+`tests/verdict.js` 后可以 node 直跑，但那样它就**不在 pytest 里**，
+CI 跑不到。所以这里用 `subprocess` 调 node，测试仍然留在全仓测试套里。
+"""
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+VERDICT_JS = Path(__file__).parent.parent / "aplus" / "web" / "verdict.js"
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("node") is None, reason="需要 node 才能测前端纯逻辑")
+
+
+def _call(fn: str, stats, evo) -> dict:
+    """在 node 里调 `docketWarning(stats, evo)`，把结果转回 python。
+
+    返回 `{}` 表示函数返回了 null（无警示）——JSON 里 null 与「函数不存在」
+    必须能区分，否则一条「函数写错了名字」的测试会伪装成「判定正确」。
+    """
+    payload = json.dumps({"stats": stats, "evo": evo})
+    script = (
+        f"const {{docketWarning}} = require({json.dumps(str(VERDICT_JS.resolve()))});"
+        f"const p = {payload};"
+        "const r = docketWarning(p.stats, p.evo);"
+        "console.log(JSON.stringify({exists: true, warn: r}));"
+    )
+    out = subprocess.run(
+        ["node", "-e", script], capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+# ---------- 这条是判别力所在 ----------
+
+def test_falsified_champion_must_warn_on_the_overview_page():
+    """现任被证伪时概览页必须喊出来——此前进化页有红字、概览页完全静默。"""
+    w = _call("docketWarning",
+              {"cagr": 0.05, "n_days": 483, "overall_hit_rate": 0.51, "judged": 9000},
+              {"champion_falsified": True, "champion_windows": 4})
+    assert w["warn"] is not None, "现任已被证伪，概览页却没有任何提示"
+    assert w["warn"]["level"] == "danger"
+    assert "证伪" in w["warn"]["headline"]
+    assert "4" in w["warn"]["detail"], "必须带上是几段窗口判负的"
+
+
+def test_falsified_beats_a_healthy_cagr():
+    """证伪优先于任何好数字——被独立窗口判负的权重，CAGR 再好也不能洗白。"""
+    w = _call("docketWarning",
+              {"cagr": 0.9, "n_days": 483},
+              {"champion_falsified": True, "champion_windows": 3})
+    assert "证伪" in w["warn"]["headline"], "高 CAGR 不许掩盖证伪"
+
+
+def test_compound_negative_must_warn_even_when_hit_rate_is_fine():
+    """命中率 51%（落在「与抛硬币无异」）但 CAGR −84.7% —— 必须报 danger。
+
+    这条钉的是本次改动的核心命题：**命中率不是钱**。
+    """
+    w = _call("docketWarning",
+              {"cagr": -0.847, "arith_ann": -1.7192, "ann_vol": 0.546,
+               "n_days": 483, "overall_hit_rate": 0.51, "judged": 9000},
+              None)
+    assert w["warn"] is not None, "复利年化 −84.7% 却没有任何警示"
+    assert w["warn"]["level"] == "danger"
+    # 真实年化必须出现在**展示给用户的文本**里（headline + detail 合计）。
+    # 上一版断言它在 headline 里，红了——因为实现在 detail 里报了 −84.7%。
+    # 「不能只说『为负』」这个判别力没变：变的是它可以出现在任一处。
+    shown = w["warn"]["headline"] + " " + w["warn"]["detail"]
+    assert "84.7" in shown, f"必须报出真实年化，实得：{shown}"
+    # 必须同时点破算术口径在说谎
+    assert "算术" in w["warn"]["detail"]
+    # 波动拖累必须被算出来并报出（本例 σ²/2 = 14.91%/年）
+    assert "14.9" in w["warn"]["detail"], f"波动拖累必须报出：{w['warn']['detail']}"
+
+
+def test_one_day_sample_must_not_be_shown_as_a_track_record():
+    """只测 1 天：CAGR = −99.9% 是「没测」，不是「年化亏 99.9%」。"""
+    w = _call("docketWarning", {"cagr": -0.999, "n_days": 1}, None)
+    assert w["warn"] is not None
+    assert w["warn"]["level"] == "warn"
+    assert "样本不足" in w["warn"]["headline"]
+    assert "1" in w["warn"]["detail"]
+
+
+def test_one_day_sample_outranks_a_negative_cagr():
+    """1 天的样本里，CAGR 无论是什么都不能当业绩读——先说样本不足。"""
+    w = _call("docketWarning", {"cagr": -0.5, "n_days": 2}, None)
+    assert "样本不足" in w["warn"]["headline"]
+
+
+# ---------- 反方向：不得过度报警 ----------
+
+def test_meeting_the_target_should_not_say_danger():
+    """CAGR 24% 达标时不得报 danger——否则警示会退化成背景噪音而被无视。"""
+    w = _call("docketWarning", {"cagr": 0.24, "n_days": 483}, None)
+    assert w["warn"]["level"] == "ok"
+
+
+def test_legacy_stats_without_cagr_must_stay_silent():
+    """旧接口没有 cagr 字段时不得凭空造警示——那会让人以为出错了。"""
+    w = _call("docketWarning", {"overall_hit_rate": 0.5, "judged": 20}, None)
+    assert w["warn"] is None
+
+
+def test_empty_stats_must_not_crash_or_warn():
+    """空 stats / 空 evo 都不得抛异常。"""
+    for stats in (None, {}, {"cagr": None, "n_days": 0}):
+        assert _call("docketWarning", stats, None)["warn"] is None
+
+
+def test_below_target_but_positive_is_only_a_warning():
+    """+11% 未达标但为正：warn 不是 danger——它是「还差得远」，不是「在亏钱」。"""
+    w = _call("docketWarning", {"cagr": 0.11, "arith_ann": 0.25, "n_days": 483}, None)
+    assert w["warn"]["level"] == "warn"
+    assert "20%" in w["warn"]["headline"], "必须让用户知道目标是 20%"
+
+
+# ---------- 接线：前端真的用上了吗 ----------
+
+def test_index_html_actually_calls_the_warning_renderer():
+    """判定函数必须被 `renderDocket` 真的调用。
+
+    上一版把纯函数写好、测试全绿，但 `index.html` 没接线——
+    那就是**绿着的死代码**。这条读源文件把接线钉死。
+    """
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    assert "docketWarning" in html, "index.html 从未引用 docketWarning —— 警示是死代码"
+
+
+def test_both_docket_call_sites_must_pass_evo():
+    """**两个** `renderDocket` 调用点都必须传 `evo`——少一处就出真 bug。
+
+    ## 这条是补上一条假绿
+
+    上一版只断言 `champion_falsified` 字样出现在文件里，结果把
+    `loadOverview` 改成 `renderDocket(status.stats)`（丢掉 evo）
+    之后**全部测试仍绿**。但那是真 bug：`renderDocket` 内部无条件重写
+    判决板，于是 `loadChrome` 刚渲染好的警示会被 `loadOverview` 抹掉——
+    表现为「深链进概览时警示消失，切到别的 tab 又出现」。
+
+    「文件里提到过 champion_falsified」不等于「每个渲染路径都传对了参数」。
+    这条改成**逐个调用点**检查。
+    """
+    import re
+
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    calls = re.findall(r"renderDocket\(([^)]*)\)", html)
+    assert len(calls) >= 2, f"预期至少 2 个调用点，实得 {len(calls)}"
+    for arg in calls:
+        assert "stats" in arg, f"调用点缺少 stats：renderDocket({arg})"
+        assert "evo" in arg, (
+            f"调用点 renderDocket({arg}) 没传 evo —— "
+            "它会把另一个调用点已渲染的警示抹掉")
+
+
+def test_both_docket_call_sites_fetch_evolution_summary():
+    """传了 evo 就必须真的取到，否则 evo 恒为 null、警示永远不显示。"""
+    import re
+
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    # 两个取 stats 的地方：loadChrome 与 loadOverview
+    for fn in ("loadChrome", "loadOverview"):
+        body = html.split(f"async function {fn}(")[1].split("\n}")[0]
+        assert "/api/evolution/summary" in body, (
+            f"{fn} 取了 evo 却没有请求 /api/evolution/summary —— evo 恒为 null")
+
+
+def test_verdict_js_is_shipped_or_loaded():
+    """index.html 必须能加载这个模块——否则运行时是 ReferenceError。"""
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    assert "verdict.js" in html, "index.html 没有引用 aplus/web/verdict.js"
+
+
+def test_hidden_warning_can_actually_be_hidden():
+    """`display:flex` 会盖过 `[hidden]` 的浏览器默认 `display:none`。
+
+    纯函数测不到这条——它只在浏览器里表现为「警示条永远显示」。
+    这条读样式表把补丁钉住，免得将来有人「清理 CSS」时顺手删掉。
+
+    ## 真浏览器已实测（2026-10-14，Playwright）
+
+        w.hidden = true
+        → getComputedStyle(w).display = "none"
+        → w.offsetHeight = 0, w.getClientRects().length = 0
+
+    没有那行 `.docket-warn[hidden] { display: none; }` 时，
+    display 会停在 `flex`、offsetHeight = 38px。
+    """
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    assert ".docket-warn[hidden]" in html, (
+        "`.docket-warn` 用了 display:flex，必须显式补 [hidden] 的 display:none，"
+        "否则警示条永远显示")
+
+
+def test_warn_container_has_a_dom_node():
+    """`docket-warn` 元素必须真的存在于 DOM 里。
+
+    这条钉的是 `renderDocket` 里 `$('docket-warn')` 不会抛
+    「元素不存在」。$ 找不到元素时返回 null，后面写 `.hidden` 就是
+    TypeError——而它只会在**有警示可显示时**才触发，即线上事故恰好
+    发生在最该显示警示的时刻。
+    """
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    assert 'id="docket-warn"' in html, "判决板缺少警示条容器"

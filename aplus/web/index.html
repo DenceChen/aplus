@@ -67,6 +67,21 @@
   .docket .tally { height: 3px; background: rgba(255,255,255,.06); margin: 10px 0 12px; border-radius: 2px; overflow: hidden; }
   .docket .tally i { display: block; height: 100%; background: var(--seal); border-radius: 2px; transition: width .4s ease; }
   .docket .tally.done i { background: var(--down); }
+
+  /* 警示条：颜色语义与 A 股一致（红=危险、绿=达标），不另发明一套。 */
+  .docket-warn { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+    margin: 0 0 12px; padding: 9px 12px; border-radius: 6px; font-size: 12.5px; line-height: 1.6;
+    border-left: 3px solid; }
+  .docket-warn b { font-weight: 600; flex: none; }
+  .docket-warn span { color: var(--muted); }
+  .docket-warn.danger { background: rgba(240,74,79,.09); border-left-color: var(--up); }
+  .docket-warn.danger b { color: var(--up); }
+  .docket-warn.warn { background: rgba(200,150,62,.10); border-left-color: var(--seal); }
+  .docket-warn.warn b { color: var(--seal); }
+  .docket-warn.ok { background: rgba(31,185,129,.09); border-left-color: var(--down); }
+  .docket-warn.ok b { color: var(--down); }
+  /* hidden 必须真的藏起来：上面用了 display:flex，会盖过 [hidden] 的默认 display:none */
+  .docket-warn[hidden] { display: none; }
   .docket .figures { display: flex; gap: 30px; flex-wrap: wrap; align-items: baseline; }
   .docket .fig { display: flex; align-items: baseline; gap: 8px; }
   .docket .fig b { font-family: var(--serif); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -265,6 +280,7 @@
       <span class="verdict-why" id="docket-why"></span>
     </div>
     <div class="tally" id="docket-tally"><i style="width:0%"></i></div>
+    <div class="docket-warn" id="docket-warn" hidden></div>
     <div class="figures" id="docket-figures"></div>
   </div>
 </div>
@@ -621,8 +637,15 @@ async function jget(url) { const r = await fetch(url); if (!r.ok) throw new Erro
 async function loadChrome() {
   try { loadRunDot(); } catch {}
   try {
-    const status = await jget('/api/status');
-    renderDocket(status.stats);
+    /* 警示接在这里而不是 loadOverview：判决板属于**外壳**，任何 tab 都会调
+       loadChrome()。原先 `champion_falsified` 只在进化页取，于是深链进任何
+       非进化页时概览顶部都看不到「现任已被证伪」。
+       独立取一次，`evo` 取不到时降级为 null（`docketWarning` 会静默）。 */
+    const [status, evo] = await Promise.all([
+      jget('/api/status'),
+      jget('/api/evolution/summary').catch(() => null),
+    ]);
+    renderDocket(status.stats, evo);
   } catch {
     $('docket-word').textContent = '平台状态未知';
     $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
@@ -631,7 +654,14 @@ async function loadChrome() {
 
 async function loadOverview() {
   try {
-    const [status, pred] = await Promise.all([jget('/api/status'), jget('/api/predictions/latest')]);
+    /* 这里也必须传 evo：`renderDocket` 内部无条件重写判决板，
+       所以 loadOverview 若只传 stats，会把 loadChrome 已经渲染好的
+       警示**抹掉**（表现为：深链进概览时警示消失，回到其它 tab 又出现）。
+       两处都传同一个 evo，渲染结果一致且幂等。 */
+    const [status, pred, evo] = await Promise.all([
+      jget('/api/status'), jget('/api/predictions/latest'),
+      jget('/api/evolution/summary').catch(() => null),
+    ]);
     state.predictions = pred;
     $('universe-sub').textContent = `股票池 ${status.universe_size} 只`;
     $('pred-title').textContent = nextTradingDayLabel() + '预测';
@@ -641,7 +671,7 @@ async function loadOverview() {
     renderRows($('pred-rows-down'), pred.down, 'down');
     $('up-count').textContent = `${pred.up.length} 只`;
     $('down-count').textContent = `${pred.down.length} 只`;
-    renderDocket(status.stats);
+    renderDocket(status.stats, evo);
   } catch (e) { $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`; }
   try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
 }
@@ -650,7 +680,7 @@ async function loadOverview() {
    3 笔是硬门槛，与转债纸面账户「调仓期不足 3 次不给年化判决」同一条规矩：
    两三天的命中率是噪音，报出来会被读成信号。 */
 const MIN_JUDGED = 3;
-function renderDocket(stats) {
+function renderDocket(stats, evo) {
   const judged = stats?.judged ?? 0;
   const has = judged >= MIN_JUDGED;
   const rate = stats?.overall_hit_rate ?? null;
@@ -679,6 +709,25 @@ function renderDocket(stats) {
   const tally = $('docket-tally');
   tally.className = 'tally' + (has ? ' done' : '');
   tally.firstElementChild.style.width = pct + '%';
+
+  /* 警示条（2026-10-14）。放在这里而不是 `word`/`why` 里，是因为**它们回答的是
+     不同的问题**：上面那段按命中率分档，回答「方向猜得准不准」；这条回答
+     「照着名单建仓到底赚不赚钱」。
+
+     一个 51% 命中率的策略可以稳定亏钱——赢的时候赚得少、输的时候亏得多。
+     实测现任权重正是这个形态：命中率落在「与抛硬币无异」档，真实 CAGR −84.70%。
+     只看命中率会把它读成「有点用但一般」，那是**严重低估**。
+
+     判定逻辑在 `aplus/web/verdict.js`（纯函数，node 可直接跑），
+     测试在 `tests/test_docket_warning.py`。留在这层是为了让每条分支都可测——
+     「打开浏览器看一眼」验证不了分支覆盖。 */
+  const warn = $('docket-warn');
+  const w = docketWarning(stats, evo);
+  warn.hidden = !w;
+  if (w) {
+    warn.className = 'docket-warn ' + w.level;
+    warn.innerHTML = `<b>${esc(w.headline)}</b><span>${esc(w.detail)}</span>`;
+  }
 
   /* 跌篮子与多空价差（2026-10-11 新增）。此前判决板只有涨腿，而平台每天输出的是
      10 涨 + 10 跌——「我们能不能看空」从来没被显示过。
@@ -1326,6 +1375,20 @@ window.addEventListener('hashchange', () => {
   const h = (location.hash.match(/#\/(\w+)/) || [])[1];
   activate(TABS.includes(h) ? h : 'overview', false);
 });
+/* 判决板警示判定。放在主脚本**之后**加载：它只定义纯函数、不读 DOM，
+   但加载顺序仍然固定，避免将来它演进到要读 DOM 时炸掉。
+   判定逻辑与测试分离的收益见 aplus/web/verdict.js 顶部注释。 */
+</script>
+<script src="/verdict.js"></script>
+<script>
+/* 脚本加载是异步的：主脚本运行时 docketWarning 可能尚未定义。
+   这里在 verdict.js 就绪后重跑一次判决板渲染——幂等，且避免
+   「警示依赖加载顺序」这种只在慢网下才复现的 bug。 */
+if (typeof docketWarning === 'undefined') {
+  window.addEventListener('load', () => {
+    try { loadChrome(); } catch (e) { console.error('[判决板] 警示模块未就绪', e); }
+  });
+}
 </script>
 </body>
 </html>

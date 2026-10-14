@@ -3,6 +3,7 @@
 这是平台迭代的核心抓手（PLATFORM.md §3）：所有判定结果永久留存，命中率是
 调参、加因子、改池子规则的唯一依据。平局（恰好 0.00%）单列 flat 不计命中。
 """
+import numpy as np
 import pandas as pd
 
 from .adjust import hfq_close
@@ -263,5 +264,154 @@ def rolling_stats(history: pd.DataFrame) -> dict:
         "avg_cost_drag": cost_drag_avg,
         "gross_up_excess": gross_up_excess,
         "cost_share": cost_share,
+    }
+
+
+# ---------- 复利口径（2026-10-14）----------
+
+TRADING_DAYS_PER_YEAR = 252
+
+# 少于此天数不给年化。理由见 `compounded_stats` 里那段实测记录：
+# 单日收益的 252 次方不是业绩，是噪音。
+MIN_DAYS_FOR_ANNUALISATION = 2
+
+
+def daily_portfolio_returns(history: pd.DataFrame) -> pd.Series:
+    """把逐笔判定摊成**逐日等权组合收益**（涨腿、已扣成本）。
+
+    ## 为什么必须有这把尺子
+
+    用户的年化 20% 目标只有一种算法能回答它：把日收益真正连乘，再对年数
+    开根号（CAGR）。此前全项目**没有任何一个累计或年化字段**——
+    `rolling_stats` 只出均值，从不连乘。唯一存在的 `annualized_return` 在
+    `bond_excess_analysis.json`，那是债券策略，且是训练段的。
+
+    ## 三个不能省的判断
+
+    **1. 只用涨腿。** 跌腿是**回避清单**，我们从未持有过它——按 `rolling_stats`
+    的既有约定它连成本都不扣。把它复利成一条曲线等于凭空做空。
+
+    **2. 成分不足的日子丢弃，不填 0。** `.mean()` 默认跳过 NaN，所以一天里
+    「10 只里只有 1 只有次日行情」会算出一个**看起来正常**的平均值，而它
+    衡量的其实是个别标的的运气。填 0 更糟——那是宣称「那天组合没动」，
+    是编造。低于 `MIN_BASKET` 的日子整���丢掉，并让 `n_days` 如实反映天数。
+
+    **3. 成本只扣一次。** 净收益 = `actual_pct − cost`。
+
+    ## 返回空的 Series（而不是全 0）是有意的
+
+    空输入返回空 Series，由 `compounded_stats` 转成 `None`。
+    「0% 收益」和「没测过」必须能被下游区分开。
+    """
+    if (history is None or history.empty
+            or "direction" not in history.columns
+            or "actual_pct" not in history.columns):
+        return pd.Series(dtype=float)
+
+    up = history[history["direction"] == "up"].copy()
+    if up.empty:
+        return pd.Series(dtype=float)
+
+    up["net"] = up["actual_pct"].astype(float)
+    if "cost" in up.columns:
+        up["net"] = up["net"] - up["cost"].astype(float)
+
+    if "pred_date" in up.columns:
+        by_day = up.groupby("pred_date")["net"]
+        daily = by_day.mean()
+        size = by_day.count()
+        daily = daily[size >= MIN_BASKET]
+    else:
+        return pd.Series(dtype=float)
+    return daily.astype(float).sort_index()
+
+
+def compounded_stats(history: pd.DataFrame) -> dict:
+    """复利口径的收益统计 —— **对标「年化 20%」的唯一尺子**。
+
+    ## 算术年化会把结果说反
+
+        算术 − 复利 ≈ σ²/2 × 252
+
+    波动越大差得越远。实测本项目 10 只等权组合日波动 3.44%（年化 54.6%）：
+
+        算术 − 复利 = 0.0344²/2 × 252 = **14.91%/年**
+
+    这是**量级**问题不是精度问题。实测现任权重的回测：
+
+        日均净收益（算术）  -0.68224%
+        算术×252          -171.92%   ← 报告里的口径，物理上不可能
+        复利累计           -96.96%
+        真实 CAGR          -84.70%   ← 复利口径
+
+    年化跌幅超过 100% 一眼就能看出口径错了，而它确实印在报告里。
+
+    ## 为什么 `cagr` 在接近 -100% 时仍然可用
+
+    `CAGR = (1 + total)^(1/years) − 1`。total = -0.9696、years ≈ 2.0 时，
+    底数 0.0304 开方后仍有定义。真正会炸的是 total ≤ -1（本金亏光），
+    那种情况返回 `None` 而不是抛异常——归零是**策略死了**，
+    不是「年化收益特别特别负」。
+
+    ## 与 `rolling_stats` 的口径差异是刻意的
+
+    `rolling_stats` 的 `avg_up_return` 是**逐笔**平均（每天成分数不同，
+    权重不同）；这里 `arith_daily` 是**先按日等权、再对日等权**。
+    后者才是「10 只等权组合一天赚多少」的正确读数，也是 CAGR 的输入。
+    两者不一致是正常的，前者是统计量，后者是组合曲线。
+    """
+    none_stats = {
+        "total_return": None, "cagr": None, "arith_daily": None,
+        "arith_ann": None, "ann_vol": None, "vol_drag": None,
+        "n_days": 0, "years": None,
+    }
+    daily = daily_portfolio_returns(history)
+    if daily.empty:
+        return none_stats
+
+    r = daily.to_numpy(dtype=float)
+    n = len(r)
+    total = float(np.prod(1.0 + r) - 1.0)
+    years = n / TRADING_DAYS_PER_YEAR
+    arith_daily = float(r.mean())
+
+    # 单日样本：所有**跨期**的量一律 None（2026-10-14）。
+    #
+    # 实测 `/api/status` 在 n_days=1 时返回过 `arith_ann = -681.93%`、
+    # `cagr = -99.90%`、`vol_drag = -582.03%`。这三个数**数学上全对**、
+    # **解读上全错**——它们是单日收益的 252 次方，量到的是噪音不是业绩，
+    # 而它们真的会显示在概览页上。
+    #
+    # `total_return` 仍然给：那一天的涨跌是**事实**，不是外推。
+    if n < MIN_DAYS_FOR_ANNUALISATION:
+        return {
+            "total_return": total,
+            "cagr": None,
+            "arith_daily": arith_daily,
+            "arith_ann": None,
+            "ann_vol": None,
+            "vol_drag": None,
+            "n_days": n,
+            "years": years,
+        }
+
+    arith_ann = arith_daily * TRADING_DAYS_PER_YEAR
+    ann_vol = float(r.std(ddof=1)) * np.sqrt(TRADING_DAYS_PER_YEAR)
+
+    # 本金亏光时 CAGR 无定义。归零是策略死了，不能报成一个有限的负数。
+    if total <= -1.0 or years <= 0:
+        cagr = None
+    else:
+        cagr = float((1.0 + total) ** (1.0 / years) - 1.0)
+
+    return {
+        "total_return": total,
+        "cagr": cagr,
+        "arith_daily": arith_daily,
+        "arith_ann": arith_ann,
+        "ann_vol": ann_vol,
+        "vol_drag": (arith_ann - cagr) if cagr is not None else None,
+        "n_days": n,
+        "years": years,
     }
 
