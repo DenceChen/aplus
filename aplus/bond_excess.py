@@ -43,6 +43,7 @@
 import pandas as pd
 
 from .bond_horizon import (
+    COST_WAN15,
     TRADING_DAYS_PER_YEAR,
     _horizon_return_np,
     _pool_of,
@@ -62,7 +63,13 @@ BENCHMARK_DESC = (
 #: 默认参数组 = bond_param_race 的已知口径，用来复核既有数字。
 DEFAULT_TOP_N = 10
 DEFAULT_HOLD_DAYS = 5
-DEFAULT_COST = 0.003
+#: 指向债券侧唯一真相源，不写裸字面量。
+#:
+#: ⚠️ **不要把它改成股票侧的 0.0055**（见 `aplus/backtest.STOCK_COST_DEFAULT`）——
+#: 两个常数**数值相同、含义不同**：股票那个 0.003 只含价差（佣金/印花税/
+#: 过户费全缺，实测真实往返 0.5520%），债券这个 0.003 是万15/边 × 双边。
+#: 债券**无印花税**，把股票的修法套过来 = 凭空多收费用，债券策略显得更差。
+DEFAULT_COST = COST_WAN15
 
 #: 样本外切分参数，与 scripts/bond_param_race.py 完全一致（不可在此改）。
 TRAIN_RATIO = 0.6

@@ -44,9 +44,11 @@ import random
 import numpy as np
 import pandas as pd
 
-from .bond_horizon import _pool_of
+from .bond_horizon import COST_WAN15, _pool_of
 
-DEFAULT_COST = 0.003        # 万 15/边 × 双边——与第三阶段主判定口径一致（保守）
+#: 指向债券侧唯一真相源，不写裸字面量（理由同 bond_excess.DEFAULT_COST：
+#: 数值与股票侧 0.003 相同但含义不同，grep 批量修会出事）。
+DEFAULT_COST = COST_WAN15   # 万 15/边 × 双边——第三阶段主判定的保守口径
 DEFAULT_HOLD_DAYS = 5
 DEFAULT_TOP_N = 10
 PAPER_PHASES = (0, 1, 2, 3, 4)
