@@ -1,0 +1,267 @@
+"""验证闭环：T+1 实际涨跌 vs 预测判定 + 滚动统计。
+
+这是平台迭代的核心抓手（PLATFORM.md §3）：所有判定结果永久留存，命中率是
+调参、加因子、改池子规则的唯一依据。平局（恰好 0.00%）单列 flat 不计命中。
+"""
+import pandas as pd
+
+from .adjust import hfq_close
+
+# 一个篮子至少要有几只成分才允许进入日度聚合与 t 检验。
+#
+# `.mean()` 默认跳过 NaN，所以「篮子平均收益」可以只由一只股票构成，
+# 而调用方看不出来。实测 2026-06-04 的跌篮子 10 只里 9 只没有次日 bar
+# （退市/长期停牌），多空价差被虚报到 +9.84%、t=7.75——
+# **看起来比任何真 alpha 都显著**。
+#
+# 取 3：低于此值时那一天衡量的根本不是「一个篮子」，而是个别标的的运气。
+MIN_BASKET = 3
+
+
+def judge(prediction, actual_pct) -> str:
+    """单条判定：方向对且非平 = hit，反向 = miss，恰好 0 = flat，无行情 = no_data。"""
+    if pd.isna(actual_pct):
+        return "no_data"
+    if actual_pct == 0:
+        return "flat"
+    is_up_prediction = prediction["direction"] == "up"
+    return "hit" if (actual_pct > 0) == is_up_prediction else "miss"
+
+
+def last_two_bars(store, code: str, factors_map: dict | None = None,
+                  after_date: str | None = None,
+                  _allow_unanchored_for_test: bool = False):
+    """实盘判定用：**信号日之后**那两根 K 线的后复权收盘价（买价 / 卖价）。
+
+    ## 为什么必须锚定 `after_date`（2026-10-14 修复）
+
+    原实现返回 `closes[-1] / closes[-2]`——**库里最后两根**，
+    与「预测那天之后第几根」毫无关系。后果：
+
+        信号 D 收盘出 → 实盘量的是 D+1 收盘 / D 收盘
+        回测量的是  D+2 收盘 / D+1 收盘（`backtest._next_bars`, entry_lag=1）
+
+    两者**差一根 K 线**，于是网页上给用户看的命中率，和回测量化的，
+    不是同一个量。实测同一批推荐，换一天判定就从 20.0% 变成 70.6%（12/17）——
+    一个能被一天之差翻转的数字，不能用来决定加不加仓。
+
+    `backtest.py:78-91` 早就把这个口径命名为 bug（「窗口起点落在信息集之内」）
+    并注明 `entry_lag=0` 任何判定都不得使用。**但这里正是那个活着的
+    `entry_lag=0`。** 修好的那份和还在跑的那份并存在一个仓库里。
+
+    所以 `after_date` 是**必填**，且**不给默认值**——原 bug 的成因正是
+    API 允许省略锚点，于是调用方省略了它。
+
+    ## 为什么必须复权
+
+    除权除息当天不复权价直接跳空，用它算就是凭空记一笔从未发生的亏损：
+    实测 `002594.SZ` 2025-07-29 不复权 −66.94%、交易所口径 +0.37%。
+
+    买不到卖价（信号日就是最新一天）返回 None——不成交，
+    绝不退化成「拿最后一根凑」，那量的是一笔无法执行的交易。
+    """
+    import numpy as np
+
+    if after_date is None and not _allow_unanchored_for_test:
+        raise TypeError(
+            "last_two_bars 必须给 after_date（信号日）。不锚定就是量「库里最后两根」，"
+            "与回测的 entry_lag=1 差一根 K 线——2026-10-14 实测同一个数字能因此"
+            "从 20.0% 变成 70.6%。")
+    df = store.read_daily(code)
+    if df is None or len(df) < 2:
+        return None
+    events = (factors_map or {}).get(code) if factors_map else store.read_factor(code)
+    sorted_df = df.sort_values("date", kind="stable")
+    closes = hfq_close(sorted_df, events).to_numpy(float)
+    if after_date is None:                      # 仅供回归测试对比旧行为
+        return {"code": code, "close": float(closes[-1]),
+                "prev_close": float(closes[-2]),
+                "adjusted": bool(events is not None and len(events) > 0)}
+
+    dates = sorted_df["date"].to_numpy(dtype="U10")
+    # 与 `backtest._next_bars` 同一行代码：首根 > 信号日
+    entry = int(np.searchsorted(dates, after_date, side="right"))
+    exit_i = entry + 1
+    if entry >= len(closes) or exit_i >= len(closes):
+        return None                             # 卖价不存在 → 不成交
+    return {"code": code, "close": float(closes[exit_i]),
+            "prev_close": float(closes[entry]),
+            "adjusted": bool(events is not None and len(events) > 0)}
+
+
+def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
+                       require_cost: bool = False,
+                       default_cost: float | None = None) -> pd.DataFrame:
+    """批量验证：next_day_bars 需含 code/close/prev_close（买价 / 卖价）。
+
+    ## 输出契约：`actual_pct` 是**毛**收益，成本另立 `cost` 列
+
+    这不是命名洁癖。回测侧 `evaluate_weights` → `rolling_stats` 一直按
+    「`actual_pct` 为毛、`cost` 独立成列、`rolling_stats` 里扣一次」消费
+    （见 `tests/test_cost_reporting.py`：`gross_excess = net_excess + cost`）。
+    实盘链路若在这里就把成本乘进 `actual_pct`，同一个字段在两条链路上
+    含义相反，而 `rolling_stats` 会**再扣一次** —— 净收益被扣两遍，
+    实盘报告会系统性低报约 0.6 个百分点往返，且不会有任何报错。
+
+    所以 `verify_predictions` 只做**测量**（毛涨跌 + 成本列），
+    扣减交给唯一的下游 `rolling_stats`。口径集中在一处。
+
+    ## 成本必须显式（2026-10-14 修复）
+
+    原实现里 `if "cost" in up.columns` 落空就**静默按毛收益算**，
+    `rolling_stats` 于是写出 `avg_cost_drag: 0.0` ——
+    那个数读起来像「成本不花钱」，实际含义是「成本没测」。
+
+    实测 `pred_*.parquet` 确实没有 cost 列，而判定结果落进
+    `verification.parquet` 时也没带 `cost`，于是 `rolling_stats`
+    读到的 `up.columns` 里**永远没有 cost**——这条静默路径是**常态**。
+    实测那个毛 +0.190% 的「超额」，按回测口径 0.003 计应是净 +0.110%。
+
+    现在 `require_cost=True` 时「既无实测列、也未申报 `default_cost`」
+    直接抛错。**实测优先于申报**：有 `cost` 列就用实测的。
+
+    ## 成本只算涨腿
+
+    跌腿是**回避清单**，不是一笔做过的仓位——扣它的成本等于凭空
+    惩罚一个不存在的交易，`down_excess` 会被系统性高估。
+    `rolling_stats` 一直是这个口径（`avg_down` 直接用 `actual_pct`），
+    这里必须与它一致，否则两处算出来的数对不上。
+    """
+    cols = ["code", "close", "prev_close"]
+    has_cost = "cost" in next_day_bars.columns
+    if has_cost:
+        cols.append("cost")
+    elif default_cost is None and require_cost:
+        raise KeyError(
+            "pred/next_day_bars 缺 cost 列且未申报 default_cost："
+            "实盘判定必须计入交易成本，否则 stats 里的 avg_cost_drag=0.0 "
+            "会被读成「成本不花钱」，实际是「成本没测」。"
+            "请传入实测成本列，或显式传 default_cost 说明口径。")
+    bars = next_day_bars[cols].copy()
+    bars["gross_pct"] = bars["close"] / bars["prev_close"] - 1
+    out = predictions.merge(
+        bars[["code", "gross_pct"]], on="code", how="left")
+    # 成本落到每一行：涨腿取实测/申报值，跌腿恒为 0（没做过这笔交易）。
+    if has_cost:
+        out["cost"] = out["code"].map(bars.set_index("code")["cost"]).fillna(0.0)
+    elif default_cost is not None:
+        out["cost"] = default_cost
+    else:
+        # 两者皆无且未 `require_cost`：老调用方（纯排序研究）确实不建模成本。
+        out["cost"] = 0.0
+    out.loc[out["direction"] != "up", "cost"] = 0.0
+    # 判定用毛值：成本是摩擦，不是方向信息。扣掉成本再判会把
+    # 「恰好平盘」判成 miss，等于用手续费凭空造出方向判断。
+    out["actual_pct"] = out["gross_pct"]
+    out["result"] = out.apply(lambda row: judge(row, row["gross_pct"]), axis=1)
+    return out
+
+
+def rolling_stats(history: pd.DataFrame) -> dict:
+    """滚动统计：分方向命中率、涨/跌篮子的净收益与超额，以及排序的**广度/偏度**。
+
+    ## 为什么要新出三个数（2026-10-11）
+
+    平台每天输出 10 涨 + 10 跌，但此前**只统计涨腿**——「我们能不能看空」
+    这件事从未被测量过。
+
+    跌腿没有直接收益（不做空），它的价值是**回避**：`市场 − 该股收益`，
+    并且它是涨腿的**天然对照组**：两端来自同一次排序。
+
+    ## 新出的两个量，各自回答不同的问题
+
+        广度 breadth = up_excess + down_excess = E[r_up] − E[r_down]   ← 多空价差
+        偏度 tilt   = up_excess − down_excess
+
+    **广度对大盘方向免疫。** 涨腿超额 `E[r_up] − E[r_mkt]` 在大盘上涨时会自动
+    变大——选股毫无本事、只是踩在 beta 上，也能拿到一个漂亮的正数。多空价差把
+    市场项消掉了，衡量的才是排序本身把两端分开的能力。这也是它必须做 t 检验的
+    原因（`aplus.evolve_race.breadth_tstat`）：`+0.03%` 这种数字在样本外早已
+    被证明与随机权重不可区分。
+
+    **偏度用于披露市场暴露。** `E[r_up] + E[r_down] − 2 E[r_mkt] ≠ 0` 说明排序
+    两端**合起来**就偏离了市场，即名单整体含有 beta / 市值等系统性暴露。
+    纯 beta 排序正是如此——这不是 bug，是用户按名单建仓时必须知情���风险。
+
+    注意：这两个数**不能**区分「单因子」与「真本事」——纯单因子排序同样有正的
+    多空价差。
+    """
+    zero = {
+        "hit_rate_up": 0.0,
+        "hit_rate_down": 0.0,
+        "overall_hit_rate": 0.0,
+        "avg_up_return": 0.0,
+        "avg_down_return": 0.0,
+        "up_excess_vs_market": 0.0,
+        "down_excess_vs_market": 0.0,
+        "excess_breadth": 0.0,
+        "excess_tilt": 0.0,
+        "up_basket_n": 0,
+        "down_basket_n": 0,
+        "judged": 0,
+        "avg_cost_drag": 0.0,
+        "gross_up_excess": 0.0,
+        "cost_share": 0.0,
+    }
+    if history is None or history.empty or "direction" not in history.columns:
+        return zero
+
+    def _rate(sub: pd.DataFrame) -> float:
+        judged = sub["result"].isin(["hit", "miss"]).sum()
+        return float((sub["result"] == "hit").sum() / judged) if judged else 0.0
+
+    up = history[history["direction"] == "up"]
+    down = history[history["direction"] == "down"]
+    # 篮子成分数：`.mean()` 默认跳过 NaN，所以「篮子平均收益」可能只由**一只**
+    # 股票构成——而调用方完全看不出来。2026-10-11 实测：某日跌篮子 10 只里
+    # 9 只没有次日 bar（退市/长期停牌），`.mean()` 静默按剩下的 1 只计算，
+    # 再被日度汇总平均，多空价差虚报到 +9.84%。
+    #
+    # 这里把有效成分数一并报出；逐日聚合与 t 检验用 `MIN_BASKET` 丢弃
+    # 成分不足的日子——**宁可少几天样本，不可用一只股票代表一个篮子**。
+    up_net = ((up["actual_pct"] - up["cost"]) if "cost" in up.columns
+              else up["actual_pct"])
+    n_up = int(up_net.notna().sum())
+    n_down = int(down["actual_pct"].notna().sum()) if len(down) else 0
+    avg_up = float(up_net.mean()) if n_up else 0.0
+    # 跌腿**不扣成本**：它是我们没做过的仓位（回避清单），扣了就等于凭空
+    # 惩罚一个不存在的交易，指标会系统性偏保守。
+    avg_down = float(down["actual_pct"].mean()) if n_down else 0.0
+    market = float(history["market_pct"].mean()) if "market_pct" in history and len(history) else 0.0
+    up_excess = avg_up - market
+    down_excess = market - avg_down          # 正 = 回避有效（挑出的确实跑输市场）
+
+    # ── 成本必须被**报出来**，不只是被扣掉 ──────────────────────────
+    # 净超额已经扣过成本（上面 avg_up 用的是 actual_pct − cost），但报告里
+    # 看不出扣了多少。于是这两种策略在表里一模一样：
+    #     毛 +0.190% − 成本 0.080% = 净 +0.110%
+    #     毛 +0.111% − 成本 0.001% = 净 +0.110%
+    # 它们不是同一个策略。5 万本金 / 10 只持仓时单只 5000 元，
+    # 日频换手 27.5% 的年成本量级在 20% 上下——**和 20% 的年化目标同量级**，
+    # 所以「成本吃掉毛超额的几成」是决定策略能不能活的数，不是脚注。
+    cost_drag_avg = float(up["cost"].mean()) if "cost" in up.columns and len(up) else 0.0
+    gross_up_excess = up_excess + cost_drag_avg
+    if gross_up_excess > 0:
+        cost_share = cost_drag_avg / gross_up_excess
+    elif abs(cost_drag_avg) <= 0:
+        cost_share = 0.0                 # 成本确为 0（纯排序研究）：占比就是 0
+    else:
+        cost_share = None                # 毛超额 ≤ 0 → 比值无意义，不给数
+    return {
+        "hit_rate_up": _rate(up),
+        "hit_rate_down": _rate(down),
+        "overall_hit_rate": _rate(history),
+        "avg_up_return": avg_up,
+        "avg_down_return": avg_down,
+        "up_excess_vs_market": up_excess,
+        "down_excess_vs_market": down_excess,
+        "excess_breadth": up_excess + down_excess,
+        "excess_tilt": up_excess - down_excess,
+        "up_basket_n": n_up,
+        "down_basket_n": n_down,
+        "judged": int(history["result"].isin(["hit", "miss"]).sum()) if "result" in history else 0,
+        "avg_cost_drag": cost_drag_avg,
+        "gross_up_excess": gross_up_excess,
+        "cost_share": cost_share,
+    }
+

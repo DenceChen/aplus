@@ -1,0 +1,7 @@
+baostock>=0.8
+requests>=2.31
+pandas>=2.0
+pyarrow>=16
+pytest>=8
+akshare>=1.16  # 广度补充源（可选；其东财源在本机不可用，见 README 已知边界）
+tushare>=1.4   # 可选第三源（120 积分免费档），不用可不装

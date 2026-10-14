@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>aplus · 个人量化平台</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+  :root {
+    --ink: #0A0D12;
+    --bg: #0E1319;
+    --panel: #141A23;
+    --panel-edge: rgba(255,255,255,.04);
+    --panel-2: #1C242F;
+    --line: rgba(160,180,205,.11);
+    --line-strong: rgba(160,180,205,.20);
+    --text: #E7EBF0;
+    --muted: #8792A2;
+    --faint: #5A6473;
+    --up: #F04A4F;
+    --up-soft: rgba(240,74,79,.12);
+    --down: #1FB981;
+    --down-soft: rgba(31,185,129,.12);
+    --seal: #C8963E;
+    --seal-soft: rgba(200,150,62,.13);
+    --chart: #D9A441;
+    --serif: "Noto Serif SC", "Songti SC", "STSong", serif;
+    --sans: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; }
+  ::selection { background: var(--seal); color: var(--ink); }
+  /* 焦点环原来写成 `button, a, [tabindex]:focus-visible`——button 后面漏了
+     :focus-visible，于是页面上每一个按钮都常驻一圈金色描边，七个 tab 被框成
+     七个格子。焦点环只在真的聚焦时才该出现。 */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 3px; }
+
+  /* ── 顶部品牌条 ── */
+  .brand { max-width: 1180px; margin: 0 auto; padding: 20px 24px 0; display: flex; align-items: baseline; gap: 12px; }
+  .brand h1 { font-family: var(--serif); font-size: 23px; font-weight: 700; letter-spacing: .05em; }
+  .brand .mode { font-size: 11.5px; color: var(--faint); border: 1px solid var(--line-strong); padding: 1px 9px; border-radius: 99px; }
+  .brand .spacer { flex: 1; }
+  .run-dot { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .run-dot i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .run-dot.ok i { background: var(--down); box-shadow: 0 0 6px var(--down); }
+  .run-dot.warn i { background: var(--chart); }
+  .run-dot.bad i { background: var(--up); }
+
+  /* ── 判决板 ──
+     这是全页唯一的记忆点：进门第一眼回答「这钱能不能赚、凭什么信我」。
+     空态不再是三个「—」，而是还差什么、差多少、下一步做什么。 */
+  .docket {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--ink);
+    border-bottom: 1px solid var(--line-strong);
+  }
+  .docket-inner { max-width: 1180px; margin: 0 auto; padding: 14px 24px 15px; }
+  .docket .verdict-line { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .docket .verdict-word {
+    font-family: var(--serif); font-size: 20px; font-weight: 700; letter-spacing: .04em;
+    color: var(--seal); flex-shrink: 0;
+  }
+  .docket .verdict-why { font-size: 13px; color: var(--muted); }
+  .docket .verdict-why b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* 进度条：把「还差多少」变成可量的东西，而不是又一行说明文字 */
+  .docket .tally { height: 3px; background: rgba(255,255,255,.06); margin: 10px 0 12px; border-radius: 2px; overflow: hidden; }
+  .docket .tally i { display: block; height: 100%; background: var(--seal); border-radius: 2px; transition: width .4s ease; }
+  .docket .tally.done i { background: var(--down); }
+  .docket .figures { display: flex; gap: 30px; flex-wrap: wrap; align-items: baseline; }
+  .docket .fig { display: flex; align-items: baseline; gap: 8px; }
+  .docket .fig b { font-family: var(--serif); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .docket .fig span { font-size: 11.5px; color: var(--faint); line-height: 1.3; }
+  .docket .fig.rise b { color: var(--up); }
+  .docket .fig.fall b { color: var(--down); }
+  .docket .fig.idle b { color: var(--faint); }
+
+  /* ── Tab 导航（去掉一二三四五序号——那是装饰不是信息） ── */
+  .tabs {
+    max-width: 1180px; margin: 0 auto; padding: 0 24px;
+    display: flex; gap: 2px; overflow-x: auto;
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 39; background: var(--bg);
+  }
+  .tab {
+    appearance: none; background: none; border: 0; cursor: pointer;
+    color: var(--muted); font: inherit; font-size: 13.5px; padding: 11px 15px;
+    border-bottom: 2px solid transparent; white-space: nowrap; transition: color .12s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--seal); border-bottom-color: var(--seal); }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 0 24px 90px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 3px;
+    margin-top: 20px; overflow: hidden;
+  }
+  .panel-head { display: flex; align-items: baseline; gap: 12px; padding: 15px 20px 11px; border-bottom: 1px solid var(--line); }
+  .panel-head h2 { font-family: var(--serif); font-size: 17px; font-weight: 700; letter-spacing: .03em; }
+  .panel-head .sub { font-size: 12.5px; color: var(--muted); }
+  .panel-head .right { margin-left: auto; font-size: 12px; color: var(--faint); }
+
+  /* ── 看涨 / 看跌 双栏（原来 ▲▼ 混在一张表里，边界不清要自己数） ── */
+  .heroes { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
+  @media (max-width: 860px) { .heroes { grid-template-columns: 1fr; } }
+  .hero { padding: 18px 20px 16px; }
+  .hero.up-side { border-right: 1px solid var(--line); }
+  @media (max-width: 860px) { .hero.up-side { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .hero .tag { font-size: 11.5px; margin-bottom: 6px; }
+  .hero.up-side .tag { color: var(--up); }
+  .hero.down-side .tag { color: var(--down); }
+  .hero .stock { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .hero .stock b { font-family: var(--serif); font-size: 27px; font-weight: 700; letter-spacing: .03em; }
+  .hero .code { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .hero .pct { font-family: var(--serif); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hero.up-side .pct { color: var(--up); }
+  .hero.down-side .pct { color: var(--down); }
+  .hero .why { color: var(--muted); font-size: 12.5px; margin-top: 5px; }
+  .hero .news { margin-top: 9px; font-size: 12.5px; color: var(--text); background: var(--panel-2); border-radius: 4px; padding: 6px 10px; }
+  .hero .news i { font-style: normal; font-family: var(--serif); margin-right: 5px; }
+  .hero .news i.pos { color: var(--up); } .hero .news i.neg { color: var(--down); } .hero .news i.neu { color: var(--muted); }
+
+  /* ── 台账表 ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-weight: 500; font-size: 11px; color: var(--faint); padding: 8px 12px; border-bottom: 1px solid var(--line-strong); letter-spacing: .04em; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background .12s; }
+  tbody tr:hover { background: rgba(255,255,255,.025); }
+  td.num, th.num { text-align: right; }
+  .name-cell b { font-weight: 600; }
+  .name-cell span { display: block; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .dir-up { color: var(--up); font-weight: 600; }
+  .dir-down { color: var(--down); font-weight: 600; }
+  .pct-up { color: var(--up); font-weight: 600; }
+  .pct-down { color: var(--down); font-weight: 600; }
+  .bar-cell { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .bar-cell .track { width: 64px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
+  .bar-cell .track i { display: block; height: 100%; border-radius: 3px; background: var(--seal); }
+  /* 消息面：原来 max-width:190px + ellipsis 直接吞字（「预亏利空」被切掉）。
+     改成两行夹断，且允许换行——消息理由是被砍仓的依据，不能丢。 */
+  .news-chip { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .news-chip i { font-style: normal; font-family: var(--serif); flex-shrink: 0; }
+  .news-chip i.pos { color: var(--up); } .news-chip.neg i { color: var(--down); }
+  .news-chip .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; }
+
+  /* 涨跌双栏台账：各栏独立成表，看涨看跌的边界由结构给出，不靠颜色和 ▲▼ 自己找 */
+  .ledger { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+  @media (max-width: 860px) { .ledger { grid-template-columns: 1fr; } }
+  .ledger-col:first-child { border-right: 1px solid var(--line); }
+  @media (max-width: 860px) { .ledger-col:first-child { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .ledger-head {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 9px 20px; font-size: 12px; border-bottom: 1px solid var(--line);
+  }
+  .ledger-head span { margin-left: auto; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .ledger-up .ledger-head { color: var(--up); background: var(--up-soft); }
+  .ledger-down .ledger-head { color: var(--down); background: var(--down-soft); }
+
+  .verdict { display: inline-block; min-width: 44px; text-align: center; font-size: 12px; padding: 2px 0; border-radius: 5px; }
+  .verdict.hit { color: var(--bg); background: var(--seal); font-weight: 700; }
+  .verdict.miss { color: var(--text); background: rgba(232,228,217,.14); border: 1px solid var(--line-strong); }
+  .verdict.flat, .verdict.no_data { color: var(--faint); }
+  .verdict.pending { color: var(--faint); border: 1px dashed var(--line-strong); }
+
+  /* ── 对比历史 ── */
+  .date-group { border-bottom: 1px solid var(--line); }
+  .date-group:last-child { border-bottom: 0; }
+  .date-head { display: flex; align-items: center; gap: 14px; padding: 13px 20px; background: var(--panel-2); border-bottom: 1px solid var(--line); }
+  .date-head b { font-family: var(--serif); font-size: 16px; letter-spacing: .03em; }
+  .hit-badge { font-size: 12px; padding: 2px 10px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+  .hit-badge.good { color: var(--up); background: var(--up-soft); }
+  .hit-badge.mid { color: var(--muted); background: rgba(232,228,217,.08); }
+  .hit-badge.bad { color: var(--down); background: var(--down-soft); }
+  .hit-badge.pending { color: var(--faint); border: 1px dashed var(--line-strong); }
+  .duo-cols { display: grid; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 800px) { .duo-cols { grid-template-columns: 1fr; } }
+  .duo-cols .col:first-child { border-right: 1px solid var(--line); }
+  @media (max-width: 800px) { .duo-cols .col:first-child { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .col-title { font-size: 12px; padding: 8px 20px 2px; }
+  .col-title.up-t { color: var(--up); } .col-title.down-t { color: var(--down); }
+  .compare-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 7px 20px; border-top: 1px solid var(--line); }
+  .compare-row:first-of-type { border-top: 0; }
+  .compare-row .who b { font-weight: 600; font-size: 13.5px; }
+  .compare-row .who span { font-size: 11px; color: var(--faint); margin-left: 7px; font-variant-numeric: tabular-nums; }
+  .compare-row .actual { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 64px; text-align: right; }
+  .filter-row { display: flex; gap: 8px; padding: 12px 20px 4px; }
+  .chip { appearance: none; font: inherit; font-size: 12.5px; padding: 4px 14px; border-radius: 99px; border: 1px solid var(--line-strong); background: none; color: var(--muted); cursor: pointer; }
+  .chip[aria-pressed="true"] { color: var(--bg); background: var(--seal); border-color: var(--seal); font-weight: 600; }
+
+  /* ── 图表 ── */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); }
+  @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
+  .chart-box { background: var(--panel); padding: 18px 20px 10px; position: relative; }
+  .chart-box h3 { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
+  .chart-box .ref-label { font-size: 11px; color: var(--faint); margin-bottom: 10px; }
+  .chart-box svg { width: 100%; height: auto; display: block; }
+  .chart-box .tooltip {
+    position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line-strong);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; font-variant-numeric: tabular-nums;
+    transform: translate(-50%, -130%); white-space: nowrap; display: none; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  }
+
+  /* ── 配置 ── */
+  .alloc-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin: 18px 20px 8px; }
+  .alloc-bar .equity { background: linear-gradient(90deg, var(--seal), #B08F4F); }
+  .alloc-bar .cash { background: rgba(232,228,217,.10); }
+  .alloc-legend { display: flex; gap: 22px; padding: 0 20px 6px; font-size: 12px; color: var(--muted); }
+  .alloc-legend em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
+  .notes-list { list-style: none; padding: 12px 20px 16px; }
+  .notes-list li { color: var(--muted); font-size: 12.5px; padding: 3px 0; }
+  .notes-list li::before { content: "· "; color: var(--seal); font-weight: 700; }
+
+  /* ── 进化 ── */
+  .weights-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 18px 20px 6px; }
+  .weight-chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; text-align: center; }
+  .weight-chip b { font-family: var(--serif); font-size: 22px; font-weight: 700; display: block; font-variant-numeric: tabular-nums; }
+  .weight-chip span { font-size: 11px; color: var(--muted); }
+  .weight-chip.champion b { color: var(--seal); }
+  .evo-entry { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .evo-entry:last-child { border-bottom: 0; }
+  .evo-entry .head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
+  .evo-entry .head b { font-family: var(--serif); font-size: 15px; }
+  .evo-entry .decision { font-size: 12.5px; }
+  .evo-entry .decision.promoted { color: var(--seal); }
+  .evo-entry .decision.kept { color: var(--muted); }
+  .evo-entry blockquote { border-left: 2px solid var(--line-strong); padding-left: 12px; color: var(--muted); font-size: 12.5px; margin: 8px 0; }
+  .src-tag { font-size: 11px; padding: 1px 8px; border-radius: 5px; background: var(--panel-2); color: var(--muted); }
+  .src-tag.llm { color: var(--chart); border: 1px solid rgba(227,179,65,.35); }
+
+  /* ── 对话 ── */
+  .chat-wrap { display: flex; flex-direction: column; }
+  .msgs { padding: 16px 20px; max-height: 480px; overflow-y: auto; min-height: 140px; }
+  .msg { max-width: 84%; margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; font-size: 13.5px; }
+  .msg.user { margin-left: auto; color: var(--bg); background: var(--seal); padding: 8px 13px; border-radius: 12px 12px 3px 12px; }
+  .msg.assistant { border-left: 2px solid var(--line-strong); padding-left: 13px; }
+  .msg.error { color: var(--down); font-size: 12.5px; }
+  .chat-input { display: flex; border-top: 1px solid var(--line); }
+  .chat-input textarea { flex: 1; background: transparent; border: 0; color: var(--text); font: inherit; padding: 13px 16px; resize: vertical; min-height: 50px; outline: none; }
+  .chat-input button { background: var(--seal); color: var(--bg); border: 0; padding: 0 24px; font: inherit; font-weight: 700; cursor: pointer; }
+  .chat-tools { display: flex; justify-content: space-between; padding: 9px 20px; font-size: 12px; color: var(--faint); border-top: 1px solid var(--line); }
+  .chat-tools a { color: var(--muted); cursor: pointer; text-decoration: underline; }
+
+  .empty { padding: 34px 24px; text-align: center; color: var(--faint); font-size: 13px; line-height: 1.8; }
+  .skeleton { padding: 30px; text-align: center; color: var(--faint); font-size: 13px; }
+  @media (prefers-reduced-motion: no-preference) {
+    [role="tabpanel"] { animation: fadeIn .18s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+
+<header class="brand">
+  <h1>aplus</h1>
+  <span class="mode">纸面验证 · 不动真钱</span>
+  <span class="spacer"></span>
+  <span class="run-dot" id="run-dot"><i></i><span id="run-text">检查运行状态…</span></span>
+</header>
+
+<div class="docket">
+  <div class="docket-inner">
+    <div class="verdict-line">
+      <span class="verdict-word" id="docket-word">读取成绩…</span>
+      <span class="verdict-why" id="docket-why"></span>
+    </div>
+    <div class="tally" id="docket-tally"><i style="width:0%"></i></div>
+    <div class="figures" id="docket-figures"></div>
+  </div>
+</div>
+
+<nav class="tabs" role="tablist" aria-label="主导航">
+  <button class="tab" role="tab" id="tab-overview" aria-selected="true" data-panel="overview">概览</button>
+  <button class="tab" role="tab" id="tab-history" aria-selected="false" data-panel="history">历史 · 对比</button>
+  <button class="tab" role="tab" id="tab-backtest" aria-selected="false" data-panel="backtest">回测</button>
+  <button class="tab" role="tab" id="tab-evolution" aria-selected="false" data-panel="evolution">进化</button>
+  <button class="tab" role="tab" id="tab-bond" aria-selected="false" data-panel="bond">转债纸面</button>
+  <button class="tab" role="tab" id="tab-chat" aria-selected="false" data-panel="chat">追问</button>
+  <button class="tab" role="tab" id="tab-logs" aria-selected="false" data-panel="logs">日志</button>
+</nav>
+
+<main>
+  <!-- ═══ 一 · 概览 ═══ -->
+  <section role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+    <div class="panel">
+      <div class="panel-head"><h2 id="pred-title">下一交易日预测</h2><span class="sub" id="pred-sub">加载中</span>
+        <span class="right" id="universe-sub"></span></div>
+      <div class="heroes" id="heroes"><div class="skeleton">加载预测数据…</div></div>
+      <div class="ledger">
+        <div class="ledger-col ledger-up">
+          <div class="ledger-head">看涨名单<span id="up-count"></span></div>
+          <table>
+            <thead><tr><th>股票</th><th class="num">20日动量</th><th class="num">综合分</th><th>消息面</th></tr></thead>
+            <tbody id="pred-rows-up"></tbody>
+          </table>
+        </div>
+        <div class="ledger-col ledger-down">
+          <div class="ledger-head">看跌名单 · 建议回避<span id="down-count"></span></div>
+          <table>
+            <thead><tr><th>股票</th><th class="num">20日动量</th><th class="num">综合分</th><th>消息面</th></tr></thead>
+            <tbody id="pred-rows-down"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>资产配置方案</h2><span class="sub">本金 5 万 · 保守档</span>
+        <span class="right" id="alloc-date"></span></div>
+      <div id="alloc-body"><div class="skeleton">加载配置…</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ 二 · 历史 · 对比 ═══ -->
+  <section role="tabpanel" id="panel-history" aria-labelledby="tab-history" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>推荐历史 · 预测对实际</h2>
+        <span class="sub">每个预测日：我们猜了什么，市场实际走了什么</span>
+        <span class="right" id="hist-count"></span></div>
+      <div class="filter-row" id="hist-filters">
+        <button class="chip" data-filter="all" aria-pressed="true">全部</button>
+        <button class="chip" data-filter="hit" aria-pressed="false">只看命中</button>
+        <button class="chip" data-filter="miss" aria-pressed="false">只看未中</button>
+        <button class="chip" data-filter="pending" aria-pressed="false">待验证</button>
+      </div>
+      <div id="history-body"><div class="skeleton">加载历史…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>回测基线 vs 实盘验证</h2>
+        <span class="sub">同口径对比：历史重放的成绩单，与真纸面的成绩单</span></div>
+      <div id="compare-summary"><div class="skeleton">加载对比…</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ 三 · 回测 ═══ -->
+  <section role="tabpanel" id="panel-backtest" aria-labelledby="tab-backtest" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>回测战绩</h2><span class="sub" id="bt-sub">加载中</span></div>
+      <div class="charts">
+        <div class="chart-box" id="chart-hit-box">
+          <h3>每日命中率</h3><div class="ref-label">虚线 = 50% 抛硬币基准</div>
+          <svg id="chart-hit" viewBox="0 0 560 190"></svg>
+          <div class="tooltip" id="tip-hit"></div>
+        </div>
+        <div class="chart-box" id="chart-exc-box">
+          <h3>累计超额收益</h3><div class="ref-label">虚线 = 0（跑赢/跑输市场分界）</div>
+          <svg id="chart-exc" viewBox="0 0 560 190"></svg>
+          <div class="tooltip" id="tip-exc"></div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>月份</th><th class="num">判定数</th><th class="num">命中率</th><th class="num">超额</th></tr></thead>
+        <tbody id="bt-monthly"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 四 · 进化 ═══ -->
+  <section role="tabpanel" id="panel-evolution" aria-labelledby="tab-evolution" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>赛马判决板</h2>
+        <span class="sub">跑了多少轮 · 晋级几次 · 现在线上这组有没有被验收过</span></div>
+      <div class="weights-row" id="evo-verdict"><div class="skeleton">加载…</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>当前策略</h2><span class="sub" id="w-source"></span>
+        <span class="right" id="w-date"></span></div>
+      <div class="weights-row" id="weights-row"><div class="skeleton">加载…</div></div>
+      <blockquote id="w-reason" style="display:none; margin: 6px 20px 16px; border-left: 2px solid var(--seal); padding-left: 12px; color: var(--muted); font-size: 12.5px;"></blockquote>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>进化日志</h2><span class="sub">每周日的权重赛马战报（含被否决候选）</span></div>
+      <div id="evo-body"><div class="skeleton">加载…</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>改进台账</h2>
+        <span class="sub">每次自进化修掉了什么 · 数字从多少变成多少（含让数字变差的）</span></div>
+      <div id="ledger-body"><div class="skeleton">加载…</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ 五 · 转债纸面 ═══ -->
+  <section role="tabpanel" id="panel-bond" aria-labelledby="tab-bond" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>转债纸面账户</h2>
+        <span class="sub">第二条验证线 · 20% 候选的样本外审判</span>
+        <span class="right" id="bond-sub">加载中</span></div>
+      <div class="kpi-row" id="bond-kpis"><div class="skeleton">加载纸面账户…</div></div>
+      <div id="bond-verdict"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>净值曲线</h2>
+        <span class="sub">虚线 = 初始净值 1.0 · 同时显示随机对照臂</span></div>
+      <div class="charts">
+        <div class="chart-box" id="chart-bond-box">
+          <h3>主账户 cheap_p0 vs 随机对照均值</h3>
+          <div class="ref-label">金线 = 低价格子 · 灰线 = 随机选券对照（同漏斗同费用）</div>
+          <svg id="chart-bond" viewBox="0 0 560 190"></svg>
+          <div class="tooltip" id="tip-bond"></div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>臂</th><th class="num">净值</th><th class="num">总收益</th><th class="num">最大回撤</th><th class="num">调仓</th><th class="num">费用</th></tr></thead>
+        <tbody id="bond-arms"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>最新持仓与调仓</h2>
+        <span class="sub" id="bond-holdings-sub"></span></div>
+      <div id="bond-holdings"><div class="skeleton">加载…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>诚实性声明</h2></div>
+      <div id="bond-caveat" style="color:var(--muted);font-size:12.5px;line-height:1.75"></div>
+    </div>
+  </section>
+
+  <!-- ═══ 七 · 日志 ═══ -->
+  <section role="tabpanel" id="panel-logs" aria-labelledby="tab-logs" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>运行日志</h2><span class="sub">结构化事件流 · 排查问题第一现场（保留 14 天）</span></div>
+      <div class="filter-row" id="log-filters">
+        <button class="chip" data-lvl="" aria-pressed="true">全部</button>
+        <button class="chip" data-lvl="info" aria-pressed="false">常规</button>
+        <button class="chip" data-lvl="error" aria-pressed="false">错误</button>
+      </div>
+      <div style="max-height: 560px; overflow-y: auto;">
+        <table>
+          <thead><tr><th style="width:150px">时间</th><th style="width:70px">级别</th><th style="width:90px">模块</th><th style="width:170px">事件</th><th>详情</th></tr></thead>
+          <tbody id="log-rows"><tr><td colspan="5" class="skeleton">加载日志…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 六 · 追问 ═══ -->
+  <section role="tabpanel" id="panel-chat" aria-labelledby="tab-chat" hidden>
+    <div class="panel chat-wrap">
+      <div class="panel-head"><h2>向平台提问</h2><span class="sub">对话带记忆 · 可连续追问 · 基于平台真实数据回答</span></div>
+      <div class="msgs" id="msgs"><div class="empty">问什么都行，例如：<br>「为什么预测上海医药涨？」「命中率是怎么算的？」「现在的策略权重是什么，为什么？」</div></div>
+      <div class="chat-input">
+        <textarea id="chat-text" rows="1" placeholder="输入问题，Enter 发送"></textarea>
+        <button id="send">发送</button>
+      </div>
+      <div class="chat-tools"><span>MiniMax M3（思考模式）主链 · glm 备链</span><a id="new-chat">开始新对话</a></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtPct = (v, d = 1) => v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%';
+const fmtNum = (v, d = 1) => v == null ? '—' : (v * 100).toFixed(d) + '%';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* 「明日预测」在周六周日是错的——明天的明天才是交易日。
+   预测是对次一交易日说的，标题必须跟着走，否则用户会以为是明天。 */
+function nextTradingDayLabel(from = new Date()) {
+  const d = new Date(from);
+  const dow = d.getDay();
+  const add = dow === 6 ? 2 : dow === 0 ? 1 : 1;          // 周六→下周一(2天)，周日→下周一(1天)，其余→次日
+  d.setDate(d.getDate() + add);
+  const md = `${d.getMonth() + 1}月${d.getDate()}日`;
+  const wd = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
+  return (dow === 6 || dow === 0) ? `${wd} ${md}` : `下一交易日 ${md}`;
+}
+
+/* ── Tab 路由 ── */
+const loaded = {};
+function activate(tabName, push = true) {
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.panel === tabName ? 'true' : 'false'));
+  document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== `panel-${tabName}`);
+  if (push) history.replaceState(null, '', '#/' + tabName);
+  if (!loaded[tabName]) { loaded[tabName] = true; loaders[tabName]?.(); }
+}
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => activate(t.dataset.panel));
+  t.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const tabs = [...document.querySelectorAll('.tab')];
+    const i = tabs.indexOf(t);
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus(); activate(next.dataset.panel);
+  });
+});
+
+/* ── 数据加载器 ── */
+const state = { predictions: null, history: null, backtest: null, filter: 'all' };
+const loaders = {
+  overview: loadOverview,
+  history: loadHistory,
+  backtest: loadBacktest,
+  evolution: loadEvolution,
+  bond: loadBondPaper,
+  logs: loadLogs,
+};
+
+/* ── 转债纸面账户（路线 A 第四阶段） ── */
+async function loadBondPaper() {
+  let data;
+  try { data = await jget('/api/bond-paper'); }
+  catch (e) { $('bond-kpis').innerHTML = `<div class="empty">纸面账户数据加载失败：${esc(e.message)}</div>`; return; }
+  const s = data.summary || {};
+  if (s.status === 'empty') {
+    $('bond-sub').textContent = '待命';
+    $('bond-kpis').innerHTML = `<div class="empty">账户已建立，尚未到首个交易日。<br>
+      <span style="font-size:12px;color:var(--faint)">${esc(s.reason || '')}${s.state?.start ? ' · 锚点 ' + esc(s.state.start) : ''}</span></div>`;
+    $('bond-verdict').innerHTML = '';
+    // 原来这里直接 return，#bond-holdings 里的「加载…」骨架永远留在页面上——
+    // 空态不是「还在加载」，是「确实没有持仓」，两者要说不同的话。
+    $('bond-holdings-sub').textContent = '';
+    $('bond-holdings').innerHTML = `<div class="empty">尚无持仓记录。首个交易日收盘后会写入第一笔建仓。</div>`;
+    $('bond-arms').innerHTML = '';
+    $('bond-caveat').innerHTML = caveatHtml(s);
+    return;
+  }
+  const h = s.headline || {};
+  $('bond-sub').textContent = `数据截至 ${s.as_of} · ${s.n_days} 个交易日 · 自 ${s.first_date}`;
+  $('bond-kpis').innerHTML = `
+    <div class="kpi"><label>主账户净值</label><b>${h.last_nav?.toFixed(4) ?? '—'}</b><span>${fmtPct(h.total_return, 2)}</span></div>
+    <div class="kpi"><label>最大回撤</label><b>${fmtNum(h.max_drawdown, 2)}</b><span>${h.n_days ?? '—'} 个交易日</span></div>
+    <div class="kpi"><label>调仓次数</label><b>${h.n_signals ?? '—'}</b><span>每 ${esc(data.latest?.hold_days ?? '')} 交易日</span></div>
+    <div class="kpi"><label>累计费用</label><b>${fmtNum(h.total_cost, 2)}</b><span>万15/边双边</span></div>
+    <div class="kpi"><label>随机对照</label><b>${s.random_mean_nav?.toFixed(4) ?? '—'}</b><span>同漏斗同费用</span></div>`;
+
+  $('bond-verdict').innerHTML = s.verdict
+    ? `<blockquote style="margin:4px 0 0;border-left:2px solid var(--seal);padding:8px 12px;color:var(--muted);font-size:12.5px;line-height:1.7">
+        样本外 ${s.verdict.n_signals} 个调仓期：主账户 ${s.verdict.head_nav.toFixed(4)} vs 随机 ${s.verdict.random_nav.toFixed(4)}，
+        <b style="color:var(--text)">超额 ${fmtPct(s.verdict.excess_vs_random, 2)}</b>。
+        相位带 ${s.verdict.phase_worst.toFixed(3)} ~ ${s.verdict.phase_best.toFixed(3)}——${esc(s.verdict.caveat)}
+       </blockquote>`
+    : `<div class="empty" style="padding:12px 20px">判决：样本累积中（调仓期不足 3 次）——不给年化结论，避免「两天年化 40%」的假信号。</div>`;
+
+  // 净值曲线：主账户 + 随机对照均值
+  const byArm = {};
+  (data.curve || []).forEach(r => { (byArm[r.arm] ||= []).push(r); });
+  Object.values(byArm).forEach(rows => rows.sort((a, b) => a.date.localeCompare(b.date)));
+  const head = byArm['cheap_p0'] || [];
+  const seeds = Object.keys(byArm).filter(k => k.startsWith('rand_p0_'));
+  const randAvg = head.map((_, i) => {
+    const vals = seeds.map(k => byArm[k][i]?.nav).filter(v => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  });
+  const dates = head.map(r => r.date);
+  const svg = $('chart-bond');
+  if (svg && head.length) {
+    dualLineChart(svg, [
+      { values: randAvg, color: '#8B95A1', label: '随机对照均值', width: 1.5, dashed: true },
+      { values: head.map(r => r.nav), color: '#E3B341', label: '主账户 cheap_p0', width: 2 },
+    ], {
+      ref: 1, refLabel: '初始 1.0', fmt: v => v.toFixed(3),
+      tip: $('tip-bond'), tips: dates.map(d => `${d} · 主 ${head.find(r => r.date === d)?.nav?.toFixed(4) ?? '—'}`),
+    });
+  }
+
+  // 各臂明细（含随机对照平均）
+  const rowsHtml = Object.entries(s.arms || {}).map(([name, m]) => `
+    <tr><td>${esc(name)}</td><td class="num">${m.last_nav?.toFixed(4)}</td>
+    <td class="num" style="color:${m.total_return >= 0 ? 'var(--up)' : 'var(--down)'}">${fmtPct(m.total_return, 2)}</td>
+    <td class="num">${fmtNum(m.max_drawdown, 2)}</td><td class="num">${m.n_signals}</td>
+    <td class="num">${fmtNum(m.total_cost, 2)}</td></tr>`).join('');
+  $('bond-arms').innerHTML = rowsHtml || '<tr><td colspan="6" class="empty">暂无</td></tr>';
+
+  // 最新持仓与调仓差异
+  const L = data.latest || {};
+  const held = (L.holdings || '').split(',').filter(Boolean);
+  const added = (L.add || '').split(',').filter(Boolean);
+  const removed = (L.remove || '').split(',').filter(Boolean);
+  $('bond-holdings-sub').textContent = `${L.date ?? ''} · ${L.is_sell_day ? '调仓日' : L.is_buy_day ? '建仓日' : '持有中'}`;
+  $('bond-holdings').innerHTML = held.length
+    ? `<div style="padding:4px 20px 14px">
+        <div style="margin:8px 0">${held.map(c => `<span class="weight-chip" style="display:inline-block;margin:3px 5px;padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">${esc(c)}</span>`).join('')}</div>
+        ${added.length ? `<div style="font-size:12.5px;color:var(--up);margin-top:6px">调入：${esc(added.join('、'))}</div>` : ''}
+        ${removed.length ? `<div style="font-size:12.5px;color:var(--down);margin-top:4px">调出：${esc(removed.join('、'))}</div>` : ''}
+        ${!added.length && !removed.length ? '<div style="font-size:12.5px;color:var(--faint);margin-top:6px">本次无调仓差异（低价池稳定，换手摊薄正是收益来源）</div>' : ''}
+       </div>`
+    : '<div class="empty">当前空仓（首日为信号日，次日开盘建仓）</div>';
+
+  $('bond-caveat').innerHTML = caveatHtml(s);
+}
+
+function caveatHtml(s) {
+  const st = s?.state || {};
+  return `
+    <p style="margin:6px 0">· <b>样本外口径</b>：账户锚点 <code>${esc(st.start ?? '—')}</code>，自建仓日起只向前累积，从不回溯、不重选锚点。
+      任何在看到结果后调整锚点的行为都会把样本外变成样本内——那就没有意义了。</p>
+    <p style="margin:6px 0">· <b>相位敏感性</b>：回测显示调仓网格相位偏移 0~4 的净年化区间为 +6.8%~+17.1%，锚点恰是最幸运相位。
+      故并行追踪 5 条相位臂与 5 条随机对照臂——<b>相位带宽度本身就是要测的量</b>，不是需要藏起来的噪音。</p>
+    <p style="margin:6px 0">· <b>保真</b>：纸面账户与回测器共用同一候选漏斗、同一费用换手公式，逐期收益差异仅来自费用乘性/加性的二阶小量（有测试钉死）。
+      口径漂移会让样本外与样本内不可比，那才是真正的自欺。</p>
+    <p style="margin:6px 0">· <b>摘牌代理</b>：持仓遇强赎/摘牌时按末根收盘价卖出并单独计数——现实中这类债可能根本卖不掉。</p>`;
+}
+
+async function loadLogs(level = '') {
+  const rows = await fetch('/api/logs?tail=300' + (level ? `&level=${level}` : '')).then(r => r.json()).catch(() => []);
+  const lvlColor = { error: 'var(--up)', warn: 'var(--chart)', info: 'var(--muted)' };
+  $('log-rows').innerHTML = rows.slice().reverse().map(e => `
+    <tr>
+      <td style="color:var(--faint);font-size:12px">${esc(e.ts)}</td>
+      <td style="color:${lvlColor[e.level] ?? 'var(--muted)'};font-weight:600">${esc(e.level)}</td>
+      <td>${esc(e.module)}</td>
+      <td>${esc(e.event)}</td>
+      <td style="color:var(--muted);font-size:12px">${esc(Object.entries(e).filter(([k]) => !['ts','level','module','event'].includes(k)).map(([k,v]) => `${k}=${v}`).join(' '))}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">暂无日志</td></tr>';
+}
+document.querySelectorAll('#log-filters .chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('#log-filters .chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
+  c.setAttribute('aria-pressed', 'true');
+  loadLogs(c.dataset.lvl);
+}));
+
+async function jget(url) { const r = await fetch(url); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status); return r.json(); }
+
+/* 判决板 + 运行状态属于外壳，不属于任何一个 tab。
+   原来它们挂在 loadOverview() 里，于是深链进「进化」「日志」时，顶部永远停在
+   「读取成绩…」和「检查运行状态…」——看着像坏了。 */
+async function loadChrome() {
+  try { loadRunDot(); } catch {}
+  try {
+    const status = await jget('/api/status');
+    renderDocket(status.stats);
+  } catch {
+    $('docket-word').textContent = '平台状态未知';
+    $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
+  }
+}
+
+async function loadOverview() {
+  try {
+    const [status, pred] = await Promise.all([jget('/api/status'), jget('/api/predictions/latest')]);
+    state.predictions = pred;
+    $('universe-sub').textContent = `股票池 ${status.universe_size} 只`;
+    $('pred-title').textContent = nextTradingDayLabel() + '预测';
+    $('pred-sub').textContent = `${pred.date} 收盘后生成`;
+    renderHeroes(pred.up[0], pred.down[0]);
+    renderRows($('pred-rows-up'), pred.up.slice(1), 'up');
+    renderRows($('pred-rows-down'), pred.down, 'down');
+    $('up-count').textContent = `${pred.up.length} 只`;
+    $('down-count').textContent = `${pred.down.length} 只`;
+    renderDocket(status.stats);
+  } catch (e) { $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`; }
+  try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
+}
+
+/* 判决板：空态不写「—」，写「还差什么」。
+   3 笔是硬门槛，与转债纸面账户「调仓期不足 3 次不给年化判决」同一条规矩：
+   两三天的命中率是噪音，报出来会被读成信号。 */
+const MIN_JUDGED = 3;
+function renderDocket(stats) {
+  const judged = stats?.judged ?? 0;
+  const has = judged >= MIN_JUDGED;
+  const rate = stats?.overall_hit_rate ?? null;
+  const exc = stats?.up_excess_vs_market ?? null;
+  const word = $('docket-word'), why = $('docket-why');
+
+  if (!has) {
+    word.textContent = '还不能下结论';
+    why.innerHTML = `命中率要攒够 <b>${MIN_JUDGED}</b> 个已收盘验证日才给结论，现在 <b>${judged}</b> 个。
+      每个交易日收盘后自动判定一次，明晚再来。`;
+  } else if (rate >= 0.55) {
+    word.textContent = '初步有效';
+    why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>。
+      样本还小，别当结论——继续看它能不能扛住下一段行情。`;
+  } else if (rate >= 0.45) {
+    word.textContent = '与抛硬币无异';
+    why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>，落在 45%~55% 的噪声带里。
+      这一档说明模型目前没有证明自己能预测方向。`;
+  } else {
+    word.textContent = '暂时跑输';
+    why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>，低于抛硬币。
+      不加仓，等下一轮权重赛马换掉它。`;
+  }
+
+  const pct = Math.min(100, judged / MIN_JUDGED * 100);
+  const tally = $('docket-tally');
+  tally.className = 'tally' + (has ? ' done' : '');
+  tally.firstElementChild.style.width = pct + '%';
+
+  /* 跌篮子与多空价差（2026-10-11 新增）。此前判决板只有涨腿，而平台每天输出的是
+     10 涨 + 10 跌——「我们能不能看空」从来没被显示过。
+     价差（多空价差 = 涨篮子 − 跌篮子）对大盘方向免疫：涨腿超额在牛市里会自己变大，
+     选股没本事也能拿到漂亮数字。 */
+  const downExc = stats?.down_excess_vs_market ?? null;
+  const breadth = stats?.excess_breadth ?? null;
+  const fig = (cls, val, label, tip) => `<div class="fig ${cls}"${tip ? ` title="${tip}"` : ''}><b>${val}</b><span>${label}</span></div>`;
+  const idle = fig('idle', '—', '命中率');
+  $('docket-figures').innerHTML = has
+    ? fig('rise', fmtNum(rate), '命中率')
+      + fig(exc >= 0 ? 'rise' : 'fall', fmtPct(exc, 2), '涨组合超额')
+      + fig(downExc >= 0 ? 'rise' : 'fall', fmtPct(downExc, 2), '跌篮子回避',
+            '跌篮子相对大盘的超额：正 = 挑出的确实跑输市场，回避有效')
+      + fig(breadth >= 0 ? 'rise' : 'fall', fmtPct(breadth, 2), '多空价差',
+            '涨篮子减跌篮子。市场涨跌不影响这个数——它是排序有没有区分度的度量')
+      + fig('idle', String(judged), '已判定笔数')
+    : idle
+      + fig('idle', '—', '涨组合超额')
+      + fig('idle', '—', '跌篮子回避')
+      + fig('idle', '—', '多空价差')
+      + fig('idle', String(judged), `已判定笔数（还差 ${MIN_JUDGED - judged}）`);
+}
+
+async function loadRunDot() {
+  try {
+    const s = await jget('/api/run-status');
+    const dot = $('run-dot'), txt = $('run-text');
+    if (s.status === 'never_run') { dot.className = 'run-dot bad'; txt.textContent = '尚未运行'; }
+    else if (s.status === 'ok') { dot.className = 'run-dot ok'; txt.textContent = `今日已跑 · ${s.updated_at?.slice(11) ?? ''}`; }
+    else { dot.className = 'run-dot warn'; txt.textContent = `部分完成 · ${Object.entries(s.steps).filter(([,v]) => v !== 'ok').map(([k]) => k).join('/')}`; }
+  } catch { $('run-text').textContent = '状态未知'; }
+}
+
+function newsChip(r) {
+  if (r.news_reason == null && r.news_sentiment == null) return '<span style="color:var(--faint)">无消息</span>';
+  const reason = r.news_reason ?? '中性';
+  if (r.news_sentiment == null) return `<span class="news-chip"><span class="txt">${esc(reason)}</span></span>`;
+  const cls = r.news_sentiment > 0.1 ? 'pos' : r.news_sentiment < -0.1 ? 'neg' : '';
+  return `<span class="news-chip ${cls}"><i>${r.news_sentiment > 0 ? '+' : ''}${r.news_sentiment.toFixed(1)}</i><span class="txt">${esc(reason)}</span></span>`;
+}
+
+function renderHeroes(upTop, downTop) {
+  if (!upTop && !downTop) { $('heroes').innerHTML = '<div class="empty">暂无预测</div>'; return; }
+  const hero = (r, side, label) => {
+    if (!r) return `<div class="hero ${side}"><div class="tag">${label}</div><div class="empty" style="padding:8px 0">本日无</div></div>`;
+    const hasNews = r.news_reason != null || r.news_sentiment != null;
+    return `
+    <div class="hero ${side}">
+      <div class="tag">${label}</div>
+      <div class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></div>
+      <div class="why">二十日动量 ${fmtPct(r.mom20)} · 综合分 ${r.score?.toFixed(2) ?? '—'}</div>
+      ${hasNews ? `<div class="news"><i class="${r.news_sentiment > 0 ? 'pos' : r.news_sentiment < 0 ? 'neg' : 'neu'}">${r.news_sentiment > 0 ? '+' : ''}${(r.news_sentiment ?? 0).toFixed(1)}</i>${esc(r.news_reason ?? '中性')}</div>` : ''}
+    </div>`;
+  };
+  $('heroes').innerHTML = hero(upTop, 'up-side', '看涨首选') + hero(downTop, 'down-side', '看跌首选 · 建议回避');
+}
+
+/* 榜单行：涨/跌已由分栏表达，去掉了每行重复的 ▲▼ 符号——
+   结构已经说清楚了，符号再说一遍只是噪声。 */
+function renderRows(tbody, rows, dir) {
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:16px">本日无</td></tr>`; return; }
+  const maxScore = 3;
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="name-cell"><b class="${dir === 'up' ? 'dir-up' : 'dir-down'}">${esc(r.name ?? r.code)}</b><span>${esc(r.code ?? '')}</span></td>
+      <td class="num ${r.mom20 >= 0 ? 'pct-up' : 'pct-down'}">${fmtPct(r.mom20)}</td>
+      <td class="num"><span class="bar-cell"><span class="track"><i style="width:${Math.min(100, Math.abs(r.score ?? 0) / maxScore * 100)}%"></i></span>${r.score?.toFixed(2) ?? '—'}</span></td>
+      <td>${newsChip(r)}</td>
+    </tr>`).join('');
+}
+
+function renderAlloc(a) {
+  const equity = (a.positions || []).reduce((s, p) => s + p.weight, 0);
+  $('alloc-date').textContent = `生成于 ${a.date ?? ''}`;
+  $('alloc-body').innerHTML = `
+    <div class="alloc-bar"><div class="equity" style="width:${equity * 100}%"></div><div class="cash" style="width:${(1 - equity) * 100}%"></div></div>
+    <div class="alloc-legend">
+      <span>权益 <em>${(equity * 100).toFixed(0)}%</em>（${a.positions.length} 只 × 10%）</span>
+      <span>现金 <em>${(a.cash_weight * 100).toFixed(0)}%</em></span>
+      <span>本金 <em>${(a.capital ?? 0).toLocaleString()}</em> 元</span>
+    </div>
+    <table><thead><tr><th>持仓</th><th class="num">权重</th><th class="num">金额</th><th class="num">综合分</th></tr></thead><tbody>
+      ${(a.positions || []).map(p => `<tr><td><b>${esc(p.name ?? p.code)}</b> <span style="color:var(--faint);font-size:11px">${p.code}</span></td>
+        <td class="num">${(p.weight * 100).toFixed(0)}%</td><td class="num">${p.amount.toLocaleString()} 元</td><td class="num">${p.score.toFixed(2)}</td></tr>`).join('')}
+    </tbody></table>
+    <ul class="notes-list">${(a.risk_notes || []).map(n => `<li>${esc(n)}</li>`).join('')}</ul>`;
+}
+
+/* ── 历史 · 对比 ── */
+async function loadHistory() {
+  try { state.history = await jget('/api/predictions/history'); } catch { state.history = { rows: [], dates: [] }; }
+  try { state.backtest = await jget('/api/backtest'); } catch { state.backtest = null; }
+  renderHistory();
+  renderCompareSummary();
+  /* 选择器必须收在 #hist-filters 里。原来写的是全局 .chip —— 点日志 tab 的
+     「错误」会顺手把 state.filter 设成 'error'，而 passes() 里没有 'error' 分支，
+     历史列表当场被清空。两个 tab 共用一个类名就各自绑定，是隐性串扰。 */
+  document.querySelectorAll('#hist-filters .chip').forEach(c => c.addEventListener('click', () => {
+    document.querySelectorAll('#hist-filters .chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    c.setAttribute('aria-pressed', 'true');
+    state.filter = c.dataset.filter;
+    renderHistory();
+  }));
+}
+
+function renderHistory() {
+  const { rows, dates } = state.history;
+  $('hist-count').textContent = dates.length ? `${dates.length} 个预测日 · ${rows.length} 条记录` : '';
+  if (!dates.length) {
+    $('history-body').innerHTML = '<div class="empty">首日预测已生成。<br>之后每个交易日的预测与对错都会沉淀在这里，形成你观察平台的第一手证据。</div>';
+    return;
+  }
+  const verdictZh = { hit: '命中', miss: '未中', flat: '平', no_data: '无数据' };
+  const byDate = new Map(dates.map(d => [d, []]));
+  rows.forEach(r => byDate.get(r.pred_date)?.push(r));
+  const passes = r => state.filter === 'all' ||
+    (state.filter === 'pending' && r.result == null) ||
+    (state.filter === 'hit' && r.result === 'hit') ||
+    (state.filter === 'miss' && r.result === 'miss');
+  let html = '';
+  for (const d of dates) {
+    const day = byDate.get(d) || [];
+    const judged = day.filter(r => r.result === 'hit' || r.result === 'miss');
+    const rate = judged.length ? judged.filter(r => r.result === 'hit').length / judged.length : null;
+    const badge = rate == null
+      ? '<span class="hit-badge pending">待收盘判定</span>'
+      : `<span class="hit-badge ${rate >= 0.55 ? 'good' : rate >= 0.45 ? 'mid' : 'bad'}">${(rate * 100).toFixed(0)}% 命中（${judged.filter(r => r.result === 'hit').length}/${judged.length}）</span>`;
+    const col = dir => day.filter(r => r.direction === dir && passes(r)).map(r => `
+      <div class="compare-row">
+        <div class="who"><b>${esc(r.name ?? r.code)}</b><span>${r.code}</span></div>
+        <div class="actual ${r.actual_pct == null ? '' : r.actual_pct >= 0 ? 'pct-up' : 'pct-down'}">${r.actual_pct == null ? '—' : fmtPct(r.actual_pct, 2)}</div>
+        <span class="verdict ${r.result ?? 'pending'}">${verdictZh[r.result] ?? '待判定'}</span>
+      </div>`).join('') || '<div class="empty" style="padding:14px">无</div>';
+    html += `<div class="date-group">
+      <div class="date-head"><b>${d}</b>${badge}<span style="margin-left:auto;font-size:11.5px;color:var(--faint)">预测 20 只</span></div>
+      <div class="duo-cols">
+        <div><div class="col-title up-t">预测涨 → 实际表现</div>${col('up')}</div>
+        <div><div class="col-title down-t">预测跌 → 实际表现</div>${col('down')}</div>
+      </div></div>`;
+  }
+  $('history-body').innerHTML = html || '<div class="empty">该筛选下无记录</div>';
+}
+
+function renderCompareSummary() {
+  const bt = state.backtest;
+  const live = state.history?.rows ?? [];
+  const liveJudged = live.filter(r => r.result === 'hit' || r.result === 'miss');
+  const liveRate = liveJudged.length ? liveJudged.filter(r => r.result === 'hit').length / liveJudged.length : null;
+  const row = (label, rate, extra, note) => `
+    <tr><td><b>${label}</b><span style="display:block;font-size:11px;color:var(--faint)">${note}</span></td>
+    <td class="num" style="font-family:var(--serif);font-size:19px;font-weight:700;color:${rate == null ? 'var(--faint)' : 'var(--seal)'}">${rate == null ? '—' : (rate * 100).toFixed(1) + '%'}</td>
+    <td class="num">${extra}</td></tr>`;
+  $('compare-summary').innerHTML = `<table><thead><tr><th>口径</th><th class="num">命中率</th><th class="num">备注</th></tr></thead><tbody>
+    ${row('回测（历史重放）', bt?.summary?.overall_hit_rate ?? null,
+        bt ? `${bt.summary.window?.[0] ?? ''} ~ ${bt.summary.window?.[1] ?? ''} · ${bt.summary.judged ?? 0} 条` : '—',
+        '把时间拨回历史每个交易日重新预测')}
+    ${row('实盘纸面（真未来）', liveRate, liveJudged.length ? `${liveJudged.length} 条已判定` : '0 条已判定',
+        '每天真实出预测，次日真实验证——检验样本外表现')}
+  </tbody></table>
+  <div class="empty" style="padding:14px;text-align:left">两者差距 = 过拟合警报：回测漂亮但实盘差，说明策略记住了历史而非学会了规律。这个表就是给你盯这个的。</div>`;
+}
+
+/* ── 回测 ── */
+async function loadBacktest() {
+  let bt;
+  try { bt = await jget('/api/backtest'); } catch { $('bt-sub').textContent = '尚无回测记录'; return; }
+  const s = bt.summary;
+  $('bt-sub').textContent = `${s.window?.[0] ?? ''} ~ ${s.window?.[1] ?? ''} · ${s.rows ?? 0} 条判定 · ${s.codes ?? s.judged} 只股票`;
+  lineChart($('chart-hit'), bt.daily.map(d => d.hit_rate).filter(v => v != null), {
+    ref: 0.5, refLabel: '50%', fmt: v => (v * 100).toFixed(1) + '%',
+    tips: bt.daily.filter(d => d.hit_rate != null).map(d => `${d.date} · ${(d.hit_rate * 100).toFixed(1)}%（${d.judged} 条）`),
+    tip: $('tip-hit'), box: $('chart-hit-box'),
+  });
+  let cum = 0;
+  const cumSeries = bt.daily.map(d => { if (d.up_excess != null) cum += d.up_excess; return cum; });
+  lineChart($('chart-exc'), cumSeries, {
+    ref: 0, refLabel: '0', fmt: v => (v * 100).toFixed(2) + '%',
+    tips: bt.daily.filter(d => d.up_excess != null).map(d => `${d.date} · 累计 ${(cumSeries[bt.daily.indexOf(d)] * 100).toFixed(2)}%`),
+    tip: $('tip-exc'), box: $('chart-exc-box'),
+  });
+  const months = {};
+  bt.daily.forEach(d => { const m = d.date.slice(0, 7); (months[m] ??= []).push(d); });
+  $('bt-monthly').innerHTML = Object.entries(months).reverse().map(([m, ds]) => {
+    const judged = ds.reduce((s, d) => s + d.judged, 0);
+    const hits = ds.reduce((s, d) => s + Math.round((d.hit_rate ?? 0) * d.judged), 0);
+    const exc = ds.reduce((s, d) => s + (d.up_excess ?? 0), 0);
+    const rate = judged ? hits / judged : null;
+    return `<tr><td><b>${m}</b></td><td class="num">${judged}</td>
+      <td class="num" style="color:${rate >= 0.5 ? 'var(--up)' : 'var(--down)'}">${rate == null ? '—' : (rate * 100).toFixed(1) + '%'}</td>
+      <td class="num ${exc >= 0 ? 'pct-up' : 'pct-down'}">${fmtPct(exc, 2)}</td></tr>`;
+  }).join('');
+}
+
+function dualLineChart(svg, series, opt) {
+  // 多序列版本（lineChart 只画一条，拍平会把两条线连成一条假线）
+  if (!svg || !series.length || !series[0].values.length) {
+    if (svg) svg.outerHTML = '<div class="empty">暂无数据</div>';
+    return;
+  }
+  const W = 560, H = 190, P = { l: 44, r: 12, t: 12, b: 22 };
+  const all = series.flatMap(s => s.values).filter(v => v != null).concat([opt.ref]);
+  const lo = Math.min(...all), hi = Math.max(...all);
+  const pad = (hi - lo) * 0.08 || 0.01;
+  const n = series[0].values.length;
+  const y = v => P.t + (H - P.t - P.b) * (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad)));
+  const x = i => P.l + (W - P.l - P.r) * (n === 1 ? 0.5 : i / (n - 1));
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(t => {
+    const gy = P.t + (H - P.t - P.b) * (1 - t);
+    const gv = (lo - pad) + ((hi + pad) - (lo - pad)) * t;
+    return `<line x1="${P.l}" y1="${gy}" x2="${W - P.r}" y2="${gy}" stroke="rgba(232,228,217,.06)"/>
+      <text x="${P.l - 6}" y="${gy + 3.5}" text-anchor="end" font-size="9.5" fill="#5C6672">${opt.fmt(gv)}</text>`;
+  }).join('');
+  const legend = series.map((s, k) => `
+    <line x1="${W - P.r - 150}" y1="${P.t + 4 + k * 13}" x2="${W - P.r - 130}" y2="${P.t + 4 + k * 13}"
+      stroke="${s.color}" stroke-width="${s.width}" ${s.dashed ? 'stroke-dasharray="3 3"' : ''}/>
+    <text x="${W - P.r - 125}" y="${P.t + 7.5 + k * 13}" font-size="9.5" fill="#8B95A1">${esc(s.label)}</text>`).join('');
+  const lines = series.map(s => {
+    const pts = s.values.map((v, i) => v == null ? null : `${x(i).toFixed(1)},${y(v).toFixed(1)}`)
+      .filter(Boolean).join(' ');
+    const last = s.values.map((v, i) => ({ v, i })).filter(o => o.v != null).pop();
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${s.width}"
+        stroke-linejoin="round" stroke-linecap="round" ${s.dashed ? 'stroke-dasharray="4 3"' : ''}/>
+      ${last ? `<circle cx="${x(last.i)}" cy="${y(last.v)}" r="2.8" fill="${s.color}"/>` : ''}`;
+  }).join('');
+  svg.innerHTML = `${grid}
+    <line x1="${P.l}" y1="${y(opt.ref)}" x2="${W - P.r}" y2="${y(opt.ref)}" stroke="#8B95A1" stroke-dasharray="4 4" stroke-width="1"/>
+    ${lines}${legend}`;
+  const tip = opt.tip;
+  svg.parentElement.addEventListener('mousemove', e => {
+    const rect = svg.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width * W;
+    const idx = Math.round((px - P.l) / ((W - P.l - P.r) || 1) * (n - 1));
+    if (idx < 0 || idx >= n) { tip.style.display = 'none'; return; }
+    tip.style.display = 'block';
+    tip.style.left = `${(x(idx) / W * 100).toFixed(2)}%`;
+    tip.style.top = `${(y(series[series.length - 1].values[idx] ?? opt.ref) / H * 100).toFixed(2)}%`;
+    tip.textContent = opt.tips?.[idx] ?? opt.fmt(opt.ref);
+  });
+  svg.parentElement.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+}
+
+function lineChart(svg, values, opt) {
+  if (!values.length) { svg.outerHTML = '<div class="empty">暂无数据</div>'; return; }
+  const W = 560, H = 190, P = { l: 44, r: 12, t: 12, b: 22 };
+  const lo = Math.min(...values, opt.ref), hi = Math.max(...values, opt.ref);
+  const pad = (hi - lo) * 0.08 || 0.01;
+  const y = v => P.t + (H - P.t - P.b) * (1 - (v - (lo - pad)) / ((hi + pad) - (lo - pad)));
+  const x = i => P.l + (W - P.l - P.r) * (values.length === 1 ? 0.5 : i / (values.length - 1));
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(t => {
+    const gy = P.t + (H - P.t - P.b) * (1 - t);
+    const gv = (lo - pad) + ((hi + pad) - (lo - pad)) * t;
+    return `<line x1="${P.l}" y1="${gy}" x2="${W - P.r}" y2="${gy}" stroke="rgba(232,228,217,.06)"/>
+      <text x="${P.l - 6}" y="${gy + 3.5}" text-anchor="end" font-size="9.5" fill="#5C6672">${opt.fmt(gv)}</text>`;
+  }).join('');
+  svg.innerHTML = `${grid}
+    <line x1="${P.l}" y1="${y(opt.ref)}" x2="${W - P.r}" y2="${y(opt.ref)}" stroke="#8B95A1" stroke-dasharray="4 4" stroke-width="1"/>
+    <text x="${W - P.r}" y="${y(opt.ref) - 4}" text-anchor="end" font-size="9.5" fill="#8B95A1">${opt.refLabel}</text>
+    <polyline points="${pts}" fill="none" stroke="#E3B341" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${values.length ? `<circle cx="${x(values.length - 1)}" cy="${y(values[values.length - 1])}" r="3" fill="#E3B341"/>` : ''}`;
+  svg.parentElement.addEventListener('mousemove', e => {
+    const rect = svg.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width - P.l / W) / ((W - P.l - P.r) / W));
+    const idx = Math.round(frac * (values.length - 1));
+    const tip = opt.tip;
+    tip.style.display = 'block';
+    tip.style.left = `${(P.l + (W - P.l - P.r) * (values.length === 1 ? 0.5 : idx / (values.length - 1))) / W * 100}%`;
+    tip.style.top = `${y(values[idx]) / H * 100}%`;
+    tip.textContent = (opt.tips?.[idx] ?? opt.fmt(values[idx]));
+  });
+  svg.parentElement.addEventListener('mouseleave', () => { opt.tip.style.display = 'none'; });
+}
+
+/* ── 进化 ── */
+/* 注意：本文件已有一个 `const esc`（第 458 行附近，服务端字符串转义）。
+   **不要在这里再声明一个同名 function** —— `Identifier 'esc' has already
+   been declared` 会让整个脚本中断，页面永远停在「加载…」，
+   而 API 一切正常、pytest 全绿。这个坑只有真实浏览器能暴露，
+   2026-10-12 已经因此浪费过一轮。 */
+function renderVerdict(s) {
+  const box = $('evo-verdict');
+  if (!box) return;
+  if (!s || !s.races) {
+    box.innerHTML = '<div class="empty">还没跑过赛马。绿色/红色表格在第一场赛马之后出现。</div>';
+    return;
+  }
+  /* 三块必须并排：跑了多少轮、晋级几次、线上那组有没有被验收。
+     「全否决」与「还没跑」是两回事，话术完全相反，不能合成一个数字。 */
+  const chip = (k, v, tone) =>
+    `<div class="weight-chip"><div style="font-size:11px;color:var(--faint)">${k}</div>`
+    + `<div style="font-size:20px;font-weight:700;margin-top:2px;color:${tone}">${v}</div></div>`;
+  const n = s.promotions;
+  /* 晋级次数是**中性计数**，不是涨跌。
+     用 --down(绿) 显示「0 次晋级」会被 A 股配色读成「跌了」，
+     而它真正的含义是「一次都没成功」——属于警示，用琥珀色。
+     只有真的晋级了才上红（A 股红=好）。 */
+  const tone = n > 0 ? 'var(--up)' : (s.races ? 'var(--seal)' : 'var(--faint)');
+
+  /* 线上这组权重的样本外体检。三档必须分开说：
+     「没验过」和「验过了、是负的」对使用者的含义天差地别。
+     2026-10-11 实测：现任默认权重样本外 t=−2.83、命中率 47.46%——
+     判决板当时只写「0 次晋级 / 未验收」，听起来像「谨慎维持一个还行的策略」。 */
+  let oos = '';
+  const V = {
+    significantly_negative: ['样本外显著为负', 'var(--down)',
+      '这组权重在样本外测试段跑输大盘，且 t 已过显著性门槛。不是「还没验过」，是「验过了，是负的」。'],
+    significantly_positive: ['样本外显著为正', 'var(--up)',
+      '这组权重通过了显著性检验。'],
+    inconclusive: ['样本外无法区分于 0', 'var(--seal)',
+      '测出了正（或负），但幅度小到与随机波动不可区分。'],
+    unknown: ['样本外成绩未知', 'var(--faint)',
+      '最近没有一份赛马报告覆盖这组权重。'],
+  }[s.live_oos_verdict || 'unknown'];
+  const oosNum = s.live_oos_excess == null ? '—'
+    : (s.live_oos_excess * 100).toFixed(3) + '%';
+  oos = `<div style="width:100%;margin-top:10px;padding:10px 12px;border-radius:8px;
+        background:${V[1]}1a;border-left:3px solid ${V[1]}">
+      <div style="font-size:13px;font-weight:700;color:${V[1]}">线上这组权重：${V[0]}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">
+        涨腿超额 ${oosNum}／日 · t ${s.live_oos_t == null ? '—' : s.live_oos_t.toFixed(2)}
+        · 命中率 ${s.live_oos_hit == null ? '—' : (s.live_oos_hit * 100).toFixed(2) + '%'}
+      </div>
+      <div style="font-size:11.5px;color:var(--faint);margin-top:3px">${V[2]}</div>
+    </div>`;
+
+  /* 符号核对（2026-10-12）
+     「已被证伪」说的是结果（历史上亏了），这里说的是原因（方向反了）。
+     用户问「那到底该怎么改」时，只有结果是答不出来的。
+
+     **unknown 时必须什么都不渲染。** 渲染成「符号全部一致」就是一个
+     从未做过的结论——页面看起来完整，人会照着它做决定。
+     代价是两害相权：宁可少说一句，不能多说一句假的。 */
+  function signNote(s) {
+    const c = s.weight_sign_check;
+    if (!c || c.unknown) return '';
+    const rows = (c.conflicts || []).map(f => {
+      const ic = (c.ic_values || {})[f];
+      return `<tr><td style="padding:2px 8px 2px 0"><b>${esc(f)}</b></td>`
+           + `<td style="padding:2px 8px 2px 0;color:var(--up)">${ic == null ? '—' : ic.toFixed(4)}</td>`
+           + `<td style="padding:2px 0;color:var(--muted)">符号相反</td></tr>`;
+    }).join('');
+    const ok = (c.agrees || []).length
+      ? `<div style="font-size:11.5px;color:var(--faint);margin-top:4px">`
+        + `方向一致：${(c.agrees || []).map(esc).join('、')}</div>` : '';
+    const win = c.ic_window
+      ? `${esc(c.ic_window[0])} ~ ${esc(c.ic_window[1])}` : '—';
+    return `<div style="width:100%;font-size:12.5px;color:var(--up);margin-top:8px;
+      border-left:2px solid var(--up);padding-left:10px">
+      <b>现任有 ${(c.conflicts || []).length} 个因子的权重方向与实测预测力相反</b>
+      （IC 测量窗口 ${win}）。<br>
+      <table style="margin:4px 0 2px;font-size:11.5px;border-collapse:collapse">${rows}</table>
+      <div style="font-size:11.5px;color:var(--muted)">
+      方向相反<b>不等于</b>反过来就能赚——那要重跑赛马并过全部闸门，
+      再进前瞻验证。这里只说明现状为什么是负的。</div>${ok}</div>`;
+  }
+
+  /* 跌腿健康度（2026-10-14）
+
+     产品承诺是每天「10 涨 10 跌」。涨腿那一半有超额闸、有符号核对横幅，
+     跌腿那一半此前**既没有闸、也没有任何展示**——而实测现任权重的
+     `avg_down_return = +0.126%/日`：它推的「10 只��跌」平均每天在涨。
+
+     半年下来用户每天收到 10 只「会跌」的股票，判决板一个字都没说。
+     这不是统计问题，是承诺没兑现还没人喊。
+
+     判据是**绝对下跌**而不是「跑输大盘」：5 万本金做不了空，
+     用户要的是「这 10 只别买」，不是「它们比大盘跌得多」。
+
+     与 signNote 同一约定：**unknown 时什么都不渲染。** */
+  function downNote(s) {
+    const d = s.down_leg_check;
+    if (!d || !d.known) return '';
+    const ret = d.avg_down_return;
+    const bad = ret >= 0;
+    const rate = d.hit_rate_down == null ? '—'
+      : (d.hit_rate_down * 100).toFixed(1) + '%';
+    return `<div style="width:100%;font-size:12.5px;color:${bad ? 'var(--up)' : 'var(--muted)'};
+      margin-top:8px;border-left:2px solid ${bad ? 'var(--up)' : 'var(--muted)'};padding-left:10px">
+      <b>${bad ? '「10 跌」那一半没有兑现：这篮子平均每天在涨'
+               : '「10 跌」那一半确实在跌'}</b><br>
+      跌腿日均收益 <b>${ret >= 0 ? '+' : ''}${(ret * 100).toFixed(3)}%</b>
+      · 跌股命中率 ${esc(rate)}
+      · K=${esc(String(d.rebalance_every))} 下最差的一组（${d.n} 组候选，取最差）。<br>
+      <span style="font-size:11.5px">${bad
+        ? '这不是「选得不够好」，是<b>推的 10 只会跌的股票实际上在涨</b>。'
+          + '5 万本金做不了空，这半个产品目前不提供价值——买它的唯一理由是它的涨腿。'
+        : '注意：命中率高不代表有判别力——97 组候选的跌股命中率全部 &gt; 50%，'
+          + '真正分不出好坏的是「跑赢大盘」（仅 45/97）。'}</span></div>`;
+  }
+
+  let note;
+  if (s.champion_falsified) {
+    note = `<div style="width:100%;font-size:12.5px;color:var(--up);margin-top:8px;
+      border-left:2px solid var(--up);padding-left:10px">
+      <b>现任权重已被证伪</b>（${s.champion_windows} 段互不重叠窗口一致显著为负）。<br>
+      闸门没有放行任何新候选——但那<b>不等于</b>维持现状是安全选项。
+      「没有更好的」与「现在这个是好的」是两回事，这里是后者不成立。
+      继续使用它，是一次知情选择，不是默认状态。</div>`;
+  } else if (s.live_oos_verdict === 'significantly_negative') {
+    /* 「没有更好的候选」不是免责。
+       2026-10-11 20:09 的 14 组赛马里，现任排第 10（测试超额 −0.57%），
+       最好的候选也才 +0.04% 且 t=+0.37 不过显著性门槛。
+       闸门正确地一个都没放行——但「一个都没放行」不等于「维持现状是安全的」。
+       这里必须把这句话说出来，否则判决板读起来像「谨慎地维持一个还行的策略」。 */
+    note = `<div style="width:100%;font-size:12.5px;color:var(--down);margin-top:8px">
+      <b>现在正在出单的权重，在多个独立窗口上都被证明是净负的。</b><br>
+      闸门没有放行任何新候选——但那<b>不等于</b>维持现状是安全选项。
+      「没有更好的」和「现在这个是好的」是两回事，这里是后者不成立。
+      继续使用它，是一次知情选择，不是默认状态。</div>`;
+  } else if (s.all_rejected) {
+    note = `<div style="width:100%;font-size:12.5px;color:var(--down);margin-top:8px">`
+      + `赛马跑了 ${s.races} 轮，<b>一次都没晋级</b>：候选全部没跑赢大盘，被硬闸否决。`
+      + `下面表格里的绿色数字（A股绿=跌）就是这个结果，<b>不是改进记录</b>。</div>`;
+  } else if (!s.live_validated) {
+    note = `<div style="width:100%;font-size:12.5px;color:var(--muted);margin-top:8px">`
+      + `线上跑的是<b>未经赛马验收的默认权重</b>，不是任何一次进化的成果。</div>`;
+  } else {
+    note = `<div style="width:100%;font-size:12.5px;color:var(--muted);margin-top:8px">`
+      + `线上这组已通过赛马验收（来源 evolved）。</div>`;
+  }
+  box.innerHTML =
+      chip('赛马轮次', s.races, 'var(--text)')
+    + chip('晋级次数', n, tone)
+    + chip('线上权重已验收', s.live_validated ? '是' : '否',
+           s.live_validated ? 'var(--up)' : 'var(--down)')
+    + chip('现任健康度',
+           s.champion_falsified ? '已被证伪'
+             : ({significantly_negative:'显著为负', inconclusive:'无法区分',
+                 significantly_positive:'显著为正', unknown:'未知'}[s.champion_health] || '—'),
+           s.champion_falsified ? 'var(--up)' : 'var(--faint)')
+    + chip('最好一档测试超额',
+           s.best_test_excess == null ? '—'
+             : (s.best_test_excess * 100).toFixed(2) + '%',
+           (s.best_test_excess ?? 0) >= 0 ? 'var(--up)' : 'var(--down)')
+    + oos + note + signNote(s) + downNote(s);
+}
+
+/* ── 改进台账 ── */
+/* 注意：已有 fmtNum(v, digits) 用于行情数字（语义不同）。
+   重名会让整个脚本抛 'Identifier already declared'，页面永远停在「加载…」——
+   而 pytest 全绿。这个坑只有真实浏览器能暴露。 */
+function ledNum(v) {
+  if (v == null) return '—';
+  if (Number.isInteger(v) && Math.abs(v) < 1e6) return String(v);
+  if (Math.abs(v) >= 0.001 && Math.abs(v) < 1000) return (+v).toFixed(4);
+  return (+v).toPrecision(3);
+}
+
+function loadLedger() {
+  jget('/api/evolution/ledger').then(d => {
+    const box = $('ledger-body');
+    if (!d || !d.entries || !d.entries.length) {
+      box.innerHTML = '<div class="empty">还没有改进记录。</div>';
+      return;
+    }
+    const s = d.summary || {};
+    /* 计数条必须含 worse。台账若只显示「变好 9 条」，
+       剩下的「变差」去哪了？用户会默认它们不存在。 */
+    const banner =
+      `<div style="font-size:12.5px;color:var(--muted);margin:0 20px 12px">`
+      + `共 <b>${s.total}</b> 条改进记录 · 数字变好 <b style="color:var(--up)">${s.better}</b> 条`
+      + ` · <b style="color:var(--down)">变差 ${s.worse}</b> 条 · 持平 ${s.flat} 条`
+      + (s.invalidated_claims ? ` · 作废历史结论 <b style="color:var(--down)">${s.invalidated_claims}</b> 条` : '')
+      + `<br><span style="color:var(--faint)">「变差」也列出来，是因为把虚高修成真实会让数字下降`
+      + `（如可交易性修复把涨篮子超额从 +0.20% 打到 −0.01%）。筛掉它们，这个台账就成了自我表扬。</span></div>`;
+
+    const DIR = {
+      better: '<span class="src-tag llm">数字变好</span>',
+      worse: '<span class="src-tag" style="background:var(--down-soft);color:var(--down)">数字变差</span>',
+      flat: '<span class="src-tag" style="background:var(--panel-2);color:var(--faint)">持平</span>',
+    };
+    const SEV = {
+      fatal: 'var(--down)', critical: 'var(--down)', major: 'var(--seal)',
+      info: 'var(--faint)',
+    };
+    const rows = d.entries.slice().reverse().map(e => {
+      const arrow = e.higher_is_better === false
+        ? `${ledNum(e.before)} <span style="color:var(--faint)">↓更好</span> ${ledNum(e.after)}`
+        : `${ledNum(e.before)} <span style="color:var(--faint)">↑更好</span> ${ledNum(e.after)}`;
+      const inv = (e.invalidates || []).length
+        ? `<div style="font-size:11.5px;color:var(--down);margin-top:5px">作废：${esc(e.invalidates.join('；'))}</div>`
+        : '';
+      const ev = e.evidence
+        ? `<div style="font-size:11px;color:var(--faint);margin-top:4px">${esc(e.evidence)}</div>` : '';
+      return `
+      <div class="evo-entry" style="border-left:3px solid ${SEV[e.severity] || 'var(--line)'}">
+        <div class="head"><b>${esc(e.title)}</b> ${DIR[e.direction] || ''}
+          <span style="font-size:11.5px;color:var(--faint)">${esc(e.date || '')} · ${esc(e.category || '')}</span></div>
+        <div style="font-size:12.5px;margin:6px 0 2px">
+          <span style="color:var(--muted)">${esc(e.metric)}</span>：
+          <code style="font-size:12px">${arrow}</code></div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">${esc(e.note)}</div>
+        ${inv}${ev}
+      </div>`;
+    }).join('');
+    box.innerHTML = banner + rows;
+  }).catch((e) => {
+    console.error('[改进台账] 加载失败', e);
+    $('ledger-body').innerHTML = '<div class="empty">加载失败（详见控制台）</div>';
+  });
+}
+
+async function loadEvolution() {
+  loadLedger();
+  let evoSummary = null;
+  try {
+    evoSummary = await jget('/api/evolution/summary');
+    renderVerdict(evoSummary);
+  } catch (e) { console.error('[判决板] 加载失败', e); renderVerdict(null); }
+  try {
+    const w = await jget('/api/weights');
+    /* 措辞必须诚实：未验收的默认值不是「策略」，只是一组还没被证伪的初值。
+       写成「默认参数（v1 动量主导）」会让人以为它已经通过了什么。
+
+       而且**不能**硬编码「尚未被证伪」——2026-10-11 21:42 的真浏览器截图里，
+       同一屏上方写着「现任健康度：已被证伪」（红），下方却写着
+       「尚未被证伪，也尚未被证实」。同一组权重，两个相反的结论。
+       ���论必须去问健康度那一栏，不能自己编。 */
+    const falsified = evoSummary?.champion_falsified;
+    const health = evoSummary?.champion_health;
+    /* 用 innerHTML 不是 textContent：要显示红色的「已被证伪」四个字，
+       而 textContent 会把 `<b>` 原样打印出来变成一串标签。 */
+    $('w-source').innerHTML = w.source === 'evolved'
+      ? esc(`进化版 · ${w.evidence?.promoted_on ?? ''} 晋级`)
+      : (falsified
+        ? '未经赛马验收的默认值 —— <b class="pct-up">已被证伪</b>'
+          + `（${Number(evoSummary.champion_windows) || 0} 段独立窗口一致显著为负）`
+        : (health && health !== 'unknown'
+          ? `未经赛马验收的默认值 —— 健康度：${esc(String(health))}（尚未被证实）`
+          : '未经赛马验收的默认值（尚未被证伪，也尚未被证实）'));
+    $('w-date').textContent = w.evidence ? `目标分 ${w.evidence.objective}` : '未经赛马';
+    const factorNames = { mom20: '动量', rev5: '反转', vol20: '波动', vsur: '量能', turn20: '换手' };
+    $('weights-row').innerHTML = Object.entries(w.weights).map(([k, v]) => `
+      <div class="weight-chip ${w.source === 'evolved' ? 'champion' : ''}"><b>${v > 0 ? '+' : ''}${v}</b><span>${factorNames[k] ?? k} ${k}</span></div>`).join('');
+    if (w.evidence?.reason) { $('w-reason').style.display = 'block'; $('w-reason').textContent = `晋级依据：${w.evidence.reason}`; }
+  } catch { $('weights-row').innerHTML = '<div class="empty">加载失败</div>'; }
+  let evo;
+  try { evo = await jget('/api/evolution'); } catch { evo = []; }
+  if (!evo.length) {
+    $('evo-body').innerHTML = '<div class="empty">每周日 20:00 跑一场样本外赛马。<br>'
+      + '窗口切成训练段（挑权重）与测试段（验收），中间留 5 日隔离带；'
+      + '训练赢、测试垮的一律否决——那样的权重只是记住了历史噪声。跑完周一可见战报。</div>';
+    return;
+  }
+  /* 训练 / 测试 必须并排显示。这张表以前只给一列 stats，而那一列是**同一个窗口**
+     上算出来的——选权重和验收用的是同一段历史，等于把答案抄进答卷再自己批改。
+     新记录带 train_stats，一眼能看出「训练赢、测试垮」正是被否决的那类。 */
+  const ex = v => v == null ? '—' : (v * 100).toFixed(2) + '%';
+  const hit = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+  const cls = v => (v ?? 0) >= 0 ? 'pct-up' : 'pct-down';
+  /* 调仓频率与缓冲区是**候选身份的一部分**。不显示这一列，复合候选池里
+     同一组权重的 6 个格子看起来会像同一个候选重复了 6 遍——
+     独立验证里同一组 `{mom20:-1}` 从日频净 −168.9% 到季频净 +105.7%，
+     **276 个百分点的差距全在这一列里**。 */
+  const cadence = ev => {
+    const k = ev.rebalance_every ?? 1;
+    const b = ev.buffer_multiple;
+    const freq = k > 1 ? `<b>K=${k}</b>` : '日频';
+    const buf = b == null ? '' : ` · ${b}×缓冲`;
+    return `<td style="font-size:12px;white-space:nowrap">${freq}${buf}</td>`;
+  };
+  $('evo-body').innerHTML = evo.slice().reverse().map(e => {
+    const evals = e.evaluations || [];
+    const hasSplit = evals.some(x => x.train_stats);
+    const head = hasSplit
+      ? '<tr><th>候选</th><th>调仓</th><th class="num">训练命中</th><th class="num">训练超额</th>'
+        + '<th class="num">测试命中</th><th class="num">测试超额</th><th>来源</th></tr>'
+      : '<tr><th>候选</th><th>调仓</th><th class="num">命中率</th><th class="num">超额</th><th>来源</th></tr>';
+    const row = ev => {
+      const s = ev.stats || {}, t = ev.train_stats || s;
+      const wts = `<td style="font-size:12px">${Object.entries(ev.weights).map(([k, v]) => `${k}:${v}`).join(' ')}</td>`;
+      const tag = `<span class="src-tag ${ev.source === 'researcher' ? 'llm' : ''}">${ev.source === 'researcher' ? 'LLM 研究员' : '内置'}</span>`;
+      return hasSplit
+        ? `<tr>${wts}${cadence(ev)}<td class="num">${hit(t.overall_hit_rate)}</td><td class="num ${cls(t.up_excess_vs_market)}">${ex(t.up_excess_vs_market)}</td>`
+          + `<td class="num">${hit(s.overall_hit_rate)}</td><td class="num ${cls(s.up_excess_vs_market)}">${ex(s.up_excess_vs_market)}</td><td>${tag}</td></tr>`
+        : `<tr>${wts}${cadence(ev)}<td class="num">${hit(s.overall_hit_rate)}</td><td class="num ${cls(s.up_excess_vs_market)}">${ex(s.up_excess_vs_market)}</td><td>${tag}</td></tr>`;
+    };
+    const rows = evals.slice().sort((a, b) => (b.train_objective ?? b.objective) - (a.train_objective ?? a.objective));
+    const proto = e.protocol ? `<span class="src-tag llm">${esc(e.protocol)}</span> ` : '';
+    const rejected = (e.rejected || []).length
+      ? `<span style="font-size:11.5px;color:var(--faint)"> · ${e.rejected.length} 组因测试段装不下 3 个调仓周期被排除</span>` : '';
+    return `
+    <div class="evo-entry">
+      <div class="head"><b>${e.date}</b>
+        <span class="decision ${e.decision.promoted ? 'promoted' : 'kept'}">${e.decision.promoted ? '✓ 晋级' : '维持现任'}</span>
+        ${proto}<span style="font-size:11.5px;color:var(--faint)">${e.window?.[0]} ~ ${e.window?.[1]}${e.researcher ? ` · 研究员提出 ${e.researcher.proposed} 组（${e.researcher.raced} 组参赛）` : ''}${rejected}</span></div>
+      <blockquote>${esc(e.decision.reason)}</blockquote>
+      <table><thead>${head}</thead><tbody>${rows.map(row).join('')}</tbody></table>
+    </div>`;
+  }).join('');
+}
+
+/* ── 对话 ── */
+let convId = Number(localStorage.getItem('aplus_conv')) || null;
+async function loadConversation() {
+  if (!convId) return;
+  try {
+    const msgs = await jget('/api/conversations/' + convId);
+    if (msgs.length) {
+      $('msgs').innerHTML = msgs.map(m => `<div class="msg ${m.role}">${esc(m.content)}</div>`).join('');
+      $('msgs').scrollTop = $('msgs').scrollHeight;
+    }
+  } catch { convId = null; localStorage.removeItem('aplus_conv'); }
+}
+function addMsg(cls, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + cls; el.textContent = text;
+  $('msgs').appendChild(el); $('msgs').scrollTop = $('msgs').scrollHeight;
+  return el;
+}
+async function send() {
+  const text = $('chat-text').value.trim();
+  if (!text) return;
+  $('chat-text').value = '';
+  addMsg('user', text);
+  const thinking = addMsg('assistant', '思考中…');
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, conversation_id: convId }),
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.detail || r.status);
+    convId = body.conversation_id;
+    localStorage.setItem('aplus_conv', convId);
+    thinking.textContent = body.reply;
+  } catch (e) {
+    thinking.className = 'msg error';
+    thinking.textContent = '模型连接失败：' + e.message;
+  }
+}
+$('send').onclick = send;
+$('chat-text').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+$('new-chat').onclick = () => { convId = null; localStorage.removeItem('aplus_conv'); $('msgs').innerHTML = '<div class="empty">已开始新对话。</div>'; };
+loadConversation();
+
+/* ── 启动 ── */
+const TABS = ['overview', 'history', 'backtest', 'evolution', 'bond', 'chat', 'logs'];
+const initial = (location.hash.match(/#\/(\w+)/) || [])[1];
+activate(TABS.includes(initial) ? initial : 'overview', false);
+loadChrome();   // 外壳与 tab 无关，进任何一页都要有
+/* 浏览器后退/前进：原来 hash 变了但 tab 不动，深链进去后按返回会卡在旧页 */
+window.addEventListener('hashchange', () => {
+  const h = (location.hash.match(/#\/(\w+)/) || [])[1];
+  activate(TABS.includes(h) ? h : 'overview', false);
+});
+</script>
+</body>
+</html>

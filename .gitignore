@@ -1,0 +1,25 @@
+# 数据层（465MB+ 行情/因子/回测产物，永远不进版本库）
+data/
+*.parquet
+
+# 环境
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# 运行日志（含本机路径与环境细节）
+*.log
+
+# 密钥/凭据（实际文件在 ~/.aplus/，此处兜底防止误放到仓库内）
+llm.json
+*.key
+.env
+.env.*
+
+# 浏览器验证产物
+.playwright-cli/
+.playwright-mcp/
+
+# macOS
+.DS_Store
