@@ -92,7 +92,7 @@ def main() -> int:
             print(f"{r['year']:<6}{'—':>10}{r['n_days']:>6}{'缺':>10}"
                   f"{'—':>11}{'—':>8}  {r.get('reason', '无数据')}")
             continue
-        gross = annualise(implied_spread(ic, sigma_r=SIGMA_R))
+        gross = annualise(implied_spread(ic, sigma_r=SIGMA_R, kind="spearman"))
         t = r.get("t")
         if r["judged"]:
             judged.append(r)
@@ -106,39 +106,73 @@ def main() -> int:
               f"{t:>8.2f}{mark:>12}{gap}")
 
     # ── 第三问：石川说的「等权往往就很好」，在 A 股成立吗 ────────
-    print("\n=== 对照臂：全程等权（石川 7.4，行 14500） ===")
+    #
+    # 三条臂由弱到强，**只有最强的那条是主判决**：
+    #
+    #   等权     原样 1/k —— 连方向都不学
+    #   朴素翻号 按历史 IC 符号定向 —— 仍然一个系数都不学
+    #            ← 石川那句话的**最强版本**，也是这条路线的真正及格线
+    #   最优定权 R⁻¹Σ_f —— 额外学了幅度（= 主判决）
+    #
+    # 第一版只有「原样等权」，而本项目 8 个因子里 7 个 IC 为负，
+    # 原样等权的 IC 必然为负，对照臂**输得毫不费力**，
+    # 读起来像「等权不行」——而真正的问题是「不学系数够不够」。
+    print("\n=== 三条臂并列（石川 7.4，行 14500） ===")
     print("原话：「理论上，变量的权重应和它们预测未来收益率的能力成正比。")
     print("      **然而在实践中，等权重配置所有变量往往就是很好的选择。**」")
     print("主判决用的 R⁻¹Σ_f 正是**偏离等权**——这个警告方向相反，")
-    print("所以并列跑一遍，让数据回答，而不是因为读到它就改判据（第 63 条）。")
-    wf_by_year = {r["year"]: r for r in judged}
-    eq_all = [r for r in walk_forward(df, factors, need_ic=ic_need,
-                                      judged_from=JUDGED_FROM,
-                                      equal_weight_years=EQUAL_WEIGHT_YEARS,
-                                      all_years_equal=True)
-              if r.get("judged")]
-    # 只比**两臂都判了的年份**。等权臂不需要历史，所以它能判主臂
+    print("所以并列跑一遍，让数据回答，而不是因为读到它就改判据（第 63 条）。\n")
+
+    def arm_rows(**kw):
+        return {r["year"]: r for r in
+                walk_forward(df, factors, need_ic=ic_need,
+                             judged_from=JUDGED_FROM,
+                             equal_weight_years=EQUAL_WEIGHT_YEARS, **kw)
+                if r.get("judged")}
+
+    opt_by_year = {r["year"]: r for r in judged}
+    sign_by_year = arm_rows(weight_rule="sign")
+    eq_by_year = arm_rows(all_years_equal=True)
+
+    # 只比**三臂都判了的年份**。等权臂不需要历史，所以它能判主臂
     # 「无历史」而不判的年份——年份集合不同，比较就没有意义。
-    eq = [r for r in eq_all if r["year"] in wf_by_year]
-    dropped = sorted({r["year"] for r in eq_all} - set(wf_by_year))
+    common = sorted(set(opt_by_year) & set(sign_by_year) & set(eq_by_year))
+    dropped = sorted((set(sign_by_year) | set(eq_by_year)) - set(opt_by_year))
     if dropped:
         print(f"（等权臂多出的 {dropped} 年**不参与对比**：主臂无历史不判，"
               f"两臂年份集合必须一致）")
-    print(f"\n{'年':<6}{'等权IC':>10}{'滚动IC':>10}{'差':>10}{'等权判决':>12}")
-    print("─" * 48)
-    eq_wins = 0
-    for r in sorted(eq, key=lambda x: x["year"]):
-        y = r["year"]
-        a, b = r["ic_mean"], wf_by_year[y]["ic_mean"]
-        eq_wins += (a >= b)
-        print(f"{y:<6}{a:>10.5f}{b:>10.5f}{a - b:>+10.5f}"
-              f"{('✅ 过' if r['pass_'] else '❌ 差'):>12}")
-    print(f"\n等权在 {eq_wins} / {len(eq)} 个判决年不劣于滚动定权")
-    n_eq_fail = sum(1 for r in eq if not r["pass_"])
-    print(f"等权臂不及格：{n_eq_fail} / {len(eq)}"
-          + ("　← **书上这条在 A 股也成立**，"
-             "偏离等权没带来好处" if n_eq_fail <= len(eq) - eq_wins
-             else ""))
+    dropped_s = sorted(set(eq_by_year) - set(sign_by_year))
+    if dropped_s:
+        print(f"（翻号臂多出的 {dropped_s} 年同样不参与对比）")
+
+    print(f"{'年':<6}{'最优(主)':>11}{'朴素翻号':>11}{'等权':>10}"
+          f"{'最优-翻号':>12}{'翻号判决':>12}")
+    print("─" * 62)
+    gains, sign_fail, eq_fail, sign_wins = [], 0, 0, 0
+    for y in common:
+        a = opt_by_year[y]["ic_mean"]
+        b = sign_by_year[y]["ic_mean"]
+        c = eq_by_year[y]["ic_mean"]
+        gains.append(a - abs(b))
+        sign_fail += (not sign_by_year[y]["pass_"])
+        eq_fail += (not eq_by_year[y]["pass_"])
+        sign_wins += (abs(b) >= a)
+        print(f"{y:<6}{a:>11.5f}{b:>11.5f}{c:>10.5f}"
+              f"{a - abs(b):>+12.5f}"
+              f"{('✅ 过' if sign_by_year[y]['pass_'] else '❌ 差'):>12}")
+    if gains:
+        g = sum(gains) / len(gains)
+        print(f"\n**最优定权相对朴素翻号的年均优势：{g:+.5f}**"
+              f"（门槛 {ic_need:.5f} 的 {g / ic_need:.1%}）")
+        print(f"  翻号臂不及格：{sign_fail} / {len(common)}　"
+              f"等权臂不及格：{eq_fail} / {len(common)}　"
+              f"翻号在 {sign_wins} / {len(common)} 年不劣于最优定权")
+        if sign_fail == 0 and g < ic_need * 0.25:
+            print("  → **石川那条在 A 股成立得更彻底**：不学任何系数也够线，"
+                  "而线性合成多学的那点幅度**远不足以撑起一个新结论**。")
+            print("    结论应当写成「**这条信号本身够强**」，"
+                  "而不是「**线性合成很成功**」——")
+            print("    后者会让人以为下一轮换更好的估计器还能更好，而实测并不支持。")
 
     # ── 第二问：合成的样本外 IC 是否真的高于最好的单因子 ──────────
     print("\n=== 样本外 vs 单因子（同一份 Σ_f，口径一致） ===")

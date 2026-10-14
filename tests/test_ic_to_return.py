@@ -136,13 +136,13 @@ def test_the_tail_spread_constant_is_the_one_the_code_computes():
 def test_zero_ic_means_zero_edge():
     """完全无信号的因子必须给出**精确的零**，不是「接近零」。
     「接近零」会让下游的门槛比较在边界上摇摆。"""
-    assert implied_spread(0.0, sigma_r=0.023) == 0.0
+    assert implied_spread(0.0, sigma_r=0.023, kind="spearman") == 0.0
 
 
 def test_the_spread_is_linear_in_sigma_r():
     """σ_r 加倍，价差加倍——这是公式的定义性质，钉住它防止有人加非线性项。"""
-    a = implied_spread(0.0486, sigma_r=0.01)
-    b = implied_spread(0.0486, sigma_r=0.02)
+    a = implied_spread(0.0486, sigma_r=0.01, kind="spearman")
+    b = implied_spread(0.0486, sigma_r=0.02, kind="spearman")
     assert b == pytest.approx(2 * a, rel=1e-9)
 
 
@@ -150,7 +150,7 @@ def test_a_negative_ic_gives_a_negative_spread_and_does_not_raise():
     """负 IC 是**做空那条腿的信号**，在本项目里完全正常
     （`mom20` 全段 IC −0.0357）。把它当错误抛出，
     等于把一整族可用信号判死。"""
-    assert implied_spread(-0.0357, sigma_r=0.023) < 0
+    assert implied_spread(-0.0357, sigma_r=0.023, kind="spearman") < 0
 
 
 def test_a_non_positive_sigma_is_rejected():
@@ -158,7 +158,7 @@ def test_a_non_positive_sigma_is_rejected():
     这种错误只让结论悄悄变错，比崩溃危险得多。"""
     for bad in (0.0, -0.023):
         with pytest.raises(ValueError):
-            implied_spread(0.0486, sigma_r=bad)
+            implied_spread(0.0486, sigma_r=bad, kind="spearman")
 
 
 # ── 三、年化与门槛：这才是对用户目标的回答 ────────────────────────
@@ -183,7 +183,7 @@ def test_the_rev5_signal_is_six_times_short_of_the_daily_hurdle():
     """
     from aplus.hurdle import hurdle_rate, rounds_per_year
 
-    spread = implied_spread(0.04863, sigma_r=0.023)
+    spread = implied_spread(0.04863, sigma_r=0.023, kind="spearman")
     gross = annualise(spread)
 
     daily_hurdle = hurdle_rate(rounds_per_year=rounds_per_year(1))
@@ -208,8 +208,8 @@ def test_the_monthly_clearing_is_too_thin_to_call_a_conclusion():
     from aplus.hurdle import hurdle_rate, rounds_per_year
 
     monthly_hurdle = hurdle_rate(rounds_per_year=rounds_per_year(21))
-    at_023 = annualise(implied_spread(0.04863, sigma_r=0.023))
-    at_022 = annualise(implied_spread(0.04863, sigma_r=0.022))
+    at_023 = annualise(implied_spread(0.04863, sigma_r=0.023, kind="spearman"))
+    at_022 = annualise(implied_spread(0.04863, sigma_r=0.022, kind="spearman"))
 
     assert at_023 > monthly_hurdle, "σ_r=0.023 时刚好越过月频门槛"
     assert at_022 < monthly_hurdle, "σ_r 降 4% 就掉下去——余量比噪声薄"
@@ -229,7 +229,7 @@ def test_required_ic_inverts_the_formula():
     """
     for target_spread in (0.0005, 0.001, 0.002):
         ic = required_ic(target_spread, sigma_r=0.023)
-        assert implied_spread(ic, sigma_r=0.023) == pytest.approx(
+        assert implied_spread(ic, sigma_r=0.023, kind="spearman") == pytest.approx(
             target_spread, rel=1e-9)
 
 
@@ -285,3 +285,85 @@ def test_required_ic_rejects_a_zero_target_spread():
     「随便什么信号都够」，返回 inf 才对。"""
     with pytest.raises(ValueError):
         required_ic(0.0, sigma_r=0.023)
+
+
+# ── 口径必须由调用方声明，不许由函数猜 ────────────────────────────
+#
+# ## 这里出过一次真实的静默失效
+#
+# `implied_spread` 的公式 `spread = ρ_p · σ_r · K(q)` 来自联合高斯下的
+# 秩↔Pearson 恒等式，所以它**期待 Spearman**，内部再转成 ρ_p。
+#
+# 但 `aplus/composite.py` 的 `composite_ic` 算的是 z 标准化**原始值**与收益的
+# **Pearson** 相关。一个 Pearson 喂进期待 Spearman 的函数，
+# 于是**在已经换算过一次的口径上又乘了一次 1.047**——
+# 而它直接乘在年化收益上。
+#
+# 更隐蔽的是另一层：`required_ic` 返回的**是 ρ_s**，
+# 所以判决那一步是「拿 Spearman 门槛比一个 Pearson 实测值」，
+# **口径错在宽松方向**，而且两边都各自自洽，不会有任何报错。
+
+def test_the_ic_kind_must_be_declared_not_guessed():
+    """`kind` 必须**必填**——不给默认值，让编译器逼每个调用点表态。
+
+    > 给默认值「Spearman」看着无害：现存调用点大多确实是 Spearman。
+    > 但下一个拿着原始值 IC 的人会拿到**又一次静默换算**，
+    > 而且**没有任何迹象**表明换过。
+    """
+    with pytest.raises(TypeError):
+        implied_spread(0.05, sigma_r=0.023)          # 完全不给 kind
+    with pytest.raises(TypeError):
+        implied_spread(0.05, 0.023, "spearman")      # 位置参数也不收：kind 是 keyword-only
+    with pytest.raises(TypeError):
+        implied_spread(0.05, sigma_r=0.023, tail_q=0.2)
+
+
+def test_declaring_pearson_must_skip_the_conversion_entirely():
+    """`kind="pearson"` 时**一次都不许换算**。
+
+    1.047 倍不是小数点后第三位的事：0.0624 的 IC 会被报成 39.51%
+    而不是 37.75%，年化收益上白送 1.76 个百分点。
+    """
+    ic = 0.0624
+    got = implied_spread(ic, sigma_r=0.02656, kind="pearson")
+    assert got == pytest.approx(ic * 0.02656 * TAIL_SPREAD_K, rel=1e-12)
+    assert got < implied_spread(ic, sigma_r=0.02656, kind="spearman")
+    # 差值就是那 1.047
+    assert (implied_spread(ic, sigma_r=0.02656, kind="spearman") / got
+            ) == pytest.approx(1.047, abs=0.002)
+
+
+def test_the_two_kinds_must_agree_at_the_gaussian_fixed_point():
+    """联合高斯下两种口径**必须**给出同一个 ρ_p——否则恒等式写错了。
+
+    Pearson 反推 Spearman 再正推回来，在联合高斯里是恒等映射；
+    不一致就说明两条路里有算错的。
+    """
+    import math
+    for rho_p in (0.02, 0.05, 0.15, 0.4, 0.8):
+        rho_s = math.asin(rho_p / 2.0) * 6.0 / math.pi
+        back = implied_spread(rho_s, sigma_r=1.0, kind="spearman")
+        assert back == pytest.approx(rho_p * TAIL_SPREAD_K, rel=1e-12)
+        assert implied_spread(rho_p, sigma_r=1.0,
+                              kind="pearson") == pytest.approx(back, rel=1e-12)
+
+
+def test_an_unknown_kind_is_refused_rather_than_silently_treated_as_spearman():
+    """拼错的 `kind="spearmann"` 必须报错，不能回落到 Spearman。
+
+    回落就是**换个名字的静默失效**——它正是这条测试存在的理由。
+    """
+    with pytest.raises(ValueError):
+        implied_spread(0.05, sigma_r=0.023, kind="spearmann")
+    with pytest.raises(ValueError):
+        implied_spread(0.05, sigma_r=0.023, kind="")
+
+
+def test_pearson_outside_the_domain_is_refused_too():
+    """Spearman 有 ±1 的定义域，Pearson 有——但两者是**不同的守卫**。
+
+    换算只在联合高斯下有意义；越界说明单位/口径错了，放行会让结论翻号。
+    """
+    implied_spread(1.0, sigma_r=0.023, kind="pearson")   # 恰好合法
+    with pytest.raises(ValueError):
+        implied_spread(1.4, sigma_r=0.023, kind="pearman")

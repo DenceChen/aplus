@@ -86,7 +86,7 @@ def main() -> int:
     n_fail = 0
     for r in sorted(rows, key=lambda x: x["year"]):
         ic = float(r[args.bucket])
-        gross = annualise(implied_spread(ic, sigma_r=SIGMA_R))
+        gross = annualise(implied_spread(ic, sigma_r=SIGMA_R, kind="spearman"))
         ok = gross >= need
         n_fail += (not ok)
         print(f"{r['year']:<6}{r.get('n_days', 0):>8}"

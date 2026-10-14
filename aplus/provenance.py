@@ -98,6 +98,18 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # σ_r 的**读面板口径**在脚本，纯函数在 aplus/xsec_sigma.py——
     # 公式不该跟着口径变（换池子/缩尾比例时只改脚本）。
     "xsec_sigma_r.json": "scripts/measure_xsec_sigma.py",
+    # 组合 IC 的**充分统计量**（每日 R 8×8 与 Σ_f 8），1882 天 340s。
+    # 存下来之后所有权重方案秒级迭代，不再读面板。
+    #
+    # ⚠️ **2026-10-14 口径修正后重跑**：初版因子端用**原始值** z 标准化，
+    # 而收益端已被 `make_ranked_forward` 排了名 —— 算出来的是
+    # corr(z(F原始), rank(r))，**一半秩一半原始值**。
+    # 它不是 Spearman 也不是 Pearson，**归类错误**，
+    # 且弱信号区比真 Spearman 高约 1.047 倍，直接乘在年化收益上。
+    # 现在 `sf__*` 是**秩口径**（进判决），`sfP__*` 是原始值口径（只作对照），
+    # 让那个比值可查而不是靠记。回归由
+    # `tests/test_composite.py::test_the_identity_is_still_exact_on_ranks` 钉着。
+    "ic_matrices.parquet": "scripts/extract_ic_matrices.py",
     "fundamental_ic.json": "aplus/factor_ic.py",
     "forward_registry.json": "aplus/forward.py",
     "financial_annual_cache.parquet": "aplus/financial.py",

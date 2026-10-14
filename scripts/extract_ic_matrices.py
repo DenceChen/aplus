@@ -18,19 +18,40 @@
 
 - 因子取 `build_cross_sections` 的输出 —— 策略看到什么就量什么
 - 真实窗口 = D+1 收盘买 → D+2 收盘卖（`ENTRY_LAG=1`，`lag1_real`）
-- 秩相关口径与 `daily_ic_ranked` 的 `all` 一致（秩上的 Pearson）
+- **两端都排名**：前瞻收益由 `make_ranked_forward` 排（`r` 是秩），
+  因子端由 `rank_zscore` 排。所以 `Σ_f` 是**秩相关（Spearman）**，
+  与 `daily_ic_ranked` 的 `all` 同口径。
 
-## ⚠️ 与单因子 IC 的口径差异（**必须知道，否则会误比**）
+### ⚠️ 这里曾经出过一次**口径事故**，它值得被记住
+
+初版写的是 `daily_stats(zscore(Fv), rv)` —— 因子端用**原始值**，
+收益端却是**秩**。算出来的是 `corr(z(F原始), rank(r))`：
+
+> **一半秩、一半原始值，既不是 Spearman 也不是 Pearson。**
+
+它不崩、不报警、报告照样出数。病根是那句 docstring **写着「秩相关口径」而代码没实现**——
+注释与代码不一致，且注释是**对的那一边**。
+
+后果可量化：弱信号区 Pearson 比 Spearman 高约 **1.047 倍**，
+而它经 `σ_r · K` **直接乘在年化收益上**。
+更糟的是它让人得出「口径无差异」的错觉——实测的
+「共同完整样本损失 0.0000%」只证明了**样本**相同，
+**没证明统计量相同**。
+
+因此本脚本**两套都存**：`sf__` 是秩口径（进判决），
+`sfP__` 是原始值口径（只作对照），让这个比值可查而不是靠记。
+
+## ⚠️ 与单因子 IC 的**样本**差异（**必须知道，否则会误比**）
 
 本脚本取**共同完整样本**：某天某个因子缺失就整行剔除。
 而 `daily_ic_ranked` 是**逐因子用各自的有效子集**。
 
-    所以本文件里的 Σ_f ≠ 报告里单因子的 IC（差在缺失的那部分股票上）。
+    统计量现在一致了；剩下的差异**只在样本上**。
+    本脚本因此同时报出 `n_common` 与 `n_any`，
+    让这个差异**可量化**而不是靠信任。
 
 **后果**：单因子与合成的对照**必须用本文件里的同一份 Σ_f**，
-拿 `factor_ic_7y_v2.json` 的数来比是**口径不一致**——
-本脚本因此同时报出 `n_common` 与 `n_any`，
-让这个差异**可量化**而不是靠信任。
+拿 `factor_ic_7y_v2.json` 的数来比是**样本不一致**。
 
 用法：
     .venv/bin/python scripts/extract_ic_matrices.py \
@@ -50,7 +71,7 @@ import numpy as np
 import pandas as pd
 
 from aplus.backtest import ENTRY_LAG, build_cross_sections
-from aplus.composite import DegenerateFactor, daily_stats, zscore
+from aplus.composite import DegenerateFactor, daily_stats, rank_zscore
 from aplus.factor import FACTOR_NAMES
 from aplus.factor_ic import FWD_WINDOWS, build_price_cache, forward_returns, \
     make_ranked_forward
@@ -95,7 +116,7 @@ def extract(dates, xs, cache, factors, window: str,
         Fv = F.to_numpy(float)[ok]
         rv = r[ok]
         try:
-            R, sf = daily_stats(zscore(Fv), rv, names=tuple(factors))
+            R, sf = daily_stats(rank_zscore(Fv), rv, names=tuple(factors))
         except DegenerateFactor as e:
             skipped.append({"date": day, "reason": str(e),
                             "n_common": n_common, "n_any": n_any})
@@ -104,6 +125,11 @@ def extract(dates, xs, cache, factors, window: str,
         rec = {"date": day, "n_common": n_common, "n_any": n_any}
         for j, nm in enumerate(factors):
             rec[f"sf__{nm}"] = float(sf[j])
+            # **同时存 Pearson 口径**（因子不排名的原始值）。
+            # 它不进判决，只为把「秩口径 vs 原始值口径」差多少**量化**——
+            # 弱信号区这个比值约 1.047，而它直接乘在年化收益上。
+            # 只存一套的话，这个差只能靠人记得，而记得是最靠不住的一环。
+            rec[f"sfP__{nm}"] = float(np.corrcoef(Fv[:, j], rv)[0, 1])
         for a in range(k):
             for b in range(k):
                 rec[f"R__{a}{b}"] = float(R[a, b])

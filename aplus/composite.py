@@ -55,6 +55,38 @@ def zscore(F: np.ndarray) -> np.ndarray:
     return (F - F.mean(axis=0)) / sd
 
 
+def rank_zscore(F: np.ndarray) -> np.ndarray:
+    """横截面**先排名、再 z 标准化**。
+
+    ## 为什么必须排
+
+    策略是**按分数排序取分位**的，所以描述它的统计量是**秩相关**
+    （Spearman），不是 Pearson。`aplus/factor_ic.py` 的单因子 IC
+    两端都用 `_rankdata` 排过名——单因子那边排了，这边不排，
+    就是在拿两种东西做除法。
+
+    ## 为什么复用 `_rankdata` 而不是自己写一个
+
+    并列平均怎么处理，两处只要有一处不同，两侧的数就**再也比不了**，
+    而差异小到不会有人发现。**单一真相源**在这里不是洁癖，是可比性的前提。
+
+    > 这个 import **故意延迟到函数体内**：
+    > `aplus/composite.py` 是纯函数层，不该因为要一个数值小helper
+    > 就把 `factor_ic` → `backtest` 整条流水线拖进来。
+    > 排名是本模块唯一的外部依赖，延迟导入把它挡在模块加载之外。
+
+    秩化**会制造新的零方差**：原始值各不相同但秩全同（量化过的因子天天如此），
+    所以 `zscore` 那道守卫在秩口径下**更容易**触发，仍然抛。
+    """
+    from aplus.factor_ic import _rankdata
+
+    F = np.asarray(F, dtype=float)
+    if F.ndim != 2:
+        raise ValueError(f"要 (n, k) 的矩阵，收到形状 {F.shape}")
+    Rk = np.column_stack([_rankdata(F[:, j]) for j in range(F.shape[1])])
+    return zscore(Rk)
+
+
 def daily_stats(F: np.ndarray, r: np.ndarray,
                 names: tuple[str, ...] = ()) -> tuple[np.ndarray, np.ndarray]:
     """同一天的 (R, Σ_f)。
@@ -190,9 +222,34 @@ def daily_ic_series(Rs: np.ndarray, sf: np.ndarray, w: np.ndarray) -> np.ndarray
     return out
 
 
+def sign_weights(sf_hist: np.ndarray) -> np.ndarray:
+    """**朴素翻号**：只按历史平均 IC 的**符号**定向，一个系数都不学。
+
+    这是石川 7.4 那句「等权往往就是很好的选择」的**最强版本**——
+    原话谈的是「偏离等权」，而这条臂连等权都不肯给，
+    它只肯给**方向**。它因此是这条路线的真正及格线：
+    若连它都够不到门槛，学系数再精也是白费。
+
+    > 它比 `optimal_weights` 弱**是定义决定的**：符号臂只学方向，
+    > 最优臂还学幅度，所以**在训练期上**前者必然不占优。
+    > 钉住这一点，是为了防止有人把「符号臂样本外更差」
+    > 讲成「符号臂哪里有毛病」——它差是应该的，**差多少**才是信息。
+
+    历史全 0 的因子没有方向可言，取 +1（中性），并让 `composite_ic`
+    的分母守卫去发现「这个方向其实是零方差」。
+    """
+    mu = np.asarray(sf_hist, dtype=float).mean(axis=0)
+    w = np.sign(mu)
+    w[w == 0.0] = 1.0
+    # 归一到单位欧氏长度，让它和 `optimal_weights` 的权重**可比**。
+    # IC 本身对整体缩放不敏感（分子分母各一次方），所以这纯粹为了好看。
+    return w / np.sqrt(float(w @ w))
+
+
 def walk_forward(df, factors, need_ic: float, judged_from: int = 2021,
                  equal_weight_years: tuple[int, ...] = (2019, 2020),
-                 all_years_equal: bool = False):
+                 all_years_equal: bool = False,
+                 weight_rule: str = "optimal"):
     """滚动扩展窗逐年判决。**判决规则在 `docs/` 里预注册。**
 
     | 年 | 权重来源 |
@@ -226,23 +283,39 @@ def walk_forward(df, factors, need_ic: float, judged_from: int = 2021,
     out = []
     for y in sorted(set(yrs.tolist())):
         mask = yrs == y
-        if all_years_equal or y in equal_weight_years:
+        before = yrs < y
+        no_hist = {"year": y, "n_days": int(mask.sum()),
+                   "ic_mean": None, "reason": "无历史"}
+
+        if all_years_equal or weight_rule == "equal" or y in equal_weight_years:
             w = np.full(k, 1.0 / np.sqrt(k))
             src = "equal"
         else:
-            hist = {"date": dates[yrs < y], "R": Rs[yrs < y],
-                    "sf": sf[yrs < y]}
-            if not (yrs < y).any():
-                out.append({"year": y, "n_days": int(mask.sum()),
-                            "ic_mean": None, "reason": "无历史"})
+            if weight_rule not in ("optimal", "sign", "equal"):
+                raise ValueError(
+                    f"未知权重规则 {weight_rule!r}：只认 'optimal' / 'sign'"
+                    "（等权另由 equal_weight_years / all_years_equal 指定，"
+                    "写成 weight_rule='equal' 亦可）。"
+                    "**不许回落**——回落就是换个名字的静默失效。")
+            if not before.any():
+                out.append(no_hist)
                 continue
-            try:
-                w = train_weights(hist, factors)
-            except DegenerateFactor as e:
-                out.append({"year": y, "n_days": int(mask.sum()),
-                            "ic_mean": None, "reason": str(e)})
-                continue
-            src = "walk_forward"
+            hist_sf = sf[before]
+            if weight_rule == "sign":
+                # 符号臂也只用当年之前——**符号同样可以前视**。
+                # 它「看起来不像会前视」恰恰是最容易写错的地方。
+                w = sign_weights(hist_sf)
+                src = "sign"
+            else:
+                try:
+                    w = train_weights({"date": dates[before], "R": Rs[before],
+                                       "sf": hist_sf}, factors)
+                except DegenerateFactor as e:
+                    out.append({"year": y, "n_days": int(mask.sum()),
+                                "ic_mean": None, "reason": str(e)})
+                    continue
+                src = "walk_forward"
+
         ic = daily_ic_series(Rs[mask], sf[mask], w)
         ic = ic[np.isfinite(ic)]
         out.append({

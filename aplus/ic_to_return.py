@@ -167,7 +167,38 @@ def pearson_from_spearman(rho_s: float) -> float:
     return 2.0 * math.sin((math.pi / 6.0) * r)
 
 
-def implied_spread(ic: float, sigma_r: float,
+def _to_pearson(ic: float, kind: str) -> float:
+    """把调用方声明口径的 IC 统一成 ρ_p。
+
+    `kind` **没有默认值**——这是本模块最贵的一个设计决定，理由：
+
+    > 公式 `spread = ρ_p · σ_r · K(q)` 里的 ρ_p 是 **Pearson**，
+    > 而本项目的 IC 报告用的是 **Spearman**。两边各自自洽，
+    > 所以**任何一处口径错配都不会报错**，只会安静地把答案改掉。
+    >
+    > 真实事故：`aplus/composite.py` 的 `composite_ic` 给的是
+    > **z 标准化原始值的 Pearson**，喂进来被当成 Spearman 又换算一次，
+    > **年化收益白送 1.047 倍**（0.0624 的 IC → 39.51% 而非 37.75%）。
+    >
+    > 必填关键字参数让**编译器**逼每个调用点表态。
+    > 若给了默认值「Spearman」，下一个拿原始值来的人会拿到又一次静默换算，
+    > 且**没有任何迹象**表明换过。
+    """
+    if kind == "spearman":
+        return pearson_from_spearman(ic)
+    if kind == "pearson":
+        r = float(ic)
+        if not -1.0 <= r <= 1.0:
+            raise ValueError(f"Pearson IC 必须在 [-1, 1]，收到 {ic}")
+        return r
+    # 拼错必须报错。**回落即静默失效**——只是换了个名字。
+    raise ValueError(
+        f"未知 IC 口径 {kind!r}：只认 'spearman' 或 'pearson'。"
+        "不许回落——回落就是换个名字的静默换算。"
+    )
+
+
+def implied_spread(ic: float, sigma_r: float, *, kind: str,
                    tail_q: float = TAIL_Q) -> float:
     """IC → **每日**尾部分位价差（收益率比例，**毛**）。
 
@@ -176,6 +207,9 @@ def implied_spread(ic: float, sigma_r: float,
     `sigma_r` 是**横截面**收益标准差，必须由调用方显式传入：
     本模块不提供默认值，因为「典型的 σ_r」是一个会被无声取用的猜测，
     而它对结论的影响是**数量级**的。
+
+    `kind` 是**必填关键字**（`'spearman'` 或 `'pearson'`），
+    见 `_to_pearson` 的说明——为什么这里不给默认值很重要。
     """
     s = float(sigma_r)
     if s <= 0.0:
@@ -184,8 +218,7 @@ def implied_spread(ic: float, sigma_r: float,
             "取 0 或负会让价差反号或恒零，而函数不会崩，"
             "这种错误只让结论悄悄变错。"
         )
-    rho_p = pearson_from_spearman(ic)
-    return rho_p * s * tail_spread_constant(tail_q)
+    return _to_pearson(ic, kind) * s * tail_spread_constant(tail_q)
 
 
 def annualise(daily_spread: float, days_per_year: int = DAYS_PER_YEAR
@@ -198,6 +231,19 @@ def annualise(daily_spread: float, days_per_year: int = DAYS_PER_YEAR
 def required_ic(target_spread: float, sigma_r: float,
                 tail_q: float = TAIL_Q) -> float:
     """反解：要多强的排序才能撑起 `target_spread` 的每日价差？
+
+    ## 返回值是 **Spearman** IC
+
+    这一条必须写死，否则判决那侧会拿它去比一个 **Pearson** 实测值——
+    而口径错在**宽松方向**，两边各自自洽，**不会有任何报错**。
+
+    2026-10-14 的真实事故：`aplus/composite.py` 的 `composite_ic`
+    一度给原始值的 Pearson，与本函数的返回值比，宽松 1.047 倍；
+    同一处 `implied_spread` 又多换算了一遍。**信号侧、判决侧、
+    换算侧三处各自自洽，合起来偏了 1.05 倍。**
+
+    现在 `sf__*` 已改成秩口径，三处对齐；`tests/test_ic_to_return.py`
+    与 `tests/test_composite.py` 各钉住一头。
 
     读法是「要达到 X，需要 IC 达到 Y」。
     **返回值可以大于 1**——而那正是最有信息量的答案：
@@ -242,7 +288,7 @@ if __name__ == "__main__":
     for name, ic in (("rev5 低尾", IC_REV5_LOW),
                      ("rev5 全截面", 0.02617),
                      ("mom20 全截面", -0.03571)):
-        sp = implied_spread(ic, sigma_r=SIGMA_R)
+        sp = implied_spread(ic, sigma_r=SIGMA_R, kind="spearman")
         gross = annualise(sp)
         print(f"{name:<14} IC={ic:>8.5f} → 日价差 {sp:>8.4%} "
               f"→ 年毛超额 {gross:>7.2%}")

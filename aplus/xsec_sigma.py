@@ -166,7 +166,7 @@ def implied_gross_excess(ic: float, sigma_r: float,
     """
     from .ic_to_return import TAIL_Q, annualise, implied_spread
 
-    return annualise(implied_spread(ic, sigma_r=sigma_r,
+    return annualise(implied_spread(ic, sigma_r=sigma_r, kind="spearman",
                                     tail_q=TAIL_Q if tail_q is None
                                     else tail_q))
 

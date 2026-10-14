@@ -389,3 +389,205 @@ def test_the_control_arm_never_sees_even_one_past_day():
             assert a[y]["ic_mean"] == pytest.approx(b[y]["ic_mean"]), (
                 f"{y} 年既不是被篡改的年份，IC 就不该变"
             )
+
+
+# ── 五、秩口径：策略靠排名选股，所以统计量必须是秩相关 ────────────
+#
+# **下面第一条测试描述的是一个已经上线的 bug**，不是假想：
+# `extract_ic_matrices.py` 一度对**原始值**做 z 标准化，
+# 而前瞻收益那一端已经被 `make_ranked_forward` 排了名，
+# 于是算出来的是 corr(z(F原始), rank(r)) —— **一半秩一半原始**。
+# 它不崩、不报警，报告照样出数，只是那个数**既不是 Spearman 也不是 Pearson**。
+#
+# 后果是可量化的：同样的数据，Pearson 口径比 Spearman 高约 1.047 倍（弱信号区），
+# 而年化毛超额直接乘 σ_r 与 K —— **1.047 倍直接乘在收益上**。
+
+def _skewed(n=3000, k=3, seed=11):
+    """带重尾的因子——**这正是真实因子的形状**（vol/ivol/turnratio）。
+
+    正态数据上原始值与秩几乎无关，用它当夹具这条测试就是假绿。
+    """
+    rng = np.random.default_rng(seed)
+    base = rng.standard_t(df=3, size=(n, k)) * 4.0   # t(3) 重尾
+    beta = np.array([0.5, -0.4, 0.3])
+    r = base @ beta + rng.standard_t(df=3, size=n) * 0.5
+    return base, r
+
+
+def test_ranking_the_factors_changes_the_answer_on_realistic_factor_shapes():
+    """原始值口径与秩口径在重尾数据上**差得出来**，不是同一个数的两种写法。
+
+    > 用正态夹具的话这条测试会假绿：正态下分位数变换近似线性，
+    > 两种口径只差千分之几，看不出来。
+    """
+    from aplus.factor_ic import _rankdata
+    F, r = _skewed()
+    ic_raw = float(np.corrcoef(zscore(F)[:, 0], r)[0, 1])
+    ic_rank = float(np.corrcoef(_rankdata(F[:, 0]), _rankdata(r))[0, 1])
+    assert abs(ic_raw - ic_rank) > 0.01, (
+        f"重尾因子上两种口径只差 {abs(ic_raw - ic_rank):.4f}——"
+        "夹具不够重尾，这条测试就白写了"
+    )
+
+
+def test_rank_zscore_reuses_the_ic_reports_own_tie_handling():
+    """必须调用 `aplus.factor_ic._rankdata` 本身，不许自己再写一个排名。
+
+    并列平均怎么算，两处只要有一处不同，两侧的数就**再也比不了**——
+    而差异小到没有任何人会发现：单因子与合成之间的对照会整体偏一点，
+    看起来仍然「差不多」。
+    """
+    from aplus.composite import rank_zscore
+    from aplus.factor_ic import _rankdata
+    F, _ = _skewed()
+    got = rank_zscore(F)
+    # 构造大量并列（量化过的因子天天如此）
+    Fq = np.round(F)
+    got_q = rank_zscore(Fq)
+    assert np.allclose(got_q, zscore(np.column_stack(
+        [_rankdata(Fq[:, j]) for j in range(Fq.shape[1])])), atol=1e-12), (
+        "并列处理的差异不会被恒等式吸收——它直接改变 R 与 Σ_f"
+    )
+
+
+def test_the_identity_is_still_exact_on_ranks():
+    """**秩化不会破坏恒等式**——因为 z 标准化对秩是仿射变换。
+
+    这是能放心把口径换成秩的全部理由：不是「秩更对」这种偏好，
+    而是恒等式**一字不改**照样精确成立。
+    """
+    from aplus.composite import rank_zscore
+    F, r, _ = _correlated()
+    Z = rank_zscore(F)
+    R, sf = daily_stats(Z, r)
+    rng = np.random.default_rng(5)
+    for _ in range(15):
+        w = rng.normal(size=F.shape[1])
+        if w @ R @ w <= 1e-12:
+            continue
+        brute = float(np.corrcoef(Z @ w, r)[0, 1])
+        assert composite_ic(w, R, sf) == pytest.approx(brute, abs=1e-10)
+
+
+def test_mixing_raw_factors_with_ranked_returns_is_not_either_correlation():
+    """钉住那个真实 bug：**混合口径两种口径都不等于**。
+
+    > 这条比「秩口径更准」更有用：它证明当初那个数不是「粗略」，
+    > 而是**归类错误**——所以必须作废重算，不能拿它做微调。
+    """
+    from aplus.composite import rank_zscore
+    from aplus.factor_ic import _rankdata
+    F, r, _ = _correlated(n=4000, k=3, seed=13)
+    mixed = float(np.corrcoef(zscore(F)[:, 0], _rankdata(r))[0, 1])
+    spear = float(np.corrcoef(_rankdata(F[:, 0]), _rankdata(r))[0, 1])
+    pears = float(np.corrcoef(zscore(F)[:, 0], r)[0, 1])
+    assert mixed != pytest.approx(spear, abs=2e-3)
+    assert mixed != pytest.approx(pears, abs=2e-3)
+
+
+def test_rank_zscore_rejects_a_fully_tied_column():
+    """全并列 → 秩方差为零 → `DegenerateFactor`。
+
+    秩化**制造**了新的零方差（原始值各不相同但秩全同），
+    所以这道守卫在秩口径下**更容易**触发，必须仍然抛出并点名。
+    """
+    from aplus.composite import rank_zscore
+    F = np.array([[1.0, 5.0], [2.0, 5.0], [3.0, 5.0], [4.0, 5.0]])
+    with pytest.raises(DegenerateFactor):
+        rank_zscore(F)
+
+
+# ── 六、朴素翻号：石川 7.4 那句话的最强版本 ──────────────────────
+#
+# 「等权重配置所有变量往往就是很好的选择」——主判决用的 R⁻¹Σ_f
+# 正是**偏离等权**。第一版对照臂是「原样等权」，但它有个致命的毛病：
+# 本项目 8 个因子里 **7 个 IC 为负**，原样等权的 IC 必然是负的，
+# 于是对照臂输得**毫不费力**，读起来像「等权不行」——
+# 而真正的问题是「等权**不学任何系数**够不够」。
+#
+# 朴素翻号只回答后者：按**历史**平均 IC 的符号定向，
+# **一个系数都不学**。它比 R⁻¹Σ_f 弱得多，是这条路线真正的及格线。
+
+def test_sign_weights_learn_no_magnitude_only_the_direction():
+    """符号臂必须**只用符号**——出现任何 |w| ≠ 1 就是它在偷偷学系数。"""
+    from aplus.composite import sign_weights
+    sf = np.array([[0.05, -0.03, 0.0], [0.09, -0.01, 0.0],
+                   [0.01, -0.08, 0.0]])          # 第三列全 0 → 不定方向
+    w = sign_weights(sf)
+    # 归一到单位长度，所以 |w| 是 1/√k 而非 1。真正要钉的是
+    # **所有 |w| 一模一样**——只要有一个更大，就是它在偷偷学幅度。
+    assert np.allclose(np.abs(w), np.abs(w)[0]), f"幅度不等：{w}"
+    assert w[0] > 0 and w[1] < 0                    # 符号跟着历史 IC 走
+    assert np.isfinite(w).all()
+
+
+def test_sign_weights_never_see_the_evaluation_year():
+    """符号臂的权重只能来自**当年之前**——篡改当年数据不得改变当年权重。
+
+    > 注意：`sign_weights` 自己**没有**「不看未来」的本事，
+    > 它拿到什么历史就算什么。挡住前视的是 `walk_forward` 的切片，
+    > 所以这条必须从 `walk_forward` 那一层测——
+    > 测 `sign_weights` 本身会测出一个**它压根没承诺**的性质。
+    >
+    > 而且符号臂**看起来**不像会前视（「我就取个符号」），
+    > 恰恰因此更容易写错成「用全样本的符号」。
+    """
+    base = _long_table(years=tuple(range(2019, 2026)), noise=12.0)
+    tampered = base.copy()
+    # 两个细节缺一不可，少一个这条测试就**假绿**而不是失败：
+    #
+    # 1. 夹具的 `noise` 必须调到**真实量级**。默认 noise=0.7 时
+    #    单因子 IC 高达 0.589 —— 一年 120 天的权重根本压不过它，
+    #    篡改永远翻不了符号，测试会「通过」而其实什么也没测到。
+    #    noise=12 给出的 IC ≈ 0.08，正落在实测合成 IC 0.062~0.083 里。
+    # 2. 必须**翻符号**。合成夹具 beta=[1,-1,1]，sf__0 本就为正，
+    #    写成同号只是「加强」，历史均值符号不变。
+    tampered.loc[tampered["date"].str.startswith("2024"), "sf__0"] = -0.999
+    tampered.loc[tampered["date"].str.startswith("2024"), "sf__1"] = 0.999
+
+    a = {r["year"]: r for r in walk_forward(
+        base, ["0", "1", "2"], need_ic=0.04, weight_rule="sign")}
+    b = {r["year"]: r for r in walk_forward(
+        tampered, ["0", "1", "2"], need_ic=0.04, weight_rule="sign")}
+
+    # 2023 年的符号只能来自 2019-2022 → 篡改 2024 不得改变它
+    assert np.allclose(list(a[2023]["weights"].values()),
+                       list(b[2023]["weights"].values())), (
+        "2023 年的符号臂读了 2024 年——**符号同样是可以前视的**")
+    # 反过来：2025 年的符号含 2024，篡改后**必须**变。
+    # 两半都断不得——只断前半说明符号臂压根没读历史。
+    assert not np.allclose(list(a[2025]["weights"].values()),
+                           list(b[2025]["weights"].values()))
+
+
+def test_the_three_arms_are_all_available_and_distinct():
+    """三条臂必须**真的不同**——全等就说明其中一条退化成了另一条。"""
+    base = _long_table(years=tuple(range(2019, 2026)))
+    factors = ["0", "1", "2"]
+    arms = {}
+    for rule in ("optimal", "equal", "sign"):
+        got = walk_forward(base, factors,
+                           need_ic=0.0, judged_from=2021,
+                           equal_weight_years=(2019, 2020),
+                           weight_rule=rule)
+        arms[rule] = {r["year"]: r.get("ic_mean") for r in got if r.get("judged")}
+    assert arms["optimal"] != arms["equal"]
+    assert arms["optimal"] != arms["sign"]
+    assert arms["equal"] != arms["sign"]
+
+
+def test_the_sign_arm_is_never_stronger_than_the_optimal_arm_by_construction():
+    """**在训练期上**符号臂不可能赢——它只学方向，最优臂还学了幅度。
+
+    这不是缺陷而是定义。把它钉住，是为了防止有人把
+    「符号臂样本外更差」讲成「符号臂哪里不对」——
+    它差是因为它**就该**差，差的幅度才是信息。
+    """
+    from aplus.composite import sign_weights, train_weights
+    base = _long_table(years=tuple(range(2019, 2026)))
+    factors = ["0", "1", "2"]
+    dates, Rs, sf = unpack(base, factors)
+    w_opt = train_weights({"date": dates, "R": Rs, "sf": sf}, factors)
+    w_sgn = sign_weights(sf)
+    assert composite_ic(w_opt, Rs.mean(0), sf.mean(0)) >= \
+        composite_ic(w_sgn, Rs.mean(0), sf.mean(0)) - 1e-12
