@@ -109,23 +109,48 @@ def summarize(rows, factors, windows) -> list[dict]:
 
 
 def yearly(rows, factors, window) -> list[dict]:
-    """逐年 IC —— 均值显著的因子，必须再看它是不是只靠某一年撑着。"""
+    """逐年 IC —— 均值显著的因子，必须再看它是不是只靠某一年撑着。
+
+    **三档必须齐全**（`all` / `tail_low` / `tail_high`），与全段表 `table` 同口径。
+
+    > 第一版只报 `ic_mean`（即 `all`），而 `table` 出三档。
+    > 于是报告里出现**两套口径**：全段表有低尾，逐年表没有。
+    > 而整条月频路线恰恰压在低尾那一个数上——
+    > 「26.7% 刚过 26.4% 门槛」背后是一个**看不到分布的单点估计**。
+    > 全截面的逐年 IC 八年里 0 个年份够到月频门槛，
+    > 所以「够得着」这件事**只有低尾能回答**，而它偏偏没被逐年统计。
+
+    样本不足的档**如实缺失（None）**，绝不回落到 `all`：
+    回落会让读者以为看到的是低尾，实际看到的是全截面——
+    那正是本 bug 的形态，只是把「缺」换成了「假装有」。
+    """
     out = []
     sel_all = [r for r in rows if r["window"] == window]
     if not sel_all:
         return out
     years = sorted({r["date"][:4] for r in sel_all})
+    buckets = ("all", "tail_low", "tail_high")
     for factor in factors:
         for y in years:
-            vals = [r["all"] for r in sel_all
-                    if r["factor"] == factor and r["date"][:4] == y
-                    and r["all"] is not None]
+            # 三档取自**同一批逐日记录**，保证互相可比
+            yr = [r for r in sel_all
+                  if r["factor"] == factor and r["date"][:4] == y]
+            vals = [r["all"] for r in yr if r.get("all") is not None]
             if len(vals) < MIN_OBS:
                 continue
             s = pd.Series(vals, dtype=float)
-            out.append({"factor": factor, "year": y, "n_days": len(vals),
-                        "ic_mean": round(float(s.mean()), 5),
-                        "hit": round(float((s > 0).mean()), 4)})
+            row = {"factor": factor, "year": y, "n_days": len(vals),
+                   "ic_mean": round(float(s.mean()), 5),
+                   "hit": round(float((s > 0).mean()), 4)}
+            for b in buckets:
+                bv = [r[b] for r in yr if r.get(b) is not None]
+                if len(bv) < MIN_OBS:
+                    row[b] = None          # 如实缺失，不回落
+                    continue
+                sb = pd.Series(bv, dtype=float)
+                row[b] = round(float(sb.mean()), 5)
+                row[f"{b}_hit"] = round(float((sb > 0).mean()), 4)
+            out.append(row)
     return out
 
 
