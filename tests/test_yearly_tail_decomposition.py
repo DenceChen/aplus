@@ -159,8 +159,19 @@ def test_the_existing_report_is_recognised_as_missing_the_tail_yearly():
 
     > 故意写成「现在红」：它是一条**待办的可执行形式**，
     > 比 TODO 文档里的一行字更难被忽略。
+
+    ## 2026-10-14：任务 B 完成，这条**已转绿**——但指向换了文件
+
+    重跑产出的是**新文件** `factor_ic_7y_v2.json`（旧文件保持原样，
+    因为多个测试仍读它的**全截面逐因子符号**，那部分经 v2 复核同号、有效）。
+    于是本断言改指 v2：**v2 若哪天缺了低尾逐年，就是回归。**
+
+    旧文件的缺档**没有因此消失**，它由另一条测试永久钉住：
+    `tests/test_verdict_monthly_hurdle.py::test_the_real_old_report_is_still_refused`
+    ——判决脚本对旧报告**必须拒绝退出**。缺档的旧报告留在 `data/reports/`
+    里本身就是风险，所以守卫不能跟着新报告一起删掉。
     """
-    path = Path("data/reports/factor_ic_7y.json")
+    path = Path("data/reports/factor_ic_7y_v2.json")
     if not path.is_file():
         pytest.skip("报告不在（data/ 被 gitignore）")
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -169,7 +180,7 @@ def test_the_existing_report_is_recognised_as_missing_the_tail_yearly():
         pytest.skip("报告没有 yearly 段")
     has_tail = "tail_low" in yearly_rows[0]
     assert has_tail, (
-        "factor_ic_7y.json 的 yearly 仍缺 tail_low/tail_high——"
-        "这是 docs/TODO_measure_sigma_r.md 的任务 B。"
-        "重跑 scripts/factor_ic_diagnostic.py 后应转绿。"
+        "factor_ic_7y_v2.json 的 yearly 缺 tail_low/tail_high——"
+        "重跑生成 v2 时三档齐全（2026-10-14 已验证），"
+        "缺档意味着 scripts/factor_ic_diagnostic.py 的 yearly 又退化了"
     )

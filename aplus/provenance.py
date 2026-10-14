@@ -88,6 +88,13 @@ DEFAULT_GENERATORS: dict[str, str] = {
         "aplus/backtest.py",
     "regime_control_sweep.json": "aplus/backtest.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
+    # 2026-10-14 重跑：`yearly` 补齐三档（原实现只聚合 `all`，
+    # 是**口径不一致**——全段表出三档、逐年表只出一档）。
+    # 判决见 docs/TODO_measure_sigma_r.md：**3/8 年不过月频门槛**。
+    # 旧报告仍在册：它的**全截面逐因子符号**仍有效（v2 已复核同号），
+    # 但**它的 yearly 缺低尾档，永远不许用来做月频判决**——
+    # scripts/verdict_monthly_hurdle.py 对它会拒绝退出，测试钉着这件事。
+    "factor_ic_7y_v2.json": "scripts/factor_ic_diagnostic.py",
     # σ_r 的**读面板口径**在脚本，纯函数在 aplus/xsec_sigma.py——
     # 公式不该跟着口径变（换池子/缩尾比例时只改脚本）。
     "xsec_sigma_r.json": "scripts/measure_xsec_sigma.py",
