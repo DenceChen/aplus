@@ -58,6 +58,20 @@ def pending_prediction_dates(reports_dir):
 
     命中率是平台调参的唯一依据（「所有判定结果永久留存」是
     `verify.py` 的模块承诺）。这条函数就是那个承诺的兑现处。
+
+    ## 为什么缺 `exit_date` 的判定不算「已判定」（2026-10-14）
+
+    实测线上那 20 行 2026-10-12 的判定是 `closes[-1]/closes[-2]` 产的，
+    即 `entry_lag=0`——**与锚定口径差一根 K 线**。同一个 bug 让
+    「信号日之后第一根买」变成「库里最后两根买」，而后者在跑批当天
+    恰好等于「次日收盘 / 今日收盘」，看起来完全正常。
+
+    而本函数原本只看 `pred_date` 在不在表里，于是那一天**永远不会被重判**，
+    两种口径的行会永久混在同一张表里，`rolling_stats` 分不出哪条是哪条。
+
+    判据：`exit_date` 非空 = 锚定口径判过 = 算数。
+    旧行缺这一列 → 视为未判定 → 重开。`append_verification` 按
+    `(pred_date, code)` 去重保留最后一条，重判会**覆盖**旧行而不是追加。
     """
     d = Path(reports_dir) / "predictions"
     if not d.exists():
@@ -69,7 +83,12 @@ def pending_prediction_dates(reports_dir):
     judged = set()
     if vpath.exists():
         try:
-            judged = set(pd.read_parquet(vpath)["pred_date"].dropna().astype(str))
+            ver = pd.read_parquet(vpath)
+            # 锚定口径判定的日子：有 exit_date 且非空
+            if "exit_date" in ver.columns:
+                anchored = ver[ver["exit_date"].notna() & (ver["exit_date"].astype(str) != "")]
+                judged = set(anchored["pred_date"].dropna().astype(str))
+            # 无 exit_date 列 → 整档都是旧口径，一律重判
         except Exception:  # noqa: BLE001 — 判定档损坏时宁可全部补判，不可跳过
             judged = set()
     return [x for x in dates if x not in judged]

@@ -227,14 +227,22 @@ def _judge_one_day(store, reports_dir, pred_date, today):
     results["pred_date"] = pred_date
     results["verified_on"] = today
     results["market_pct"] = _market_pct(store, pred_date)
+    # 成交窗口必须落库：`pred_date` 不等于观测日（周末出名单时，
+    # 周五/六/日三次出单落到同一个 10-12→10-13 窗口）。
+    # 没有这两列，`daily_portfolio_returns` 会把同一天连乘三次，
+    # 实测把 +0.67% 的真实日收益报成 −78.06% 的年化。
+    results["entry_date"] = bars.set_index("code")["entry_date"].reindex(results["code"]).to_numpy()
+    results["exit_date"] = bars.set_index("code")["exit_date"].reindex(results["code"]).to_numpy()
     append_verification(reports_dir, results)
     hit = (results["result"] == "hit").sum()
     gross = results["actual_pct"].mean()
     # 净 = 毛 − 成本，只在 `rolling_stats` 里扣一次（契约见 verify.py）
     net = float((results["actual_pct"] - results["cost"]).mean())
+    win = sorted(set(results["entry_date"].dropna()) | set(results["exit_date"].dropna()))
+    win_txt = f"｜窗口 {win[0]}→{win[-1]}" if len(win) >= 2 else ""
     print(f"[verify] {pred_date} 的 {len(results)} 条预测判定完成："
           f"命中 {hit} 条｜均收益 毛 {gross:+.3%} / 净 {net:+.3%}"
-          f"（已扣成本 {STOCK_COST_DEFAULT:.3%}）")
+          f"（已扣成本 {STOCK_COST_DEFAULT:.3%}）{win_txt}")
     return True
 
 

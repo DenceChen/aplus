@@ -120,13 +120,18 @@ def test_pending_dates_lists_every_unjudged_day_not_just_the_newest(tmp_path):
 
     `latest_prediction_date` 返回最新文件名，于是前四天永远轮不到。
     正确语义是「**还没判过的**预测日，按时间排」。
+
+    fixture 带 `exit_date`：判定档里的行默认按**锚定口径**判过
+    （2026-10-14 起，见 `test_pending_reopens_days_judged_on_the_unanchored_basis`
+    ——缺 `exit_date` 的旧行会被重开，不是「已判定」）。
     """
     reports = tmp_path / "reports" / "predictions"
     reports.mkdir(parents=True)
     for d in ("2026-10-08", "2026-10-09", "2026-10-12"):
         (reports / f"pred_{d}.parquet").write_text(d, encoding="utf-8")
     (reports.parent / "verification.parquet").write_bytes(pd.DataFrame(
-        {"code": ["A"], "pred_date": ["2026-10-08"]}).to_parquet(index=False))
+        {"code": ["A"], "pred_date": ["2026-10-08"],
+         "exit_date": ["2026-10-09"]}).to_parquet(index=False))
 
     pending = pending_prediction_dates(reports.parent)
     assert pending == ["2026-10-09", "2026-10-12"], (
@@ -140,7 +145,8 @@ def test_pending_dates_excludes_already_judged(tmp_path):
         (reports / f"pred_{d}.parquet").write_text(d, encoding="utf-8")
     vpath = reports.parent / "verification.parquet"
     vpath.write_bytes(pd.DataFrame(
-        {"code": ["A"], "pred_date": ["2026-10-08"]}).to_parquet(index=False))
+        {"code": ["A"], "pred_date": ["2026-10-08"],
+         "exit_date": ["2026-10-09"]}).to_parquet(index=False))
 
     assert pending_prediction_dates(reports.parent) == ["2026-10-09"]
 

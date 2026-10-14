@@ -60,6 +60,17 @@ def last_two_bars(store, code: str, factors_map: dict | None = None,
 
     买不到卖价（信号日就是最新一天）返回 None——不成交，
     绝不退化成「拿最后一根凑」，那量的是一笔无法执行的交易。
+
+    ## 为什么必须报出 `entry_date` / `exit_date`
+
+    成交窗口是**信号日之后第一根买、第二根卖**，而信号日不必是交易日。
+    实测 2026-10-09（周五）/ 10-10（周六）/ 10-11（周日）三次出名单，
+    周末主库没有 bar，三次的 `searchsorted` **落到同一根 10-12 买入、
+    10-13 卖出**——三天是同一个成交窗口。
+
+    不报出这两个日期，下游就无从知道这件事，`pred_date` 会被当成观测日，
+    复利把同一天的收益连乘三次。实测三个篮子真实加权日收益 +0.67%，
+    连乘后是 −1.79%，再年化报出 `−78.06%`——**符号整个翻过来**。
     """
     import numpy as np
 
@@ -87,6 +98,8 @@ def last_two_bars(store, code: str, factors_map: dict | None = None,
         return None                             # 卖价不存在 → 不成交
     return {"code": code, "close": float(closes[exit_i]),
             "prev_close": float(closes[entry]),
+            "entry_date": str(dates[entry]),
+            "exit_date": str(dates[exit_i]),
             "adjusted": bool(events is not None and len(events) > 0)}
 
 
@@ -302,6 +315,25 @@ def daily_portfolio_returns(history: pd.DataFrame) -> pd.Series:
 
     空输入返回空 Series，由 `compounded_stats` 转成 `None`。
     「0% 收益」和「没测过」必须能被下游区分开。
+
+    ## 4. 按 `exit_date` 分组，不是 `pred_date`（2026-10-14）
+
+    **观测日是收益实现的那一天，不是发名单的那一天。**
+
+    实测 2026-10-09（五）/ 10-10（六）/ 10-11（日）三次出名单，
+    周末主库没有 bar，三次的成交窗口**完全相同**（10-12 买、10-13 卖）。
+    按 `pred_date` 分组会把「同一天的三个篮子」当成三天连乘：
+
+        真实加权日收益   +0.67%
+        连乘三天累计     −1.79%      ← 三个因子的乘积，不是任何真实收益
+        再年化 (÷84次方) −78.06%     ← 符号翻过来了
+
+    `n_days=3` 还会让 `MIN_DAYS_FOR_ANNUALISATION` 放行，把单日噪音
+    包装成「−78% 的年化」。这是本次补齐判定时**实测撞上的**，
+    不是假想：补判前 1 天，补判后 3 天，数字就是这么来的。
+
+    缺 `exit_date` 的历史行（旧判定路径产出）退回 `pred_date` 分组，
+    绝不整个丢掉——那等于抹掉上线以来攒下的全部证据。
     """
     if (history is None or history.empty
             or "direction" not in history.columns
@@ -316,13 +348,27 @@ def daily_portfolio_returns(history: pd.DataFrame) -> pd.Series:
     if "cost" in up.columns:
         up["net"] = up["net"] - up["cost"].astype(float)
 
-    if "pred_date" in up.columns:
-        by_day = up.groupby("pred_date")["net"]
-        daily = by_day.mean()
-        size = by_day.count()
-        daily = daily[size >= MIN_BASKET]
+    # 观测日：优先 `exit_date`（收益真正实现的那天），缺失则退回 `pred_date`。
+    day_col = None
+    if "exit_date" in up.columns and up["exit_date"].notna().any():
+        up["_day"] = up["exit_date"].astype(str)
+        # 混档时（有 exit_date 的新行 + 没有的旧行）按 pred_date 兜底，
+        # 避免旧行被算进「不知道哪天实现」的伪分组里。
+        legacy = up["exit_date"].isna()
+        if legacy.any():
+            if "pred_date" not in up.columns:
+                return pd.Series(dtype=float)
+            up.loc[legacy, "_day"] = "legacy:" + up.loc[legacy, "pred_date"].astype(str)
+        day_col = "_day"
+    elif "pred_date" in up.columns:
+        day_col = "pred_date"
     else:
         return pd.Series(dtype=float)
+
+    by_day = up.groupby(day_col)["net"]
+    daily = by_day.mean()
+    size = by_day.count()
+    daily = daily[size >= MIN_BASKET]
     return daily.astype(float).sort_index()
 
 
