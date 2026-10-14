@@ -165,12 +165,17 @@ def candidate_weights(current: dict) -> list:
 
 
 def decide_promotion(race_result: dict, champion_weights: dict) -> dict:
-    """唯一的晋级入口——样本外裁决（五条腿：训练赢 / 超额正 / t 显著 / 样本外不垮 / 方向未污染）。
+    """唯一的晋级入口——样本外裁决。
+
+    闸门清单**不在这里重写一遍**：见 `aplus.evolve_race.GATE_NAMES`，
+    那是唯一真相源。闸数由它算出，写死在 docstring 里的数字只会漂
+    （2026-10-14 的实测：docstring「七道闸」、行内注释「第五道闸」、
+    判决理由「六条腿」三处互相矛盾，且都不等于代码里的实际否决点数）。
 
     旧版这里是 `maybe_promote(..., last_promotion, ...)`，三道闸全在单窗口上，
     挡不住过拟合。现在整条链只有这一个裁决点，不留后门。
 
-    第五道闸（2026-10-11）：方向来自事后观察的候选，即便前四条全过也不晋级。
+    方向污染闸（2026-10-11）：方向来自事后观察的候选，即便前面的闸全过也不晋级。
     训练/测试切分挡不住「看完测试段结论再决定试哪个方向」，Bonferroni 也数不了它。
     """
     return oos_decision(race_result, champion_weights,

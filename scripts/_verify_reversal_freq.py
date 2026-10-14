@@ -109,8 +109,14 @@ def main() -> int:
                 pred = evaluate_weights(xs, w, top_n=10, bottom_n=10,
                                         rebalance_every=k, buffer_multiple=buf)
                 from aplus.evolve_race import breadth_tstat, excess_tstat
-                t, _ = excess_tstat(pred)
-                bt, _ = breadth_tstat(pred)
+                # **必须传 k**：K 日调仓时选股在 K 天内不变，
+                # 逐日序列只有约 n_days/K 次**独立决策**。
+                # 不传则自由度虚增 K 倍，t 被系统性压小
+                # （实测 K=63 的超额 t 从 −1.37 变成 −2.85，2026-10-14）。
+                # 闸门链一直传的是分块口径，只有这个独立验证脚本漏了——
+                # 于是它的 t 与赛马的 t **不可比**，却并排印在同一份报告里。
+                t, _ = excess_tstat(pred, k)
+                bt, _ = breadth_tstat(pred, k)
                 # 成本**已经在结果表里**（pred["cost"] 列，由 backtest 的
                 # cost_drag 按实际换手算出），不需要也不应该自己重估一个模型——
                 # 第一版凭印象写了 `_annual_cost()`，那是编的：
@@ -118,15 +124,27 @@ def main() -> int:
                 # 而我按自己的理解去用。**猜出来的成本口径照常打印出一张漂亮的表。**
                 up = pred[pred["direction"] == "up"]
                 n_days = max(len(set(pred["pred_date"])), 1)
-                n_years = max(n_days / DAYS_PER_YEAR, 1e-9)
-                cost = float(up["cost"].sum()) / n_years      # 年化成本
+                # `cost` 是**篮子级逐日**值，一天一个数、被复制到当天约 10 行
+                # up 记录上（backtest.py: `res.loc[...== "up", "cost"] = drag`）。
+                # 所以年成本 = **日均** drag × 244；
+                # 写成 `.sum() / n_years` 会把同一个 drag 数约 10 遍，
+                # 实测六行的放大比全部落在 9.97–9.99（2026-10-14 事故）。
+                cost = (float(up["cost"].mean()) * DAYS_PER_YEAR
+                        if len(up) else 0.0)                # 年化成本
                 st = None
                 from aplus.verify import rolling_stats
                 if len(up):
                     st = rolling_stats(up)
-                # rolling_stats 的 up_excess_vs_market 是**毛**超额（未扣成本）；
-                # excess_tstat 内部已经 `actual_pct - cost`，是**净值**口径的 t。
-                # 两者混用会重复扣一次成本。
+                # ⚠️ `up_excess_vs_market` **已经是净值口径**——`verify.py` 里
+                # `up_net = actual_pct - cost`、`up_excess = avg_up - market`，
+                # 成本在算超额**之前**就扣掉了。
+                #
+                # 这里曾有一行注释断言它是「**毛**超额（未扣成本）」，
+                # 并据此写了 `net = ann_x - cost`——**重复扣了一次成本**，
+                # 报告的 `净` 多扣 11–35 个百分点。
+                # 那行注释不是描述代码，是**替代码辩护**：我以为核过
+                # `rolling_stats`，实际没读到 `avg_up` 是怎么构造的。
+                # `cost_share` 同源：它同样是「已扣成本」口径下的占比。
                 ann_x = float(st.get("up_excess_vs_market", 0.0)) * DAYS_PER_YEAR
                 # `n_ranked` 只反映**探针那一天**的可排名只数，不能代表全程。
                 # 第一版拿区间内第一个非空日当探针，于是含 `turnratio` 的候选
@@ -138,7 +156,8 @@ def main() -> int:
                 probe = dates[len(dates) // 2]
                 nr = scoreable_count(xs[probe], w) if not xs[probe].empty else 0
                 cover = len(up) / max(len(pred), 1)
-                net = ann_x - cost
+                # 净 == 年超额。**不再减成本**——它已经扣过了。
+                net = ann_x
                 rows.append({"name": name, "weights": w, "rebalance_every": k,
                              "buffer_multiple": buf, "annual_cost": cost,
                              "annual_excess": ann_x, "net": net,

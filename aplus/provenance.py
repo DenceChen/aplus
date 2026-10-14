@@ -64,7 +64,28 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 赛马报告的判决逻辑在 evolve_race.oos_decision，不在驱动脚本
     "ic_guided_race_7y.json": "aplus/evolve_race.py",
     "ic_guided_race_v1.json": "aplus/evolve_race.py",
+    # 2026-10-14 修正基准后的重跑。与首跑**同名不同源**：它换了数据根
+    # （aplus_snap_1012 → aplus_snap_final）、换了基准、且今晨翻过
+    # DEFAULT_WEIGHTS 的符号——**代码与基准双变**，所以它是新报告，
+    # 不能与 `ic_guided_race_7y.json` 混为一谈，也不能覆盖它。
+    #
+    # ⚠️ 这份报告与首跑**不构成对照实验**，重跑同时改了两个东西：
+    #   ① 基准污染修复（首跑的 up_excess_vs_market 虚增约 115pp/年）
+    #   ② 冠军基准的符号翻转（首跑 champion 是 {mom20:1.0, vol20:0.5, vsur:0.5}，
+    #      今晨改为 {mom20:-1.0, vol20:-0.5, vsur:-0.5}）
+    # 窗口（2019-01-02~2026-10-12）与切分（train→2023-08-17 /
+    # test 2023-08-25~2026-10-09）刻意保持一致，所以**只有这两项在变**——
+    # 但正因如此，两者的效应在报告里**分不开**。引用它做「基准修复带来多少
+    # 改善」的结论是不成立的。
+    "ic_guided_race_7y_corrected.json": "aplus/evolve_race.py",
     "reversal_freq_2019_2023.json": "aplus/backtest.py",
+    # 2026-10-14 作废：年成本放大 ~10 倍（篮子级逐日值用 .sum()）
+    # + 净收益重复扣一次成本 + t 未按调仓周期分块。
+    # **结论方向未变**（24 行年超额全负，那一列不受影响），
+    # 变的是量级与「最优行」的identity——`best` 按含污染的 net 选出。
+    # 重跑见 docs/TODO_rerun_reversal_report.md。
+    "VOID_reversal_freq_2019_2023__cost_10x_and_double_deduct.json":
+        "aplus/backtest.py",
     "regime_control_sweep.json": "aplus/backtest.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
     "fundamental_ic.json": "aplus/factor_ic.py",

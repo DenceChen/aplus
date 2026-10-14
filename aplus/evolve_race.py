@@ -37,6 +37,48 @@ DEGENERATE_CV = 1e-12
 # 测试段至少要装得下几个调仓周期，候选才允许参与排名。见 `race` 里的排除逻辑。
 MIN_TEST_PERIODS = 3
 
+#: 否决条件名单。**这是本模块里唯一一处写下否决点数量/名称的地方。**
+#:
+#: 2026-10-14 发现 docstring 说「七道闸」、行内注释说「第五道闸：方向污染」、
+#: 判决理由说「六条腿全过」——**三个数字互相矛盾，且都跟代码里的实际闸数不符**。
+#: 三处都是手写的常量，每加一道闸都要人记得回头改三处，于是从 2026-07 起
+#: 就没有一处是对的。这正是台账 55 的同一个形状：
+#: **注释里的数字与代码不一致，而且没人会发现。**
+#:
+#: 修法不是把三个数字改对（下一个闸加进来又会漂），而是
+#: **让数字由名单推出来**，并用一条测试把名单与代码里的否决点数量钉死。
+#:
+#: ## 为什么名单是 12 项而不是我一开始数的 9 项
+#:
+#: 我手工数的时候，无意识地**跳过了「测不了」的分支**——
+#: `td_ret is None` / `te_t is None` / `cand_n is None` / `cand_n <= 0`。
+#: 理由是「它们不评判好坏，只表示无法评判」。但它们**照样否决**，
+#: 照样让 `promote` 变 False。一个候选人若跌腿数据缺失就滚出去了，
+#: 而它滚出去的理由在判决里长得跟「跌腿没跌」一模一样。
+#:
+#: 所以这里分成两类，**两类都否决，名单两类都记**：
+#:
+#: - **判优闸**（前 9 项）：某个条件不满足 = 这个策略确实不合格。
+#: - **可测性守卫**（后 3 项）：某个量算不出来 = 无法证明它合格。
+#:   「无法证明」在晋级这件事上与「不合格」同价——**方向相同**。
+#:   若哪天改成「缺数据就放行」，那才是真正的政策变更，必须显眼地推翻这条。
+GATE_NAMES: tuple[str, ...] = (
+    "候选即现任",            # 短路：现任不能晋级成自己
+    "训练段改进",            # 判优
+    "超额硬闸",              # 判优
+    "跌腿必须真跌",          # 判优
+    "t 显著",                # 判优
+    "breadth_t 显著",        # 判优
+    "样本外不垮",            # 判优
+    "股票池可比",            # 判优
+    "方向未污染",            # 判优
+    "跌腿可测",              # 可测性
+    "显著性可测",            # 可测性
+    "股票池非空可比",        # 可测性
+)
+#: 否决点总数。判决理由里的「N 道闸全过」用它——**由名单算出，不手写**。
+N_GATES = len(GATE_NAMES)
+
 
 def split_window(dates: list, train_ratio: float = TRAIN_RATIO,
                  embargo_days: int = EMBARGO_DAYS) -> tuple[list, list]:
@@ -364,6 +406,52 @@ def _expected_false_positives(n_comparisons: int, alpha: float = 0.05) -> float:
     return expected_false_positives(n_comparisons, alpha)
 
 
+def hurdle_note(gross_excess: float, rebalance_every: int | None,
+                target: float | None = None,
+                default_rebalance_every: int = 1) -> dict:
+    """**这个候选够得着目标吗**——把「20% 净值」也算进判决。
+
+    ## 为什么这 N 道闸不够
+
+    `oos_decision` 的 N 道闸全过，只说明「它比现任强」。
+    但目标是**年化 20% 净值**，而 K=1 日频的成本上限是 134.2%/年。
+
+    完全可能：某候选毛超额 +30%、t=+5.4、全闸通过、`promote=True`——
+    然后它在数学上离 20% 还差 96 个百分点。
+    **判决语言（「比现任好」）与目标语言（「到 20%」）不是一件事**，
+    而那 N 道闸全都只在说前者。
+
+    晋级它，权重就被改写、日报照它出单、而实测净值远低于目标。
+
+    ## 三条设计取舍
+
+    1. **不改变 `promote`**，只附诊断。方向正确但幅度不够的候选仍是
+       下一步的研究对象，只是不该现在就进实盘。
+       **代码负责把话说清楚，不负责替人做选择。**
+    2. **算术与 `aplus/hurdle` 同源**，两处漂移会被
+       `tests/test_hurdle_aware_gate.py::test_the_note_does_not_change...` 抓住。
+    3. **缺 `rebalance_every` 时回落到现任默认，绝不当 1**——
+       当 1 会把门槛变成 154%，从而把一个够得着的候选误判为不可达。
+    """
+    from .hurdle import COST_REAL_50K, TARGET_NET, hurdle_rate, rounds_per_year
+
+    k = rebalance_every if rebalance_every else default_rebalance_every
+    h = hurdle_rate(TARGET_NET if target is None else target,
+                    COST_REAL_50K, rounds_per_year(k))
+    gap = h - float(gross_excess)
+    reachable = gap <= 0
+    if reachable:
+        note = (f"K={k} 毛超额 {float(gross_excess):+.1%} ≥ 门槛 {h:.1%}"
+                f"——**够得着 20% 净值**（年成本上限 {rounds_per_year(k) * COST_REAL_50K:.1%}）")
+    else:
+        note = (f"K={k} 毛超额 {float(gross_excess):+.1%}，"
+                f"距 20% 净值门槛 {h:.1%} 还差 **{gap:+.1%}**"
+                f"——**即使全闸通过也够不着目标**"
+                f"（该频率年成本上限 {rounds_per_year(k) * COST_REAL_50K:.1%}）")
+    return {"rebalance_every": k, "hurdle": h, "gap": gap,
+            "reachable": reachable, "note": note}
+
+
 def oos_decision(race_result: dict, champion_weights: dict, min_train_gain: float = 0.05,
                  min_test_edge: float = 0.0, min_test_excess: float = 0.0,
                  max_test_down_return: float = 0.0,
@@ -455,7 +543,7 @@ def _judge_candidate(best: dict, champ: dict, champ_key: tuple, race_result: dic
                      significance_lookup: int | None = None,
                      unverified_directions: set | None = None,
                      max_universe_gap: float = 0.02) -> dict:
-    """对**单个**候选跑七道闸。调用方（`oos_decision`）负责挑选与遍历。
+    """对**单个**候选跑 `N_GATES` 道闸。调用方（`oos_decision`）负责挑选与遍历。
 
     抽出来的原因只有一个：外层要按训练目标分顺序扫全表，
     而闸门链必须只有一份——两份实现迟早会漂移，
@@ -485,7 +573,7 @@ def _judge_candidate(best: dict, champ: dict, champ_key: tuple, race_result: dic
 
     # 跌腿闸：**对称**于上面那道，检验产品承诺本身。
     #
-    # 产品承诺是每天「10 涨 10 跌」。上面那道闸只测涨腿，七道闸里没有一道看跌腿
+    # 产品承诺是每天「10 涨 10 跌」。上面那道闸只测涨腿，此前没有一道看跌腿
     # ——`breadth_tstat` 早就写好了、文档也写明它回答「两端有没有真实区分度」，
     # 却从来没接进闸门（2026-10-14 补记，缺陷 25）。
     #
@@ -609,7 +697,7 @@ def _judge_candidate(best: dict, champ: dict, champ_key: tuple, race_result: dic
                            f"那批股票（实测末根 turn 缺 62.0%），不是随机缺失，"
                            f"两者的 Top-N 天然不可比")}
 
-    # ── 第五道闸：方向污染 ──
+    # ── 方向污染闸（`GATE_NAMES` 的最后一道）──
     # 训练/测试切分能挡住「在测试段上偷看某组权重」，**挡不住**
     # 「看完测试段的结论，再决定要试哪个方向」。2026-10-11 正是这样：
     # 我在 2 年窗口上看到 `{mom20:-1.0}` 优于现任（+0.03% vs −0.60%），
@@ -632,15 +720,36 @@ def _judge_candidate(best: dict, champ: dict, champ_key: tuple, race_result: dic
                            f"才决定要试的，训练/测试切分与 Bonferroni 校正都挡不住这一种。"
                            f"不写入 weights.json，等新产生的交易日做前瞻验证")}
 
+    # ── 最后一道诊断：**它够得着 20% 吗** ────────────────────────
+    # 上面 N 道闸说的全是「比现任强」。目标说的却是「到 20% 净值」。
+    # 两者之间隔着成本：K=1 日频一年的摩擦上限是 134.2%，
+    # 所以一个毛超额 +30% 的候选可以全闸通过、promote=True，
+    # **然后离目标还差 120 多个百分点。**
+    #
+    # 放在最后而不是最前：先确认它确实更强，再问够不够到目标。
+    # 放最前会把「方向对、幅度不够」这类候选提前毙掉——
+    # 它们仍然是下一步的研究对象，只是不该现在就进实盘。
+    #
+    # te_excess 是**日均**超额，与门槛的年化口径不同，所以乘 DAYS_PER_YEAR。
+    # 这个换算是从秒级 bug 里学来的：口径不对时数字看着仍然体面。
+    from .hurdle import DAYS_PER_YEAR
+    hn = hurdle_note(te_excess * DAYS_PER_YEAR,
+                     best.get("rebalance_every"),
+                     default_rebalance_every=champ.get("rebalance_every") or 1)
+
     return {"promote": True, "best": best, "train_gain": train_gain,
             "test_edge": test_edge, "test_t": float(te_t), "t_crit": t_crit,
             "test_down_return": td_ret, "breadth_t": breadth_t,
             "universe_wider": round((cand_n - champ_n) / champ_n, 4) if cand_n > champ_n else None,
-            "reason": (f"六条腿全过：训练 {train_gain:+.3f}、样本外 {test_edge:+.3f}、"
+            "hurdle": hn,
+            # 够不着目标要说在判决里，不能只躺在字段里等人翻。
+            # `promote` 仍是 True —— **代码负责把话说清楚，不负责替人做选择**。
+            "reason": (f"{N_GATES} 道闸全过：训练 {train_gain:+.3f}、样本外 {test_edge:+.3f}、"
                        f"超额 {te_excess:+.2%}、t={te_t:.2f} > 临界 {t_crit:.2f}"
                        f"（{n_cmp} 次比较 Bonferroni 校正）、"
                        f"跌腿确实下跌 {td_ret:+.2%}/日、方向未被污染"
-                       f"{breadth_note}")}
+                       f"{breadth_note}"
+                       + ("" if hn["reachable"] else f"。⚠️ {hn['note']}"))}
 
 
 # 方向标签 → 「命中」的判据：一个候选权重只要在对应因子上**符号与该方向一致**

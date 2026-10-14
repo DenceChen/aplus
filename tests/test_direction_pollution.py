@@ -110,14 +110,22 @@ def test_empty_direction_set_is_noop():
     assert d2["promote"] is True
 
 
-def test_promotion_reason_counts_all_six_gates():
-    """晋级理由必须说清过了**六**道闸。
+def test_promotion_reason_states_the_real_number_of_gates():
+    """晋级理由必须说清实际过了**几**道闸。
 
     这条是给日志/判决词诚实性加的钉子：理由写「五条腿全过」而实际过了六条
     （2026-10-14 增补跌腿闸），读判决的人会以为跌腿闸不存在——
     那正是本条闸想防的自欺被悄悄抹掉。
+
+    **数字从 `N_GATES` 取，不写死。** 原来这里钉的是字面量「六」，
+    于是它自己成了漂移源的一部分：闸加了、理由里的数字由 `GATE_NAMES` 推出，
+    这条却还钉着旧数，红得莫名其妙，而真正该防的「理由与代码不符」
+    反而没人管了。改成同源推导后，它守的是**关系**而不是**快照**。
     """
+    from aplus.evolve_race import N_GATES
+
     d = oos_decision(_race({"mom20": -1.0}), CHAMP, unverified_directions={"low_ivol"})
     assert d["promote"] is True
-    assert "六" in d["reason"] and "方向" in d["reason"]
+    assert f"{N_GATES} 道闸全过" in d["reason"]
+    assert "方向" in d["reason"]
     assert "跌腿" in d["reason"], "理由里必须出现跌腿闸，否则读判决的人以为没这道闸"
