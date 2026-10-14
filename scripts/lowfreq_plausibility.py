@@ -78,9 +78,15 @@ def main() -> int:
     ap.add_argument("--end", default="2023-12-31")
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/lowfreq_plausibility.json"))
+    ap.add_argument("--reuse", action="store_true",
+                    help="复用已盖章且窗口匹配的缓存。**默认重建**")
     args = ap.parse_args()
 
-    xs = pickle.loads(args.cache.read_bytes())
+    # **2026-10-14：这行原来是无条件 `pickle.loads`——不查存在性、
+    # 不查窗口、不查来源。** 缓存是三天前的污染面板时，它照跑不误，
+    # 还照常产出一份带结论的报告。现走 `panel_cache`（见该模块 docstring）。
+    xs = PC.load_cache(args.cache, root=ROOT, start=args.start, end=args.end,
+                       reuse=args.reuse)
     dates = sorted(d for d in xs["_dates"] if d >= args.start and d <= args.end)
     print(f"面板 {len(xs['_dates'])} 日；本段 {len(dates)} 个交易日\n", flush=True)
 

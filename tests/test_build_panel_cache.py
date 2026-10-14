@@ -15,7 +15,10 @@ from pathlib import Path
 
 import pytest
 
-from scripts.build_panel_cache import write_atomic
+# `write_atomic` 已随溯源守卫搬进 `aplus.panel_cache`（2026-10-14）：
+# 原子写与「盖章」必须同处一个模块，否则会出现「写了新缓存、
+# 盖了旧章」的组合——那是最坏的：指纹会指向一份不存在的数据。
+from aplus.panel_cache import write_atomic
 
 
 def test_successful_write_produces_a_readable_pickle(tmp_path: Path):

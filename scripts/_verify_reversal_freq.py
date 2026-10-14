@@ -36,8 +36,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from aplus import panel_cache as PC  # noqa: E402
 from aplus.backtest import build_cross_sections, evaluate_weights  # noqa: E402
 from aplus.store import LocalStore  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
 
 CHAMP = {"mom20": 1.0, "rev5": 0.3, "vol20": 0.5, "vsur": 0.5}
 CANDIDATES = [
@@ -57,16 +60,33 @@ def main() -> int:
     ap.add_argument("--end", default="2023-12-31")
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/reversal_freq_2019_2023.json"))
-    ap.add_argument("--rebuild", action="store_true")
+    ap.add_argument("--cache", type=Path,
+                    default=Path("/tmp/reversal_panel_cache.pkl"))
+    ap.add_argument("--reuse", action="store_true",
+                    help="复用已盖章且窗口匹配的缓存。**默认重建**")
     args = ap.parse_args()
 
     t0 = time.time()
-    cache = Path("/tmp/reversal_panel_cache.pkl")
-    if cache.exists() and not args.rebuild:
-        import pickle
-        xs = pickle.loads(cache.read_bytes())
-        print(f"面板从缓存载入 {len(xs['_dates'])} 个交易日", flush=True)
+    # ── 2026-10-14：这里原来写着 `if cache.exists() and not args.rebuild` ──
+    # 那是**一次假重跑**：缓存里 `_market` 的均值是 −0.00402，与修复前的
+    # 基准污染值逐位相同，五年复合 −99%（真实基准同段 +8.96%/年），
+    # 而它算出了「净收益 +109.1%、t=+11.62」——全项目最漂亮的一个数。
+    #
+    # **「重跑」这个词本身不能作为证据**：命令行是今天的，不代表输入是今天的。
+    # 现在走 `panel_cache`：默认重建；显式 `--reuse` 也只放行「没盖章」，
+    # 窗口不覆盖、基准指纹对不上这两条**一条都不放**。
+    cache = args.cache
+    rep = PC.inspect(cache, root=ROOT, start=args.start, end=args.end)
+    if args.reuse and rep["ok"]:
+        xs = PC.load_cache(cache, root=ROOT, start=args.start, end=args.end,
+                           reuse=True)
+        print(f"复用 {cache.name} {len(xs['_dates'])} 日 "
+              f"基准 {(rep['stamp'] or {}).get('market_mean'):+.6f}/日", flush=True)
     else:
+        if cache.is_file():
+            print(f"不复用 {cache.name}：", flush=True)
+            for p in rep["problems"]:
+                print(f"  · {p}", flush=True)
         store = LocalStore(args.data_root)
         daily_map = {p.stem: store.read_daily(p.stem)
                      for p in sorted((args.data_root / "master" / "daily").glob("*.parquet"))}
@@ -74,9 +94,9 @@ def main() -> int:
         print(f"日线 {len(daily_map)} 只载入 {time.time()-t0:.0f}s", flush=True)
         xs = build_cross_sections(store, args.start, args.end, daily_map=daily_map,
                                   factors_map=load_factors_map(store))
-        import pickle
-        cache.write_bytes(pickle.dumps(xs))
-        print(f"横截面 {len(xs['_dates'])} 个交易日 {time.time()-t0:.0f}s", flush=True)
+        PC.build_and_stamp(cache, xs, start=args.start, end=args.end, root=ROOT)
+        print(f"横截面 {len(xs['_dates'])} 个交易日 {time.time()-t0:.0f}s（已盖章）",
+              flush=True)
 
     dates = sorted(xs["_dates"])
     rows = []

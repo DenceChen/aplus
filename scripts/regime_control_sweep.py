@@ -76,7 +76,10 @@ import pandas as pd  # noqa: E402
 from aplus.backtest import (  # noqa: E402
     build_cross_sections, evaluate_weights, scoreable_count,
 )
-from aplus.store import LocalStore  # noqa: E402
+from aplus import panel_cache as PC
+from aplus.store import LocalStore
+
+ROOT = Path(__file__).resolve().parents[1]  # noqa: E402
 from aplus.verify import rolling_stats  # noqa: E402
 
 DAYS_PER_YEAR = 244
@@ -116,11 +119,13 @@ PREREG = {
 }
 
 
-def _panel(data_root: Path, cache: Path, rebuild: bool):
-    if cache.exists() and not rebuild:
-        import pickle
-        xs = pickle.loads(cache.read_bytes())
-        print(f"面板从缓存载入 {len(xs['_dates'])} 个交易日", flush=True)
+def _panel(data_root: Path, cache: Path, reuse: bool,
+           start=None, end=None):
+    # 2026-10-14：原为 `if cache.exists() and not rebuild`——那次假重跑
+    # 就是从这里流出去的。理由与 _verify_reversal_freq.py 完全相同。
+    if reuse:
+        xs = PC.load_cache(cache, root=ROOT, start=start, end=end, reuse=True)
+        print(f"复用面板缓存 {len(xs['_dates'])} 个交易日", flush=True)
         return xs
     store = LocalStore(data_root)
     daily_map = {p.stem: store.read_daily(p.stem)
@@ -254,10 +259,12 @@ def main() -> int:
                     default=Path("/tmp/reversal_panel_cache.pkl"))
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/regime_control_sweep.json"))
-    ap.add_argument("--rebuild", action="store_true")
+    ap.add_argument("--reuse", action="store_true",
+                    help="复用已盖章且窗口匹配的缓存。**默认重建**")
     args = ap.parse_args()
 
-    xs = _panel(args.data_root, args.cache, args.rebuild)
+    xs = _panel(args.data_root, args.cache, args.reuse,
+               start=args.start, end=args.end)
     out = {"kind": "regime_control_sweep", "prereg": PREREG,
            "design": (
                "signal = 指标(符号修正) − 指标(错号对照)。两组同源同日，"

@@ -56,19 +56,29 @@ def test_real_history_cagr_is_far_above_the_arithmetic_annualisation():
 
 
 @pytest.mark.skipif(not BACKTEST.exists(), reason="生产验证历史不在本地")
-def test_arithmetic_annualisation_can_be_physically_impossible():
-    """现任权重的算术年化是 −171.92%——年化跌幅超过 100% 是不可能的。
+def test_arithmetic_annualisation_is_no_longer_physically_impossible():
+    """**这条测试在 2026-10-14 之前断言的是一个 bug。**
 
-    这条测试把「报告里的口径是错的」钉成一个**可复现的断言**，
-    而不是留在聊天记录里的一句抱怨。它是这次改动的**起因**，
-    注释在 `tests/test_compounded_return.py` 里有完整推导。
+    当时现任权重的算术年化是 **−171.92%**——年化跌幅超过 100% 不可能，
+    所以断言写的是 `arith_ann < -1.0`，把「口径是错的」钉成可复现的检查。
+
+    基准污染（`3c846ff`：市场基准把上市前股票也采样进去）
+    修掉、重跑之后，实测变成 **−6.14%**（CAGR −11.69%，区间 −21.20%）。
+
+    **「物理上不可能」的那个数，本身就是污染造出来的。**
+    这也是为什么修复它不只需要改代码，还需要这条测试自己变红。
+
+    断言方向随之翻转：现在钉的是「**它必须是可能的**」。
+    这个方向比原来那个更耐用——原断言一旦被修好就只会报红，
+    而新断言在口径再次坏掉时会立刻报红（跌幅又会超过 100%）。
     """
     from aplus.verify import compounded_stats
 
     st = compounded_stats(_real_history())
-    assert st["arith_ann"] < -1.0, (
-        f"预期算术年化 < -100%（实测 {st['arith_ann']:.2%}）。"
-        "若已不成立，说明 actual_pct 口径变了，请更新本文件 docstring 里的实测数字。")
+    assert st["arith_ann"] > -1.0, (
+        f"算术年化 {st['arith_ann']:.2%} 又是物理上不可能的——"
+        "基准污染或 actual_pct 口径退化了。查 _market_by_day 是否又采到未上市股票。")
+    assert st["cagr"] > -1.0, f"CAGR {st['cagr']:.2%} 不可能"
 
 
 @pytest.mark.skipif(not BACKTEST.exists(), reason="生产验证历史不在本地")

@@ -47,30 +47,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aplus.backtest import build_cross_sections  # noqa: E402
+from aplus.panel_cache import build_and_stamp, inspect as inspect_cache  # noqa: E402
 from aplus.store import LocalStore  # noqa: E402
 
-
-def write_atomic(path: Path, obj) -> None:
-    """先写临时文件再原子改名。
-
-    `pickle.dump(obj, open(path, "wb"))` 在中途崩溃时留下的是**半个**文件，
-    而且大小看起来完全正常——下一个读它的人会误判成数据损坏。
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    try:
-        with open(tmp, "wb") as fh:
-            pickle.dump(obj, fh, protocol=4)
-            fh.flush()
-            os.fsync(fh.fileno())      # 数据落盘后才改名，否则改名只是改名
-        os.replace(tmp, path)          # 同一文件系统内原子
-    except BaseException:
-        # 失败即不留痕。留下 1.7 GB 残骸有三重代价：占盘、让下次重跑
-        # 误以为「已经开始写了」，以及在无人值守的长夜里把一次崩溃
-        # 变成两次崩溃。fsync 也要处理——只 unlink 不 fsync 目录的话，
-        # 断电后目录项可能回来。
-        tmp.unlink(missing_ok=True)
-        raise
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> int:
@@ -79,7 +59,22 @@ def main() -> int:
     ap.add_argument("--start", default="2024-01-01")
     ap.add_argument("--end", default="2026-12-31")
     ap.add_argument("--out", type=Path, default=Path("/tmp/panel_confirm.pkl"))
+    ap.add_argument("--reuse", action="store_true",
+                    help="复用已有缓存。**默认重建**——"
+                         "2026-10-14 那次假重跑就是这么发生的")
     args = ap.parse_args()
+
+    # **复用前先体检，而且只看 sidecar（不读 1.7 GB）。**
+    # 这一步是为了在花掉几个小时之前就知道答案。
+    rep = inspect_cache(args.out, root=ROOT, start=args.start, end=args.end)
+    if args.reuse and rep["ok"]:
+        print(f"复用 {args.out}（基准指纹 "
+              f"{rep['stamp']['market_mean']:+.6f}/日）", flush=True)
+        return 0
+    if args.out.is_file():
+        print(f"不复用 {args.out.name}：", flush=True)
+        for p in rep["problems"]:
+            print(f"  · {p}", flush=True)
 
     t0 = time.time()
     store = LocalStore(args.data_root)
@@ -96,9 +91,10 @@ def main() -> int:
         print("区间内**没有任何交易日**——不要拿这份缓存跑任何结论", flush=True)
         return 1
 
-    write_atomic(args.out, xs)
+    stamp = build_and_stamp(args.out, xs, start=args.start, end=args.end, root=ROOT)
     print(f"写出 {args.out}  {args.out.stat().st_size / 1e9:.2f} GB  "
           f"共 {time.time() - t0:.0f}s", flush=True)
+    print(f"溯源章 {stamp.name}", flush=True)
     print(f"日期范围 {xs['_dates'][0]} ~ {xs['_dates'][-1]}", flush=True)
     return 0
 
