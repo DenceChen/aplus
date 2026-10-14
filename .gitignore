@@ -1,6 +1,30 @@
-# 数据层（465MB+ 行情/因子/回测产物，永远不进版本库）
-data/
+# 数据层（614MB 行情/因子/回测缓存，永远不进版本库）
+# ⚠️ 这里必须是 `data/*` 而不是 `data/`：
+#   `data/` 排除的是**目录本身**，而 gitignore 不会进被排除的目录，
+#   于是下面 `!data/reports/` 那组破例规则会**够不着**、静默失效。
+#   （第一版写成 `data/`，`git check-ignore` 立刻报 62 份全部「仍被忽略」。）
+data/*
 *.parquet
+
+# ★ 例外：`data/reports/*.json` 是**研究结论的唯一真相源**，必须进版本库。
+#
+# 为什么破例（2026-10-14 加，之前是 `.gitignore:2` 一行 `data/` 全盖）：
+#   - 那时 `git ls-files data/ | wc -l` = **0**，历史提交也是 0
+#   - 62 份报告（significance / frequency_block_t / independent_validation …）
+#     全部只存在于这台机器上，**换机即全部丢失**
+#   - 其中 50 份被 `docs/` `aplus/` `scripts/` `tests/` `CLAUDE.md` 引用，
+#     文档里写着「证据是 XXX.json」，而那个文件没有任何版本历史
+#
+# 体积可接受：62 份 JSON 合计约 2MB，最大单份 372KB（evolution_log.json）。
+# 注意 gitignore **不会**在被排除的目录里递归生效，所以要用 `data/*` 逐层放开：
+#   data/*              排除 data 下所有条目
+#   !data/reports/      重新纳入 reports 目录本身（否则下面两条无效）
+#   data/reports/*      排除目录内全部内容（含 49MB parquet 缓存）
+#   !data/reports/*.json 只放 JSON 结论回去
+data/*
+!data/reports/
+data/reports/*
+!data/reports/*.json
 
 # 环境
 .venv/

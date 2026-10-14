@@ -1,0 +1,19 @@
+{
+  "code_sha": "426d18be060c2ce3be70f933248cbde27179fae8",
+  "code_dirty": true,
+  "generator": "scripts/measure_xsec_sigma.py",
+  "stamped_at": "2026-10-14T11:38:27+00:00",
+  "pool": "可成交 ∩ 上市≥250日 ∩ 非ST",
+  "avg_n": 4333,
+  "n_days": 1633,
+  "window": [
+    "2019-01-02",
+    "2026-10-09"
+  ],
+  "sigma_r_raw": 0.02656,
+  "sigma_r_winsorized": 0.02467,
+  "n_days_winsor_noop": 0,
+  "note": "σ_r 从量级估计(0.023)改为实测(0.02656)，比原估高 15.5%。池子 avg_n=4333 与 factor_ic_7y.json 的 4368.5 相差 0.8%（同一总体，ρ_p 与 σ_r 配对）。tradestatus 分布 1=99.67%/0=0.33%，确认 1 为正常交易，过滤方向正确。",
+  "known_limit": "rev5 低尾 IC=0.04863 仍是**单点估计**，逐年低尾分解未完成——σ_r 这条线已查清，IC 那条线未查清。全截面 IC 已证明逐年能差 4 倍。",
+  "data_issue": "000043.SZ / 300114.SZ 的 parquet 截断在 volume 列（三个快照均如此），缺 tradestatus/isST/pctChg，已整只剔除并报出。"
+}

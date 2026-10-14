@@ -1,0 +1,247 @@
+{
+  "benchmark": {
+    "name": "ew_pool",
+    "desc": "等权持有当期合格宇宙全池（信号日 D 收盘定池，D+1 开盘买入，持有 h 根后收盘卖），与策略同一网格/同一费用公式；策略净收益 − 基准净收益 = 超额",
+    "note": "基准构造在看到任何收益前定死，未做任何事后调整"
+  },
+  "params": {
+    "top_n": 10,
+    "hold_days": 5,
+    "cost": 0.003,
+    "train_ratio": 0.6,
+    "embargo_days": 5
+  },
+  "universe": {
+    "n_bonds": 1087,
+    "calendar_start": "2024-02-19",
+    "calendar_end": "2026-10-09",
+    "n_calendar_days": 640,
+    "calendar_ref": "110075.SH"
+  },
+  "windows": {
+    "train": [
+      "2024-02-19",
+      "2025-09-05"
+    ],
+    "test": [
+      "2025-09-12",
+      "2026-10-10"
+    ],
+    "full": [
+      "2024-02-19",
+      "2026-10-10"
+    ]
+  },
+  "segments": {
+    "train": {
+      "excess_total": 0.3730192028965298,
+      "excess_ann": 0.23533403663496544,
+      "excess_per_period": 0.0053394251016227355,
+      "strategy_total": 0.6290168558152114,
+      "benchmark_total": 0.1864487054358943,
+      "strategy_ann": 0.38447053950291243,
+      "benchmark_ann": 0.1207256486465742,
+      "n_days": 375,
+      "n_periods": 75,
+      "benchmark_n_periods": 75,
+      "verdict": "超额为正（跑赢市场）",
+      "window": [
+        "2024-02-19",
+        "2025-09-05"
+      ],
+      "strategy": {
+        "n_periods": 75,
+        "n_days": 375,
+        "total_return": 0.6290168558152114,
+        "annualized_return": 0.38447053950291243,
+        "max_drawdown": 0.26393557085817543,
+        "gross_per_period": 0.009284779836734858,
+        "net_per_period": 0.007884779836734858,
+        "cost_per_period": 0.0014,
+        "avg_turnover_names": 4.662162162162162,
+        "mean_n_picks": 10.0
+      },
+      "benchmark": {
+        "n_periods": 75,
+        "n_days": 375,
+        "total_return": 0.1864487054358943,
+        "annualized_return": 0.1207256486465742,
+        "max_drawdown": 0.15622182604049095,
+        "gross_per_period": 0.0033832117847700616,
+        "net_per_period": 0.0025453547351121228,
+        "cost_per_period": 0.000837857049657939,
+        "mean_n_picks": 169.74666666666667
+      },
+      "selection_skill_gross": {
+        "n_periods": 75,
+        "mean_pool_size": 169.74666666666667,
+        "pool_max_per_period": 0.31103189505178913,
+        "vs_pool_mean": {
+          "per_period": 0.005901568051964794,
+          "t_stat": 1.1496163415334557,
+          "win_rate": 0.5466666666666666
+        },
+        "vs_pool_median": {
+          "per_period": 0.00939422538273759,
+          "t_stat": 1.7585712450550524,
+          "win_rate": 0.6533333333333333
+        },
+        "note": "费前事后统计；t 绝对值 <2 视为与 0 不可区分"
+      },
+      "equity_ref_background": {
+        "start_close": 7.12,
+        "end_close": 13.77,
+        "total_return": 0.9339887640449438,
+        "n_days": 379,
+        "first": "2024-02-19",
+        "last": "2025-09-04"
+      }
+    },
+    "test": {
+      "excess_total": -0.059766004945383866,
+      "excess_ann": -0.05862917443073157,
+      "excess_per_period": -0.0012507544401098723,
+      "strategy_total": -0.13126329217788935,
+      "benchmark_total": -0.07604201465652427,
+      "strategy_ann": -0.12886303250581133,
+      "benchmark_ann": -0.07460806747713655,
+      "n_days": 255,
+      "n_periods": 51,
+      "benchmark_n_periods": 51,
+      "verdict": "超额为负（真实失效）",
+      "window": [
+        "2025-09-12",
+        "2026-10-10"
+      ],
+      "strategy": {
+        "n_periods": 51,
+        "n_days": 255,
+        "total_return": -0.13126329217788935,
+        "annualized_return": -0.12886303250581133,
+        "max_drawdown": 0.1928717785554812,
+        "gross_per_period": -0.001615289637296562,
+        "net_per_period": -0.002544701402002445,
+        "cost_per_period": 0.0009294117647058822,
+        "avg_turnover_names": 3.06,
+        "mean_n_picks": 10.0
+      },
+      "benchmark": {
+        "n_periods": 51,
+        "n_days": 255,
+        "total_return": -0.07604201465652427,
+        "annualized_return": -0.07460806747713655,
+        "max_drawdown": 0.17355763975247235,
+        "gross_per_period": -0.0007896238986829439,
+        "net_per_period": -0.0012939469618925728,
+        "cost_per_period": 0.0005043230632096288,
+        "mean_n_picks": 196.1764705882353
+      },
+      "selection_skill_gross": {
+        "n_periods": 51,
+        "mean_pool_size": 196.1764705882353,
+        "pool_max_per_period": 0.28345766395071165,
+        "vs_pool_mean": {
+          "per_period": -0.0008256657386136184,
+          "t_stat": -0.22919486058722638,
+          "win_rate": 0.4117647058823529
+        },
+        "vs_pool_median": {
+          "per_period": 0.0013169397295839252,
+          "t_stat": 0.4682072919351399,
+          "win_rate": 0.5294117647058824
+        },
+        "note": "费前事后统计；t 绝对值 <2 视为与 0 不可区分"
+      },
+      "equity_ref_background": {
+        "start_close": 13.6,
+        "end_close": 9.54,
+        "total_return": -0.29852941176470593,
+        "n_days": 256,
+        "first": "2025-09-12",
+        "last": "2026-10-09"
+      }
+    },
+    "full": {
+      "excess_total": 0.3152300928226264,
+      "excess_ann": 0.11391250024126132,
+      "excess_per_period": 0.0027719647149944235,
+      "strategy_total": 0.4924325677641008,
+      "benchmark_total": 0.13473115913975087,
+      "strategy_ann": 0.17074547329434608,
+      "benchmark_ann": 0.05102103894226473,
+      "n_days": 635,
+      "n_periods": 127,
+      "benchmark_n_periods": 127,
+      "verdict": "超额为正（跑赢市场）",
+      "window": [
+        "2024-02-19",
+        "2026-10-10"
+      ],
+      "strategy": {
+        "n_periods": 127,
+        "n_days": 635,
+        "total_return": 0.4924325677641008,
+        "annualized_return": 0.17074547329434608,
+        "max_drawdown": 0.26393557085817543,
+        "gross_per_period": 0.00526425778623477,
+        "net_per_period": 0.004035911329541857,
+        "cost_per_period": 0.001228346456692914,
+        "avg_turnover_names": 4.087301587301587,
+        "mean_n_picks": 10.0
+      },
+      "benchmark": {
+        "n_periods": 127,
+        "n_days": 635,
+        "total_return": 0.13473115913975087,
+        "annualized_return": 0.05102103894226473,
+        "max_drawdown": 0.15622182604049095,
+        "gross_per_period": 0.0019568009829919607,
+        "net_per_period": 0.0012639466145474335,
+        "cost_per_period": 0.0006928543684445275,
+        "mean_n_picks": 181.3464566929134
+      },
+      "selection_skill_gross": {
+        "n_periods": 127,
+        "mean_pool_size": 181.3464566929134,
+        "pool_max_per_period": 0.2895565567201491,
+        "vs_pool_mean": {
+          "per_period": 0.003307456803242807,
+          "t_stat": 1.0044728098787077,
+          "win_rate": 0.5196850393700787
+        },
+        "vs_pool_median": {
+          "per_period": 0.006339345957457555,
+          "t_stat": 1.9134753142310719,
+          "win_rate": 0.6141732283464567
+        },
+        "note": "费前事后统计；t 绝对值 <2 视为与 0 不可区分"
+      },
+      "equity_ref_background": {
+        "start_close": 7.12,
+        "end_close": 9.54,
+        "total_return": 0.339887640449438,
+        "n_days": 640,
+        "first": "2024-02-19",
+        "last": "2026-10-09"
+      }
+    }
+  },
+  "pool_distribution_test": {
+    "n_obs": 10005,
+    "mean": -5.754376969321921e-05,
+    "median": -0.0013480794897418047,
+    "std": 0.06046208435718311,
+    "p10": -0.05721085760137598,
+    "p25": -0.02434431333242204,
+    "p75": 0.0190050706639473,
+    "p90": 0.05610101743121226,
+    "p99": 0.20614573220868287,
+    "max": 0.8469118718135467,
+    "frac_negative": 0.5254372813593203,
+    "note": "事后市场环境描述，不进入任何决策"
+  },
+  "equity_ref": "600000.SH",
+  "verdict": "测试段超额为负（-5.98%，费前对池均值 t=-0.23 （统计上与 0 不可区分））：策略未跑赢转债市场，「样本外失败」结论成立——但性质是「没有可测量的 alpha」，不是「显著跑输 beta」。",
+  "no_lookahead": "信号仅用信号日 D 收盘的 cheap 点值，成交一律 D+1；本模块不做任何横截面标准化，全窗口统计量不进入决策",
+  "elapsed_s": 10.2
+}

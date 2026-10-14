@@ -1371,3 +1371,244 @@ def test_the_stream_endpoint_url_is_the_one_the_backend_serves():
 > 核对脚本乘错 100 倍、变异 regex 语法错误静默匹配 0 处、
 > 写入确认用子串从而恒真、断言写得过强反而把正确代码判成缺陷。
 > ⇒ 判据不变：**绿灯之前先证明变异落地；查「坏了」之前先查「我的工具是不是坏了」。**
+
+---
+
+## 第 73 层：文档描述了一个**签名/数字/清单**，而代码里不是那个
+
+**形状**：代码正确、文档陈旧。**症状不是报错，是自信** ——
+读文档的人据此判断系统怎么工作，得出一个自洽但错误的结论。
+
+今天一次审计挖出同形的四条，全部由我自己或并行 agent **逐条复现**：
+
+| # | 文档说 | 实际 | 为什么危险 |
+|---|---|---|---|
+| 1 | `CLAUDE.md:172` / `MISTAKE_LOG:834,848` / `TODO_measure_sigma_r.md:964`：`bucket_means()` 返回 `top/bottom/spread/**long_vs_mkt**` | 返回 `(top, bottom, spread, **n**)`，docstring 与 4 个调用点全部一致 | 数字层是对的，**元信息层是错的**。读到的人以为多空口径与账户口径是同一次调用出来的 |
+| 2 | `scripts/evolve_race_composite.py` 三处写死「**七**道闸」 | `N_GATES = len(GATE_NAMES)` = **12**；同一判决在两个脚本里对外说了两个数 | `evolve_race.py:89` 自己写着「混进 GATE_NAMES 会让判决宣称 N 道闸全过而实际少了一道，这是**对外的错误陈述**，比数字漂移更糟」——而它自己有个兄弟脚本正在犯 |
+| 3 | `docs/PLATFORM.md:68`「18 个变异体」 | `mutation_check.py` 的 `MUTATIONS` AST 实扫 = **58** | 置信上界按 n 算；n 少报 3 倍 ⇒ 显得比实际可靠得多 |
+| 4 | `docs/PLATFORM.md:88` 列因子 `turn_z` | `grep -rn "turn_z" --include="*.py"` = **0**；该因子从不存在。同时**漏了 `vsur`**，而 `vsur` 在 `DEFAULT_WEIGHTS` 里 | 写一个不存在的因子 + 漏一个正在用的因子 ⇒ 读者对「模型吃了哪些因子」得到一幅自洽但错误的图 |
+
+### 第 2 条尤其值得单独记：它是**兄弟脚本漂移**
+
+`evolve_race.py` 的「七道闸 → 十二道闸」当天就修好了（`MISTAKE_LOG:177` 记着），
+但 `evolve_race_composite.py` 里同样的字面量**没人想起来一起改**。
+
+⇒ **凡是把同一个事实复制到多处的地方，修复必须复制到每一处**；
+更稳的做法是**根本不要复制**：`evolve_race_composite.py` 现在直接
+`from aplus.evolve_race import N_GATES` 并用 f-string 格式化，
+下次加闸两边自动一致。**能算出来的就别写死。**
+
+### 处置纪律：区分「活指导」与「审计轨迹」
+
+第 1 条涉及 4 个文档位置，处理方式**不能一刀切**：
+
+- `CLAUDE.md` 是**活指导**，会误导下一个读它的人 ⇒ **就地改正** + 指向本层；
+- `MISTAKE_LOG` / `TODO_*` 里记的是**当时决策的证据** ⇒ **不改写**。
+  改写它等于伪造历史，让后来人以为当时就没人走过弯路。
+  要更正就**在后面追加一层**（就是本节），让两个事实都留着。
+
+### 与今天前几层的合流
+
+第 1/3/4 条是「文档漂移」，第 2 条是「复制粘贴的代价」；
+而第 3 条（变异体数 18 vs 58）和 `mutation_check.py:609` 自己那句
+**「29/29 全杀不等于测试好使，它只等于这 29 个变异体被杀掉了」** 是同一个清醒。
+
+⇒ 通则再加一条：**任何被复制到多处的事实，都是下一次漂移的种子。
+先数一数它出现在几个地方，再决定是「一起改」还是「让它们只有一个来源」。**
+
+---
+
+## 第 74 层：一个元数据文件把自己的主文件顶掉了，而 5 条测试集体退场
+
+日期：2026-10-14。发现者：测试质量审计 agent。复现与修复：本文档作者。
+
+### 现场
+
+概览页上有一句给用户看的话：**「符号已按实测 IC 校正」**。
+这句话由 `aplus/factor_ic.py:weight_sign_conflicts()` 的返回结果驱动。
+实跑发现它返回：
+
+```python
+{'unknown': True, 'conflicts': None, 'agrees': None, ..., 
+ 'report': 'factor_ic_7y_v2.json.provenance.json',
+ 'note': '没有可用的因子 IC 报告，本次未做符号核对（不等于「无冲突」）'}
+```
+
+**一次都没比过，却对外说了「已校正」。**
+
+### 根因：边车文件名是主文件名的超长前缀
+
+```python
+# aplus/factor_ic.py:289
+files = sorted(Path(reports_dir).glob("factor_ic*.json"))
+return files[-1] if files else None          # docstring：「最新的报告」
+```
+
+`data/reports/` 下有：
+
+```
+factor_ic_7y.json                    23911 字节
+factor_ic_7y_v2.json                 34285 字节   ← 真正的报告
+factor_ic_7y_v2.json.provenance.json   178 字节   ← 边车
+```
+
+边车名 = 主报告名 + `".provenance.json"`。字典序比较时，
+`factor_ic_7y_v2.json.provenance.json` 是 `factor_ic_7y_v2.json` 的
+**延长**，而延长必然大于前缀 ⇒ `sorted(...)[-1]` 每次都选中边车。
+（按 mtime 排也一样选中它，两条路径都错。）
+
+真报告的 key 是 `kind/window/factors/windows/fwd_windows/tail_q/bonferroni_crit`，
+边车只有 `code_sha/code_dirty/generator/stamped_at` 四个 ⇒ 取因子时 `KeyError`
+⇒ 被 `except` 吞掉 ⇒ 退化成 `unknown=True`。
+**`except` 把手滑和「数据本来就坏」压成了同一个结果。**
+
+### 为什么 5 条测试全绿
+
+`tests/test_yearly_sign_claim.py:71` 的夹具长这样：
+
+```python
+def consistency():
+    got = yearly_sign_consistency(Path("data/reports"))
+    if got["unknown"]:
+        pytest.skip(f"逐年一致性不可得：{got['note']}")
+    return got
+```
+
+⇒ 一旦选错文件，5 条测试**全部 skip**，且 skip 理由写的是
+「逐年一致性不可得」——把一个**代码 bug** 报成了**数据问题**。
+
+> **skip 不是通过。**
+> 一个「数据不可得就跳过」的守卫，恰好在最需要它的时刻集体退场：
+> 数据明明在，只是被选错了文件。它把 bug 伪装成了环境限制。
+
+### 修法（先写红测试，再改代码）
+
+新增 `tests/test_report_sidecar_selection.py`（4 条），先跑出 `3 failed, 1 passed`，
+再改 `_find_ic_report` 排除 `SIDECAR_SUFFIX`，全绿。
+变异验证：把过滤摘掉退回出事那天的写法 → **同样的 3 条变红**（三重确认：哈希变 / 标记串恰好 1 处 / 语法解析通过）。
+
+修复用 `aplus/provenance.py:47` 的 `SIDECAR_SUFFIX` 常量，
+**不在 `factor_ic.py` 里另抄一遍字面量** —— 见第 73 层那条通则。
+（`scripts/audit_report_contamination.py:186` 早就正确排除了边车；
+说明这个坑**代码库是知道的**，只是 `_find_ic_report` 没去用那个常量。
+⇒ 「知道有坑」不等于「每个调用点都记得」。）
+
+**修复的副产品**：那 5 条原本 skip 的测试现在**跑起来并通过了**。
+它们从来不是「没东西可测」。
+
+### 教训
+
+1. **「挑最新的那个文件」这个动作自带一个坑**：任何 `sorted(glob(...))[-1]`、
+   `max(glob, key=mtime)` 都会把 `主名 + 后缀` 形态的伴生文件算进去。
+   ⇒ 挑选规则必须**显式排除伴生文件**，而不是假设「目录里只有我要的东西」。
+2. **`except` 里的异常收敛，会把「我选错了」伪装成「它没有」。**
+   两个完全不同的世界（代码 bug / 数据缺失）被压成同一个返回值，
+   下游无法区分，于是 UI 上那句「已校正」就永远成立。
+3. **`unknown` 类的返回值必须有一条守卫断言「它不该是 unknown」**。
+   我之前写的 5 条测试全在测「拿到数据之后算得对不对」，
+   **没有一条测「数据拿得到吗」** —— 于是那一整层从未被验证。
+
+---
+
+## 第 75 层：断言锚在整个文件上，就会被注释喂饱
+
+日期：2026-10-14。发现者：同第 74 层的审计 agent。
+
+```python
+# 事故写法
+def test_verdict_js_is_shipped_or_loaded():
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    assert "verdict.js" in html          # ← 全文裸子串
+```
+
+`verdict.js` 在 `index.html` 里出现 **6 处，其中 5 处是注释**
+（docstring 解释它、行内注释说明它、末尾注释再提一次），
+只有第 1798 行是真的 `<script src="/verdict.js">`。
+
+变异：把那个 src 改成 `/verdict-disabled.js` ⇒ 跑 4 个前端相关测试文件
+⇒ **82 passed**。断言被 5 处注释喂饱。
+
+修法（**先证明旧的漏、再证明新的抓得住**）：
+
+```python
+srcs = re.findall(r'<script\s[^>]*\bsrc=["\']([^"\']+)["\']', html)
+assert "/verdict.js" in srcs
+assert (web / "verdict.js").is_file()     # 第二环：静态挂载真的能取到文件
+```
+
+⇒ 同一个变异下：**旧测试 82 全绿，新测试精确红 1 条**，同文件其余 33 条照常通过。
+
+这是 `CLAUDE.md` 第 13 条（注释满足子串断言）的**第二个实例**；
+第一个是 `/api/chat/stream`，今天早些时候已经修过，这个漏了。
+
+### 教训
+
+同文件里的其他接线守卫**都锚在语法位置**
+（`html.split("async function detailHtml(")`），松的只有这一条。
+⇒ **差异不在文件，在断言锚在哪一层。**
+一个文件里其余守卫都紧，不构成「这条也可以松」的证据。
+判定松紧只能对**这一条**做变异，不能靠邻居类比。
+
+---
+
+## 第 76 层：拿一个还在被写的文件当门禁
+
+日期：2026-10-14。发现者：本文档作者（自己撞上的）。
+
+### 现场
+
+全量 `pytest` 跑出 **7 failed**：
+
+```
+tests/test_audit_frontend.py::test_renderAlloc_leaves_the_code_cell_unescaped_next_to_an_escaped_name
+tests/test_audit_frontend.py::test_renderHistory_escapes_the_name_but_not_the_code_on_the_same_row
+tests/test_audit_frontend.py::test_the_evolution_weight_chips_render_the_raw_factor_key
+tests/test_audit_frontend.py::test_the_evolution_ledger_renders_the_raw_weight_key_as_text
+tests/test_audit_frontend.py::test_the_docket_and_the_error_banner_never_take_raw_html_from_the_backend
+tests/test_audit_frontend.py::test_the_new_chat_control_is_not_reachable_by_keyboard
+tests/test_measure_amount_availability.py::test_the_real_store_amount_has_no_null_values
+```
+
+前 6 条全来自 `tests/test_audit_frontend.py` —— 那是一个**还在运行的审计 agent
+正在写的文件**。三条独立证据：
+
+```bash
+$ .venv/bin/python -m pytest tests/test_audit_frontend.py -q
+1 failed, 8 passed, 6 xfailed          ← 单跑只红 1 条
+$ stat -f '%Sm' tests/test_audit_frontend.py
+10-14 23:09:56
+$ date '+%m-%d %H:%M:%S'
+10-14 23:10:08                          ← 12 秒前刚被写过
+```
+
+**同一个文件，单跑红 1 条、全量跑红 6 条** —— 看起来像
+「顺序相关的测试套件」那个病（见第 25 层），但真正的原因不是顺序，
+是**测量对象在动**。
+
+### 为什么值得单独记一层
+
+它和第 73/74/75 层的形状一样：**一个看起来像"代码坏了"的现象，
+其实坏的是观察手段。**
+
+如果当时直接去修那 6 条，会发生什么：
+把一个 agent 半路上的 `xfail` 改成实修、或者把断言改宽以迁就当时的实现 ——
+然后 commit 进去，**留下一个既不是当时的问题、也不是最终的修复的东西**。
+
+### 判据：先问「这个文件在被谁写」
+
+```bash
+git status --porcelain          # 新增未跟踪？
+ls -l --time-style=full-iso <f> # mtime 是不是刚刚
+ps aux | grep -c "[c]laude"     # 还有几个 agent 在跑
+```
+
+**mtime 距当前 < 几分钟 + 有 agent 在跑 = 移动靶子，不许拿它当门禁。**
+正确处置：`git restore --staged <f>` 把它移出提交，
+`pytest --ignore=<f>` 重跑，其余结果才算数。
+
+### 与「变异验证」的关系
+
+第 74/75 层说「绿灯只有在确认变异落地之后才有意义」。
+本层是它的镜像：**红字只有在确认被测文件静止之后才有意义。**
+⇒ 判据的前置条件不只是「我的变异落进去了」，还包括
+「我读的那份代码在我读它的时候没有人在改」。

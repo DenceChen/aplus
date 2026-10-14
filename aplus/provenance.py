@@ -46,6 +46,36 @@ from pathlib import Path
 
 SIDECAR_SUFFIX = ".provenance.json"
 
+
+def report_jsons(reports_dir, *patterns: str) -> list[Path]:
+    """列出报告 JSON，**排除 provenance 边车**。不给 patterns 时用 `*.json`。
+
+    ## 为什么需要这个函数（而不是每个调用点各写一个 if）
+
+    边车的文件名是 `主报告名 + ".provenance.json"` —— 它**也是 `.json`**，
+    而且是主文件名的延长，字典序必然更大。于是：
+
+    - `sorted(dir.glob("factor_ic*.json"))[-1]` 会选中边车而不是真报告
+      （`aplus/factor_ic.py:_find_ic_report` 真实发生过，概览页
+      「符号已按实测 IC 校正」因此失去数据支撑）
+    - `sorted(dir.glob("race_*.json"), key=mtime)` 同理
+      （`aplus/webapp.py`、`aplus/champion_health.py`）
+    - `dir.glob("*.json")` 会把边车当成「一份没有边车的报告」
+      —— **告警自己制造告警**（`aplus/provenance.py` 的 freshness 扫描）
+
+    ⚠️ 修一处、漏三处，正是 `docs/MISTAKE_LOG_2026-10-14.md` 第 73 层
+    记的那个形状（主脚本修好了，兄弟脚本没跟着修）。
+    ⇒ 所以**约定与实现放在同一个模块**：想列报告就调这里，
+    想新写一个 glob 就会在 import 时看到它。
+    """
+    pats = patterns or ("*.json",)
+    seen: set[Path] = set()
+    for pat in pats:
+        for p in Path(reports_dir).glob(pat):
+            if not p.name.endswith(SIDECAR_SUFFIX):
+                seen.add(p)
+    return sorted(seen)
+
 #: 指路时用的模块全名。**不能写 `__name__`**——`python -m aplus.provenance`
 #: 时它是 `"__main__"`，于是提示变成「在 __main__ 的 DEFAULT_GENERATORS 补一行」，
 #: 指了个根本不存在的地方。**指错路比不指路更糟。**
@@ -294,12 +324,8 @@ def scan(reports_dir: Path | str = "data/reports",
     然后人只看前几行，最要命的那条就永远没被看到。
     """
     out = []
-    for p in sorted(Path(reports_dir).glob("*.json")):
-        # sidecar 也叫 `.json`，glob 会把它当成一份「没有 sidecar 的报告」——
-        # **告警自己制造告警**。这种噪音上线几天就会把输出静音，
-        # 而静音的守卫等于没有守卫。
-        if p.name.endswith(SIDECAR_SUFFIX):
-            continue
+    # 边车排除逻辑已下沉到 report_jsons()（本模块），避免出现第二个实现
+    for p in report_jsons(reports_dir):
         out.append(freshness(p, root=root))
     order = {"stale": 0, "unknown": 1, "fresh": 2}
     out.sort(key=lambda r: (order.get(r["verdict"], 9), r["report"]))

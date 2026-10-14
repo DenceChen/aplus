@@ -1,4 +1,13 @@
-"""复合赛马：权重 × 调仓频率 × 缓冲区，三者一起进七道闸。
+"""复合赛马：权重 × 调仓频率 × 缓冲区，三者一起进 `N_GATES` 道闸。
+
+★ 这里原先把闸数**写死成「七道」**，而 `aplus/evolve_race.py` 的
+`N_GATES = len(GATE_NAMES)` 早已是 **12**。同一判决在两个脚本里对外说了两个数 ——
+而 `evolve_race.py:89` 自己写着「混进 GATE_NAMES 会让判决宣称 N 道闸全过，
+而实际少了一道，这是**对外的错误陈述**，比数字漂移更糟」。
+
+⚠️ 这个 bug 的形状是 `docs/MISTAKE_LOG_2026-10-14.md:177` 记过的那个：
+**主脚本修好了，兄弟脚本没跟着修。** ⇒ 所以这里不再写死数字，
+直接用 `N_GATES` 格式化：下次加闸，两边自动一致。
 
 ## 为什么需要单独一个脚本
 
@@ -19,7 +28,7 @@
 ## 默认不写 weights.json
 
 必须显式 `--promote` 才会落盘，且仍要过 `oos_decision` 的全部闸门。
-本脚本跑完会打印七道闸的判决原文——不解析 JSON 去猜结论。
+本脚本跑完会打印全部闸门的判决原文——不解析 JSON 去猜结论。
 
 用法：
     .venv/bin/python scripts/evolve_race_composite.py \
@@ -38,8 +47,8 @@ import pandas as pd
 
 from aplus.backtest import ENTRY_LAG, build_cross_sections, evaluate_weights
 from aplus.evolve import (candidate_key, load_weights, objective, save_weights)
-from aplus.evolve_race import (breadth_tstat, down_excess_tstat, excess_tstat,
-                               oos_decision, race)
+from aplus.evolve_race import (N_GATES, breadth_tstat, down_excess_tstat,
+                               excess_tstat, oos_decision, race)
 from aplus.snapshot import load_factors_map
 from aplus.store import LocalStore
 from aplus.verify import rolling_stats
@@ -216,7 +225,7 @@ def main() -> int:
             "train": best["train"], "test": best["test"]})
         print(f"  已写入 weights.json：{best['weights']} K={best.get('rebalance_every')}")
     elif dec.get("promote"):
-        print("  （七道闸全过，但未加 --promote，不写 weights.json）")
+        print(f"  （{N_GATES} 道闸全过，但未加 --promote，不写 weights.json）")
     return 0
 
 

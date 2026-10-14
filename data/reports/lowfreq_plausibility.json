@@ -1,0 +1,73 @@
+{
+  "kind": "lowfreq_plausibility",
+  "prereg": {
+    "market_multiple_ceiling": 5.0,
+    "use": "只用于否定，不用于肯定"
+  },
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "rows": [
+    {
+      "k": 1,
+      "name": "符号修正",
+      "final_multiple": 0.11434506612371707,
+      "market_final_multiple": 0.005473494669880447,
+      "excess_vs_market": 20.89068739811427,
+      "arith_annual": -0.4105697787288177,
+      "comp_annual": -0.36777607050912686,
+      "implausible": true
+    },
+    {
+      "k": 1,
+      "name": "错号对照",
+      "final_multiple": 0.00029790315605306866,
+      "market_final_multiple": 0.005473494669880447,
+      "excess_vs_market": 0.05442649970819749,
+      "arith_annual": -1.6017373546535651,
+      "comp_annual": -0.820326587007913,
+      "implausible": false
+    },
+    {
+      "k": 21,
+      "name": "符号修正",
+      "final_multiple": 0.6021866011379927,
+      "market_final_multiple": 0.005473494669880447,
+      "excess_vs_market": 110.01866950774719,
+      "arith_annual": -0.06275857983151607,
+      "comp_annual": -0.10168908384403608,
+      "implausible": true
+    },
+    {
+      "k": 21,
+      "name": "错号对照",
+      "final_multiple": 0.16767419252927285,
+      "market_final_multiple": 0.005473494669880447,
+      "excess_vs_market": 30.633845950732464,
+      "arith_annual": -0.30305631080777784,
+      "comp_annual": -0.3144765411242013,
+      "implausible": true
+    },
+    {
+      "k": 63,
+      "name": "符号修正",
+      "final_multiple": 0.4065676746099247,
+      "market_final_multiple": 0.005473494669880447,
+      "excess_vs_market": 74.27935882484472,
+      "arith_annual": -0.1472328683996858,
+      "comp_annual": -0.17328532845684563,
+      "implausible": true
+    },
+    {
+      "k": 63,
+      "name": "错号对照",
+      "final_multiple": 0.32599374767872574,
+      "market_final_multiple": 0.005473494669880447,
+      "excess_vs_market": 59.55861242956982,
+      "arith_annual": -0.17458035260778065,
+      "comp_annual": -0.2110059817632528,
+      "implausible": true
+    }
+  ]
+}

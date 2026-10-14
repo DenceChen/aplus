@@ -1623,7 +1623,14 @@ async function pumpStream(body, turn, arm) {
     buf += dec.decode();                                 // 冲掉多字节字符被切断的尾巴
     if (buf.trim()) { const ev = parseSse(buf); if (ev) handleEvent(ev, turn); }
   } catch (e) {
-    /* 已带归因的（error 事件）不改写；其余一律算「流断了」。 */
+    /* 已带归因的（error 事件）不改写；其余一律算「流断了」。
+       ★ 但 AbortError 要**原样抛出去**：上面那个静默看门狗 abort() 出来的正是它，
+       send() 靠 `e.name === 'AbortError'` 才认得出「这是等满 IDLE_ABORT_MS 的超时」，
+       才会说出「上游连续 45 秒没有新内容，连接已断开」。
+       把它重新包成普通 Error ⇒ 那句话成了死代码，用户只看到一个没头没尾的「连接中断」，
+       不知道自己刚白等了 45 秒。（这条由 tests/e2e 的看门狗用例钉住。）
+       */
+    if (e && e.name === 'AbortError') throw e;
     throw e.label ? e : tagged('流中断：' + (e && e.message ? e.message : '连接被关闭'), 'link');
   } finally {
     try { reader.cancel(); } catch {}

@@ -1,0 +1,222 @@
+{
+  "kind": "diagnostic",
+  "variant": "frequency_block_t",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "note": "同一批回测的两种 t 口径对照。t_daily 把交易日当独立观测（老口径，低频下虚高）；t_block 按 K 日块均值聚合（正确口径）。本表**不做晋级判定**。turnratio 候选因 2019-2023 无该列、n_ranked=0 而被剔除——原表的 8 行建立在空股票池上。",
+  "champion": {
+    "mom20": 1.0,
+    "rev5": 0.3,
+    "vol20": 0.5,
+    "vsur": 0.5
+  },
+  "rows": [
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 1,
+      "n_days": 1154,
+      "n_blocks": 1154,
+      "t_daily": -5.8935768450378045,
+      "t_block": -5.8935768450378045,
+      "inflation": 1.0,
+      "sqrt_k": 1.0,
+      "breadth_t_daily": -10.188919178340818,
+      "breadth_t_block": -10.188919178340818
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 5,
+      "n_days": 1154,
+      "n_blocks": 230,
+      "t_daily": -1.4964665036473406,
+      "t_block": -1.4426469718431165,
+      "inflation": 1.0373060997282408,
+      "sqrt_k": 2.23606797749979,
+      "breadth_t_daily": -6.812933021932722,
+      "breadth_t_block": -7.101032727659761
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 21,
+      "n_days": 1154,
+      "n_blocks": 54,
+      "t_daily": 3.487387450119147,
+      "t_block": 3.342129270996723,
+      "inflation": 1.0434627650052277,
+      "sqrt_k": 4.58257569495584,
+      "breadth_t_daily": -3.489654205271167,
+      "breadth_t_block": -3.272222377364539
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 63,
+      "n_days": 1154,
+      "n_blocks": 18,
+      "t_daily": 5.435964893286645,
+      "t_block": 4.031672108031406,
+      "inflation": 1.3483152269396554,
+      "sqrt_k": 7.937253933193772,
+      "breadth_t_daily": -2.220831929865627,
+      "breadth_t_block": -2.095846383202643
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 1,
+      "n_days": 1154,
+      "n_blocks": 1154,
+      "t_daily": 6.31560510028988,
+      "t_block": 6.31560510028988,
+      "inflation": 1.0,
+      "sqrt_k": 1.0,
+      "breadth_t_daily": 3.8879758461727807,
+      "breadth_t_block": 3.8879758461727807
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 5,
+      "n_days": 1154,
+      "n_blocks": 230,
+      "t_daily": 8.009914351176873,
+      "t_block": 6.813040457206049,
+      "inflation": 1.1756739742686995,
+      "sqrt_k": 2.23606797749979,
+      "breadth_t_daily": 3.0828607224663673,
+      "breadth_t_block": 3.1228117940639413
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 21,
+      "n_days": 1119,
+      "n_blocks": 53,
+      "t_daily": 9.19346021301582,
+      "t_block": 6.806412835871881,
+      "inflation": 1.3507056410923928,
+      "sqrt_k": 4.58257569495584,
+      "breadth_t_daily": 2.165803799336641,
+      "breadth_t_block": 1.836438365072391
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 63,
+      "n_days": 1153,
+      "n_blocks": 18,
+      "t_daily": 11.166763141082706,
+      "t_block": 6.758304843329817,
+      "inflation": 1.6523023746263628,
+      "sqrt_k": 7.937253933193772,
+      "breadth_t_daily": 2.1038534694267366,
+      "breadth_t_block": 2.406019547910502
+    },
+    {
+      "name": "反转 + 风控",
+      "weights": {
+        "mom20": -0.5,
+        "rev5": 0.3,
+        "vol20": 0.3,
+        "vsur": 0.3
+      },
+      "rebalance_every": 1,
+      "n_days": 1154,
+      "n_blocks": 1154,
+      "t_daily": -1.621362259435673,
+      "t_block": -1.621362259435673,
+      "inflation": 1.0,
+      "sqrt_k": 1.0,
+      "breadth_t_daily": -1.9385401662698158,
+      "breadth_t_block": -1.9385401662698158
+    },
+    {
+      "name": "反转 + 风控",
+      "weights": {
+        "mom20": -0.5,
+        "rev5": 0.3,
+        "vol20": 0.3,
+        "vsur": 0.3
+      },
+      "rebalance_every": 5,
+      "n_days": 1154,
+      "n_blocks": 230,
+      "t_daily": 7.236070748231584,
+      "t_block": 6.092954213763295,
+      "inflation": 1.1876128548424207,
+      "sqrt_k": 2.23606797749979,
+      "breadth_t_daily": 1.3107390039307605,
+      "breadth_t_block": 1.3146776694185278
+    },
+    {
+      "name": "反转 + 风控",
+      "weights": {
+        "mom20": -0.5,
+        "rev5": 0.3,
+        "vol20": 0.3,
+        "vsur": 0.3
+      },
+      "rebalance_every": 21,
+      "n_days": 1154,
+      "n_blocks": 54,
+      "t_daily": 10.15470215381437,
+      "t_block": 7.311580081218348,
+      "inflation": 1.3888519363823018,
+      "sqrt_k": 4.58257569495584,
+      "breadth_t_daily": 1.1109775551108005,
+      "breadth_t_block": 0.9803493044417645
+    },
+    {
+      "name": "反转 + 风控",
+      "weights": {
+        "mom20": -0.5,
+        "rev5": 0.3,
+        "vol20": 0.3,
+        "vsur": 0.3
+      },
+      "rebalance_every": 63,
+      "n_days": 1154,
+      "n_blocks": 18,
+      "t_daily": 13.116410874892537,
+      "t_block": 6.457208946908367,
+      "inflation": 2.0312817786657678,
+      "sqrt_k": 7.937253933193772,
+      "breadth_t_daily": 1.0301037755541897,
+      "breadth_t_block": 1.0564111203622744
+    }
+  ],
+  "elapsed_s": 275
+}

@@ -1,0 +1,1523 @@
+[
+  {
+    "title": "涨停/停牌可交易性过滤",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "涨篮子日均超额（回测）",
+    "before": 0.001965,
+    "after": -6.7e-05,
+    "higher_is_better": true,
+    "note": "52% 的超额来自**根本买不进的**交易（一字涨停/停牌）。实测涨篮子里 15.58% 的样本买不进，全市场仅 2.60%，集中度 6 倍。修复后超额变成负数——这是把虚高修成真实，不是策略变差。",
+    "invalidates": [
+      "「涨篮子超额 +0.1965%」",
+      "所有未做可交易性过滤的历史结论"
+    ],
+    "evidence": "aplus/panel.py: can_buy / buyable_series；tests/test_tradability.py（41 测试，9/9 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "worse"
+  },
+  {
+    "title": "IVOL 全时间轴前视泄露",
+    "category": "data-leak",
+    "severity": "fatal",
+    "metric": "面板中 ivol 的时间轴取值条数（应为逐日不同）",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 12,
+    "note": "_factor_series 末尾写成 `ivol_series(r, m).iloc[-1]`——取**数据末端**的 ivol 广播给窗口内每一天。等于回测里任意历史日都用 2026-10-09 的数据算 ivol。不崩、不报 nan、每列都有区分度，只靠「污染未来看 D 变不变」才抓得到。指标含义：面板 ivol 从 1 个常数变成随日期变化的序列。",
+    "invalidates": [
+      "2 年终裁 v2 冠军 {ivol:-1.0}（t=+0.91）",
+      "频率赛马 t=2.32 的 {mom20:-0.5, turnratio:-0.5, ivol:-0.3}",
+      "此前一切含 ivol 的回测数字"
+    ],
+    "evidence": "aplus/panel.py: _factor_series；tests/test_ivol_no_leak.py（3 测试，4/4 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "实盘名单出现一字涨停买不进的股票",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "榜首股票 20 日动量（越小=越正常）",
+    "higher_is_better": false,
+    "before": 1.419,
+    "after": 0.589,
+    "note": "实盘走 snapshot.py，其 COLUMNS 缺 buyable 列，filter_universe 看不到。2026-10-11 榜首是 600825.SH 新华传媒——连续 9 个一字涨停、收盘价就是涨停价，排单进不去。修复后它从榜首消失。",
+    "invalidates": [
+      "2026-10-11 修复前的实盘名单"
+    ],
+    "evidence": "aplus/snapshot.py: COLUMNS；tests/test_snapshot_buyable.py（7 测试）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "缩尾硬 clip 造成排名并列",
+    "category": "correctness",
+    "severity": "major",
+    "metric": "Top10 内部并列个数",
+    "higher_is_better": false,
+    "before": 9,
+    "after": 0,
+    "note": "winsorize() 用硬 clip 把超 99% 分位的值全压成同一数，真实横截面（2026-10-09，5215 只）实测最大并列组 53 只，Top10 里 9 个并列 → Top10 实际退化成按股票代码字母序取前十。改用 robust_z：缩尾只估均值/标准差，排名一律用原值（仿射变换保序）。",
+    "invalidates": [
+      "修复前的任何 Top-N 名单（并列时排序由代码序决定）"
+    ],
+    "evidence": "aplus/factor.py: robust_z；tests/test_rank_fidelity.py（9 测试，7/7 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "交叉校验容差误伤，13 只股票从池子消失",
+    "category": "data-integrity",
+    "severity": "major",
+    "metric": "被隔离且 master 文件不存在的股票数",
+    "higher_is_better": false,
+    "before": 13,
+    "after": 0,
+    "note": "tol_rel=1e-4 判不出腾讯按 100 股取整的成交量，513 个失配行 100% 可被 ±100 股吸收（最大相对误差 0.0864%），却导致 36 只被隔离，其中 13 只 master 根本不存在——从股票池静默消失。修法：只给 volume 字段加绝对容差 100 股，价格字段绝不放宽相对容差（那会让真正的价格错配蒙混过关）。",
+    "invalidates": [
+      "隔离区 36 只股票的所有历史统计"
+    ],
+    "evidence": "aplus/crosscheck.py: ABS_TOL_BY_FIELD；tests/test_crosscheck_lot.py（8 测试，4/4 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "/api/backtest 返回 500",
+    "category": "availability",
+    "severity": "major",
+    "metric": "HTTP 状态码",
+    "higher_is_better": false,
+    "before": 500,
+    "after": 200,
+    "note": "daily_series 485 行里 20 行吐 NaN，Starlette JSONResponse 用 allow_nan=False 直接抛。修法：算完后把 NaN/Inf 统一转 None。0.0 是「恰好持平」，None 是「算不出来」，两者不能混。",
+    "invalidates": [],
+    "evidence": "aplus/backtest.py: _finite_or_none；tests/test_daily_series_json.py（8 测试）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "实盘单日窗口返回空横截面",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "实盘横截面返回行数",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 5460,
+    "note": "build_cross_section 写的是 build_panel(store, as_of, as_of)，而 build_panel 的 end 是**开区间**，start==end 直接得到空 dates，cross_section(0) 抛 IndexError。当天出不了名单。修法：显式算窗口（panel_window_for）+ build_panel 对 start>=end 当场抛错。",
+    "invalidates": [],
+    "evidence": "aplus/panel.py: build_panel 入参防线；tests/test_panel_window.py（7 测试，5/5 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "调仓缓冲区（3×）压低换手成本",
+    "category": "cost",
+    "severity": "major",
+    "metric": "日频年化交易成本",
+    "higher_is_better": false,
+    "before": 0.1691,
+    "after": 0.0057,
+    "note": "缓冲区：持仓跌出目标名次 3 倍才卖。36 组频率赛马里 10/10 降成本、9/10 升或平超额，且该档超额同时从 +0.121% 升到 +0.155%。本档权重 {ivol:-1.0}；buffer_multiple 在看结果前固定为 3.0，并有测试断言它非恒等（真的改变了篮子）。",
+    "invalidates": [
+      "任何未计缓冲区的换手率与年成本估计"
+    ],
+    "evidence": "aplus/rebalance.py；tests/test_rebalance.py（20 测试，5/5 变异体被杀）、tests/test_rebalance_backtest.py（7 测试）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "降级写入破坏列完整性",
+    "category": "data-integrity",
+    "severity": "major",
+    "metric": "被降级写入覆盖的已有列数",
+    "higher_is_better": false,
+    "before": 12,
+    "after": 0,
+    "note": "baostock 被限流时腾讯只返回 7 列，直接 upsert 会把主库的其余列写成 NaN。修法 _merge_preserving_fidelity：择多+少者填空——列取并集、信息量=非空格数、并列时新行胜出、落选行只补空格。实测 12 列保住、重叠日 close=2.0 未被窄行 99.0 覆盖、turn=2.5 未变 NaN。",
+    "invalidates": [
+      "降级运行时段写入的所有日线"
+    ],
+    "evidence": "aplus/store.py: _merge_preserving_fidelity；aplus/pipeline.py: _emit",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "进化 tab 缺少判决板（把全否决读成有进展）",
+    "category": "honesty",
+    "severity": "major",
+    "metric": "界面上可见的赛马轮次/晋级次数",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 8,
+    "note": "tab 只画候选超额表，一屏绿色（A股绿=跌），却没有一行字说明「8 轮赛马、0 次晋级、线上跑的是未经验收的默认权重」。用户据此问「是不是记录了每次自进化改进带来的提升」。补 /api/evolution/summary 判决板 + 本改进台账。指标含义：界面上可见的轮次从 0 变 8（真实值此前一直存在，只是没显示）。",
+    "invalidates": [],
+    "evidence": "aplus/webapp.py: /api/evolution/summary；tests/test_evolution_summary.py（8 测试）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "11-1 月动量（书 3.5 节）实测最弱，决定不实现",
+    "category": "negative-result",
+    "severity": "info",
+    "metric": "2 年终裁测试段日均超额",
+    "higher_is_better": true,
+    "before": 0.00221,
+    "after": 0.00067,
+    "note": "对照 mom20=+0.221%、11-1 反转=+0.180%。书里 3.5 节主推的 11-1 月动量在本数据上最弱。不实现是一次有价值的**不作为**，但必须留档，否则下个轮次会重新发明它。指标方向 worse 表示实测更差。",
+    "invalidates": [],
+    "evidence": "/tmp/aplus_snap_final/reports/ + scripts/_diag_mom121.py",
+    "date": "2026-10-11",
+    "direction": "worse"
+  },
+  {
+    "title": "IVOL 泄露修复后，它从第一名掉到近乎为零",
+    "category": "negative-result",
+    "severity": "fatal",
+    "metric": "{ivol:-1.0} 的 2 年终裁测试段超额",
+    "before": 0.0006,
+    "after": 0.0002,
+    "higher_is_better": true,
+    "note": "泄露版下 `{ivol:-1.0}` 是终裁**第一名**（t=+0.91）；修好前视后同一组只剩 +0.02%，从第 1 名掉到第 6 名，`{mom20:1,rev5:0.3,ivol:-0.8}` 从 +0.06% 变成 **−0.12%**。那个「第一名」不是因子有效，是数据末端的信息漏到了过去——本轮泄露缺陷最直接的证据。",
+    "invalidates": [
+      "「ivol 低波动有 alpha」这一结论的全部历史证据"
+    ],
+    "evidence": "/tmp/aplus_snap_final/reports/race_final_2y_v3.json（31 组，1815s）",
+    "date": "2026-10-11",
+    "direction": "worse"
+  },
+  {
+    "title": "线上现任权重样本外显著为负（t=−2.83）",
+    "category": "negative-result",
+    "severity": "fatal",
+    "metric": "现任 {mom20:1.0, rev5:0.3, vol20:0.5, vsur:0.5} 的测试段涨腿超额",
+    "before": 0.0006,
+    "after": -0.006,
+    "higher_is_better": true,
+    "note": "ivol 修复后重跑 31 组：现任在**样本外**涨腿超额 **−0.5978%/日**，`excess_t=−2.83`、`breadth_t=−3.39`，命中率 **47.46%**（低于抛硬币），涨篮子平均收益 −0.66%。这比「没有 alpha」更糟：是**显著为负**。叠加日频 34.22% 的年化换手成本，实际是负负。**没有擅自替换它**——31 组里没有一组过得了 Bonferroni 门槛，换成任何一组都只是换一组噪音，那正是本平台反复出现过的错误动作。",
+    "invalidates": [
+      "「默认权重至少持平」的假设"
+    ],
+    "evidence": "/tmp/aplus_snap_final/reports/race_final_2y_v3.json",
+    "date": "2026-10-11",
+    "direction": "worse"
+  },
+  {
+    "title": "RSI 横截面排序无独立预测力（第二次裁决）",
+    "category": "negative-result",
+    "severity": "major",
+    "metric": "{rsi:-1.0} 的 2 年终裁测试段超额",
+    "before": 0.0022,
+    "after": -0.0004,
+    "higher_is_better": true,
+    "note": "第一次裁决是**共线性**：与 mom20 的 Spearman +0.8648、Top10 重叠 3/10。第二次是**样本外**：5 组 RSI 候选全部 ≤0，最好 `{rsi:-1.0}` 仅 −0.04%，反号 `{rsi:+1.0}` −0.46%，现任加 RSI −0.52%。结论：RSI 作为横截面因子在 2 年窗口上**没有可用的独立信息**。保留实现（零成本、随时可复核），但不参与权重。",
+    "invalidates": [
+      "「RSI 可替代或补充 mom20」这一设想"
+    ],
+    "evidence": "/tmp/aplus_snap_final/reports/race_final_2y_v3.json；tests/test_rsi.py（16 测试）",
+    "date": "2026-10-11",
+    "direction": "worse"
+  },
+  {
+    "title": "定位现任失败的具体机制：极端动量集中度 370 倍",
+    "category": "diagnosis",
+    "severity": "critical",
+    "metric": "涨榜 Top10 占全市场 mom20>100% 池子的比例（期望 0.18%）",
+    "before": 0.667,
+    "after": 0.667,
+    "higher_is_better": false,
+    "note": "2026-10-11 实测横截面（5441 只）：`mom20>100%` 全市场只有 **3 只**，而涨榜 Top10 占了 **2 只 = 66.7%**；`mom20>50%` 全市场 27 只，Top10 占 6 只。涨榜 mom20 中位数 **56.1%**。现任权重 `mom20:1.0`，于是 10 个名额里有 2 个花在全市场仅有的 3 只极端动量股上。这就是「样本外 t=−2.83」的**机制**：不是动量因子没用，是 10 只的样本量让它退化成「追逐极端」。两个已验证的对照：`{mom20:-1.0}`（纯 20 日反转）测试超额 **+0.03%**，而现任是 **−0.60%**——方向反过来就翻正。指标为诊断量（before=after），不构成改善，只是把黑箱打开。",
+    "invalidates": [
+      "「现任失效原因不明，只能换权重」的含糊认知"
+    ],
+    "evidence": "scripts/ 诊断（横截面 5441 只，2026-10-09 截面）；race_final_2y_v3.json",
+    "date": "2026-10-11",
+    "direction": "flat"
+  },
+  {
+    "title": "加第五道闸：方向污染（看过测试数据才选的方向不得晋级）",
+    "category": "methodology",
+    "severity": "fatal",
+    "metric": "晋级裁决的闸门数",
+    "before": 4,
+    "after": 5,
+    "higher_is_better": true,
+    "note": "原候选池 10 组**全是动量向前**，反转方向根本没被试过——这是历次赛马找不到反转的系统性原因。加上反转族之前必须先回答一个问题：**我已经看过这 2 年测试段的结果了**，「反转更好」这个认识本身就来自测试段。训练/测试切分挡不住这一种，Bonferroni 也数不了（它数「跑了几组」，数不了「事先知道往哪猜」）。因此新增第五道闸：标记为方向污染的候选即便四条腿全过，也只判**待前瞻验证**，不写 weights.json，等没被看过的交易日裁决。这条闸只挡「方向事后选」，挡不住「因子本身是我挖出来的」——后者只能靠前瞻数据。",
+    "invalidates": [
+      "「通过训练/测试切分就等于没有被污染」的假设"
+    ],
+    "evidence": "aplus/evolve_race.py: oos_decision 第五闸 + DIRECTION_TESTS；tests/test_direction_pollution.py（7 测试，6/6 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "报告里的自我警告没进裁决：差点让 turnratio 候选带着 7.3% 的股票池缺口晋级",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "晋级裁决的闸门数",
+    "before": 5,
+    "after": 6,
+    "higher_is_better": true,
+    "note": "2 年终裁报告末尾白纸黑字写着「各候选可打分股票数不一致，**不在同一批标的上比较**，排名只能作参考」——而 `oos_decision` **完全没看它**。会自我警告但照样参与排名的报告等于没有警告：冠军照常产生、晋级照常走完。实测（v3 测试段，全宇宙 4899 只）：无换手率因子者 n_ranked=4897；含 `turn20` 者 4876；**含 `turnratio` 者只有 4541（92.7%）**。缺的那 7.3% 恰恰是**换手率数据缺失的那批**（当日末根 turn 缺 62.0%、约 3385 只）——不是随机缺失而是系统性缺失，Top-N 天然不可比。**而 `{turnratio:-1.0}` 正是那一届的第 2 名**（测试超额 +0.06%）：这道闸很可能真的挡住了一次错误晋级。现已加为第六道闸，差异超 2% 即否决，理由写出双方具体只数；闸序在显著性之后，两条都不过时先报更硬的那条。",
+    "invalidates": [
+      "「报告里已经警告过了」的自我宽容"
+    ],
+    "evidence": "aplus/evolve_race.py: oos_decision 股票池闸；tests/test_universe_comparability.py（8 测试，5/5 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "独立验证 2019-2023：现任 t=−3.55 强显著为负，反转 t=+5.52 强显著为正",
+    "category": "validation",
+    "severity": "fatal",
+    "metric": "{mom20:-1.0} 相对现任的测试段超额（2019-2023 独立验证集）",
+    "before": -0.0049,
+    "after": 0.0041,
+    "higher_is_better": true,
+    "note": "反转方向来自 2024-10~2026-10 的观察（属方向污染），因此必须用**我从未看过任何一次赛马结果的** 2019-01~2023-12 来验证。结果（训练 723 日 / 测试 486 日，股票池 3362 vs 3374 可比）：现任 −0.55%(t=−4.76) / −0.49%(t=−3.55，广度t=−6.73)；纯 20 日反转 +0.23%(t=+3.52) / **+0.41%(t=+5.52，广度t=+3.77)**。反转的**测试段 t 大于训练段 t**（+5.52 > +3.52）——不是记住训练段，是在更晚的数据上更有效。四重独立：时间 / 段 / 超额与广度双指标 / 股票池可比。",
+    "invalidates": [
+      "「现任只是没有 alpha，只是运气不好」——它是**显著为负**",
+      "「反转方向只是 2024-2026 的噪音」"
+    ],
+    "evidence": "scripts/_verify_reversal.py → data/reports/independent_validation_2019_2023.json（1214 个交易日，221s）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "20:00 赛马：14 组零晋级，但暴露闸门体系的缺口——没有「现任否决」这一道",
+    "category": "methodology",
+    "severity": "fatal",
+    "metric": "现任在独立窗口上的累计健康度",
+    "before": -0.0057,
+    "after": -0.0057,
+    "higher_is_better": false,
+    "note": "14 组赛马（2024-10~2026-10）：现任排第 10（测试超额 −0.57%），最好的一组 +0.04% 但 t=+0.37 < Bonferroni 临界 2.91 → 零晋级。**六道闸全部正确工作**，第 1 名含 turnratio、股票池窄 7.3% 被第六道闸拦下，正是它当初要拦的东西。但把时间轴拉长：现任在 3 段独立窗口（合计约 5 年）全部显著为负，而 `{mom20:-1.0}` 在同样两段上是 +0.41%(t=5.52) 与 +0.02%——**都不显著，但都不是负的**。缺口在于：闸门只管「什么能进来」，不管「什么该被换掉」，于是「没有更好的候选」被当成了「现在这个可以」。已加第七道闸 `evaluate_champion_health`：两段以上**互不重叠**窗口都显著为负即判证伪，重叠窗口只算一段（同一段行情数两次会虚增信心）。指示灯为 flat：这是新增机制，不是策略数字变化。",
+    "invalidates": [
+      "「裁决写着维持现任，就说明现任没问题」"
+    ],
+    "evidence": "data/evolve.log；aplus/evolve_race.py: evaluate_champion_health；tests/test_champion_falsified.py（8 测试，5/5 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "flat"
+  },
+  {
+    "title": "独立验证：调仓频率比权重更决定成败（反转月频净 +77.6%，日频净 −168.9%）",
+    "category": "validation",
+    "severity": "fatal",
+    "metric": "纯反转 {mom20:-1.0} 的年化净值（2019-2023 干净数据，扣成本后）",
+    "before": -1.689,
+    "after": 1.057,
+    "higher_is_better": true,
+    "note": "同一组权重、同一段干净数据，只改调仓频率：日频 净 −168.9%(t=6.32，成本 246.3%)｜周频 −5.3%(t=8.01)｜**月频 +77.6%(t=9.19，成本 35.8%)**｜**季频 +105.7%(t=11.17，成本 12.2%)**。t 值本身随降频单调上升（6.32→8.01→9.19→11.17），说明低频不只是省成本，还让信号本身更干净。现任同样降频后净也转正（季频 +64.3%，t=5.44），但**广度 t 全为负**（−3.49/−2.22）——涨腿好、跌腿差，排序两端没分开，是整体偏移而非选股能力；反转的广度 t 全为正（+3.89→+2.10），两端都分得开。含 turnratio 的第三组 t 更高（12.49）但股票池窄 7.3%，正是第六道闸拦的对象。",
+    "invalidates": [
+      "「先修好权重再说，频率以后再调」——在这个资金规模下顺序反了"
+    ],
+    "evidence": "scripts/_verify_reversal_freq.py → data/reports/reversal_freq_2019_2023.json（24 组，1214 个交易日）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "赛马候选池加入调仓频率与缓冲区（复合候选）",
+    "category": "methodology",
+    "severity": "critical",
+    "metric": "候选身份字段数（权重 / 频率 / 缓冲）",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 3,
+    "note": "独立验证（2019-2023，962 日）显示同一组 `{mom20:-1.0}`：日频净 −168.9%、周频 −5.3%、月频 +77.6%、季频 +105.7%——**276 个百分点全部来自 rebalance_every 这一个参数**。而候选池里只有权重，于是赛马永远在「已知不可行的执行方式」下比较信号强弱，挑出来的权重再送进那个不可行的执行方式。指标含义：候选的身份由 1 个字段决定，变成 3 个字段决定。",
+    "invalidates": [
+      "「先修好权重、再调频率」——这个顺序本身是错的",
+      "候选池只含权重时的一切排名（排名只在日频口径下成立）"
+    ],
+    "evidence": "aplus/evolve.py: split_weights / candidate_key / dedupe_candidates；tests/test_composite_candidates.py + test_race_composite.py",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "低频候选的显著性按调仓周期分块（t 值下降）",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "反转+风控 K=63 的 t 值",
+    "higher_is_better": false,
+    "before": 13.12,
+    "after": 6.46,
+    "note": "**这是一条 worse，必须留着。** K 日调仓时一天里「选了谁」不变，把 K×n 个交易日当成 K×n 个独立观测，等于把同一个决策数了 K 遍。逐日序列报 t=13.12，按 63 日块均值聚合后是 6.46。理论虚高上限是 √63≈7.9 倍，实测只有 2.03 倍——因为逐日序列里的个股噪声在块内被平均掉了一部分。**我事先担心得比实际严重，照实记。**对照：K=63 只有 18 个独立观测，t=6.46 仍然显著。",
+    "invalidates": [
+      "「反转+低异常换手 K=63 t=12.49」等逐日口径的 t 值",
+      "任何以「交易日数」为样本量的低频显著性陈述"
+    ],
+    "evidence": "scripts/_verify_freq_block_t.py → data/reports/frequency_block_t_2019_2023.json；tests/test_block_tstat.py（8 测试，4/4 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "退化序列报出 t=3.1e16，显著性硬闸从未生效",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "常数序列上报的 t 值（None 记作 0，越小越诚实）",
+    "higher_is_better": false,
+    "before": 3.1e+16,
+    "after": 0,
+    "note": "`if sd <= 0` 写了，`breadth_tstat` 的注释还专门解释了为什么必须这么写，但 **pandas 的 `std(ddof=1)` 对常数序列返回 3.5e-18 而非 0**，这一支从未成立过。实测 t = 0.02/(3.5e-18/√30) = 3.10e16，一个完全测不出差别的序列凭空报出能闯过 Bonferroni 硬闸的 t。760 个测试全绿，没有一条测到这个形状。判据改成变异系数：`sd <= |mean| * 1e-12` 即判无法测量。",
+    "invalidates": [
+      "「显著性硬闸拦住了一切退化序列」"
+    ],
+    "evidence": "aplus/evolve_race.py: DEGENERATE_CV / _tstat；tests/test_block_tstat.py::test_constant_series_returns_none_not_a_huge_t",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "独立验证表里 8 行建立在空股票池上",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "验证表中 n_ranked=0 的候选行数",
+    "higher_is_better": false,
+    "before": 8,
+    "after": 0,
+    "note": "`反转+低异常换手`（`turnratio`）在 2019-2023 的 `n_ranked = 0`——该列在这 5 年根本不存在。其中包括当时被当成「净收益最高 +114.5%」的那一行。之所以能被当成结论，是因为 `n_ranked` 排在表的最后一列。**一张表里最该先看的列，往往是排在最后的那列。**",
+    "invalidates": [
+      "「反转+低异常换手 K=63 净 +114.5%」",
+      "「反转 + 低异常换手在干净数据上被验证过」"
+    ],
+    "evidence": "data/reports/reversal_freq_2019_2023.json（n_ranked 列）→ frequency_block_t_2019_2023.json（候选已剔除）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "现任被只按权重认，会被同权重的月频行冒名顶替",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "裁决层认现任时使用的身份字段数",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 3,
+    "note": "候选池加入频率之后，`r[\"weights\"] == champion_weights` 会让同权重的月频行在裁决里**坐现任的席位**——两者净值差着一整个成本量级。去重也只看权重，于是日频与月频被当成同一组，抹掉 276 个百分点的差距。附带一条：5 参 evaluate 遇到带频率的候选**当场报错**而不是静默忽略，静默忽略等于把月频候选当天频跑且看不出来。",
+    "invalidates": [
+      "候选池含频率时的任何按权重匹配的裁决与去重"
+    ],
+    "evidence": "aplus/evolve_race.py: _row_key / _eval_accepts_execution_params；tests/test_race_composite.py（13 测试，5/5 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "建了变异测试工具（本轮抓出 3 个存活变异体）",
+    "category": "process",
+    "severity": "medium",
+    "metric": "存活变异体数（9 个变异体）",
+    "higher_is_better": false,
+    "before": 3,
+    "after": 0,
+    "note": "`scripts/mutation_check.py`：9 个变异体全部被杀。其中 3 个第一轮存活——两个是变异体打到了测试覆盖不到的分支，**一个是测试真的写得太弱**（只断言「理由里不含某句话」，认对现任与认错现任都满足）。还有一个是变异体「文本变了但效果是 no-op」：`get(key, 3.0)` 在键存在且值为 None 时照样返回 None。",
+    "invalidates": [
+      "「本轮的防护测试确实在防护」——在变异测试之前这是一句没被检验的话"
+    ],
+    "evidence": "scripts/mutation_check.py（block_tstat 4/4，composite 5/5）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "判决板补「调仓」列（此前藏着一个决定性变量）",
+    "category": "observability",
+    "severity": "medium",
+    "metric": "判决板显示的候选身份字段数",
+    "higher_is_better": true,
+    "before": 2,
+    "after": 3,
+    "note": "候选池升到 84 组之后，同一组权重会以 K=1/5/21/63 出现 6 次，而表格里看不出区别——**276 个百分点的差距全在被隐藏的那一列里**。补列时才意识到：这不是「加个显示」，是**藏了一个决定性变量**。",
+    "invalidates": [
+      "2026-10-11 20:50 之前判决板表格显示的候选是可区分的"
+    ],
+    "evidence": "aplus/web/index.html: cadence()；真实浏览器验证控制台 0 error",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "裁决只检查第 1 名，而门槛按 84 组校正",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "被七道闸实际检查的候选数（门槛按 84 组 Bonferroni 校正）",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 84,
+    "note": "`oos_decision` 过去是 `best = table[0]`，而显著性门槛按 `bonferroni_t(len(table))` 算——**校正 84 次比较，只检验 1 组**，被校正的比较有 83 次根本没发生。\n复合赛马暴露了它：第一名 `{mom20:-0.5, rev5:0.5}` K=63 的训练毛超额 **0.19%**，与 K=1 候选的 0.15%、K=5 的 0.08% 基本持平；排名差距几乎全来自命中率——而命中率在 K=1（明天涨没涨）与 K=63（这 63 天涨没涨）之间根本不是同一个量。\n改成按训练分顺序逐个过闸、命中第一个全过的即晋级，门槛一个字没改。结果新增 `examined` 字段如实报告检查了几组。\n**2 年窗口上扫描前后都是 0 晋级**——可见这一修正在该窗口不改变结论，只在其他窗口里不让好候选被漏掉。",
+    "invalidates": [
+      "「训练段第一名的目标分就是应该被检验的那个」",
+      "2026-10-11 21:15 之前所有只看 table[0] 的裁决"
+    ],
+    "evidence": "aplus/evolve_race.py: oos_decision / _judge_candidate；tests/test_decision_scan.py（7 测试，4/4 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "一条靠运气才杀得掉变异的测试（功效只有 50%）",
+    "category": "process",
+    "severity": "medium",
+    "metric": "变异体被杀的概率",
+    "higher_is_better": true,
+    "before": 0.5,
+    "after": 1.0,
+    "note": "「Bonferroni 只按 1 组算」这个变异体第一次跑就**存活**。原因是我那条测试用 `t ~ N(0, 1.5)` 造 7 个随机候选，指望至少一个落进 (1.96, 2.75) 窗口：单个概率 9.5%，7 个全落空 **50%**。\n改成全部 `t = 2.2` 的确定性构造后必然区分得开。\n**一条一半概率才杀得掉变异的测试，等于没有。**",
+    "invalidates": [
+      "「变异体全杀」这个结论在小样本量下未经检验"
+    ],
+    "evidence": "tests/test_decision_scan.py::test_bonferroni_threshold_is_still_over_the_whole_table",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "实盘持仓状态机：每天照常出名单，另附该不该动手",
+    "category": "methodology",
+    "severity": "critical",
+    "metric": "实盘可执行配置的能力（支持的执行参数种数）",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 2,
+    "note": "此前实盘只有权重、没有频率与缓冲区：若赛马晋级出「反转 + 月频」，实盘会照样每天出 10 涨 10 跌并**按日频全换执行**，而那个配置的净值是按月频算的——独立验证里同一组权重日频净 **−168.9%**、月频 **+77.6%**，**方向都反了**。\n这里刻意**不**把推荐也降频：用户要的是每天的涨跌名单，那是**排序**产品；调仓频率管的是**交易**。所以每天照常出单，另外附一段持仓指令。\n两层护栏：`live_execution_status` 回答「线上在执行声明的配置吗」；`live_rebalance` 回答「今天该不该动手、该动哪几只」。\n`every=1` 时指令返回空字符串、日频行为与今天之前逐字相同（有测试钉死）。",
+    "invalidates": [
+      "「实盘可以执行任何回测出来的配置」——在这之前它做不到"
+    ],
+    "evidence": "aplus/live_rebalance.py；tests/test_live_rebalance_state.py（19 测试，5/5 变异体被杀）；scripts/run_daily.py 端到端跑通",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "bool 穿透了 isinstance(x, int) 的校验",
+    "category": "correctness",
+    "severity": "medium",
+    "metric": "被 Python 静默接受的非法状态种数",
+    "higher_is_better": false,
+    "before": 1,
+    "after": 0,
+    "note": "`load_state` 写的是 `isinstance(data[\"days_since_rebalance\"], int)`，而 **Python 里 `bool` 是 `int` 的子类**——`True` 通过校验，被当成「距上次调仓 1 天」。\n同一个项目在 `save_state` 与 `aplus/ledger.py::_validate` 里都写了 `isinstance(x, bool)` 排除，**唯独 `load_state` 漏了**。三处写法不一致，第三处是最后写的。",
+    "invalidates": [
+      "「状态校验拦得住非法输入」"
+    ],
+    "evidence": "aplus/live_rebalance.py: load_state；tests/test_live_rebalance_state.py::test_state_with_invalid_counter_is_rejected",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "股票池闸的输入只看窗口第一天（数据起点报 0）",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "n_ranked 取样点数量",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 5,
+    "note": "`n_ranked = scoreable_count(跨段[第一天])`——**单点**，而它是第六道闸（股票池可比）的输入。\n跑 7.8 年全历史赛马时窗口从 2019-01-02 开始，那是**数据集的第一天**：那天没有任何股票有可计算的 mom20（20 日窗口需要 20 个交易日历史），于是现任训练段报 `n_ranked = 0`。\n这次**没造成误判**（闸门读的是测试段的 4805），但它说明**闸门可以拿到退化样本而不会知道**——它只会安静地拿 0 去比，然后报「股票池空了」。\n改为跨 5 个等距日期取**中位数**：中位数对「少数日子不可算」稳健，平均不是（实测：前 10 天空后 10 天各 200 只，中位数 200、平均 100）。",
+    "invalidates": [
+      "「股票池闸的输入一定是有代表性的样本」"
+    ],
+    "evidence": "aplus/backtest.py: sampled_ranked_count；tests/test_n_ranked_sampling.py（5 测试，3/3 变异体被杀）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "全历史赛马找到一个过闸候选，但**主动不晋级**",
+    "category": "methodology",
+    "severity": "critical",
+    "metric": "7.8 年窗口 84 组候选中过闸的组数（污染原因下不采纳）",
+    "higher_is_better": false,
+    "before": 0,
+    "after": 1,
+    "note": "`{mom20:1.0, rev5:0.3, turn20:-1.0}` K=63：测试超额 +0.13%、**t=+4.00 > 临界 3.43**（84 次 Bonferroni）、**广度 t=+2.90 为正**、n_ranked 4798 vs 现任 4805 可比。五条腿全过，扫描在第 13 个候选上找到它。\n**仍然不晋级**，三条各自独立成立的理由：\n① 测试段 2023-08~2026-10 与我今天看过两遍的 2 年赛马测试段重叠；\n② 方向不是预注册的——赢家是正动量+低换手+季频，不是我从独立验证提出的反转方向，方向污染闸按规则不拦它，但**规则没覆盖不等于没有污染**；\n③ K=63 只有 11 个独立观测，t=4.00 意味着 mean/sd 仅 1.21。\n同一轮里两条 `turnratio` 候选的 t 也过门槛，但股票池窄 9.2% 被第六道闸拦下——闸门按设计工作。\n**这条记为 better 是错的**：候选数从 0 变成 1 本身不是改善，而是「系统找到了它但拒绝采纳」的证据。",
+    "invalidates": [
+      "「七道闸全过就可以写 weights.json」——还差一条：污染检查"
+    ],
+    "evidence": "data/reports/race_composite_full_7y.json（84 组，examined=13，总计 3773s）；docs/FINDINGS_2026-10-11.md 第 3.5 节",
+    "date": "2026-10-11",
+    "direction": "worse"
+  },
+  {
+    "title": "判决板拿季频的成绩描述日频策略（同一错误第三副本）",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "「现任只按权重认」的错误副本数",
+    "higher_is_better": false,
+    "before": 3,
+    "after": 0,
+    "note": "同一个错误一天里犯了三次，每次都在我没看的地方：\n① `oos_decision` 认现任 → 月频行冒名顶替日频现任（21:15 修）\n② `dedupe_candidates` 去重 → 日频与月频当成同一组（21:40 修）\n③ **`webapp._live_oos`** → 判决板拿 K=63 的成绩描述日频策略（22:30 修）\n第三个是**真浏览器截图**抓到的：把 84 组复合报告拷进 reports 后，绿色框从「样本外显著为负 −0.598% t=−2.83」变成「无法区分于 0 t=—」。\n根因：现任权重在 84 组候选里出现 **6 次**，只按权重匹配会返回表里第一个匹配行。\n**教训：改了一个地方的匹配规则，要去 grep 所有做同类匹配的地方。**",
+    "invalidates": [
+      "「三处任选一处修好就够了」"
+    ],
+    "evidence": "aplus/webapp.py: _live_oos；tests/test_live_health.py（15 测试）",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "赛马报告有两种行布局，读方只认一种",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "读报告的代码支持几种行布局",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 2,
+    "note": "`evolve_race_fast.py` 写 `row[\"test\"][\"stats\"]`，`evolve_race_composite.py` 写顶层 `row[\"test_stats\"]`。\n`_live_oos` 只读前者，于是对 84 组复合报告**一直返回 t=None**，而那批报告里现任日频行 t=−7.56。\n本项目读赛马报告的地方已有三个（`champion_health.collect_windows` / `_live_oos` / `evolve_weekly.build_log_record`），我加了新写入方后只检查了其中一个。\n**加新的报告写入方之后，第一件事是把所有读方跑一遍。**",
+    "invalidates": [
+      "「新增报告写入方不会影响既有读方」"
+    ],
+    "evidence": "aplus/webapp.py: _live_oos；tests/test_live_health.py::test_live_oos_reads_the_flat_test_stats_shape",
+    "date": "2026-10-11",
+    "direction": "better"
+  },
+  {
+    "title": "体检补上「列有值吗」：3342 只缺数据的股票从健康翻成不健康",
+    "category": "data_quality",
+    "severity": "critical",
+    "metric": "末根缺 turn 的股票数（体检判定为健康的）",
+    "higher_is_better": false,
+    "before": 0,
+    "after": 3342,
+    "note": "**指标大幅变差，这是本条的全部意义。** 原来体检只看列名在不在，于是 2026-10-09 那批被腾讯备源写入的 bar（仅 OHLCV）末根五列全空，体检一律判健康，缺口静默存在三周。\n\n实测：5458 只有 turn 列，其中 **3342 只（61.2%）末根缺失**，而 3182 只**恰好只缺最后 1 根**——这是写入端削薄了某一根的形状，不是「这因子历史上就没数据」。\n\n新增 `coverage.tail_nan_columns()`：扫尾部 5 根，统计「**当天有成交**、但某列却是空」的根数。停牌（volume=0）不计——否则长期停牌股会被整片误报，比原来的盲区更吵。",
+    "invalidates": [
+      "「体检通过 = 数据可用」——2026-10-12 之前成立，当天起不成立",
+      "所有在 2026-10-12 之前跑出的健康度数字（它们漏掉了 61.2% 的尾部空值）"
+    ],
+    "evidence": "aplus/coverage.py: tail_nan_columns / 体检原因 tail_nan_cols；tests/test_coverage_tail_nan.py（13 项）；scripts/mutation_check.py 组 tail_nan 4/4 全杀",
+    "date": "2026-10-12",
+    "direction": "worse"
+  },
+  {
+    "title": "isST 缺失被当成「不是 ST」：推荐名单 30% 处于 ST 筛查盲区",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "末根 isST 为空、因而被放行的推荐股票占比",
+    "higher_is_better": false,
+    "before": 0.0,
+    "after": 0.3,
+    "note": "`panel.py` 里 `np.where(np.isnan(isST), 0, isST)` —— NaN 被折成 0，而 0 的语义是「**不是** ST 股」。缺数据 = 声称自己正常，过滤器在最需要它的时候最不设防。\n\n实测 2026-10-11 的 20 只推荐里有 **6 只（30%）** 末根 isST 为空，其中 5 只在跌篮子。\n\n**但实测没有造成实际损失**：这 6 只最近一次有效 isST 全是 0，名单里没有真的 ST 股。这个区别必须说清楚——没出 ST 股是**运气**，不是防线起了作用。一只在当天被实施风险警示的股票会毫无阻碍地出现在推荐里。\n\n根因（`panel.py` 把 NaN 折成 0）**本轮未改**：改了会让今天之前的回测不可比，需要连同全部重跑一起做。已在 INCIDENTS 记为未解决。",
+    "invalidates": [
+      "「推荐名单里的 ST 股已经被过滤掉了」——在数据有洞时不成立"
+    ],
+    "evidence": "aplus/panel.py:536；data/reports/holdings.json（as_of=2026-10-11）；docs/INCIDENTS_2026-10-12.md 缺陷 24",
+    "date": "2026-10-12",
+    "direction": "worse"
+  },
+  {
+    "title": "四个写主库的脚本统一互斥：daily_update 原先一点锁都没有",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "有写库互斥保护的脚本数 / 写主库的脚本总数",
+    "higher_is_better": true,
+    "before": 2,
+    "after": 4,
+    "note": "`daily_update.py` 由 launchd 每天 18:30 无人值守地触发，却**一点锁都没有**；而它一次要写 5460 个 parquet。只要和任意一次回填撞上，两个进程同时对同一文件做 concat + to_parquet，后写覆盖先写，丢的列和行没有任何人会知道。\n\n第二层：原有的 `if lock.exists()` 本身就是 check-then-act 竞态——两个进程可以同时看到「不存在」然后都以为自己拿到了锁。改用 `O_CREAT|O_EXCL` 让内核保证原子。\n\n锁里写 pid 但**不自动判活抢占**：把一个「其实还活着、只是慢」的进程误判成死的，比等它跑完危险得多。真要抢显式传 `force=True`。\n\n顺带修了 `run_daily` 的预检查——它检查锁却不握锁，检查与写入之间隔着整个网络往返。",
+    "invalidates": [
+      "「回填进行中时 daily_update 会自己让路」——2026-10-12 之前它不查也不让"
+    ],
+    "evidence": "aplus/write_lock.py（新建）；tests/test_write_lock.py（12 项）+ tests/test_run_daily_write_lock.py（4 项）；scripts/mutation_check.py 组 writelock 4/4 全杀",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "撤掉「90 只文件被截断」的错误结论（flat：数据本来就是对的）",
+    "category": "data_quality",
+    "severity": "major",
+    "metric": "短于中位行数且无法用上市/退市登记解释的股票数",
+    "higher_is_better": false,
+    "before": 90,
+    "after": 0,
+    "note": "2026-10-11 记下「90 只股票的文件被截断，且根因未定位」，并推断「必有代码绕过 store 直接 to_parquet 覆盖」。\n\n**这是误判。** 用 baostock 上市/退市登记簿全量复核：\n\n    行数 < 1882 的 2122 只\n      已退市（末行 <= 退市日）        236\n      次新股（首行 >= 上市日且未退市） 1886\n      无法解释                          0\n\n反向也查了：末行 == 全库最新日的 5224 只里，登记为已退市的有 0 只。\n逐只对上号：000418.SZ 退市日 2019-06-21，文件末行正好 2019-06-21。\n\n**现成的反证当时就在手边却被我略过**：这些文件的 mtime 散布在10-09 23 / 10-10 08 / 10-10 21 / 10-11 15 四个时段，与正常股无异——mtime 分散就说明不是某一次坏写入。\n\n差点用远端数据去覆盖 236 只**本来正确**的退市股历史。",
+    "invalidates": [
+      "INCIDENTS_2026-10-11.md「有一处能截断文件的代码路径尚未定位」——没有这样的代码路径，数据一直是正确的"
+    ],
+    "evidence": "docs/INCIDENTS_2026-10-12.md 第 0 节；aplus/coverage.py 的 docstring 早就写明「单看 parquet 无法区分，要用上市/退市登记」，而我当时用行数阈值重造了更差的启发式",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "「ST 状态未知」从静默折成 0 改为按日计数上报",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "ST 状态未知的股票被上报的比例",
+    "higher_is_better": true,
+    "before": 0.0,
+    "after": 1.0,
+    "note": "`panel.py`（快路径）与 `snapshot.py`（慢路径）各有一处把缺失的 `isST` 折成 `0`——**缺数据 = 声称自己正常**。同一件事两份实现，这次一起改，否则两条路径对同一个未知会给出两种说法。\n\n改法是**如实传递 NaN** + `filter_universe` 新增 `unknown_st` 按日累加 + `run_daily` 出单时打印：\n\n    [predict] ⚠️ ST 状态未知 6 只（末根 isST 缺失，已按「不是 ST」放行）\n\n**刻意没有改成 fail-closed**：该函数 docstring 记着一条实测——要求 `isST == 0` 才保留会砍掉 88% 的正常股票。在数据还有洞时 fail-closed 等于让平台不可用。正确顺序是「先让洞看得见 → 补洞 → 数据干净后再谈 fail-closed」。\n\n同时把 `backtest` 结果的 `attrs` 补上 `unknown_st` / `unknown_st_codes`，让回测路径也能读到这个规模。",
+    "invalidates": [
+      "「`isST != 1` 就够了」——它在数据有洞时等于「缺数据按正常处理」",
+      "「两处折成 0 是刻意的回归处理」——2026-10-11 的那条注释是错的，它只防住了崩溃，没防住语义"
+    ],
+    "evidence": "aplus/predict.py: filter_universe(unknown_st=…)/aplus/panel.py:542 / aplus/snapshot.py:96 / aplus/backtest.py attrs；tests/test_unknown_st_visibility.py（9 项）；scripts/mutation_check.py 组 unknown_st 4/4 全杀",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "变异测试报告补上存活率的置信上界（flat：结论没变，边界变清楚了）",
+    "category": "methodology",
+    "severity": "minor",
+    "metric": "变异结果里报告的置信信息量",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 2,
+    "note": "**「33/33 全杀」不等于「测试好使」，它只等于「这 33 个变异体被杀掉了」。** 如果某个等价形态的变异体存在而没被造出来，它照样能活。\n\n0 存活 / n 次试验时存活率的 95% 单侧上界（Clopper–Pearson）：`1 - 0.05**(1/n)`。n=33 → **8.7%**。\n\n同时加了薄弱组告警：某组变异体少于 3 个就打出来。单跑 `unknown_st` 组（n=4）时上界是 **52.7%**，脚本自己打印「全杀但样本量小——这份结论的运气成分不小」。\n\n功效是设计出来的，不是靠运气。这一条不改变任何结论，它只让「全杀」这句话不再被过度解读。",
+    "invalidates": [
+      "「全杀 = 防护测试完备」"
+    ],
+    "evidence": "scripts/mutation_check.py: _survival_upper_bound / 薄弱组告警",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "主源会话中途死亡时熔断：省掉 961 次注定失败的网络往返",
+    "category": "operations",
+    "severity": "major",
+    "metric": "主源死亡后的无谓网络往返次数",
+    "higher_is_better": false,
+    "before": 961,
+    "after": 15,
+    "note": "首轮全量修复 3101 只：**填上 2140｜未填 961｜异常 0**。961 只全部 `degraded`，起点精确在第 2141 只——baostock 会话在那里断开。\n\n**「异常 0」差点让这次失败隐形**：降级不是异常，`sync_daily` 安静返回「成功但没用」。只看异常数，这次失败完全看不到。\n\n手工复现证明源站有数据（`603605.SH` 隔几分钟重跑即成功，`turn=1.3295`），所以缺的不是数据，是会话。\n\n熔断判据是**连续**降级而非累计——累计会被中间的成功稀释，中间成功一次就清零。并且区分 `degraded`（会话死了）与 `quarantined`（源还活着、数据不合格）：一次批量数据质量事件不该伪装成源站挂掉而误熔断。\n\n熔断只省时间，不影响正确性——即使没有它，「写完重读复验」也保证了一条错数据都不会留下。",
+    "invalidates": [
+      "「异常计数为 0 = 这一批跑成功了」——降级与隔离都不计入异常"
+    ],
+    "evidence": "scripts/repair_tail_cols.py: DEGRADE_STREAK_LIMIT / --degrade-limit；tests/test_repair_tail_cols_breaker.py（7 项）；scripts/mutation_check.py 组 breaker 3/3 全杀",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "末根元数据补齐：turn 可用率 62.0%→95.6%，turnratio 38%→98.8%",
+    "category": "data_quality",
+    "severity": "high",
+    "metric": "末根元数据可用率（turn / turn20 / turn252 / turnratio）",
+    "higher_is_better": true,
+    "before": 0.62,
+    "after": 0.956,
+    "note": "末根是**昨天**的 K 线，也是实盘真正读到的那一根。它缺 `turn` 时，`turn20`/`turnratio` 在最新一日恒为 NaN，而 `composite_score` 用 `min_count=len(weights)` —— 任一因子 NaN → 合成分 NaN → 该股直接掉出排名。\n\n实测（1200 只随机样本）：`turn` 62.0%→**95.6%**、`turnratio` 38%→**98.8%**、`turn20` **98.8%**、`turn252` 99.9%。修复脚本 `scripts/repair_tail_cols.py` 一轮 fixed=2140 / unresolved=961，961 只全部 `degraded` （baostock 会话在第 2141 只断开，已加熔断）。\n\n**剩余 4.7% 不是 bug**：那些末根日期停在 2021–2024 的，是退市与长期停牌股。当前交易日全池只 1 只缺 `turn`，对可交易标的已基本闭合。\n\n这条的真正作用：`turnratio` 的两个候选曾因「股票池窄 9.2%」被第六道闸拦下——**那窄化来自数据缺失，不是策略缺陷**。补齐之后它们必须重跑赛马，否则会一直挂着一个已经作废的理由。",
+    "invalidates": [
+      "「turnratio 候选被股票池闸拦下 = 该方向无效」——2026-10-12 之前成立，当天起该拦下理由作废，须以补齐后的数据重跑"
+    ],
+    "evidence": "scripts/repair_tail_cols.py（fixed=2140 / unresolved=961）；tests/test_repair_tail_cols_breaker.py；data/reports/coverage 末根统计（1200 只随机样本）",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "前瞻验证台账：6 组候选在看到任何未来行情之前冻结",
+    "category": "methodology",
+    "severity": "high",
+    "metric": "前瞻验证已注册的候选组数（窗口天数当前为 0）",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 6,
+    "note": "此前所有「裁决」都发生在**同一段历史**上：训练段选权重、测试段验收，而测试段的数据在选权重时已经看过了。再严的隔离带也拦不住「我已经知道 2024 年发生了什么」。\n\n新增 `aplus/forward.py`（追加式台账）+ `scripts/register_forward_candidates.py` + `scripts/forward_validate.py`，三条硬规则：\n\n1. **注册即冻结**——不能删、不能改、不能加；要试新候选必须另开一份注册（否则「多试几次直到过关」无法与「一次就中」区分）。\n2. **窗口严格晚于注册日 + 隔离带**（`FORWARD_EMBARGO_DAYS=2`）。\n3. **候选集越小门槛越紧**——6 组 → Bonferroni 临界 2.63，远低于 84 组赛马的 3.43。\n\n6 组已冻结于 2026-10-12，窗口自 2026-10-13 起算，其中含 7.8 年赛马唯一过五道闸的 `{mom20:1.0, rev5:0.3, turn20:-1.0}` K=63。\n\n**当前状态：窗口 0 天。** `forward_validate.py` 如实报告「样本不足」而不是给一个看起来能用的 t 值——K=63 需 63×3 = 189 个交易日（约 9 个月）才够判决力。这是目前**唯一干净的晋级路径**，而它需要时间，无法用更多计算绕过。",
+    "invalidates": [
+      "「样本外测试段通过 = 该候选可用」——2026-10-12 起降级为「值得进入前瞻验证」，不再直接构成晋级依据"
+    ],
+    "evidence": "aplus/forward.py；tests/test_forward_registry.py（13 项）；data/reports/forward_registry.json（1 份注册 / 6 组候选）",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "现任权重三个因子的符号反了：每天买在预测收益最差的一端",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "现任权重中「符号与 IC 相反」的因子数",
+    "higher_is_better": false,
+    "before": 0,
+    "after": 3,
+    "note": "1821 个交易日逐因子 IC 实测（`aplus/factor_ic.py`，窗口 D+1 买 D+2 卖）：**8 个因子里 7 个显著为负**，只有 rev5（5 日反转）为正。\n\n    mom20 −0.0357 (t=−9.40)   rev5 **+0.0262 (t=+7.22)**\n    vol20 −0.0514 (t=−11.28)  vsur −0.0290 (t=−12.57)\n    turn20 −0.0428 (t=−9.29)  turnratio −0.0378 (t=−12.67)\n    ivol −0.0590 (t=−16.73)   rsi −0.0366 (t=−9.87)\n\n逐年看：8 个因子 × 8 个年份，**同号率 100%**——不是行情噪声。\n\n现任 `{mom20:1.0, rev5:0.3, vol20:0.5, vsur:0.5}` 给 mom20 / vol20 / vsur 三个**负 IC 因子挂了正权重**。它的 −0.54%~−0.85%/日不是运气不好，是结构性地买在预测收益最差的一端。\n\n**为什么三周里七场赛马都没发现**：84 组候选里 9 组是 mom20 正权重、只有 3 组测负动量、没有任何一组同时用「负 vol20 + 正 mom20」。候选池在**生成阶段**就漏掉了数据指认的那块搜索空间——这不是调参没调好，是搜索空间缺了一块。",
+    "invalidates": [
+      "「现任排名 #79/84 → 它只是差一点」——2026-10-12 起不成立，它的三个权重符号与预测方向相反，与排名无关",
+      "所有「现任 vs 候选」比较里隐含的「现任方向大致正确」这一前提",
+      "2026-10-12 之前基于现任权重做出的任何「再调调权重也许能好」的打算"
+    ],
+    "evidence": "data/reports/factor_ic_7y.json（1821 日 / 8 因子 / 4 窗口，816s）；scripts/factor_ic_diagnostic.py；aplus/factor_ic.py；tests/test_factor_ic.py（32 项）",
+    "date": "2026-10-12",
+    "direction": "worse"
+  },
+  {
+    "title": "加了因子 IC 这一维：赛马答不了「因子有没有预测力」",
+    "category": "methodology",
+    "severity": "high",
+    "metric": "被独立测量过预测力的因子数",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 8,
+    "note": "此前所有实验都问「哪组权重最好」，一次都没问过「这个因子本身有没有预测力」。赛马**结构上答不了**：它只能在候选池里排序，而候选池里没有符号正确的那个组合。\n\n新增 `aplus/factor_ic.py`：逐日逐因子 Spearman IC，三条口径钉死——\n- 因子取 `build_cross_sections` 的输出，策略看到什么就量什么\n- 真实窗口 D+1 收盘买 → D+2 收盘卖，与 `_next_bars` **逐位相等**（有测试）\n- 只在可成交样本上算（停牌 / 非正价 / 超 ±40% 剔除）\n\n外加两件赛马没有的：\n1. **尾部分段 IC**——策略只买 top-10（0.2%），整体 IC 高不代表用得上。\n   rev5 的低尾 IC = +0.0486（t=+24.03），信号高度集中在「5 日跌最多」那一端；\n   而 vsur 高尾 IC = −0.0499（t=−30.31），意思是买它的极值就是接盘。\n2. **泄露探针**——顺带量出 `entry_lag=0` 虚高 **1.13~1.68 倍**。\n   2026-10-11 把它改成 1 时只知道「0 是错的」，不知道错了多少。\n\nt 值按**持有期**分块：hold21 的相邻 IC 共享 20 天数据，逐日 t 会虚高一个量级且不报任何错。",
+    "invalidates": [
+      "「赛马排第一 = 这组权重有效」——2026-10-12 起降级为「在候选池里排第一」，候选池的符号结构必须单独审查"
+    ],
+    "evidence": "aplus/factor_ic.py；tests/test_factor_ic.py（32 项）；scripts/mutation_check.py 组 ic（7/7 全杀）",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "日频调仓在 5 万本金上结构性不可行：成本吃掉毛超额的中位数是 91%",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "日频（K=1）候选的成本占毛超额比例中位数",
+    "higher_is_better": false,
+    "before": 0.91,
+    "after": 0.91,
+    "note": "`rolling_stats` 早就在算净超额时扣掉成本，所以赛马**没有**在给净值为负的候选排名——但报告里看不出扣了多少，于是两种完全不同的策略在表里长得一模一样。\n\n新增 `avg_cost_drag` / `gross_up_excess` / `cost_share` 三个字段后，97 组候选的实测分布：\n\n    K=1   14 组  中位数 **91%**  最差 8305%\n    K=5   13 组  中位数  30%  最差  194%\n    K=21  15 组  中位数  16%  最差   51%\n    K=63   8 组  中位数   9%  最差  105%\n\n**日频调仓下 14 组里 12 组的成本占比超过 50%**——毛超额的一半以上还没到手就已经付给券商了。\n\n这是算术不是策略问题：5 万本金 / 10 只持仓 = 单只 5000 元，一次往返约 0.3%（含印花税），日频换手 27.5% → 每天 0.08% 的拖累，对着 0.05%~0.1%/日 量级的毛超额。**本金越小，成本越致命。**\n\n注意 `before=after=0.91`：这条**不是**修好了某个指标，是让一个一直存在但看不见的事实变得可见。",
+    "invalidates": [
+      "「日频调仓是可以考虑的默认执行方式」——在 5 万本金上，成本占比中位数 91%，该选项不成立",
+      "线上默认权重 K=1 与前瞻台账中两组 K=1 候选的执行假设"
+    ],
+    "evidence": "aplus/verify.py（avg_cost_drag / gross_up_excess / cost_share）；tests/test_cost_reporting.py（13 项）；scripts/mutation_check.py 组 cost（4/4 全杀）；/tmp/aplus_snap_1012/reports/ic_guided_race_v1.json",
+    "date": "2026-10-12",
+    "direction": "flat"
+  },
+  {
+    "title": "复牌首日压缩补进 mom20/rev5：符合书 3.1.2，但实测影响可忽略（flat）",
+    "category": "correctness",
+    "severity": "medium",
+    "metric": "mom20 修复前后绝对值之比（中位数）",
+    "higher_is_better": false,
+    "before": 1.0,
+    "after": 1.0,
+    "note": "`mom20` / `rev5` 此前直接用 `_safe_ratio(adj_close, adj_close.shift(k))`，**绕过了 `RESUME_CLAMP`**——而那道压缩本来就存在，只是只用在了 `vol20` / `ivol` 上。\n\n改成「复牌日压缩后的日收益连乘」，并保留三层口径互不替代：\n    >±40%      数据不可信 → **作废**\n    复牌首日    合法但任意 → **压到 ±10%**\n    普通交易日  真实涨跌停 → **不动**\n\n第三层是**既有测试拦下来的**：第一版实现全局 `clip(±10%)`，被 `test_factor_layer_still_keeps_legitimate_limit_up_moves` 打红——创业板 +20% 涨停是真实、可交易、有信息的事件，全局压缩会**系统性削平所有信号**。压得太宽比不压更糟。\n\n**但实测影响可忽略**：400 只 / 720,587 行里，「复牌日且 |收益|>10%」只有 **90 行（0.0125%）**、涉及 81 只；mom20 新旧绝对值之比中位数 **1.000**、95 分位 **1.000**；只有极端尾部从 488% 降到 380%。\n\n结论：**保留这个修复**（书的要求、对正常样本零影响、去掉一类尾部风险），但**不把它当成任何问题的答案**。",
+    "invalidates": [
+      "「mom20 的负 IC 源于复牌极值数据缺陷」——2026-10-12 被实测否定，负 IC 是真实的短期反转效应，不是数据问题"
+    ],
+    "evidence": "aplus/panel.py（resume_day / ret_resume_clamped / _chain_momentum）；tests/test_momentum_clamp.py（9 项）；400 只实测：复牌极值行 90/720587，|新/旧| 中位数 1.000",
+    "date": "2026-10-12",
+    "direction": "flat"
+  },
+  {
+    "title": "撤回假设：mom20 的负 IC 不是复牌极值造成的（我自己推错了）",
+    "category": "methodology",
+    "severity": "medium",
+    "metric": "被实测推翻的未验证假设数",
+    "higher_is_better": false,
+    "before": 0,
+    "after": 1,
+    "note": "当时的推理链听起来很顺：IC 显著为负 → 书要求压缩而代码没压缩 → 压缩后应该好转。\n\n**前两箭头都对，第三箭头错了。** 修复确实生效（90 行被压），但对因子值的影响中位数是 1.000。\n\n教训：**「找到了一个看起来能解释现象的缺陷」不等于「它就是这个现象的原因」**。两者之间必须有一步实测，否则链条会在听起来最顺的那一环断掉——而那一环恰恰是最少被人验证的。\n\n这份平台已经吃过一次同形状的亏：2026-10-11 把 `n_ranked` 单点采样改成 5 点中位数之后，顺手推断「池子窄化会消失」——它确实消失了，但原因是数据缺口当天被补上了，不是采样改对了。",
+    "invalidates": [
+      "「修好一个符合书的缺陷就能改善 IC/超额」——本轮实测：符合书 ≠ 有效果，两者必须分开验"
+    ],
+    "evidence": "tests/test_momentum_clamp.py；400 只 × 720,587 行实测对比",
+    "date": "2026-10-12",
+    "direction": "worse"
+  },
+  {
+    "title": "首个过闸候选：纯20日反转 + 季频，t=+4.14，成本占比 4.3%",
+    "category": "methodology",
+    "severity": "high",
+    "metric": "7.8 年赛马中过闸的候选数",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 1,
+    "note": "97 组候选（84 标准 + 13 IC 引导），训练 2019-01~2023-08、测试 2023-08~2026-10，裁决按训练分**全表扫描**，逐一检查 6 组后命中第 6 名：\n\n    {mom20: -1.0}  K=63\n    测试超额 +0.1196%/日   t=+4.14 > 3.47（97 次 Bonferroni）\n    成本占比 4.3%          n_ranked 4904（现任池子可比）\n\n**为什么它不是第一个被想到的**：它需要 K=63，而第一批前瞻候选里\n有 `{mom20:-1.0}` K=1 和 K=5 缓冲3.0，**唯独没有 K=63**。\n同一组权重在 K=1 下成本占比 95%、在 K=63 下 4.3%——差 20 倍。\n在 5 万本金上，**调仓频率不是执行细节，它就是策略本身**。\n\n第 4、5 名 t 更高（+4.35 / +5.04）却没过：它们需要 `turnratio`，\n该列在部分股票上仍缺，池子窄到 4567 vs 现任 4904，被股票池闸拦下。数据修复把窄化从 9.2% 降到 6.9%，**但没归零**。",
+    "invalidates": [
+      "「平台从未有过任何过闸候选」——2026-10-12 起不成立，已有一个（尽管尚未晋级实盘）"
+    ],
+    "evidence": "data/reports/ic_guided_race_7y.json（97 组 · 五条腿全过 · 4195s）；scripts/ic_guided_race.py",
+    "date": "2026-10-12",
+    "direction": "better"
+  },
+  {
+    "title": "首个过闸候选也**没有**晋级：候选族的存在是被全窗口信息决定的",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "已晋级实盘但候选族曾被全窗口信息影响的候选数",
+    "higher_is_better": false,
+    "before": 0,
+    "after": 0,
+    "note": "这一条记的是**没做**的事：赛马说晋级，我没有晋级。\n\n泄露链条：\n    ① factor_ic_diagnostic 跑的是 **2019-01 ~ 2026-10 全窗口**\n    ② 我从它的结果推断「符号该反过来」\n    ③ **于是才去构造 ic_guided 这一族候选**\n    ④ 再用 2019-01~2023-08 训练 / 2023-08~2026-10 测试去赛马\n\n权重确实只在训练段上拟合——但**候选族的存在是被全窗口决定的**。\n训练/测试切分挡住的是「用测试段挑权重」，挡不住\n「我已经知道整个样本期的规律，于是只造了符合这个规律的候选」。\n\n另两条弱点也要一起记：\n· **有效观测只有 11 个**（测试段 3.9 年 ÷ 63），t=+4.14 建在 11 个块上\n· **广度 t=+1.09 不显著** —— 超额几乎全部来自涨腿，\n  排序本身「把两端分开」的能力没有被证明\n\n处置：开**第二批**前瞻注册（4 组，含该候选），与第一批共 10 组一起等 2026-10-13 之后的窗口。\n**weights.json 仍然不存在。**\n\n教训：样本外切分保护的是「拟合」，不是「提问」。\n如果你已经用全窗口数据决定要问什么问题，那么切分得再干净也没用——\n唯一能救的是**预注册**：在看到答案之前把问题冻住。",
+    "invalidates": [
+      "「测试段通过 = 该候选干净」——对 ic_guided 这一族不成立，它们的候选族来自全窗口 IC"
+    ],
+    "evidence": "scripts/register_forward_candidates_r2.py（第二批 4 组）；data/reports/forward_registry.json（2 份注册 / 10 组候选）；data/reports/factor_ic_7y.json",
+    "date": "2026-10-12",
+    "direction": "flat"
+  },
+  {
+    "title": "隔离实验：6.5% 的池子收窄不改变任何一个闸门判决（闸门阈值不是从证据来的）",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "宽池 vs 窄池测试超额的相对差（中位数）",
+    "higher_is_better": false,
+    "before": 0.06,
+    "after": 0.06,
+    "note": "`composite_score` 的 `min_count=len(weights)` 按**键数**算，于是 `{mom20:-1.0, turnratio:0.0}` 与 `{mom20:-1.0}` 的排名逻辑逐位相同、权重完全相同，唯一变量是 turnratio 非空带来的股票池收缩。零权重扰动的纯池子隔离，不需要改 `filter_universe`。\n\n实测（2019-01~2026-10，训练 1124 日 / 测试 753 日）：\n\n    K=63  宽池 +0.1265%  窄池 +0.1221%   t 4.76 → 4.20   **都过**\n    K=21  宽池 +0.1329%  窄池 +0.1325%   t 4.36 → 3.85   **都过**\n    K=5   宽池 +0.1466%  窄池 +0.1338%   t 2.87 → 2.51   都不过\n    K=1   宽池 +0.0988%  窄池 +0.0917%   t 1.83 → 1.73   都不过\n\n**四个档位，两个池子的判决完全一致。** 闸门在这四档上拦下的\n是一个不改变任何结论的差异。窄池从未更好，方向一律略低（0.91~1.00 倍）。\n\n顺带量到：`mom20` K=63 现在 t=**4.76**，而昨天赛马报告里是 **4.14**，\n唯一差别是 `panel.py` 复牌压缩修复落地时间（赛马 22:12 起、修 22:19）。\n**方向一致、量级同阶**，印证了昨天「影响中位数 1.000、结论不受影响」的记录。\n\n**处置：仍然不改闸门。** 但「前提不成立」现在变成了一个明确的待决形式——\n闸门现在是一个**固定百分比阈值**，而实测显示 6.5% 不改变判决，说明这个阈值不是从证据来的。该改成按「池子差异是否改变结论」判定。\n在那个新判据被前瞻窗口检验过之前，不动它。",
+    "invalidates": [
+      "「股票池闸的百分比阈值来自证据」——2026-10-13 起不成立，实测显示 6.5% 的收窄不改变任何闸门判决"
+    ],
+    "evidence": "data/reports/universe_isolation_7y.json（4 档 × 双池 · 443s）；scripts/universe_isolation.py",
+    "date": "2026-10-13",
+    "direction": "flat"
+  },
+  {
+    "title": "晋级链新增跌腿闸：七道闸里终于有一道看「10 跌」（并把广度警告写进理由）",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "晋级链中被检验的产品承诺占比",
+    "higher_is_better": true,
+    "before": 0.5,
+    "after": 1.0,
+    "note": "产品承诺是「10 涨 10 跌」，七道闸里 `excess_t` 只测涨腿，跌腿无任何闸——`breadth_tstat` 写好了却没接进去。\n\n实测证据（`scripts/candidate_block_audit.py`，7.8 年 / 测试段 753 日）：\n\n    候选 {mom20:-1.0} K=63   涨腿 t=+4.757（11/11 块全正）\n                             跌腿相对大盘 t=-0.865（4/11 正）\n                             广度   t=+1.005  < Bonferroni 3.47\n    现任权重 K=1             avg_down_return = **+0.126%/日**\n\n**现任推的「10 跌」平均每天在涨**，而判决词对此一言不发。\n\n判据选 `avg_down_return < 0`（绝对下跌）而不是「跑输大盘」，\n因为实测 `down_excess_vs_market > 0` 只有 45/97 ≈ 随机，\n按它设闸会否掉 52/97 的典型候选。5 万本金做不了空，\n用户要证的是「这 10 只别买」。\n\n晋级理由同步：广度不显著时挂警告（**不否决**，\n为了次要特征否掉真 alpha 是另一种错，但必须说出来）。\n\n真实赛马表回放：判决结论不变（K=63 的 avg_down_return=-0.040%，过闸），但理由里第一次出现广度警告。",
+    "invalidates": [
+      "「七道闸已经覆盖产品的全部承诺」——2026-10-14 之前成立，实测七道闸里没有一道看跌腿"
+    ],
+    "evidence": "data/reports/candidate_block_audit.json；tests/test_evolve_race.py::test_oos_decision_blocks_candidate_whose_down_leg_rises；scripts/candidate_block_audit.py",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "变异测试加崩溃安全：SIGTERM 曾把源文件永久留在变异态（IC 符号写死成 +1）",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "变异测试被中断后源文件的可恢复性",
+    "higher_is_better": true,
+    "before": 0.0,
+    "after": 1.0,
+    "note": "今天用 `task_stop` 掐掉了跑到一半的变异测试。还原写在 `finally` 里，**`finally` 挡得住 Python 异常，挡不住 SIGTERM**——\n`scripts/ic_guided_race.py` 停在了变异体版本：\n\n    emit(\"ic_sign_all\", {f: 1.0 for f in usable})   ← 变异体\n\n那个文件在变异态下**报告一切正常**：不报错、测试不红、赛马照跑。\n只是「让符号来自数据」这个脚本存在的唯一理由被摘掉了。\n`aplus` 不在 git 版本控制下，没有任何兜底能找回来。\n\n**发现它纯属侥幸**：下一轮变异测试报「源串未命中」。\n\n修复（两道保险）：\n  1. SIGTERM/SIGINT 处理器：先还原在途源码再退出\n  2. 改动前把原件**落盘**到 `.mutation_backup/`，下次启动发现残留就自动还原——连 SIGKILL 也救得回来\n\n`tests/test_mutation_restore.py` 5 条测试钉死，含一条端到端「任何『无法安放』都算失败」。",
+    "invalidates": [
+      "「变异测试跑完源码一定回到原样」——2026-10-14 之前成立，被外部信号打断时源码会停在变异态"
+    ],
+    "evidence": "tests/test_mutation_restore.py；scripts/mutation_check.py::_recover_pending / _install_signal_guards",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "缺陷 26：turnratio 因 rolling(252) 要求零缺失而丢掉 482 只股票（覆盖中位 96%）",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "turnratio 可打分股票数（2025-03-20 真实横截面）",
+    "higher_is_better": true,
+    "before": 4662,
+    "after": 4840,
+    "note": "`t.rolling(252).mean()` 的 `min_periods` 默认等于窗口长度，即 252 根里一根都不能缺。而源站 `turn` 列有零散缺失，一只上市三年、覆盖率 96% 的股票，中间只缺 1 天，整个因子就是 NaN。\n\n取证过程与两次假设修正：\n\n  ① 第一次假设「剔掉的是次新股，符合书的次新 1 年过滤」——**实测否掉**：\n     242 只里只有 23.1% 上市不足 252 日，**180 只（74.4%）上市超 500 日**\n  ② 继续量 `turn` 的非空根数，定位真因：\n     已上市 ≥252 日的 5235 只 → 算不出 482 只，**覆盖率中位 96.0%**\n     只缺 1 根的就有 **122 只**\n\n**修复**：`MIN_TURN_COVERAGE = 0.9`。门槛是先验的完整性判据，不是为让某组候选过闸调出来的——无缺失样本结果与原实现**逐位相同**（`tests/test_turnratio_coverage.py` 钉死）。\n\n修复后：被剔 242→**64**，其中次新占比 23.1%→**71.9%**，上市>500 日却剔的 180→**17 只**，年度收窄 5.4~8.3%→**1.7~4.1%**。\n残留的收窄重新变成以次新为主——正是书里明确的 1 年过滤该有的样子。\n\n**为什么重要**：全池 t 最高的 `{mom20:-0.5,turnratio:-0.5}` K=63（t=+5.04）此前被「数据缺失导致不可比」拦下，而那个理由是可修的瑕疵。\n\n**纪律**：前瞻窗口当时仍 0 天，改定义不损失已累积证据；该候选 2026-10-12 已冻结注册；候选数 97 与 Bonferroni 门槛不变。",
+    "invalidates": [
+      "「turnratio 的股票池收窄来自 252 日预热期的定义属性，修数据归不了零」——2026-10-13 的结论，2026-10-14 被实测推翻：74.4% 的收窄来自零散缺失日，是可修的数据瑕疵"
+    ],
+    "evidence": "data/reports/universe_forensics_fixed.json；tests/test_turnratio_coverage.py；scripts/universe_forensics.py",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "PIT 判决：FAR/BM/ROE 因后修财务**做不到真 PIT**，可安全进回测的财务因子归零",
+    "category": "data-integrity",
+    "severity": "critical",
+    "metric": "可安全进入样本外回测的财务因子候选数",
+    "higher_is_better": true,
+    "before": 3,
+    "after": 0,
+    "note": "FAR（基本面锚定反转）在书中 A 股实证 t=7.60，是全章最高单因子，本打算作为第二信号族的主力。动手前的 PIT 可行性调研给出否定判决。\n\n    报告期与披露日是两个独立字段          ✅ 可行\n    按 NOTICE_DATE ≤ as_of 切片           ✅ 机械可行\n    **切出来的值 = 当天真实可得的值**      ⛔ 不成立\n\n数据源每个报告期只存一行（`REPORT_DATE` 重复数 = 0），而 `UPDATE_DATE > NOTICE_DATE` 成立 ⇒ 被服务的值**必然是后修值**，原始披露值在源里不存在。东财 vs 同花顺 28 个年度对比最大差 0.18%。\n\n    修订量级 20.2% 的报告期被改过，滞后中位 364 天\n    逐 as_of 活污染均值 1.48%\n\n**与第 14 号缺陷（ivol 的 `.iloc[-1]`）是同一个形状**：不崩、不报 NaN、横截面完全正常、`no_future_leak` 测试会通过。\n`PLATFORM.md §0` 已写死「后修财务 → 禁止入回测」。\n\n**1.48% 不能当噪声读**：做追溯调整的公司恰恰是有会计问题/业绩变脸的，而那正是 F-Score 要识别的子集（此为推断，未实测相关性）。\n\n**方向是 worse，这是有意的**：台账必须能看见倒退，否则「堵死一条错路」会被记成「没进展」。\n\n**结论：在白名单过滤（`UPDATE_DATE == NOTICE_DATE`）或攒 vintage 两条路做出决议之前，不写 FAR/BM/ROE 的任何代码。**\n先把 `factor_spec_cn.md` §1.5 从「未接入」改成实测结论。",
+    "invalidates": [
+      "「FAR 是下一条最有希望的信号来源，等财务数据到位就实现」——2026-10-14 之前成立；实测证明当前数据源下它不可实现，缺的不是工程量而是数据源的历史版本"
+    ],
+    "evidence": "docs/factor_spec_cn.md §1.5.1（实测记录 + 9 字段映射表 + 两条出路）",
+    "date": "2026-10-14",
+    "direction": "worse"
+  },
+  {
+    "title": "Q2 定论：turn 的分母是流通 A 股，不是总股本（口径判定从 0% 到 100% 确定）",
+    "category": "correctness",
+    "severity": "medium",
+    "metric": "turn 分母口径被唯一确定的样本比例",
+    "higher_is_better": true,
+    "before": 0.0,
+    "after": 1.0,
+    "note": "悬了三天的口径问题今天定死。此前**没有任何一个口径被证实**，分母是总股本还是自由流通股本一直悬着（0% 确定）。\n\n反推 `隐含股本 = volume × 100 / turn` 再与巨潮股本按时点 join：\n\n    601988.SH 中国银行  隐含 210,762,220,941  /总股本=0.6543  /A股=1.0000\n    601939.SH 建设银行  隐含   9,593,683,108  /总股本=0.0367  /A股=1.0000\n\n**凡有数据的 76 只，`/A股` 全部为 1.0000**（1.0 = 全部命中唯一口径）；`/总股本` 在 0.0367–1.0000 间大幅漂移，总股本口径可确定地排除。\n\n带 H 股的公司分母**既不是总股本也不是「已流通股份」**（后者含 H 股），而是**人民币普通股**——只留前两条腿会把判定做错。\n\n抽样汇总 `{ambiguous: 53, unknown: 4, a_shares: 3}`。`ambiguous` 不是没结论——那 53 只的「已流通股份」与「人民币普通股」数值完全相同（无 H 股），两条腿分不开；4 只 `unknown` 全是**已退市**票。\n\n**结论对现有因子没有影响，但必须记**：`turnratio` 是比值，对分母的乘法缩放不敏感；`turn20`（水平值）会受影响，而它是现有因子之一。记下来是为了以后不必重新怀疑一遍。",
+    "invalidates": [
+      "「turn 的分母口径未知，可能是总股本」——2026-10-14 定论为流通 A 股"
+    ],
+    "evidence": "aplus/sources/shares.py（`classify_denominator`）；tests/test_shares.py（42 项）；data/master/shares/*.parquet",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "LLM 链全量切到 MiniMax-M3.1-Flash-Preview：默认链装配 m31 主 / glm 备，M3 彻底移除",
+    "category": "operations",
+    "severity": "high",
+    "metric": "默认 LLM 主链中启用强制思考 + prompt caching 降本的链路占比",
+    "higher_is_better": true,
+    "before": 0.0,
+    "after": 1.0,
+    "note": "新增 `aplus/llm.py::MiniMaxM31FlashClient`。它与既有 `MiniMaxClient`（M3）\n**不是同一个东西**，四个维度全不同：\n\n    项          M3                              M3.1-Flash-Preview\n    域名        api.minimaxi.com              api.minimax.cn\n    协议        OpenAI /text/chatcompletion_v2 Anthropic /v1/messages\n    思考        可控                            **强制、不可关闭**\n    缓存        无                              prompt caching\n\n选它的理由是成本结构而不是聪明程度：进化 prompt 几乎不变（事实是同一个\nevidence 模板），二次调用应命中 `cache_read_input_tokens`。M3 走 OpenAI\n兼容协议，拿不到这个降本通道。\n\n**M3（`MiniMaxClient`）从默认链完全移除**：用户硬指示「不要使用 m3，\n全部用 m3.1」。类保留代码供手动构造，`default_llm_chain()` 不再装配它——\n`tests/test_llm_chain.py::test_default_chain_m31_only_no_m3_in_chain`\n**故意在配置里同时放 M3 的 key**，断言链里不出现它。\n\n主备顺序改由 `~/.aplus/llm.json` 的 `primary` 字段决定（`m31-flash` / `glm`），\n**改配置不改代码**——这是这一条附带的真正改进。glm-failover（5 账号轮询，\n本机代理）始终兜底在最后一位。\n\n思考**从未关闭**：`thinking` 块只是不在应用层暴露（防 prompt 注入进日志），\n模型始终在思考，`usage.thinking_tokens` 可验证。把它当「关掉了思考」是误读。",
+    "invalidates": [
+      "「默认链里跑的是 MiniMax-M3」——2026-10-14 起默认链只装配 M3.1-Flash-Preview"
+    ],
+    "evidence": "aplus/llm.py::MiniMaxM31FlashClient / default_llm_chain；tests/test_llm_chain.py（5 条，含「M3 不得出现」的反向断言）",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "M3.1 强制思考吃光 max_tokens：首次接入返回 0 候选，2048 改 8192 + 529 指数退避",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "M3.1 强制思考模式下不被思考截断的输出预算上限（token）",
+    "higher_is_better": true,
+    "before": 2048,
+    "after": 8192,
+    "note": "换到 m3.1 后第一次打研究员：**返回 0 组候选**。\n\n根因不是 prompt 不好、不是协议解析错、不是 key 没配。Anthropic Messages 协议\n下 content 的**首项是 `thinking` 块**，而 m3.1 的思考不可关闭。\n`max_tokens=2048` 是**思考与正文共享**的预算——思考先花，\n轮到要吐 JSON 数组正文时已无余额，于是 text 块为空，`parse_candidates` 拿到\n空串，安静返回 `[]`。\n\n**这个坑的恶劣之处在于它不报错**：HTTP 200，链路 `last_served_by` 正常，\n日志无异常，只有「研究员这轮没提候选」这一句话——看起来像模型没灵感。\n\n修复两处：\n  ① `max_tokens` 默认 **8192**。依据是实测单组候选正文 200~400 token，\n     思考再贪也得给它留够。\n  ② minimaxi 端点偶发 **529 `overloaded_error`**（临时拥挤）：3 次指数退避\n     重试（1s/2s/4s）。**只对 529 重试**——其他 5xx/4xx 是真故障\n     （参数错、权限、配额），重试只会掩盖它。\n\n**教训要记住的不是 8192 这个数，是这条**：换协议/换模型后，输出预算的\n分配方式可能整个变掉，而失败形态是静默的 0 结果。这类假设必须用真实响应验，\nfake 客户端永远测不出来（见第 4 条）。",
+    "invalidates": [
+      "「研究员返回 0 候选 = 模型没想出好假设」——2026-10-14 实测为 max_tokens 被强制思考吃光，是预算问题不是能力问题"
+    ],
+    "evidence": "aplus/llm.py::_extract_text / _is_overloaded（529 判定）；scripts/smoke_researcher.py（真链路复现）；data/reports/candidate_block_audit.json",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "研究员候选缺执行参数轴：曾把「纯权重一律日频入场」写死，等于主动把候选送进成本地狱",
+    "category": "methodology",
+    "severity": "critical",
+    "metric": "研究员候选形状中可表达的轴数（权重 / 调仓频率 / 缓冲）",
+    "higher_is_better": true,
+    "before": 1,
+    "after": 3,
+    "note": "`scripts/evolve_weekly.py` 里写死过一句注释：\n\n    # 研究员提的是**纯权重**，一律按日频 / 无缓冲入场。\n\n这句话在**主池**里是对的（内置候选本来就带频率），用在**研究员池**上是错的。\n\n台账第 19 条早已实测：2019-2023 独立验证（962 交易日，纯反转）\n\n    | K | 年成本 | 净       |\n    |---|--------|----------|\n    | 1 | 246.3%  | −168.9%  |\n    | 5 |  98.2%  |   −5.3%  |\n    |21 |  35.8%  |  +77.6%  |\n    |63 |  12.2%  | +105.7%  |\n\n**276 个百分点的差距全部来自这一个参数。** `ic_guided_race_v1.json` 里同权重\n`ic_sign_all` 的三档是同一件事的另一次印证：\n\n    K=1   超额 +0.01%   t=0.21   ← 按日频入场就是这个数\n    K=5   超额 +0.13%   t=3.34   ← 过闸\n\n所以「研究员提的是纯权重，一律按日频」= **亲手把可能过闸的候选按日频送进\n成本地狱**，测出来必然是超额 ≤ 0。研究员看到的反馈是「我的假设不行」，\n而真正的原因是入场方式。**这是一个会系统性筛掉好假设的 bug，\n而它不产生任何报错。**\n\n修复（`aplus/evolve_researcher.py`）：接受复合形状\n`{weights, rebalance_every, buffer_multiple}`，纯权重形状仍合法（= 日频）。\n\n两处刻意的取舍：\n  ① 形状判别复用 `evolve.split_weights`，**不重写第二份**——两处判别逻辑\n     迟早漂移，漂移后去重口径与主池就对不上，同一个候选会被跑两遍，\n     两次都进 Bonferroni 的比较次数，显著性门槛被自己抬高。\n  ② 去重键用 `evolve.candidate_key`（权重, 频率, 缓冲）三元组。只按权重去重\n     会把「日频 vs 季频」抹成同一个候选——而这正是那 276 个百分点所在。\n\n值域**锁死在实测网格** `EXECUTION_GRID=(1,5,21,63)` /\n`BUFFER_GRID={1:(None,3.0), 5:(None,3.0), 21:(None,), 63:(None,)}`。\n跑没测过的格子不是探索，是把一次赛马名额花在没人知道答案的格子上，\n还平白抬高比较次数。缓冲的实测依据也一并记下：K=1 缓冲把成本从\n246.3% 砍到 122.5%（**最有效**），K=63 从 12.2% 到 12.1%（完全无效）——\n日频恰恰最需要缓冲，它是成本占比最高的一格，不是最不需要的那格。\n\nprompt 里也显式要求「对每组候选显式给出 rebalance_every」，并说明\n只给权重就等于声明按日频入场。",
+    "invalidates": [
+      "「研究员的候选形状是纯权重，日频入场是研究员链路的固有属性」——2026-10-14 之前成立；频率是候选形状的一等公民，已证事实（276 个百分点）此前未传导到研究员侧"
+    ],
+    "evidence": "aplus/evolve_researcher.py（EXECUTION_GRID / BUFFER_GRID / validate_candidates）；tests/test_researcher_execution_axis.py（复合形状 / 越格拒绝 / 缓冲合法性 / prompt 证据溯源）；data/reports/ic_guided_race_7y.json（test_stats：同权重 K=1 超额 +0.008% t=0.21 不过闸 vs K=5 +0.134% t=3.34 过闸，成本占比 94.9% vs 28.2%）；data/reports/independent_validation_2019_2023.json（K=1 净 −168.9% vs K=63 净 +105.7%）",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "新增研究员真实链路冒烟 scripts/smoke_researcher.py：此前全链路只有 fake 客户端验过",
+    "category": "validation",
+    "severity": "high",
+    "metric": "研究员端到端链路中被真实模型验证过的环节数",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 4,
+    "note": "接手研究员这一侧时的现状：`tests/` 下 `FakeClient` 双链路全绿，\nparse / validate 单元测试全绿——**但没有任何一个测试用真模型跑过一次**。\n\nfake 客户端的结构性盲区：它只验「我给它的东西能被解析」，不验\n「模型真的会照契约输出」。第 2 条的 0 候选正是这个盲区的直接产物——\nfake 客户端**永远不会**返回 thinking 块，也就不会发现 max_tokens 被吃光。\n\n`scripts/smoke_researcher.py` 打真 prompt、走真 `default_llm_chain()`，\n依次验四个环节：\n\n    ① 默认直连链能起来（主备装配正确、last_served_by 可观测）\n    ② 真实模型响应能进入 parse_candidates 的解析路径\n    ③ validate_candidates 能从**真响应**里挑出合法候选\n    ④ 整个链路对 prompt 的 JSON 数组契约守得住\n\n外加可选的 `claude -p` 子进程路径（子进程链路常挂，挂了不算 bug，\n但要打印出来——**静默降级比失败更可怕**）。\n\n**0 候选即非零退出**（`return 0 if raw else 1`）。这是唯一一条真正重要的\n设计：0 候选必须让 CI / 人看见。默认返回 0 的「跑完就算过」会把静默失效\n变成常态——而失效的管线不会自己报警，只会安静地停止产生增量。\n\n脚本**不写任何文件**：它是体检，不是数据生产。",
+    "invalidates": [
+      "「研究员链路已被测试覆盖」——2026-10-14 之前成立的只是 fake 链路，真模型响应的形状从未被任何测试观察过"
+    ],
+    "evidence": "scripts/smoke_researcher.py；tests/test_llm_chain.py（链装配）；tests/test_evolve_researcher.py（解析单元）",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "判决板标题与 caveat 正文互相打架：正文说「未验证」，标题说「已知的坏配置」",
+    "category": "honesty",
+    "severity": "major",
+    "metric": "判决板标题与其 caveat 正文所述证据状态一致（1=一致，0=矛盾）",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 1,
+    "note": "默认权重符号按实测 IC 整体翻转后，caveat 正文如实改成了「方向有证据、效果未验证」，而 `verdict.js` 的标题仍硬编码「当前跑的是已知的坏配置」。\n\n同一个警示框里两句话都在骗用户，而且方向相反：说「已知为坏」→ 下一步该是「换掉它」；说「未验证」→ 下一步该是「去验它」。\n\n改法不是在前端解析中文措辞（改一次文案就静默出错），而是让后端判定证据状态、以机器可读的 `caveat_kind` 递下来，前端只查表。kind 缺失/未知时**降级到较弱**的说法：后端忘了带 kind 最多让页面少说一句，默认成「已知的坏」则会让页面多说一句没根据的话。\n\n浏览器实测（10-14 20:21）：标题已是「当前权重未经赛马验证」，「已知的坏配置」字样不再出现在页面上。",
+    "invalidates": [
+      "把旧配置的实测结论挂到新配置头上的任何展示"
+    ],
+    "evidence": [
+      "tests/test_docket_warning.py::test_unraced_caveat_must_not_be_labelled_a_measured_bad_config",
+      "tests/test_docket_warning.py::test_unknown_or_missing_caveat_kind_falls_back_to_the_weaker_claim",
+      "tests/test_docket_warning.py::test_every_caveat_kind_must_have_a_headline"
+    ],
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "事前登记的主指标被内建负对照当场证伪：up_excess 测的是市场状态不是选股本事",
+    "category": "methodology",
+    "severity": "critical",
+    "metric": "扫描网格中带符号负对照的格子比例（0=全靠单组自证，1=每个格子都有对照）",
+    "higher_is_better": true,
+    "before": 0,
+    "after": 1,
+    "note": "`signcorrect_freq_sweep` 事前登记的主指标是 `年化(up_excess_vs_market) − 年成本`。跑到一半出现不可能的结果：已知逐符号相反的旧默认配置在 K=63 上拿到 +95.0% 年超额、+83.0% 净、t=6.67。\n\n`aplus/verify.py` 的文档早就写了这件事，当时没当回事：\n    涨腿超额 E[r_up] − E[r_mkt] 在大盘上涨时会自动变大——选股毫无本事、只是踩在 beta 上，也能拿到一个漂亮的正数。\n\n所以该指标**没有效度**。这不是「结果不好看所以换指标」（那是 p-hacking），是发现测量本身错了。作废的是「用它当晋级判据」，已算出的行在对照表里还要用。\n\n三个指标三个毛病：up_excess 含 beta；excess_breadth 市场项消了但不可兑现（空不掉跌篮子）；excess_tilt 暴露系统性 beta。没有一个是干净的。\n\n改用**负对照差值** `指标(符号修正) − 指标(旧默认错号)`：两组同源同日，共同部分即 regime、逐项抵消。显著性用**配对** t（逐日差序列），未配对的两组 t 仍把 regime 的逐日波动留在分母里。",
+    "invalidates": [
+      "用 up_excess_vs_market 单独作为任何晋级判据"
+    ],
+    "evidence": [
+      "tests/test_regime_control_sweep.py::test_breadth_series_must_cancel_the_market_term",
+      "tests/test_regime_control_sweep.py::test_breadth_series_must_be_identical_under_opposite_markets",
+      "tests/test_regime_control_sweep.py::test_sign_fixed_and_wrong_sign_differ_only_in_sign"
+    ],
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "用户可见的证据句「8 因子 × 8 年逐年符号 32/32 一致」是编的，实为 63/63",
+    "category": "correctness",
+    "severity": "high",
+    "metric": "概览页 caveat 里逐年符号一致率的分母（因子×年观测数）",
+    "higher_is_better": null,
+    "before": "32/32（手写常量）",
+    "after": "63/63（factor_ic.yearly_sign_consistency() 现算）",
+    "note": "`DEFAULT_WEIGHTS` 符号翻转是今天最大的改动，它的全部说服力就是那句「8 因子 × 8 年逐年符号 32/32 一致」，而它**被直接印在概览页给用户看**。\n\n实测 `data/reports/factor_ic_7y.json`，三处错：\n\n1. **32/32 算术上不自洽**——8 因子 × 8 年应为 64，不是 32。\n2. **「8 年 × 8 因子」不成立**——`turnratio` 只有 7 年（缺 2019）。\n3. 真实数字是 **63/63**，比原先声称的更强。\n\n`turnratio` 缺 2019 有成因：需累积成交量历史，2019 年初无前值（`n_days=1630` 比其余因子的 1821 少 191 天，正好对上）。\n\n**信号本身没错，报出来的数是编的**——所以这不只是笔误：它是「用没做过的测量支持结论」，而这正是整个符号翻转链条最不容出错的一环。\n\n修法不是把 32 改成 63。**手写的证据数字必然漂移，它已经漂了一次。**\n新增 `factor_ic.yearly_sign_consistency()` 从报告现算；`evolve.load_weights`\n的 caveat 改为调用它；`tests/test_yearly_sign_claim.py` 把散文里的 N/N\n**反向钉到数据**——数据一变，测试红，而不是等某人想起来改文案。\n\n同函数沿用 `weight_sign_conflicts` 的纪律：查不到时 `unknown=True` 且\n`agree=total=None`，caveat 里那句话**整句缺席**。返回 `0/0` 会被读成「查过了，零反号」，而实际是「根本没查」。",
+    "invalidates": [
+      "「符号翻转的逐年一致性证据已被核对过」——在此之前那句话是手写的，从未被任何数据核对",
+      "任何引用「8 因子 × 8 年」满格说法的地方——turnratio 缺 2019，满格说法把没测过的格子算进了证据"
+    ],
+    "evidence": "aplus/factor_ic.py:yearly_sign_consistency；aplus/evolve.py:_yearly_evidence_sentence；tests/test_yearly_sign_claim.py（6 条）；data/reports/factor_ic_7y.json",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "市场基准混入「信号日尚未上市」的股票：up_excess 被系统性虚增约 114 个百分点/年",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "市场基准日均收益（`_market_by_day`，2019-01~2023-12，种子 42 抽 150 只）",
+    "higher_is_better": null,
+    "before": "−0.40192%/日（复利 0.0069 倍，负收益占比 63.1%）",
+    "after": "修复后重新计算（见 evidence）",
+    "note": "`pos = searchsorted(dates, after_date, \"right\")` 对一只**尚未上市**的票\n返回 0，于是 `entry = 0` 指向它**上市后的头一根** K 线，那个收益被记成\n信号日的「市场收益」，并对上市前的**每一个**信号日重复一次。\n\n群体拆分（实测，随机种子 42，与 `_market_by_day` 同口径）：\n\n    口径                              均值/日      复利终值   负收益占比\n    D 当天有 K 线（正常）             +0.06559%     1.9656     44.8%\n    上市前（D 前一根都没有）          −3.47011%     0.0000    100.0%\n    混合（现用 _market）              −0.40192%     0.0069     63.1%\n    停牌（D 前有、后无）                        ——  零样本\n\n**污染 100% 来自上市前，与停牌无关**（停牌一档零样本）。一个群体把基准\n从 +0.066%/日 拖到 −0.402%/日，偏差 **−0.468%/日 ≈ −114%/年**。\n\n## 为什么这么久没被发现\n\n1. 数字**不像坏的**：−0.40%/日 是个体面的数，不除零、不出 NaN。\n2. 方向**看起来合理**：「市场常年低迷、策略常年跑赢」正是每个回测\n   都想看到的样子——**偏差朝着让人高兴的方向偏**。\n3. 单票验算**完全正确**：`close/prev_close − 1` 与厂商 `pctChg` 逐位\n   吻合（实测 102/106/133 只零不一致）。错的只是**纳入了哪些票**，\n   而那只在聚合层看得见。\n\n## 影响链\n\n`up_excess_vs_market = E[r_up] − E[r_mkt]` 是 `evolve.objective()` 的\n主项、赛马的主判据、概念页的主数字。基准被压低 114 个百分点，等于\n**给所有策略白送 114 个百分点的超额**——于是「跑赢市场」几乎自动成立，\n这正是**坏配置反复晋级**的机制性原因：\n\n    实测   符号修正 K=1  复利终值 0.1 倍   年复利 −36.8%\n    报出  年超额 +69.2%/年\n\n两个数同时为真且互相矛盾，因为**超额的分母是假的**。\n\n## 修法\n\n`pos == 0` 恰好等价于「D 之前一根 K 线都没有」，一个判据即可。\n**停牌不受影响**：`dates[pos-1] <= D` 由 searchsorted 保证，只有「D 之前\n完全没有历史」的票被挡下，涨腿「持有到复牌」的语义原样保留。\n\n判据钉的是**成员资格**而非某个数值。第一版测试用 `20→1`（−95%）\n设污染样本，结果被 `MAX_PLAUSIBLE_RETURN` 的 ±40% 上限拦下——\n**测试因为价格不合理而通过，红是假的**。改成 −5% 后 4 条判据同时转红，\n这才是真的。\n\n## 幸存的部分\n\n**配对差值不受影响**：负对照里的 Δ 是同日两组之差，`r_mkt` 在差中\n对消。所以「符号修正比错号强」这一结论仍然成立：\n\n    K=1   Δ +92.2%/年   配对 t=7.78\n    K=5   Δ +57.3%/年   配对 t=5.34\n    K=21  Δ +16.7%/年   配对 t=2.36\n    K=63  Δ  +2.2%/年   配对 t=0.82   ← 不显著\n\n**全部作废**：任何含 `up_excess_vs_market` 的**绝对**数字，\n以及所有基于它的晋级判定与 `evolution_log` 历史判决。",
+    "invalidates": [
+      "所有 `up_excess_vs_market` 的绝对数值（含 evolution_log.json 全部历史判决、赛马排名、概念页主数字）——分母虚低约 114 个百分点/年",
+      "「符号修正配置年超额 +69.2%」——实测复利终值 0.1 倍、年复利 −36.8%，两个数同时为真是因为分母是假的",
+      "「+95.0%/年超额（K=63）」——可信度检查六个配置**全部亏损**，无一生还",
+      "任何以 `evolve.objective()`（涨超额为主项）作出的晋级判定"
+    ],
+    "evidence": "tests/test_market_benchmark_cohort.py（7 条，钉成员资格）；aplus/backtest.py:next_bars 的 pos==0 守卫；data/reports/lowfreq_plausibility.json（六配置复利终值 0.00~0.60 倍，**无一 > 1**；符号修正在每个 K 上\n    都优于错号对照：0.11/0.60/0.41 vs 0.00/0.17/0.33，与配对 t 同向）；厂商 pctChg 对拍：均值 +0.093%/日、复利 4.50 倍、符号一致 1861/1881",
+    "date": "2026-10-14",
+    "direction": "better"
+  },
+  {
+    "title": "成本列用 sum() 聚合：年成本虚高恰好 top_n 倍，且虚高方向让错误结论看起来像铁证",
+    "category": "correctness",
+    "severity": "critical",
+    "metric": "annual_cost（signcorrect_freq_sweep，榜宽 10，K=1，2019-01~2023-12）",
+    "higher_is_better": null,
+    "before": "370.4%/年",
+    "after": "37.04%/年",
+    "note": "`evaluate_weights` 把同一个**组合级** drag 写给涨腿每一行：\n\n    res.loc[res[\"direction\"] == \"up\", \"cost\"] = drag\n\n`drag` 是「本期成本占本期收益的比例」，一只票一份。于是\n`groupby(\"pred_date\").mean()` 每期得到一个 drag（正确），\n`up[\"cost\"].sum()` 每期记 top_n 份（放大 top_n 倍）。\n2026-10-14 我在 `signcorrect_freq_sweep.py` 与 `regime_control_sweep.py`\n第一版都写了 `sum()`。\n\n## 为什么这个 bug 比同日修掉的市场基准 bug 更危险\n\n市场基准那个虚高 114 个百分点/年，虚高得**太离谱**，容易引起怀疑。\n这个只虚高 10 倍，完全落在「数字看着很合理」的区间里。**越合理的错数字\n越危险。**\n\n而且它虚高的方向恰好支撑了一个战略结论：\n\n    虚高后：日频成本 370%/年 vs 信号 92%/年 → 「成本必然吃掉信号」无懈可击\n    真实值：日频成本  37%/年 vs 信号 92%/年 → 两者同一量级\n\n也就是说，**一个战略判断被建立在一个 10 倍的数上**，而那个结论本身\n（K=1 日频不可行）在真实成本下**并不成立**。修正后 K=1 反而是信号最强\n且成本仍低于信号的一档——整张「信号随持有期衰减、成本随持有期下降，\n两头不兼容」的表，方向都需要重新读。\n\n## 注意：修正不等于策略可行\n\n真实的 37%/年 仍然远高于任何可交易阈值（容量有限时更高），所以\n「当前实现不可实盘」这个结论**仍然成立**。被推翻的是「370% 是铁证」\n这句话，以及由此推出的「成本量级已论证清楚」。**降低虚高不等于放宽\n门槛**，两者不可混为一谈。",
+    "invalidates": [
+      "「年成本 370.4%/年」以及 K=1/5/21/63 全部四个成本数字（分别应为 37.04/12.23/3.51/1.22）",
+      "「信号强度随持有期单调衰减而成本单调下降，两头不兼容」这一结构性叙述——修正后 K=1 是成本/信号比最低的一档"
+    ],
+    "evidence": {
+      "test": "tests/test_cost_aggregation.py（8 条全绿）",
+      "mutation": "判据经 7 组变异验证：裸 sum / groupby.sum 无 mean / 拆中间变量再裸 sum 三种绕过全被抓；groupby.mean.sum / 拆中间变量 mean 版 / 逐行扣成本 / 无关列 sum 四种合法写法全放行",
+      "judgement_history": "这个判据本身返工四次：文本匹配命中 docstring → AST 文本匹配被 ast.unparse 的引号归一化搞成假绿 → 形状判据误抓合法的逐行扣成本 → 形状判据被「拆中间变量」绕过。四次都写进 docstring 作为判据设计记录。"
+    },
+    "date": "2026-10-14",
+    "direction": "fixed"
+  },
+  {
+    "title": "同型缺陷在全新代码里复发：文档写明「必须返回 None」不构成护栏",
+    "category": "methodology",
+    "severity": "high",
+    "metric": "新写 scripts/head_bucket_probe.py 的 _paired_t 在常数差值序列上的返回值",
+    "higher_is_better": false,
+    "before": "t = −3.52e+16",
+    "after": "None（变异系数判据，且复用生产常量）",
+    "note": "2026-10-11 的条目（`退化序列报出 t=3.1e16`）记的是生产那次缺陷，\n本日这次是**同型复发**，发生在同一天写下的全新脚本里。\n\n`aplus/evolve_race.py:234` 把陷阱讲得极其清楚——`std(ddof=1)` 对常数序列\n返回 3.5e-18 而非精确 0，`sd <= 0` 永远不成立。于是下一个读它的人（本 agent）\n**以为自己已经知道该怎么写**，照着文档的意图、绕过了文档的教训，写下了\n和被修掉的 bug 一模一样的 `if sd <= 0`。被自己的单元测试当场抓住。\n\n    知识在文档里，但知识没有变成代码，所以它不传递。\n\n修法不是「再写一遍更正确的注释」——那正是第一次失败的形态——而是让错误写法\n不再容易成立：`head_bucket_probe` 直接\n`from aplus.evolve_race import DEGENERATE_CV`，一处定义，一次修正。\n\n这与 `excess_breadth`（免疫市场污染、却从未接进晋级闸门）是同一类问题的两面：\n**能力存在 ≠ 能力生效**。判据若不进入真实执行路径，它就只是一段文字。",
+    "invalidates": [],
+    "evidence": {
+      "test": "tests/test_head_bucket_probe.py（9 条全绿），常数差值用例即回归钉",
+      "recurrence": "同型事故第 2 次：生产 2026-10-11 / 全新脚本 2026-10-14",
+      "fix": "复用生产常量 aplus.evolve_race.DEGENERATE_CV，不另立判据"
+    },
+    "date": "2026-10-14",
+    "direction": "fixed"
+  },
+  {
+    "title": "排名头部实测为负毛收益：-4.19%/年，复利终值 0.661，选股本身毁灭价值",
+    "category": "finding",
+    "severity": "critical",
+    "metric": "head_bucket_probe 桶0（排名 1..10，即策略真正买入的那 10 只）年均毛收益",
+    "higher_is_better": true,
+    "before": "此前只能由 final_multiple 反解出毛收益为负（-6.6%~-16.8%/年），无逐桶直接测量",
+    "after": "直接实测 -4.19%/年，复利终值 0.661；且是 15 个桶里唯一为负的一个",
+    "note": "此前「毛收益为负」是由复利终值减去修正后的成本**反解**得到的，依赖两个独立报告的一致性。现在有了直接测量。\n\n分桶扫描（2019-01~2023-12，1154 日，171337 观测，每桶 10 只）：\n    桶0 排名1..10   -4.19%/年  终值 0.661\n    桶1 排名11..20   1.94%/年  终值 0.907\n    桶2 排名21..30  21.26%/年  终值 2.299\n    ...\n    桶14 排名141..150 3.70%/年  终值 1.034\n事前登记的「头部反了」判据成立（桶0 低于其余每一桶）。\n\n**但这不构成「改买排名 21..30」的许可**，两个理由：\n\n1. 生产权重下最大配对 t = 2.69（桶2），未过 3.0。且 15 个桶 = 15 次比较，\n   纯零假设下最大 |t| 的期望本就在 2.5~2.7——t=2.69 是噪声**该给**的数。\n2. 错号对照（方向相反的因子）**同样**头部反了。两个方向相反的排序给出\n   同一种形状，最省事的解释不是「这个因子头部反了」，而是「横截面最极端的\n   那一端本来就是差的」——微盘、ST、壳、次新，与排序依据无关。\n\n两条修法方向**相反**（平移榜段 vs 加 universe 流动性/市值过滤），选错要付几个月的代价。因此已加第三臂**随机分数对照**（零因子信息、固定种子），判据登记在 `head_bucket_probe.PREREG['three_way_fork']`。\n\n附带实测：桶0 相对大盘配对 t = +10.69，而绝对终值 0.661 < 1。**跑赢大盘但自己亏钱**。这给此前推导的代数恒等式（`excess_t` 市场项加倍不抵消、`excess_breadth` 市场项恰好抵消）第一次提供了实测背书——晋级闸4 读相对量，会放行一个亏钱的策略。\n\n---\n\n**⚠ 本条已被第 69 条部分推翻，见该条的「自身作废之处」。**本条的核心事实（桶0 毛收益实测为负、跑赢大盘但自己亏钱）仍成立；但「头部反了」这个**判据的成立**经不起多重比较的检验。",
+    "invalidates": [
+      "任何把「榜宽 10 + 现役权重」当作可用选股结构的判断",
+      "`factor_ic_7y` 的 rank IC 为正被当作「单调性在可交易段成立」的依据——IC 测全截面单调性，可与 top-10 毛亏损同时为真",
+      "「桶0 低于其余每一桶」这个 15 选 1 的布尔判据（见第 69 条）"
+    ],
+    "evidence": {
+      "report": "data/reports/head_bucket_probe.json",
+      "script": "scripts/head_bucket_probe.py",
+      "window": "2019-01-02 ~ 2023-12-31",
+      "n_days": 1154,
+      "n_obs": 171337,
+      "pending": "随机对照臂已实现但尚未跑完（19 条测试全绿）；跑完才能判定是因子性质还是普遍结构事实"
+    }
+  },
+  {
+    "title": "主判据没做多重比较修正，而我对同一个表的另一个读数做了——依据被推翻的扫描扩围当天撤回",
+    "category": "methodology",
+    "severity": "critical",
+    "metric": "head_bucket_probe 各桶年均毛收益的标准误 vs 桶间差异",
+    "higher_is_better": false,
+    "before": "分桶表读出「毛收益平台期在榜宽 80 以后」，据此把 basket_width_sweep 的 SIZES 从 [10..100] 扩到 [10..200]",
+    "after": "每桶标准误约 10.9%/年，桶间全部差异在 1 SE 内 → 扩围当日撤回，SIZES 复原",
+    "note": "## 发生了什么\n\n同一天里，我对**同一张表**用了两套标准：\n\n1. 读桶2 的 t=2.69 时，我写下：「15 个桶 = 15 次比较，纯零假设下最大 |t| 的\n   期望本就在 2.5~2.7，t=2.69 是噪声**该给**的数。」**这一句是对的。**\n2. 转头用主判据 `head_inverted`（「桶0 低于其余**每一个**桶」）宣布\n   「头部反了」——那是 **15 选 1**，零假设下概率就是 1/15 ≈ 6.7%。\n   **一次多重比较修正都没做。**\n\n更糟的是我据此改了代码：把榜宽扫描扩到 200，理由写进 docstring，\n还标注了「来历必须写明」——**把一个噪声读数写得像一条有出处的决策**。\n\n## 真正致命的一步\n\n我从头到尾**没有算标准误**。分桶表只给均值，而**均值表天生看起来像结论**。\n直到追问「桶内标准误是多少」，才发现每桶 SE ≈ 10.9%/年——\n而 N=10 那一格是 −4.19%、桶1 是 +1.94%、桶2 是 +21.26%。\n整个 27.5pp 的跨度只有 2.5 SE，正是 15 次抽样在零假设下该给的极差。\n\n## 修法\n\n把主判据从「桶0 低于其余每一个」（15 次比较）换成\n**「桶0 vs 桶1..末合并」**（**一次**比较，配对 t）。合并把 14 个桶压成一个，\n问题从 15 选 1 变成 2 选 1，多重比较消失，代价是丢掉「哪一段更好」——\n而那段信息本来就不该用来下结论。\n`tests/test_head_bucket_probe.py` 钉住三件事：零假设下合并 t 不显著、\n真实头部惩罚必须被抓到、退化差值必须返回 None。\n\n## 为什么会发生\n\n预登记让我以为「判据写下来 = 判据受保护」。但预登记保护的是**不许事后改**，\n不是**不许它一开始就错**。我把「桶0 < 其余每一个」当成一个客观事实写进 PREREG，\n从没问它是不是一个有 1/15 假阳性率的检验。\n**预登记让错误的判据看起来更可信**——它有编号、有措辞、有一句听起来严谨的公式。",
+    "invalidates": [
+      "「毛收益平台期在榜宽 80 以后」——该读数在 1 SE 内，撤回",
+      "把 basket_width_sweep 的 SIZES 扩到 150/200 的决定——当天撤回",
+      "第 68 条中「事前登记的『头部反了』判据成立」这一句"
+    ],
+    "evidence": {
+      "per_bucket_se": "约 10.9%/年（随机对照臂，1154 日，15 桶）",
+      "bucket0_vs_rest_random": "桶0 −5.33% vs 其余合并 +7.70%",
+      "test": "tests/test_head_bucket_probe.py::test_head_vs_rest_is_one_comparison_not_fourteen",
+      "code": "scripts/head_bucket_probe.py::head_vs_rest"
+    }
+  },
+  {
+    "title": "现役 composite 因子 vs 随机 top-N：四个榜宽全部 t≈0，因子在可交易段无可证明价值",
+    "date": "2026-10-14",
+    "category": "null_result",
+    "severity": "critical",
+    "metric": "逐日配对 t（符号修正 top-N − 随机 top-N），2019-01-02~2023-12-31 / 1154 日",
+    "higher_is_better": true,
+    "before": "分桶表显示 桶0 −4.19%/年 vs 随机对照 −5.33%/年，因子看起来略强于随机（差 +1.14pp）；97 组权重搜索 + rank IC 定符号 + 三道晋级护栏都建立在这套因子「有微弱 alpha」的假设上",
+    "after": "N=10 t=0.10 / N=20 t=-1.16 / N=50 t=-0.31 / N=100 t=0.39——四个符号来回翻，全部落在 ±1.2 内，与 0 不可区分。t=0.10 配 1.14pp 差值反推出差值标准误 11.4%/年，与前一日为撤回 SIZES 事后算出的每桶 10.9%/年独立吻合",
+    "note": "## 这是零结果，不是「未达显著」\n\n若因子哪怕只值 1 个百分点，1154 天上符号会一致。符号是 `+ − − +`，说明排序依据携带的信息量与掷骰子无法区分。\n\n## 含义\n\n**继续在同一批因子上搜权重是在噪声里搜索**，而且每搜一次多付一次多重比较成本。现存全部 `excess_t` / `up_excess_vs_market` 数字都**不能**读作「因子有效」。\n\n## 这不等于「市场里没有 alpha」\n\n本实验测的是**1 日持有期**的横截面排序能力。石川/Chan 文献里的绝大多数因子（反转、价值、动量、质量）在 1 日尺度上 IC 接近 0，要到 1~3 个月才显出意义。**在错误的 horizon 上测因子，等于测「这里没有因子」——这是口径问题，不是市场事实。**",
+    "invalidates": [
+      "第 68 条的归因：「排名头部实测为负毛收益——选股本身毁灭价值」结论仍成立，但归因错了：不是「因子选股毁灭价值」，是「因子选股与随机选股一样毁灭价值」——任何排序都一样",
+      "所有以「composite 有微弱 alpha」为前提的权重搜索与晋级记录"
+    ],
+    "evidence": "scripts/factor_vs_random.py -> data/reports/factor_vs_random.json（13 测试覆盖，含假阳性闸与灵敏度闸）",
+    "open": [
+      "① horizon 是否错了：1 日 vs 5/10/20 日持有期，同一批因子重测。这是当前最高优先级——它决定「因子没用」是市场事实还是口径事故",
+      "② `_market` 基准不过滤 ST/次新/无成交（backtest.py:514 从 daily_map 全集抽样），而 `excess_t` 是阻塞闸。待 scripts/market_benchmark_audit.py 量化污染方向与量级"
+    ]
+  },
+  {
+    "title": "我猜市场基准被 ST/次新严重污染——实测过闸率 94.9%，污染 −1.01%/年 不显著。假设错了",
+    "date": "2026-10-14",
+    "category": "hypothesis_refuted",
+    "severity": "info",
+    "metric": "market_benchmark_audit：_market 抽样 150 只中通过 filter_universe 三道硬闸的比例",
+    "higher_is_better": false,
+    "before": "读出随机臂相对大盘的配对 t=+16.18 高于因子臂的 +10.69，推断 `_market_by_day` 从 daily_map 全集抽样、不过滤 ST/次新/无成交，「回避垃圾股」被记成了 alpha。而 `excess_t` 是阻塞闸——据此推断闸门一直在放过无 alpha 的配置",
+    "after": "1154 日实测：过闸率 94.9%，raw +8.96%/年 vs filtered +9.97%/年，gap −1.01%/年，逐日配对 t=−1.83 —— **不显著**。原因：`daily_map` 是有 parquet 文件的股票集合，本身已被数据管线筛过（退市股无文件、次新股占比小、ST 在 A 股约 2%）",
+    "note": "## 假设错了，错在量级不在方向\n\n架构发现仍然成立——`_next_bars` 只返回 code/close/prev_close/adjusted，四道闸门列一个都没有，所以基准**想过滤都过滤不了**。但既然实际污染只有 5.1%，它属于「应该修但不紧急」，不属于「正在毁掉所有结论」。**把后者当前者是更贵的错。**\n\n## 连带被否掉的推论\n\n「闸门量到的是回避垃圾股而不是 alpha」这个循环论证**不成立**。所以 `excess_t` 的大 t 值另有来源，尚未定位，不得再猜。",
+    "evidence": "scripts/market_benchmark_audit.py -> data/reports/market_benchmark_audit.json（18 测试）",
+    "open": "`_market` 相对随机 arm 的 t=+16.18 到底来自哪里——已知不是 ST/次新污染"
+  },
+  {
+    "title": "复合赛马重跑：84 组候选，裁决要晋级第 6 名（t=3.96）但广度 t=2.03 没跟上，且它用的是我刚证伪的因子集",
+    "date": "2026-10-14",
+    "category": "conflicting_evidence",
+    "severity": "warn",
+    "metric": "evolve_race_composite 7 参：测试段超额 t（对大盘）与 breadth_t，84 次比较 Bonferroni 临界 3.79",
+    "higher_is_better": true,
+    "before": "复合赛马上一版在旧代码下跑，符号修正前的 negative_momentum 把现任压到 81/84。预期符号翻正后能显著改善",
+    "after": "符号翻正后现任回到 50/84（超额 +0.04%、t=+0.27），**仍不合格**——只是从「证伪」回到「未证伪」。裁决判晋级的是第 6 名 `{mom20:-0.5, turnratio:-0.5}` @ K=21：测试超额 +0.22%、t=+3.96 > 临界 3.79。但同一门槛下 **breadth_t=2.03 没跟上**——显著性由涨腿独撑，「10 跌」那半证据偏弱。未加 --promote，weights.json 未写。",
+    "note": "## 与刚记录的 null 结果的张力，必须写在这里\n\n第 70 条实测：现役 composite 因子在 2019~2023 的四个榜宽上与随机对照 t 全部 ≈ 0，**结论是「因子与随机不可区分」**。第 6 名却报出 t=+3.96。两者的度量不同，不直接矛盾：\n\n- 赛马量的是**对大盘的超额**，null 量的是**对随机的差**。若因子≈随机≈大盘，两者都该 ≈0。\n- 关键：`turnratio` **不在** null 测试的因子集里。null 证伪的是现役那几个，不是它。\n- 但反过来说：null 已经证明「在同一批因子上搜权重 = 在噪声里搜索」，而这次正是在 84 组里搜出来的。**84 次比较的 3.79 是唯一防线，而 t=3.96 只高出 4%。**\n\n## 另有一处自证，必须记\n\n`negative_momentum` 的符号解除，依据的独立验证段是 2019-01-02~2023-12-29，**完全落在本赛马窗口（2019-01-02~2026-10-09）之内**。所以「解除已在独立段验证过」在赛马口径下是循环的。报告已标 `--label signfix…不得据此晋级`，`promote:true` 不等于可落盘。\n\n## 唯一过闸的正向项是股票池可比性\n\n`turnratio` 候选 n_ranked 4362→4826，与现任 4894 缺口 1.39% < 2%，闸门这次放行。缺口仍在。这是本轮唯一没有被打折的进展。",
+    "evidence": "scripts/evolve_race_composite.py -> data/reports/race_composite_v2_signfix.json（5609s，84 组）",
+    "open": "`turnratio` 是否真有 alpha——必须过「对随机」的检验，不能只过「对大盘」。第 70 条已经证明对大盘的大 t 不等于有因子价值；另外 `signfix` 的独立验证段与赛马窗口重叠，这一条得单独立实验解决"
+  },
+  {
+    "title": "持仓周期扫描：K∈{1,5,10,20} 全部与随机不可区分；K=20 那条「显著劣于随机」是两处口径事故叠出来的，已作废",
+    "date": "2026-10-14",
+    "category": "null_result",
+    "severity": "info",
+    "metric": "horizon_sweep：因子 top-10 − 随机 top-10 的逐日配对 t（非重叠网格）",
+    "higher_is_better": true,
+    "before": "第 70 条只在 1 日前瞻上测出「因子≈随机」，留下一个口径疑问：日频 IC≈0 可能是**测错了 horizon**，因为石川/Chan 里的横截面因子要到 1~3 个月才显出意义",
+    "after": "K∈{1,5,10,20} 全部与随机不可区分。**没有任何一个持仓周期上有可证明的横截面价值**，也没有任何一个有可证明的负价值",
+    "note": "## 「在错误的 horizon 上测因子，等于测这里没有因子」——这句怀疑是对的\n\n它成立过一次，但结论是反的：不是日频太短，是**任何 horizon 都没有**。\n\n## 首轮 K=20 的 t=−3.23「因子显著劣于随机」是怎么来的\n\n两层假象叠在一起，缺一不可：\n\n1. **漏判成交闸门**。`forward_return` 没跑 `_up_leg_exit`，涨停买不进、跌停卖不掉、停牌该持有到复牌都一律计入。修完 t 从 −3.23 变成 −2.70。\n   对照组同时**逐位复现**了上游：因子 −4.19%、随机 −5.33%、t=0.104，   而上游实测 0.10。\n\n2. **随机臂只有一颗种子**（RANDOM_SEED=20261014），却**充当显著性参照**。那颗种子在 K=20 的随机臂报出 +22.55%/年——一个 10 只票的随机篮子不该稳定跑赢市场 22 个点，它就是抽中了。逐种子面板：\n       −2.70(20261014) −0.68 −0.86 −0.63 −1.30 −1.49\n   除那颗以外，**没有一颗碰到 2.58 的线**。\n\n## 一个几乎犯下的错\n\n首版种子面板写成 `[42,43,44,45,46]`——看着齐全，实际上**首轮那条 −3.23 用的 20261014 压根不在面板里**。若就此收工，会写下「已用 5 颗种子验证稳健性」，而实际上产生结论的那颗种子从未被检验。直觉上 42 才是「默认种子」，而 RANDOM_SEED 是当日日期——**这类错让结论显得更保守，所以测不出来**，只能靠一条「面板必须包含主表种子」的测试钉住。\n\n## 功效的诚实说明\n\nK=20 只有 58 个观测。阴性结论只能否掉「存在**很大**的效应」，不能否掉存在小效应。但本条不是靠低功效下的「没检出」下的结论——K=1 的 1154 个观测给出同样的答案，而那里功效是充足的。",
+    "evidence": "scripts/horizon_sweep.py -> data/reports/horizon_sweep.json（25 测试）",
+    "open": "跨 horizon 的 null 已闭合；剩下的唯一出路是换因子（见下一条），不是换周期"
+  },
+  {
+    "title": "赛马冠军 {mom20:-0.5,turnratio:-0.5} @K=21：对随机 t=−0.65，对大盘 t=+3.96。excess_t 量的是基准，不是选股能力",
+    "date": "2026-10-14",
+    "category": "invalidates_prior_metric",
+    "severity": "critical",
+    "metric": "turnratio_vs_random：冠军配置对**随机**对照的逐日配对 t，族校正 85 次比较",
+    "higher_is_better": true,
+    "before": "evolve_race 报该配置 K=21 测试段 t=+3.96 > 临界 3.79（84 次比较），裁决判晋级（未落盘）；breadth_t=2.03 没跟上当时被当作次要缺陷",
+    "after": "同一配置、同一股票池、同一套闸门，只把基准从**大盘**换成**随机**：\n            冠军   t = **+3.96**   （对大盘，赛马口径）\n            冠军   t = **−0.65**   （对随机，族校正 85 次，临界 3.70）\n        mom20 单独 −0.44   turnratio 单独 +0.49\n        逐种子 −0.65 −0.89 −1.48 −1.55 −1.86 −0.53，六颗全部远低于门槛\n**符号都反了。**",
+    "note": "## 这解释了为什么 `excess_t` 一直不是阻塞闸该有的样子\n\n第 71 条实测：`_market` 的**随机臂**对大盘 t=**+16.18**，而因子臂只有 **+10.69**。\n随机买 10 只的 t 比精选 10 只还高——这不是噪声，这是**闸门在度量基准**。\n\n`excess_t` 量的是「买这 10 只比买大盘平均强多少」。而大盘平均自己在涨。\n**任何只跟大盘比的闸，都无法排除「随便买也这么赚」这个选项。**\n\n第 70 条（因子≈随机，四个榜宽）与本条（冠军≈随机，六个种子）合起来是一条完整链：\n    因子臂 − 随机臂 ≈ 0   ⟹   因子臂 − 大盘 ≈ 随机臂 − 大盘\n所以**任何正的 excess_t 都不能归因于因子**。\n\n## 族校正救不了这一类错\n\n我本以为把族登记成 85（赛马 84 + 本次 1，临界 3.64）就能判死冠军。实测 3.96 > 3.64，**它照样过闸**。差别不在登记口径，在**度量对象**：\n换一个随机篮子当基准，冠军从 +3.96 变成 −0.65。\n\n## 后果\n\n`evolve_race` 的 `excess_t` 阻塞闸需要补一条**随机臂对照**才有意义。在此之前，任何靠 `excess_t` 晋级过的配置，证据强度都要重估——它们证明的只是「跑赢了大盘平均」。\n\n## 这条不改变前瞻验证的价值\n\n该配置早在 2026-10-12 就冻结进前瞻验证第1、2批。本条把它**从候选降级为待证伪**：它仍值得攒判决力，但不再被当作有希望的冠军。",
+    "evidence": "scripts/turnratio_vs_random.py -> data/reports/turnratio_vs_random.json（7 测试，判据 N_FAMILY=85 写死在代码里）",
+    "open": "给 evolve_race 补随机臂对照：同一候选族、同一段、同一闸门下，因子臂必须跑赢随机臂才能晋级。这条补上之前，`excess_t` 不能单独当闸。另：本窗口对 turnratio 是样本内的（赛马训练段 2019-01~2023-08），本条只作诊断，不构成最终判决"
+  },
+  {
+    "title": "全局诊断：现有 8 个因子全部是同一份价量序列的重新表述；基本面族被 PIT 主动封存，出路是 is_never_revised()",
+    "date": "2026-10-14",
+    "category": "root_cause",
+    "severity": "critical",
+    "metric": "factor 库的信息来源清单",
+    "higher_is_better": false,
+    "before": "把「因子没价值」当成权重搜索不够努力的方向问题，打算继续在 weights 上搜",
+    "after": "现役 8 个因子 mom20/rev5/vol20/vsur/turn20/ivol/turnratio/rsi **全部**由 `master/daily` 的 OHLCV 派生。信息源只有一个。在该结构下搜权重，天花板是数学确定的，不是搜索不够努力。",
+    "note": "## 三块拼在一起才看得出全局\n\n| 信息源 | 状态 | 原因 |\n|---|---|---|\n| 价量因子（现有 8 个） | **实测为 null**（K∈{1,5,10,20} 全部对随机不可区分） | 全部从同一条价量序列派生，**不携带价格之外的信息** |\n| 基本面 BM/ROE/FAR | **主动不实现** | 财报源每个报告期只存一行、无版本维度，服务的必然是**后修值** → 用它即前视偏差 |\n| 新闻情绪 | 只做 Top-N 事后覆盖 | LLM 打分，不可复现，且不是横截面因子 |\n\n「因子没价值」和「因子没被给过独立信息」是同一件事的两种说法。\n\n## 出路已经在代码里写着\n\n`aplus/financial.py` 的 `is_never_revised()` 被标为「出路 A」：\n只保留披露后**从未被改动**的记录，此时今天服务的值 == 首次披露值，\nPIT **由构造成立**。代价是丢掉约 20% 的报告期\n（`scripts/diag_financial_lookahead.py` 实测）。\n\n这是当前唯一一条能引入**独立信息源**的路，而且它的代价（丢 20%）与它的收益（基本面这一整族从不可用变可用）不在一个量级上。\n\n## 一条纪律上的自省\n\n我第一反应是断言「库里只有价量、没有基本面」——**这个断言本来是错的**，`financial.py` 就在那儿。差点把一个「主动封存且已写明出路」的数据问题，记成「数据不存在」。前者有解，后者无解，两者的后续动作完全相反。**断言「没有」之前必须先查。**",
+    "evidence": "aplus/financial.py docstring；master/daily 列集实测 (date/code/open/high/low/close/volume/amount/tradestatus/isST/turn/pctChg)；master/factor 仅 adjust_factor",
+    "open": "实现并验证 is_never_revised()，让 BM/ROE 成为可用的横截面因子；然后用与本轮完全相同的「对随机」配对设计检验它——而不是用 excess_t，那条闸已经被证伪为在度量基准"
+  },
+  {
+    "title": "BM@K=21 的 IC 检验过闸（t=2.94 ≥ 2.58）——本项目第一个跨信息源的显著结果，但是压线通过",
+    "date": "2026-10-14",
+    "category": "marginal_result",
+    "severity": "warn",
+    "metric": "bm 的逐日 Spearman IC 均值与配对 t",
+    "higher_is_better": true,
+    "before": "第 75 条：基本面族因 PIT 未建立被主动封存，从未进入任何检验装置，所有阴性结论都只覆盖价量内部",
+    "after": "2019-01-02~2023-12-31 非重叠网格，55 期，bm 平均 IC +0.0703，IC-t +2.94 ≥ Bonferroni(4) 临界 2.58。**过闸。** 同期 roe 两条腿（K=21/63）全部不显著，且 K=21 的检测下限 0.0429 而实测 −0.0089 —— **roe 是真 null，不是没能力测**。bm@K=63 的不显著**无效**（下限 0.1155 > 实测 0.0951）",
+    "note": "## 三个限定必须和数字一起读\n\n1. **压线**：本设计最小可检出 IC = 0.0618，实测 0.0703。只比自己的检测下限高 0.0085。「过闸」不等于「效应大」。\n2. **组合腿是负的**：同池内买最便宜 10 只 vs 随机 10 只，t = −0.96。\n3. **PIT 仍未建立**：源每报告期只存一行、无版本维度。\n\n## 为什么主指标换成 IC（这是本次唯一的方法论增量）\n\n组合 t 对要找的东西**几乎没有功效**：60 个观测要在均值差上打出 t=3，需要年化差约 6 个点，而所有已测因子的效应量都在 ±1% 内——**用组合闸去筛基本面因子，等于设了一道永远打不开的门**。\n\n逐日 IC 的标准误约 1/√450 ≈ 0.047，55 期均值标准误 ≈ 0.006，IC=0.03 就能给出 t≈5——石川在 A 股报的 BM IC 正是 0.03~0.05 量级。**这个检验对真实存在的信号有功效，而组合检验没有。**\n\n## 事前登记（跑之前写死在文件头）\n\n2 因子 × 2 周期 = 族 4；主指标 IC-t；副指标组合 t；网格不重叠（`i % k == 0`）；不写 `weights.json`。",
+    "evidence": "scripts/fundamental_ic.py（判据在 docstring 里事前登记）；tests/test_fundamental_ic.py 15 条；data/reports/fundamental_ic.json",
+    "open": "本条**不构成采纳依据**。三条待办：(1) 2021 年的结构断点（见第 77 条）成因未定；(2) PIT 需攒 vintage 才能判决；(3) 组合腿为负，而本产品只能做多——即使效应为真也未必吃得到。"
+  },
+  {
+    "title": "IC 自相矛盾的归因：效应几乎全在最贵的一档，而分位设计最小可检出年化 26.75% —— 该设计对真实效应无功效",
+    "date": "2026-10-14",
+    "category": "invalidates_prior_metric",
+    "severity": "critical",
+    "metric": "BM 分 10 档的 K=21 平均收益，以及 Q10/Q1/池均三组尾部对照的配对 t",
+    "higher_is_better": false,
+    "before": "看到 IC +0.0703 t=2.94 过闸，第一反应是「A 股价值因子有效」，准备往 long-only 价值组合的方向推",
+    "after": "分档显示 Q1（最贵）单独 −0.355%，Q2~Q10 **全部为正**，且不单调（Q5 +0.923% > Q10 +0.780%）。效应的来源是「最贵那档在亏钱」，不是「越便宜越好」。更关键：Q10−Q1 年化 +13.18% 但 t 仅 +1.22——**本设计最小可检出年化幅度是 +26.75%**，+13.18% 完全落在检测下限以下，提供不了任何证据。分位/组合这条线整体作废，**只有 IC 检验有功效**",
+    "note": "## 最重要的教训：先算 MDE，再看「不显著」\n\n尾部对照三组（族 3，临界 2.47，55 个配对日，每期 sd 6.91%）：\n\n| 对照 | 年化 | t | 读法 |\n|---|---|---|---|\n| Q10 − Q1 | +13.18% | +1.22 | 低于检测下限 → **无信息** |\n| Q10 − 池均 | +2.67% | +0.48 | 无信息 |\n| Q1 − 池均 | −10.52% | −1.61 | 无信息 |\n\n那个 +13.18%/年的数字**长得像答案，实际比检测下限小一半**。如果只报均值不报 MDE，它会被写进结论当成价值效应的强度。\n\n## 对产品结构的直接含义（若效应为真）\n\n效应的贡献来自 Q1，也就是**做空那一腿**。本产品只能做多，能拿到的只有 Q10 − 池均 = +2.67%/年，t=+0.48。\n**结论不是「价值无效」，而是「这个效应的形状与 long-only 产品不匹配」。**\n要吃到它需要市场中性结构，或者去找**效应在多头那一侧**的因子。\n\n## 对照本身也换了\n\n初版用「最便宜 10 只 vs 同池随机 10 只」。既然效应来自极端档，正确的零假设就不是随机，而是**对立的尾巴**（Q10 − Q1）。改用尾部对照后，「因子是否单调」这个问题才第一次被真正问到。",
+    "evidence": "scripts/bm_ic_attribution.py 的 `tail_contrasts` 与 `decile_table`；tests/test_bm_ic_attribution.py 10 条；data/reports/bm_ic_attribution.json 的 deciles / tail_contrasts",
+    "open": "若要真正回答「long-only 能不能吃到价值效应」，需要**扩大样本**（把窗口拉长或加入季报以提高网格密度）把 MDE 压到 5% 以下，而不是在 MDE=26.75% 的设计里反复重跑。"
+  },
+  {
+    "title": "自我否决：`UPDATE_DATE` 不是重述证据而是全表刷新时间戳——用它度量 PIT 污染会得到一个假的 99%",
+    "date": "2026-10-14",
+    "category": "self_correction",
+    "severity": "critical",
+    "metric": "各报告年份中 UPDATE_DATE ≠ NOTICE_DATE 的比例与滞后中位数",
+    "higher_is_better": null,
+    "before": "分年 IC 在 2021 年跳了一个数量级（2019/2020 约 +0.01，2021~2023 约 +0.10）。判定为 PIT 污染的直接证据，并用 `UPDATE_DATE ≠ NOTICE_DATE` 的比例当作污染度量，跑出「报告年份 ≥2010 后 75%~99.6% 的记录被改过」",
+    "after": "该比例**不可用作污染证据**：滞后中位数**恰好 ~365 天**，整齐地锁在一年。逐笔重述不会这样——重述发生在事件发生时，滞后应当分散。这是全表刷新时间戳，反映「这一行最近一次被刷新」，不是「这个数被改过」。与 `diag_financial_lookahead.py` 否决出路 A 的发现一致。**本条推翻我自己 30 分钟前的判读**",
+    "note": "## 判别式（宏观 vs PIT）没有功效\n\n我设计了「同一信号年内按财报报告年份拆 IC」来分��「2021 风格逆转」与「PIT 污染」。实测格子是：\n\n```\n信号 2022 / 报告 2020  IC +0.2205  (n=4)\n信号 2022 / 报告 2021  IC +0.0210  (n=9)\n信号 2021 / 报告 2019  IC +0.2283  (n=3)\n信号 2021 / 报告 2020  IC +0.0638  (n=9)\n```\n\n**方向互相矛盾**（2022 年是旧报告更强，2023 年是新报告更强），且每格只有 3~9 期。**这个设计功效近乎为零，既不支持也不否证 PIT。**\n\n## 为什么会掉进去\n\n我先有了「这是 PIT 污染」的假设，然后去找一个能支持它的量，而 `UPDATE_DATE ≠ NOTICE_DATE` 恰好「支持」了。**一个字段能不能回答某问题，要看它的数值分布是否与该问题的机制一致**——滞后锁在 365 天与「逐笔重述」不相容，这件事在看到分布的第一眼就该说。\n\n## 唯一仍然成立的结论\n\nIC 在 2021 存在**结构断点**（非渐变）这一事实本身是可靠的；其成因（宏观风格 / PIT / 池子构成）**未定**。\nPIT 仍然未建立，判决权仍在 vintage 上。",
+    "evidence": "scripts/bm_ic_attribution.py 的 `revision_exposure` 与 `ic_by_calendar_and_report_year`；output JSON 的 revision_caveat 字段；tests/test_bm_ic_attribution.py 的 test_the_module_forbids_reading_update_date_as_restatement_evidence",
+    "open": "若要为 PIT 定量，必须另找带**版本维度**的源（每日落盘 vintage），或用 `financial.py` 记录的会计变更/重述事件表——**不要用 `UPDATE_DATE`**。"
+  },
+  {
+    "title": "近失事件：零基线 Series 索引错位，t 值静默变 nan 而均值与年化照常打印",
+    "date": "2026-10-14",
+    "category": "near_miss",
+    "severity": "warn",
+    "metric": "tail_contrasts 三个对照的 paired_t",
+    "higher_is_better": null,
+    "before": "写 `_paired_t(s, pd.Series(np.zeros(len(s))))` 做「对零」的均值 t",
+    "after": "`pd.Series(np.zeros(len(s)))` 的索引是 0..n-1，而 `s` 的索引是日期。pandas 按索引对齐 → `a - b` 变成 110 行全 NaN → `dropna()` 后空集 → `_paired_t` 返回 `None`。**同一份输出里 mean / annualized 照常打印，只有 t 是 nan**。肉眼扫过去会以为「效应小」，实际是「没算出来」",
+    "note": "**这是本项目至今最险的一种输出形态：坏掉的部分恰好是不会报错的那部分。**\n\n判据本身救了场——`_paired_t` 在样本不足时返回 `None` 而不是编一个 t，这是 `head_bucket_probe` 早就定下的「宁可缺证据，不可造证据」。\n如果它当时返回了 `1e16`，这三条结论就会带着假显著性进账本。\n\n修法：`pd.Series(0.0, index=s.index)`。\n守门测试：`test_tail_contrasts_actually_produce_t_values`——在**存在极强关系**的合成数据上跑，t 仍为 `None` 即判定失败。\n\n## 同一批测试里另外两次自伤\n\n- **量纲错**：`int(code)/99999` 在 6 位零填充代码上是 0~99，基项恒为 −0.1，关系被压平、方向由噪声决定。数字全对。\n- **噪声是线性的**：`code*7 % 23` 而 7×10 ≡ 1 (mod 23)，一档 10 只票拿到 10 个连续余数，分箱求均值后噪声被整除消掉，配对差值 sd = 3.9e-17，t 要么 `None` 要么 242。**全是假象。**\n\n三次都是「数字看着合理但含义错了」，一次也没报错。",
+    "evidence": "tests/test_bm_ic_attribution.py 的 test_tail_contrasts_actually_produce_t_values / test_a_strong_monotone_relationship_is_actually_detected / test_the_minimum_detectable_effect_is_always_reported",
+    "open": "无。这三条测试已把三种自伤钉死。"
+  },
+  {
+    "title": "PIT 采集器落地并起跑——同时定下「砍行不砍列」的存储政策（65 GB/年 → 27 GB/年）",
+    "date": "2026-10-14",
+    "category": "capability_added",
+    "severity": "info",
+    "metric": "每日 vintage 快照的体积与覆盖",
+    "higher_is_better": null,
+    "before": "PIT 未建立，账本第 76~79 条已把判决权交给 vintage，但**采集器根本不存在**——没有代码、没有测试、没有作业。源站每个报告期只存一行、无版本维度，今天不落盘就永久丢失",
+    "after": "aplus/vintage.py（17 测试）+ scripts/collect_financial_vintage.py（22 测试）+ com.aplus.vintage.plist（10:00 与 22:30，--ensure 幂等）全部就位，2026-10-14 的 5460 只全量扫描已起跑。存储政策：每只票只保留**最近 12 个报告期**，列一律不裁",
+    "note": "## 存储政策是量出来的，不是拍的\n\n| 方案 | 单日 | 年 | 结论 |\n|---|---|---|---|\n| 存全部 117 个报告期 | 266 MB | **65 GB** | 可用 112 GB，跑不满一年 |\n| 存最近 12 期 | 110 MB | **27 GB** | 约 4 年余量 |\n\n## 为什么砍的是行而不是列\n\n首版的直觉是「141 列里 27 列全空，砍列最省」。实测**方向反了**：\nparquet 逐列块编码，全空列只占 0.5% 字节，而 100 个 float 列均匀占掉 95%，每列 1.3~1.5%，**没有热点可砍**。\n**成本在行数上，不在列数上。**砍列省不到东西，只会永久丢字段。\n\n## 为什么丢掉的是「不可能被读到」的那部分\n\n`pit_frame(as_of)` 在没有 ≤ as_of 的快照时**报错**。\n所以本模块在结构上**只能回答今天之后的问题**——2005 年的年报\n不可能被用来为某个历史日期构造 PIT 帧。存着它没有读者。\n而真正会被反复读取的只有最近几个报告期：任意未来时点的 PIT 帧\n取的是当时已知的最新一份，最多落后 4 个季度；重述集中在披露后一年内。\n\n## 一个反直觉的实测\n\n按比例砍会**严重低估收益**。早期报告期本已大面积稀疏、被压成近零字节，\n**最近的 12 期才是贵的那些**——60 行要 101 KB，585 行只要 244 KB。\n\n## 复审触发条件\n\n27 GB/年 仍不是小数目。磁盘余量低于 20 GB 时采集**自动停止**\n（不删任何已有数据）。届时该重新考虑分档存储：\n全部列每周存一次、常用列每天存一次。",
+    "evidence": "aplus/vintage.py；tests/test_vintage.py 17 条；scripts/collect_financial_vintage.py；tests/test_collect_financial_vintage.py 22 条；~/Library/LaunchAgents/com.aplus.vintage.plist；logs/vintage_2026-10-14.log",
+    "open": "攒够之前**这不是 PIT**。可回答窗口的上限是 2026-10-14 之后，判决权仍在时间手里。"
+  },
+  {
+    "title": "续跑键空间不一致：日线文件名带交易所后缀，帧里是裸 6 位——静默写出 1170 行的重复快照",
+    "date": "2026-10-14",
+    "category": "near_miss",
+    "severity": "critical",
+    "metric": "单日分区行数 / 唯一 (SECURITY_CODE, REPORT_DATE) 数",
+    "higher_is_better": null,
+    "before": "5 只试跑：日志打印「续跑：已有 5 只，本次需抓 5 只」，\n落盘 1170 行 / 5 只 / 142 列（唯一键只有 585）",
+    "after": "根因是**同一个「代码」在三个地方是三种格式**：\n- 日线文件名 `000001.SZ.parquet` → `Path.stem` = `000001.SZ`\n- 请求参数 `filter=(SECUCODE=\"000001.SZ\")` → **必须带后缀**\n- 返回帧的 `SECURITY_CODE` = `000001` → **必须去后缀**\n\n`c.zfill(6)` 对 9 位字符串是**合法但无意义的空操作**，\n于是续跑判据永远不成立，每只票每轮都被重抓。\n修法：`universe()` 返回 `{裸代码: SECUCODE}` 字典，两个键空间显式分开，不再靠一个列表兼任",
+    "note": "**这和账本第 79 条是同一种病：坏掉的部分恰好是不会报错的那部分。**\n\n「续跑：已有 5 只」这行日志照常打印、`collect` 正常返回 0、\nmanifest 正常登记——每一步都「成功」，而续跑**一次都没生效**。\n\n## 更险的是第二层：它写出了重复行\n\n重复行没有异常、没有告警，只会让后续所有分位数、IC 权重、截面统计被静默污染，而且是**永久**污染（vintage 不能重抓）。\n\n## 我先修错了一半\n\n第一反应是「剥掉后缀」——那只修好了续跑，**却让请求全部返回 0 行**（实测）。而 `main()` 只检查「一只都没抓到」，会一路跑到最后才失败。是实测裸代码返回 0 行，才去读 akshare 源码确认`filter=(SECUCODE=\"{symbol}\")` 必须带后缀。\n\n**修一个 bug 只消除症状；要看清它得理解它所在的那套约定。**\n\n## 守门测试\n\n`test_the_random_arm_draws_from_the_same_pool…` 的同构版本——`test_universe_keeps_both_code_formats` 断言字典的键是裸 6 位、\n值带后缀，两者不可混用。",
+    "evidence": "tests/test_collect_financial_vintage.py 的 test_universe_keeps_both_code_formats / test_the_identity_key_and_the_request_string_are_different_formats / test_resume_skips_codes_already_in_the_partition；akshare `stock_financial_analysis_indicator_em` 的 filter 源码",
+    "open": "无。键空间已显式化，且有测试钉住两侧格式。"
+  },
+  {
+    "title": "「成功」不等于「完整」：--sample 试跑走完整路径，给 manifest 登记了一条假的日更记录",
+    "date": "2026-10-14",
+    "category": "near_miss",
+    "severity": "critical",
+    "metric": "manifest 中 snapshot_date=2026-10-14 的条目",
+    "higher_is_better": false,
+    "before": "manifest 里有两条 2026-10-14 记录：585 行、1170 行。\n而真实股票池是 5460 只",
+    "after": "`--sample` 抓到 5 只 → 帧非空 → 走完整路径 → `write_snapshot` 登记成功。`main()` 只在「一只都没抓到」时拒绝，**从来没检查过是否覆盖了整池**。修法：试跑直接 `return 0` 不登记；正式跑则要求覆盖 == 全池，否则 `return 3` 并列出缺口",
+    "note": "**「成功」和「完整」是两件事，而代码只检查了前者。**\n\n危险不在于那 5 只票污染了下游（它们在 5460 只里占 0.09%），\n而在于 manifest 里那行「2026-10-14 采集完成，585 行」会**永久声明**「这一天我们采集过，且当时就是那样」——而 manifest 的全部意义就是这句话（第 78 条）。\n\n一份自称是证据、实际是试跑产物的记录，比没有记录更危险：\n它会让将来的 PIT 判决**建立在一个并不存在的完整快照上**。\n\n## 处置\n\n没有删——移到 `data/reports/_vintage_smoketest_2026-10-14/`。\n静默销毁与本模块第一号禁令（不得触碰历史）同源。",
+    "evidence": "tests/test_collect_financial_vintage.py 的 test_ensure_is_a_no_op_once_today_is_registered / test_the_module_still_refuses_to_register_a_partial_sweep",
+    "open": "无。"
+  },
+  {
+    "title": "近失：排序后 cumcount 的行序与原帧错位，而错位后行数与合法性都无异常",
+    "date": "2026-10-14",
+    "category": "near_miss",
+    "severity": "warn",
+    "metric": "keep_recent 保留的报告期是否属于该票自己",
+    "higher_is_better": null,
+    "before": "`key.sort_values(...).groupby(\"SECURITY_CODE\").cumcount()` 直接 `.to_numpy()` 当布尔掩码",
+    "after": "`sort_values` **保留索引标签但打乱行序**，`cumcount()` 返回的 Series 内部顺序跟的是那个乱序，于是掩码与 `df` 的行**整体错位**。必须 `.reindex(key.index)` 才能回到原始行序",
+    "note": "**错位之后每一行仍然是某个合法报告期，行数也对，没有任何异常可查。**\n\n更坏的是它只在**行序被打乱时**才错位——而生产里`universe()` 按代码排序、`REPORT_DATE` 也单调，帧恰好是有序的，**bug 在生产里不会发作**，直到某只票的报告期日期顺序变了才突然开始丢数据。\n\n## 守门测试\n\n`test_the_window_survives_a_shuffled_row_order`：\n先 `sample(frac=1)` 打乱，再断言「每只票最新 12 期」。\n验证过它**确实能抓**：把 `.reindex()` 撤掉后该测试与\n`test_only_the_most_recent_periods_are_kept` 双双变红。",
+    "evidence": "tests/test_collect_financial_vintage.py 的 test_the_window_survives_a_shuffled_row_order",
+    "open": "无。"
+  },
+  {
+    "title": "读回假象：38 个 float64 占 32% 字节，实际是全空 object 列的 parquet null 推断",
+    "date": "2026-10-14",
+    "category": "self_correction",
+    "severity": "warn",
+    "metric": "单日 parquet 各列压缩后字节",
+    "higher_is_better": null,
+    "before": "读回分区发现 62 列 float32 + **38 列 float64**，逐列字节显示 float64 吃掉 32%，而 `_coerce_numeric` 明明把 float64 全降成了 float32",
+    "after": "float64 全部来自 65 个 `object` 列里的**全空列**：\nparquet 按 null type 写出，读回时被 pandas 推断成 float64。落盘时它们本来就是 float32，**存储成本不存在**。我是差点为一个读回假象去改代码",
+    "note": "## 为什么会掉进去\n\n我先有了「存储浪费 32%」的假设，然后去找证据，逐列字节表恰好「支持」了它。\n\n**判别方法**：不满足假设时去找**反例**。\n实测 `collect()` 直接返回的帧就是 100 列 float32——\n如果 38 列 float64 真的在文件里，`collect` 的返回值不可能是 float32。这一步一分钟就能推翻假设。\n\n与账本第 78 条同源：**一个测量值能回答什么问题，要看它是怎么产生的**，而不是看它长什么样。",
+    "evidence": "pyarrow `ColumnChunkMetaData.total_compressed_size` 逐列分解；`collect()` 返回帧的 dtype 分布",
+    "open": "无。顺带确认了**成本在行数不在列数**，这直接决定了砍行不砍列。"
+  },
+  {
+    "title": "vintage 摘要与主闸门的三处修正：读回文件取摘要、collect 收尾必须落盘、源站自身重复要单独记账",
+    "date": "2026-10-14",
+    "category": "self_correction",
+    "severity": "warn",
+    "metric": "落盘后立即校验通过率 / 试跑结果是否保留",
+    "higher_is_better": true,
+    "before": "① 摘要取自内存帧 → 完整性校验在真实数据上恒红；\n② `collect` 只在 flush 循环里落盘 → 跑不满一批的试跑结果全丢；\n③ `main` 的重复行闸开在「去重之后」→ **永远不可能触发**",
+    "after": "① 摘要改为**落盘后读回再算**——manifest 成了关于产物的陈述；\n② `collect` 收尾无条件落盘（试跑正是最容易丢的那一档）；\n③ 门移到**抓回来的那一帧本身**：跨调用重复（续跑失效）静默去重并计数，单次调用内重复（源站坏了）**拒绝登记 manifest**",
+    "note": "## ① 为什么最初 15 条测试一次也没抓到它\n\n因为**它们全用玩具帧**。玩具帧的 NA/None/NaN 在 parquet 往返里恰好无损，而真实财报帧有 15 个 StringDtype 列 + 27 个 object 列，必然换表示。于是补了 `_realistic_frame()` 专门造这种形状。\n\n## ③ 一道永远打不开的门\n\n`main` 里「去重后仍有重复就拒绝」的闸，看起来是安全网，实际上 `collect` 已经先去过重了——**它拿到的一定是干净的帧**。**门必须开在能看见问题的那个位置。**\n源站坏掉时它一声不吭，而源站坏掉正是它存在的理由。\n\n两种重复的性质完全不同，不能混为一谈：\n跨调用重复是自己的续跑失效（可修），单次调用内重复是**源坏了**（这份数据不值得登记）。",
+    "evidence": "tests/test_vintage.py 的 `_realistic_frame` 与 test_integrity_holds_immediately_after_writing_a_realistic_frame；tests/test_collect_financial_vintage.py 的 test_a_source_that_duplicates_a_report_period_is_reported_not_just_cleaned",
+    "open": "无。"
+  },
+  {
+    "title": "vintage 守卫：独立作业 + 只抓今天，绝不用过去的日期重新采集",
+    "date": "2026-10-14",
+    "category": "capability_added",
+    "severity": "info",
+    "metric": "当天快照是否已登记 / 历史缺口是否被如实报出",
+    "higher_is_better": true,
+    "before": "采集器有 plist，但**没有任何东西在盯着漏采**。launchd 日历触发不补跑——机器睡着就永久漏一天，而没有任何异常会因此产生",
+    "after": "scripts/guard_vintage.py（11 测试）+ com.aplus.guardvintage.plist（09:30 与 23:30）。判据是**今天是否已在 manifest 里登记**，已登记则零请求跳过",
+    "note": "## 最重要的一条：守卫**不去补历史缺口**\n\n源站只服务当前值。今天去抓，拿到的永远是今天的数；\n把它标成 10-13 的快照写进 manifest，就是一条**伪造的证据**——\n「10-13 源站服务的是这个」，而它明明来自 10-14。\n\n**缺口是已知的损失，伪造是未知的污染。**\n后者更坏：它会让将来的 PIT 判决建立在一个从不存在的时间切片上，而且表面上完全正常。所以历史缺口只如实报，不假装补上。\n\n## 为什么是独立作业\n\n`guard_daily` 负责给 `run_daily` 补跑。把 vintage 塞进去，就建立了「run_daily 失败 → vintage 断」这条依赖——而断一天 vintage 是**永久损失**，代价与 run_daily 失败完全不对等。\n\n## 判据看 manifest，不看文件在不在\n\n分区文件存在只说明「写过」，只有 manifest 有条目才说明**整轮抓完了**。判据若看文件，中断的分区会被当成已完成——**那正是最该补跑的那一种**。\n\n## manifest 坏行必须跳过而不是抛异常\n\n守卫抛异常 = 没有守卫，而它抛的方式（launchd 记一条 stderr、退出码非 0）极容易被忽略，然后采集就静默地一天天漏下去。",
+    "evidence": "scripts/guard_vintage.py；tests/test_guard_vintage.py 11 条，其中 test_the_guard_never_recollects_a_past_day_under_a_past_date 断言任何子进程调用里都不出现 --date",
+    "open": "**非交易日要不要落盘仍未定。**目前守卫按自然日判缺口，周末与节假日会被报成缺口。源站在非交易日同样服务「当前值」，而 PIT 只在信号日有意义——需要接入交易日历来改判据。"
+  },
+  {
+    "title": "守卫的缺口判据接入交易日历——否则每个周末都报「永久丢失」，告警疲劳会杀死唯一的探测器",
+    "date": "2026-10-14",
+    "category": "bug_fixed",
+    "severity": "warn",
+    "metric": "days_missed 报出的缺口里，有多少是真缺口",
+    "higher_is_better": true,
+    "before": "守卫按自然日判缺口。周末与节假日同样会被报成「原始值永久丢失」",
+    "after": "交易日历由**日线日期的并集**反推（40 只样本，0.26 秒，\n实测 5 只即收敛）。`is_gap_day` 区分两种「不在日历里」：\n覆盖范围内 → 周末/节假日，不报；超出覆盖范围 → 未知，**假定为交易日**",
+    "note": "## 为什么两种「不在」的判法相反\n\n| 情况 | 判法 | 代价 |\n|---|---|---|\n| 日历覆盖**范围内**但不在日历里 | 非交易日，不报 | — |\n| **超出**日历覆盖范围（通常是今天） | 假定为交易日 | 多抓一次，36 MB |\n\n第二行的方向由**代价不对称**决定：日历来自日线数据，\n而日线由 `run_daily`（18:30）推进，采集在 22:30 跑——\n「今天是不是交易日」当时根本无从得知。\n误判为交易日多花 36 MB，误判为非交易日**那一天永久丢失**。\n\n## 为什么日历必须取并集\n\n单只股票有停牌和上市时间：实测 000005.SZ 只有 1290 天，\n而全市场 1884 天。只看一只，上市前的日子会被误判成「没采集」。\n\n样本 40 只是余量不是精度需求——实测 5 / 40 / 400 只的并集\n全都是 1884 天，因为**只要有一只票在交易，那天就是交易日**。\n\n## 我自己写反了一次\n\n`is_gap_day` 首版返回 `day not in cal`——日历里**有**的才是交易日，\n所以范围内但不在日历里 = 周末 = 不是缺口。方向反了之后，\n**每个周末都报「永久丢失」**。测试直接抓到了。\n\n缓存也踩过一次：首版只有一个全局槽位，\n`trading_days(daily_dir=X)` 会返回由 `Y` 建的日历，参数形同虚设。\n\n## 第一个真实的永久损失\n\n本守卫上线后立刻报出 **2026-10-13（周二，交易日）无登记**——\n首份快照来不及落盘。**这不是误报**，是本模块的真实成本：\n从今天起每一天才开始有 vintage，之前的永久没有。",
+    "evidence": "scripts/guard_vintage.py 的 trading_days / is_gap_day；tests/test_guard_vintage.py 17 条；实测日历 1884 天（2019-01-02 ~ 2026-10-13）",
+    "open": "2026-10-13 这一天永久丢失，已在账本留痕，不做追溯填充。"
+  },
+  {
+    "title": "一条注释的化石：它描述的退化早就被修掉了，而它还在替防御逻辑背书",
+    "date": "2026-10-14",
+    "category": "data-integrity",
+    "severity": "warn",
+    "metric": "amount 字段全库可用性（NaN 率 / 矛盾率 / 缺列数）",
+    "higher_is_better": true,
+    "before": "backtest.py:473 写「实测 59.4% 的末根 K 线 amount 是 NaN、8.8% 整列缺失」，并以此为 `_bars_tradable` 保守判据的依据",
+    "after": "该状态**已不存在**：合并层 `keep=\"last\"` 的 bug 由 `_merge_preserving_fidelity` 修掉，2026-10-12 补数重写 5458 只。\n2026-10-14 全库 8,715,863 行复测：NaN **0**、矛盾 2、缺列 2、占位常量 0。`amount==0` 与 `volume==0` 近乎严格等价（29,020/29,022 自洽），那个 clause 已拦不到任何东西",
+    "note": "## 失效链\n\n```\n合并层 bug  →  amount 大面积 NaN  →  我写下 59.4% 这句实测作为依据\n     ↑ 修根因                                    │\n   store._merge_preserving_fidelity              │ 注释没人回来改\n     ↓ 10-12 补数重写 5458 只                    ↓\n            数据修好  ────────────────────→ 注释开始为一串不再可能\n                                              发生的条件辩护\n```\n\n最危险的不是注释过时，是**措辞让人以为那是经验事实**。\n\n## 顺带查出的三件事\n\n1. **2 只文件根本没有 `amount` 列**（000043.SZ / 300114.SZ），\n   且数据分别停在 2019-12-13 与 2025-02-14。\n   `coverage` 判 `missing_columns + tail_stale + head_truncated`，**抓到了**——健康检查是好的。\n\n2. **2 行「有成交却成交额为 0」**：002336.SZ 与 002500.SZ，都在 2020-06-17，volume/turn/close 都是真的，amount=0。\n   `_bars_tradable` 会把这两根**成交过的** bar 判成停牌——量级 2/8,715,863，但形状是「静默剔除可交易标的且不报错」。\n\n3. **我自己的诊断脚本第一版 `except Exception: continue`**，把上面那 2 只缺列文件静默跳过了，然后报告「NaN 零」。\n   **用来检测退化的工具，复制了它本该堵掉的盲区**：分母悄悄变小，而被跳过的正是最可疑的那些。\n\n## 一般规律\n\n**机器会自我证伪，散文不会。** `coverage.tail_nan_columns` 今天扫出 0 个缺口——这是正确的，因为条件确实消失了；\n而注释里那个数字只会在磁盘上躺着，永远不会自己发现世界变了。\n\n所以：引用实测数字的注释，寿命等于代码的变更频率，\n而这两者之间**没有任何绑定关系**。防住这个坑的不是「记得更新」，\n是把数字变成一条能重跑的命令——`scripts/measure_amount_availability.py`。\n\n## 为什么那半个 clause 仍然留着\n\n不是因为它有用，是因为**删掉一个防御分支比多留一个更贵**：\n万一将来某个源又降级写入，它保证「不把未知当 0」还在原地。\n但注释里写明了：要判断它还有没有必要，**重新测，别引用本文**。",
+    "evidence": "scripts/measure_amount_availability.py（全库可重跑，退出码 0/2/3）\ntests/test_measure_amount_availability.py 10 条，含 KNOWN_BAD 白名单\n全库实测：NaN 0 / 矛盾 2 / 缺列 2 / 占位常量 0",
+    "open": "2 行矛盾（2020-06-17，两只票）已登记在 KNOWN_BAD 白名单：\n        白名单机制保证**新增同类缺陷会让测试变红**，\n        且数据补上后测试会要求删掉白名单条目（不许只增不减）。\n        根因未查——源站为何在这两行返回 0，尚无证据。"
+  },
+  {
+    "title": "全量快照落地的三个判决：闸门拦下 99.98%、续跑 3.9 秒补齐、manifest 的 n_cols 少记 1 列",
+    "date": "2026-10-14",
+    "category": "capability_added",
+    "severity": "blocker",
+    "metric": "vintage 快照覆盖率 / 续跑成本 / manifest 与文件是否自证",
+    "higher_is_better": true,
+    "before": "无 PIT 快照。第一份尝试被覆盖率闸门拦下：5459/5460",
+    "after": "2026-10-14 快照 65,391 行 / 5460 只（100%）/ 142 列，完整性 OK，缺口 0。续跑补齐耗时 3.9 秒（对比全量 47 分钟）",
+    "note": "## 一、闸门拦下的正是最危险的 99.98%\n\n`5459/5460` 听起来几乎完美。若按「拿到多少算多少」落盘，\nmanifest 会宣称这一天有**完整**快照——而它缺一只票。\n守卫明天读到这条记录会说「已登记，跳过」，**缺口从此不可见**。\n这与 `--sample` 试跑那次（给 5 只票登记「完整一天」）是同一个陷阱。\n\n## 二、缺的那只票：查过才知道是瞬时失败\n\n`002687`（乔治白）**日线完全健康**：1884 行、全 12 列、到 2026-10-13、\n未退市。所以问题不在票，在抓取。直连源站验证：\n\n    002687.SZ → 64 行 141 列，报告期 2009-12-31 ~ 2026-06-30\n\n**源站有数据**。所以用 `--skip` 是错的——那会把一只明明有数据的票\n永久豁免出去，且跳过理由本身就是假的。按「调研后决策」重跑。\n\n## 三、续跑修复的判决书\n\n```\n续跑：已有 5459 只，本次需抓 1 只\n耗时 3.9 秒   ← 对比全量 47 分钟 / 5460 次网络往返\n```\n\n「日线文件名带交易所后缀、帧里是裸 6 位」那个键空间 bug 若还在，\n这次会**重抓全部 5460 只**。只抓 1 只 = 那个修复是有效的。\n\n## 四、顺带修掉一个 off-by-one\n\n`write_snapshot` 的摘要要排除自己加的 `snapshot_date`（可复现），\n但初版把 drop 之后的 shape 一起写进了 manifest：\n\n    n_cols = 142 - 1 = 141    而文件实际 142 列\n\n`n_rows` 侥幸没错（删列不改行数），所以**两个字段里只有一个错，\n比两个都错更难发现**。后果不是「算错了」，是**审计记录不自证**：\n谁打开文件数一遍列得到 142，manifest 写 141。在一份专门用来让人\n相信「这份数据没被动过」的账本里，一条对不上的记录足以让人\n开始怀疑整本账。\n\n已退回真实列数；摘要规则单独钉一条测试，防止「顺手把 drop 也删掉」\n——那会让 sha256 变化、完整性校验永远红。",
+    "evidence": "manifest 两条同日记录 sha256 相同（05ab03f1…），仅 n_cols 141→142 修正，数据未动；追加式设计使错误被永久留痕\nverify_integrity ok=True checked=1 tampered=[] missing=[]\n重跑测试确认新测试能抓到这个 bug（assert 3 == 4）",
+    "open": "第一份 PIT 快照只有 1 天。pit_frame 无法回答 2026-10-14 之前的\n任何问题——那些数据永久没有，不是「还没攒够」。\n可回答窗口要等天数累积，本次不构成任何策略结论的依据。"
+  },
+  {
+    "seq": 90,
+    "date": "2026-10-14",
+    "title": "capital-aware 交易成本模型——本金小则最低佣金咬人，日频调仓数学上不可达",
+    "finding": "backtest.STOCK_COST_DEFAULT=0.003 是平费率，在 ¥50,000 本金下偏低约 0.25pp/轮。单笔 ¥5,000 时万三只值 ¥1.50，被 ¥5 最低佣金顶成 0.10%/边（3.3×），再加卖出侧印花税 0.05%。真实双边 ≈0.0055。新建 aplus/costs.py 逐笔建模（最低佣金非线性，先求和会把成本算少 22%），17 条测试 + 变异测试证明：去掉最低佣金后 7 条同时变红。",
+    "design_constraint": "年化摩擦/权益：日频 138%、每周 28.7%、每月 6.62%、每季 2.21%。要让净值 20%，信号须给出：日频 158%（不存在）、每周 48.7%、每月 26.6%、每季 22.2%。→ 「每天推荐」≠「每天交易」。推荐可日频，持仓周期必须在月度以上。",
+    "leverage": "成本高不是小本金的宿命，是仓位切分的结果：¥25,000 分 5 笔 = ¥138/轮，分 2 笔 = ¥108/轮（省 22%）。仓位数与单票上限是设计者能动的杠杆。",
+    "self_corrections": [
+      "算摩擦时漏乘仓位数（POS=5），报 ¥27.60 而正确是 ¥138.00——错得足以翻转结论。",
+      "断言 per_trade > naive*2 把自己算错：佣金差 3.3× 但往返总价只差 1.34×（价差是线性的、是大头）。",
+      "写了个单位混比的断言（费率比金额），恒真，等于没断言。",
+      "测试 docstring 写「这条测试现在红着」，实际是绿的——连自身状态都描述错的注释。"
+    ],
+    "status": "模型已落地并可重跑；STOCK_COST_DEFAULT 尚未改——改了要重跑全部回测",
+    "next": "把 costs.annual_friction 接进 backtest，重跑所有已发布回测，再改常数"
+  },
+  {
+    "seq": 91,
+    "date": "2026-10-14",
+    "title": "我引用了一份已被修复作废的报告——以及为此建的溯源守卫",
+    "self_reporting": "读了 11:45 的 backtest_summary.json，据此告诉用户「信号符号反了」。而 14:02 的 commit 3c846ff 修掉了市场基准污染（基准从 +0.066%/日 拖到 −0.402%/日，虚增约 114pp/年）。**那份报告当时已作废，而我把它当结论讲了出去。**",
+    "why_it_was_not_obvious": "数字完全正常：−0.40%/日、excess_tilt=−0.005，都是体面的数。没有异常字段、没有报错。**看起来正常的数字恰恰是最难被质疑的那一种。**唯一能揭穿它的提问是「生成时间 vs 之后的相关改动」，而没有任何工具提示我必须问这个问题。",
+    "blast_radius": {
+      "确定作废的报告（早于修复且含「相对市场」口径）": [
+        "backtest_summary.json (11:45)",
+        "lowfreq_plausibility.json (13:50)",
+        "candidate_block_audit.json (10-14 08:42)",
+        "regime_control_sweep.json (13:57)",
+        "ic_guided_race_7y.json (10-12 23:26)",
+        "independent_validation_2019_2023.json (10-11)",
+        "frequency_block_t_2019_2023.json (10-11)"
+      ],
+      "最严重": "ic_guided_race_7y.json 是**唯一**产出过闸候选 `{mom20:-1.0} K=63 t=+4.14` 的赛马。evolve_race.py:193 的超额 = net - market_pct，减的正是被污染的基准；污染把基准拖低 → t 被系统性推高。**唯一「过了闸」的策略，是拿一把坏尺子量出来的。**10-12 冻结的前瞻候选集正是从这份赛马挑的。",
+      "注意": "污染量取决于样本里「未上市股票」的占比，**逐组不同**——所以它不是对所有臂的共同平移，不能当作常数偏差减回去。必须重跑。"
+    },
+    "fix": "新增 aplus/provenance.py：stamp/freshness/scan + CLI。判据只盯产出该数字的**模块**，不对无关改动报警（HEAD 每动一次就全盘红 = 永远红的测试 = 教人忽略告警）。stale→退出 2，unknown→退出 3。现存 42 份报告**全部无溯源**，报成 unknown（不许引用）而不是 fresh（已确认没问题）。evolve_weekly 落盘 backtest_summary.json 时已接上盖章。",
+    "test_caught_in_me": [
+      "freshness 只报第一个原因，把可操作的「去补一行」吞掉了",
+      "scan 把 sidecar 自己扫成一份 unknown 报告——告警自己制造告警",
+      "__name__ 在 -m 下是 __main__，指路指到不存在的地方。指错路比不指路更糟"
+    ],
+    "status": "守卫已落地；7 份作废报告待重跑（backtest_summary 重跑中）",
+    "next": "重跑 ic_guided_race_7y——它是唯一候选的证据基础，也是前瞻候选集的来源"
+  },
+  {
+    "seq": 92,
+    "date": "2026-10-14",
+    "title": "两条独立证据同时否掉唯一候选：显著性闸门用错分布 + 基准污染",
+    "finding": "ic_guided_race_7y.json（10-12 23:26 生成）里的「唯一过闸候选」`{mom20:-1.0} K=63 t=+4.14`，同时栽在两处：\n① 显著性闸门用的是正态近似 3.47。该报告生成时 `bonferroni_t` 还没改成真 t 分布（那个修复是 10-14 做的）。df=10 时真临界是 **5.03**——4.14 **不过**。独立手算（数值积分 vs 正则化不完全贝塔，两法一致到 0.00%）与 evolve_race.py 文档字符串写的 5.03 完全吻合。\n② 基准污染。测试段 2023-08~2026-10 有 300/5460=5.5% 未上市票混入基准，拖低约 0.05~0.09%/日；该候选测得超额 0.198%/日，扣掉后 t 掉到 3.76~2.75。",
+    "quantified": {
+      "正态近似 3.47 判过闸": 16,
+      "真 t 分布（df 各异）": 8,
+      "再扣基准污染后": 0,
+      "{mom20:-1.0} K=63": "t=4.14 @ df=10，需 5.03 → 不过"
+    },
+    "symbol_inversion_verdict": "并行 agent 追查 13:50 那份作废报告的「信号符号反了」，结论：**不是代码 bug**。证据：tests/test_score_sign.py 钉死负权翻转排序；修复后的 race_composite_v2_signfix.json（15:10，post-fix）3 年窗 excess_breadth=+0.01；修复后的 head_bucket_probe.json（14:38）显示 top-10 在 sign-fixed/wrong-sign/random 三种排序下**全为负**——头部极端选择本身是 A 股结构性弱点，与因子方向无关。\n**但**该 agent 赖以论证「2019-2023 反转有效 t=+5.52」的 independent_validation_2019_2023.json 是作废报告，且落在污染最重的窗口（未上市票 34.7%，基准被拖约 0.46%/日，而实测超额才 0.41%/日，同一量级）。**那一格「有效」很可能是污染造出来的。**",
+    "my_own_errors_this_round": [
+      "手写 t 分布的 betacf 漏了 bt 因子与 /a，把 P(t_10>4.14) 算成 0.29（真值 0.001），差 300 倍。**一个手写的统计函数比一个错误结论更危险，因为它看起来仍是数学。**修正后我一度断言「多重检验是威胁、t=4.14 是选择产物」——数据推翻了它：真实假阳性率 1.4%，不构成威胁。是污染，不是比较次数。",
+      "先说 109pp/年污染，又收窄到 0.07%/日——两次都基于**模型估计**而非实测。诚实表述：0.05~0.09%/日 是区间估计，只有重跑能定论。"
+    ],
+    "bottom_line": "**到 2026-10-14 为止，没有任何候选通过验证。**「年化 20%」目前零证据支持，且不是因为信号弱，是因为**测量手段本身先后坏过两次**（基准污染、t 分布），而这两次都是「数字看起来完全正常」。",
+    "next": "重跑必须按当前代码：真 t 分布 + 修复后基准。同时重跑 2019-2023 独立验证"
+  },
+  {
+    "seq": 93,
+    "date": "2026-10-14",
+    "title": "假重跑：改了代码、跑了旧进程、报出一张全项目最漂亮的表",
+    "finding": "修了基准污染（3c846ff）后重跑 scripts/_verify_reversal_freq.py，得到「净收益 +109.1%、t=+11.62」——全项目最漂亮的一个数。\n\n**它没有重跑。** 脚本里是 `if cache.exists() and not args.rebuild: pickle.loads(...)`，复用了 10-11 建的横截面缓存。其 `_market` 均值 **−0.00402**，与代码注释里记的**修复前**污染值逐位相同；同一段真实 A 股基准（market_benchmark_audit.json）是 **+8.96%/年**。\n缓存给的基准五年复合 **−99%**。\n\n> 一次重跑，带着 10-11 的输入，穿着 10-14 的命令行。",
+    "why_it_was_not_caught": [
+      "命令行是今天的、输出文件的 mtime 是今天的、表格格式完整、t 值很高。",
+      "**报告看起来全新。** 因为它确实是新写的——只是算它的那套数据是三天前的。",
+      "报告溯源守卫（e469b93，17:15 提交）对**输出**有效；这次坏在**输入**。"
+    ],
+    "fix": "新增 aplus/panel_cache.py：缓存盖章 + 四道拒绝（没 sidecar / 生成模块已改 / 窗口不覆盖 / **市场指纹对不上**）。\n核心是**盖在旁边的基准指纹**：1.7 GB 不能为判定新不新而整个读进来，而且读完再判太晚——数据已进内存、结论已算出。指纹量的是**数据本身**而不是版本标签，所以从 stash 恢复、从镜像容器跑、手工换过缓存，这些 git log 说「没动过」的情形它仍然会说话。\n**默认不复用**（--reuse 才是显式选择），四个脚本全部接线。",
+    "the_general_lesson": "「我知道它是刚跑的」不是证据。化石之所以能形成，正因为人可以在「什么时候启动」上完全正确、而在「跑了什么代码」上完全错误——Python 在进程启动时把模块读进内存，之后改源文件对运行中的进程不可见。\n证据必须落在产物上，不能落在记忆里。",
+    "collateral_finding": "顺带发现 tests/test_status_compounded.py 里那条 `arith_ann < -1.0`（「年化跌幅超过 100% 不可能」）——**那个不可能的数本身也是污染造出来的**。修复后实测 −6.14%、CAGR −11.69%、区间 −21.20%。断言方向已翻转为「必须是可能的」，这样口径再次坏掉时会立刻报红。",
+    "next": "等真重建（已挪走化石、不复用）落盘后，再判 2019-2023 反转结论"
+  },
+  {
+    "seq": 94,
+    "date": "2026-10-14",
+    "title": "三批前瞻候选怎么处置：撤销是错的，追加才对",
+    "established_facts": {
+      "最早可验证前瞻日": "2026-10-15（`forward_window` 取严格晚于注册日的日期再砍 2 日隔离带）",
+      "forward_results.json": "2 字节 = []，**三批全部零观测**",
+      "批次": "1 · 2026-10-12 · 6 组 / 2 · 2026-10-12 · 4 组 / 3 · 2026-10-14 · 4 组（sealed_sha256 已封）",
+      "三批的证据": "批次 2、批次 3 都点名 ic_guided_race_7y.json——**同一份同时栽在基准污染与错误显著性闸的报告**"
+    },
+    "decision": "**一份都不撤销。修正批次在赛马重跑后追加。**",
+    "why": [
+      "**有效性 ≠ 历史 t。** 前瞻验证检验的是一个确定的权重向量在未来怎么走；它的历史 t 是 4.14 还是 3.34，不改变它明天怎么走。撤销它等于因为「回测变难看了」而撤掉一个还没开始跑的对照实验。",
+      "**真正坏掉的是覆盖，不是有效性。** 正确闸门下该测的候选集与现在这 14 组不同，所以该做的是**追加**修正后的候选，而不是替换——追加只会多测，不会测错。",
+      "**零观测让「偷看」在定义上不成立。** 最早可验证日是 2026-10-15，forward_results 是空的。没有任何结果可以被我看到。",
+      "**冻结不该被打破来写批注。** 批次 3 的 sealed_sha256 已经封了；为了加一句「证据后来作废」而改字节，是在做一件看起来像作弊的事——哪怕动机纯粹。"
+    ],
+    "how_the_correction_lands_without_touching_the_seal": "靠机器，不靠改注册表：批次 3 的 `evidence` 字段本来就点名了 `ic_guided_race_7y.json`；现在该报告已登记进 provenance.DEFAULT_GENERATORS 且无 sidecar → 判为 `unknown` = **不许引用**。任何人审计注册表时，那条 evidence 会自己变成红。\n\n**这才是溯源守卫的意义：结论从机器里长出来，而不是从我的一句承认里长出来。**",
+    "next": "① 等 2019-2023 面板真重建落盘（已挪走 10-11 化石、默认不复用）→ 判反转前提\n② 按当前代码重跑 ic_guided_race（真 t 分布 + 修复后基准），产出修正候选集\n③ 若有候选过修正后的闸 → 追加批次 4（追加，不动前 3 批）"
+  },
+  {
+    "n": 95,
+    "at": "2026-10-14T17:57+08:00",
+    "kind": "verdict",
+    "topic": "反转×频率 2019-2023 真重建判决",
+    "claim": "反转+低频在干净独立集上扣成本后仍为正。",
+    "verdict": "否。24 行全部为负，最好一行也是 −21.2%/年。",
+    "evidence": "reversal_freq_2019_2023.json（panel 指纹 +0.000660/日，与 Fossil 的 −0.004020 逐位不同）",
+    "key": {
+      "最优行": "纯20日反转 K=63 缓冲=3.0 → 净 -21.2%（t=-1.37）",
+      "现任_K5": "净 -177.7%（t=-5.13，广度t=-4.65）",
+      "反转_K63": "广度t=1.34（正）但净 -21.2%"
+    },
+    "reading": "**广度t 正、净收益负**——反转的排序方向是对的（up 篮子确实赢 down 篮子），但赢的幅度盖不住成本：K=63 也要 11.4%/年的成本。这不是「调参没调好」，是「排序信号在扣费后不成立」。",
+    "next": "不再在反转族上调参；转去跑修正基准下的 ic_guided_race 全空间搜索。"
+  }
+]

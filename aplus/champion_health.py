@@ -34,6 +34,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .provenance import report_jsons
+
 
 def collect_windows(reports_dir, running_weights) -> list[dict]:
     """历次报告里属于现任权重的窗口证据。缺数据返回空列表（= unknown）。"""
@@ -42,9 +44,11 @@ def collect_windows(reports_dir, running_weights) -> list[dict]:
     want = tuple(sorted((k, float(v)) for k, v in running_weights.items() if v))
     reports_dir = Path(reports_dir)
     windows: list[dict] = []
-    paths = (sorted(reports_dir.glob("race_*.json"))
-             + sorted(reports_dir.glob("evolution_race*.json"))
-             + sorted(reports_dir.glob("independent_validation_*.json")))
+    # ★ 走 report_jsons()：它排掉 `.provenance.json` 边车。
+    #   边车名是主报告名的延长，字典序更大 ⇒ 自己 glob 必然把边车当报告。
+    paths = report_jsons(reports_dir, "race_*.json",
+                         "evolution_race*.json",
+                         "independent_validation_*.json")
     for path in paths:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))

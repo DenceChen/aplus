@@ -1,0 +1,400 @@
+{
+  "kind": "independent_validation",
+  "variant": "reversal_x_frequency",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "note": "独立验证集，从未看过这段数据的任何赛马结果。回答的问题：在干净数据上，「反转 + 低频」扣成本后是否仍为正。本表**不**做晋级判定。",
+  "champion": {
+    "mom20": 1.0,
+    "rev5": 0.3,
+    "vol20": 0.5,
+    "vsur": 0.5
+  },
+  "rows": [
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 1,
+      "buffer_multiple": null,
+      "annual_cost": 3.5198162911611783,
+      "annual_excess": -1.4098203801788796,
+      "net": -4.929636671340058,
+      "t": -8.320405957309418,
+      "breadth_t": -7.16282859261131,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 1,
+      "buffer_multiple": 3.0,
+      "annual_cost": 1.7373899480069326,
+      "annual_excess": -0.766478563775886,
+      "net": -2.5038685117828186,
+      "t": -5.163916977118104,
+      "breadth_t": -4.492630755752565,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 5,
+      "buffer_multiple": null,
+      "annual_cost": 1.0326655112651648,
+      "annual_excess": -0.7439780079731019,
+      "net": -1.7766435192382666,
+      "t": -5.132688641169372,
+      "breadth_t": -4.648690565964985,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 5,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.7656187175043327,
+      "annual_excess": -0.4932466507239031,
+      "net": -1.2588653682282358,
+      "t": -3.759526021117091,
+      "breadth_t": -3.3777605486516262,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 21,
+      "buffer_multiple": null,
+      "annual_cost": 0.34443327556325826,
+      "annual_excess": -0.2826049329340901,
+      "net": -0.6270382084973484,
+      "t": -2.4715171808441885,
+      "breadth_t": -2.5074364237333047,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 21,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.33682149046793763,
+      "annual_excess": -0.279632809502978,
+      "net": -0.6164542999709156,
+      "t": -2.4172264566104644,
+      "breadth_t": -2.400809971304393,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 63,
+      "buffer_multiple": null,
+      "annual_cost": 0.11988561525129984,
+      "annual_excess": -0.21817635178956277,
+      "net": -0.3380619670408626,
+      "t": -1.9373362455109038,
+      "breadth_t": -1.2995918709355352,
+      "n_ranked": 3362
+    },
+    {
+      "name": "现任",
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      },
+      "rebalance_every": 63,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.11734835355285964,
+      "annual_excess": -0.20143385694621288,
+      "net": -0.3187822104990725,
+      "t": -1.8119991303305387,
+      "breadth_t": -1.1672509318378048,
+      "n_ranked": 3362
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 1,
+      "buffer_multiple": null,
+      "annual_cost": 2.5442391681109187,
+      "annual_excess": -0.412724482081667,
+      "net": -2.9569636501925856,
+      "t": -3.9947156580577103,
+      "breadth_t": 3.911551018762355,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 1,
+      "buffer_multiple": 3.0,
+      "annual_cost": 1.2527729636048528,
+      "annual_excess": -0.2746506237289365,
+      "net": -1.5274235873337894,
+      "t": -2.916621107026056,
+      "breadth_t": 3.5267765789995673,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 5,
+      "buffer_multiple": null,
+      "annual_cost": 0.9965095320623918,
+      "annual_excess": -0.26062694372314293,
+      "net": -1.2571364757855348,
+      "t": -2.7379173154472474,
+      "breadth_t": 3.0583861328998525,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 5,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.7903570190641248,
+      "annual_excess": -0.2147979289014751,
+      "net": -1.0051549479656,
+      "t": -2.1985489694024576,
+      "breadth_t": 2.6739442813081866,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 21,
+      "buffer_multiple": null,
+      "annual_cost": 0.35014211438474874,
+      "annual_excess": -0.05604808313823409,
+      "net": -0.4061901975229828,
+      "t": -1.0504130656972093,
+      "breadth_t": 2.2574657079515763,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 21,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.34633622183708845,
+      "annual_excess": -0.05062753099025816,
+      "net": -0.39696375282734664,
+      "t": -0.9878920611246845,
+      "breadth_t": 2.3412204722327954,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 63,
+      "buffer_multiple": null,
+      "annual_cost": 0.12178856152513,
+      "annual_excess": -0.0911352243291338,
+      "net": -0.2129237858542638,
+      "t": -1.3749167959148914,
+      "breadth_t": 1.445170026551722,
+      "n_ranked": 3374
+    },
+    {
+      "name": "纯 20 日反转",
+      "weights": {
+        "mom20": -1.0
+      },
+      "rebalance_every": 63,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.11988561525129984,
+      "annual_excess": -0.09229328692894324,
+      "net": -0.2121789021802431,
+      "t": -1.3700785337644703,
+      "breadth_t": 1.344368060478597,
+      "n_ranked": 3374
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 1,
+      "buffer_multiple": null,
+      "annual_cost": 2.549404858299595,
+      "annual_excess": -0.3361370093421118,
+      "net": -2.885541867641707,
+      "t": -3.5491197961458365,
+      "breadth_t": 4.220968995744619,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 1,
+      "buffer_multiple": 3.0,
+      "annual_cost": 1.2032064777327933,
+      "annual_excess": -0.17212949228454813,
+      "net": -1.3753359700173415,
+      "t": -2.03351017649669,
+      "breadth_t": 2.954263183730389,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 5,
+      "buffer_multiple": null,
+      "annual_cost": 1.0042682926829272,
+      "annual_excess": -0.20763941715803863,
+      "net": -1.2119077098409659,
+      "t": -2.3358140173778965,
+      "breadth_t": 3.477131538853237,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 5,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.766219512195122,
+      "annual_excess": -0.1840587404856854,
+      "net": -0.9502782526808073,
+      "t": -2.1915440704845133,
+      "breadth_t": 2.681423673632824,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 21,
+      "buffer_multiple": null,
+      "annual_cost": 0.3403092573753815,
+      "annual_excess": -0.1684931972210824,
+      "net": -0.5088024545964639,
+      "t": -2.1081022532966283,
+      "breadth_t": 2.1492372543814597,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 21,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.332118006103764,
+      "annual_excess": -0.15969916902754538,
+      "net": -0.4918171751313094,
+      "t": -2.0103529764746635,
+      "breadth_t": 1.9083432226204846,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 63,
+      "buffer_multiple": null,
+      "annual_cost": 0.11413721413721416,
+      "annual_excess": -0.1482946727404797,
+      "net": -0.26243188687769387,
+      "t": -1.98020345113827,
+      "breadth_t": 1.2017303754478557,
+      "n_ranked": 0
+    },
+    {
+      "name": "反转+低异常换手",
+      "weights": {
+        "mom20": -0.5,
+        "turnratio": -0.5
+      },
+      "rebalance_every": 63,
+      "buffer_multiple": 3.0,
+      "annual_cost": 0.11413721413721416,
+      "annual_excess": -0.1482946727404797,
+      "net": -0.26243188687769387,
+      "t": -1.98020345113827,
+      "breadth_t": 1.14385844038422,
+      "n_ranked": 0
+    }
+  ],
+  "best": {
+    "name": "纯 20 日反转",
+    "weights": {
+      "mom20": -1.0
+    },
+    "rebalance_every": 63,
+    "buffer_multiple": 3.0,
+    "annual_cost": 0.11988561525129984,
+    "annual_excess": -0.09229328692894324,
+    "net": -0.2121789021802431,
+    "t": -1.3700785337644703,
+    "breadth_t": 1.344368060478597,
+    "n_ranked": 3374
+  },
+  "elapsed_s": 947
+}

@@ -1,0 +1,15 @@
+{
+  "code_sha": "b7cd67ae4db23223daf1de9ad5244930d7e2542a",
+  "code_dirty": true,
+  "generator": "aplus/backtest.py",
+  "stamped_at": "2026-10-14T09:58:39+00:00",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "panel_market_mean": 0.0006603656424262704,
+  "panel_window": [
+    "2019-01-02",
+    "2023-12-31"
+  ]
+}

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from .champion_health import champion_health, live_down_leg
 from .evolve import candidate_key
 from .factor_ic import weight_sign_conflicts
+from .provenance import report_jsons
 from .reports import (
     latest_prediction_date,
     load_allocation,
@@ -608,7 +609,9 @@ def create_app(data_root, llm=None) -> FastAPI:
             want = candidate_key({"weights": live_weights,
                                   "rebalance_every": (execution or {}).get("rebalance_every", 1),
                                   "buffer_multiple": (execution or {}).get("buffer_multiple")})
-            reports = sorted(reports_dir.glob("race_*.json"), key=lambda p: p.stat().st_mtime)
+            # ★ 走 report_jsons()：排掉边车（见 provenance.report_jsons 的 docstring）
+            reports = sorted(report_jsons(reports_dir, "race_*.json"),
+                             key=lambda p: p.stat().st_mtime)
             for path in reversed(reports):
                 try:
                     rows = json.loads(path.read_text(encoding="utf-8")).get("table") or []

@@ -1,0 +1,233 @@
+{
+  "kind": "regime_control_sweep",
+  "prereg": {
+    "target_signal_net": 0.2,
+    "min_paired_t": 3.0,
+    "min_n_ranked": 4000,
+    "primary_metric": "signal_breadth_excess",
+    "note": "达标组合必须到 2024-01~2026-10 未参与选择的窗口复测，两段都达标才算结果。本脚本不写 weights.json。"
+  },
+  "design": "signal = 指标(符号修正) − 指标(错号对照)。两组同源同日，共同部分即 regime，逐项抵消。paired_t 为逐日配对 t。",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "rows": [
+    {
+      "rebalance_every": 1,
+      "buffer_multiple": null,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 3.5115701906412475,
+        "annual_up_excess": -0.22998570251241973,
+        "annual_breadth": -1.343876501966576,
+        "annual_tilt": 0.8839050969417364,
+        "hit_rate": 0.48797201456775924
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 3.7044020797227035,
+        "annual_up_excess": 0.6917028055431631,
+        "annual_breadth": 1.8717118064271507,
+        "annual_tilt": -0.4883061953408245,
+        "hit_rate": 0.5319472389894925
+      },
+      "delta_up_excess": 0.9216885080555828,
+      "delta_breadth": 3.215588308393727,
+      "signal_net": 3.022756419312271,
+      "paired_t": 7.776088379582206,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 1,
+      "buffer_multiple": 3.0,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 1.732949740034662,
+        "annual_up_excess": 0.4029684943051691,
+        "annual_breadth": -0.7547096679962397,
+        "annual_tilt": 1.560646656606578,
+        "hit_rate": 0.497262084592145
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 2.180142114384749,
+        "annual_up_excess": 0.8247338543665483,
+        "annual_breadth": 1.530523268447199,
+        "annual_tilt": 0.11894444028589765,
+        "hit_rate": 0.5202593917710197
+      },
+      "delta_up_excess": 0.4217653600613792,
+      "delta_breadth": 2.285232936443439,
+      "signal_net": 1.8380405620933522,
+      "paired_t": 5.707164781786158,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 5,
+      "buffer_multiple": null,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 1.0326655112651648,
+        "annual_up_excess": 0.4285885372122778,
+        "annual_breadth": -0.75599810370323,
+        "annual_tilt": 1.6131751781277857,
+        "hit_rate": 0.494062104545897
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 1.2229601386481805,
+        "annual_up_excess": 1.0017309518412822,
+        "annual_breadth": 1.2268209669741923,
+        "annual_tilt": 0.7766409367083723,
+        "hit_rate": 0.5135489305939065
+      },
+      "delta_up_excess": 0.5731424146290045,
+      "delta_breadth": 1.9828190706774222,
+      "signal_net": 1.7925244432944065,
+      "paired_t": 5.343471641543154,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 5,
+      "buffer_multiple": 3.0,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 0.7643500866551127,
+        "annual_up_excess": 0.6745399267796566,
+        "annual_breadth": -0.4993809969693663,
+        "annual_tilt": 1.8484608505286795,
+        "hit_rate": 0.49689772176442076
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 1.0390086655112654,
+        "annual_up_excess": 1.0130675608414783,
+        "annual_breadth": 1.0618402045488544,
+        "annual_tilt": 0.9642949171341021,
+        "hit_rate": 0.5115832826320962
+      },
+      "delta_up_excess": 0.33852763406182174,
+      "delta_breadth": 1.5612212015182207,
+      "signal_net": 1.2865626226620681,
+      "paired_t": 4.186461437562001,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 21,
+      "buffer_multiple": null,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 0.34443327556325826,
+        "annual_up_excess": 0.8848888965330901,
+        "annual_breadth": -0.35365437649383,
+        "annual_tilt": 2.1234321695600102,
+        "hit_rate": 0.5004847309743092
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 0.3507764298093588,
+        "annual_up_excess": 1.052259708990452,
+        "annual_breadth": 0.40288523219800704,
+        "annual_tilt": 1.701634185782897,
+        "hit_rate": 0.5030944394576463
+      },
+      "delta_up_excess": 0.16737081245736185,
+      "delta_breadth": 0.756539608691837,
+      "signal_net": 0.7501964544457365,
+      "paired_t": 2.3646856765202102,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 21,
+      "buffer_multiple": 3.0,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 0.33682149046793763,
+        "annual_up_excess": 0.8873023923078357,
+        "annual_breadth": -0.3411197588893698,
+        "annual_tilt": 2.115724543505041,
+        "hit_rate": 0.5006545454545455
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 0.3482391681109186,
+        "annual_up_excess": 1.050449088396468,
+        "annual_breadth": 0.4104773465149156,
+        "annual_tilt": 1.6904208302780201,
+        "hit_rate": 0.5029993859524822
+      },
+      "delta_up_excess": 0.1631466960886322,
+      "delta_breadth": 0.7515971054042854,
+      "signal_net": 0.7401794277613044,
+      "paired_t": 2.3422430063817576,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 63,
+      "buffer_multiple": null,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 0.11988561525129984,
+        "annual_up_excess": 0.9518177328213333,
+        "annual_breadth": -0.1626134114146392,
+        "annual_tilt": 2.0662488770573058,
+        "hit_rate": 0.5020175646807501
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 0.12178856152513,
+        "annual_up_excess": 0.9733353032504264,
+        "annual_breadth": 0.08524140738544521,
+        "annual_tilt": 1.8614291991154075,
+        "hit_rate": 0.49540342526482806
+      },
+      "delta_up_excess": 0.02151757042909308,
+      "delta_breadth": 0.24785481880008442,
+      "signal_net": 0.24595187252625428,
+      "paired_t": 0.8207765963500574,
+      "paired_n": 1154,
+      "prereg_hit": false
+    },
+    {
+      "rebalance_every": 63,
+      "buffer_multiple": 3.0,
+      "n_ranked": 3362,
+      "wrong_sign": {
+        "n_days": 1154,
+        "annual_cost": 0.11734835355285964,
+        "annual_up_excess": 0.9676692250865002,
+        "annual_breadth": -0.14225479963063337,
+        "annual_tilt": 2.0775932498036336,
+        "hit_rate": 0.5015200456013681
+      },
+      "sign_fixed": {
+        "n_days": 1154,
+        "annual_cost": 0.1205199306759099,
+        "annual_up_excess": 0.9655309158477096,
+        "annual_breadth": 0.0542131088695097,
+        "annual_tilt": 1.8768487228259094,
+        "hit_rate": 0.4949862413133716
+      },
+      "delta_up_excess": -0.002138309238790659,
+      "delta_breadth": 0.19646790850014306,
+      "signal_net": 0.1932963313770928,
+      "paired_t": 0.6446895844405813,
+      "paired_n": 1154,
+      "prereg_hit": false
+    }
+  ]
+}

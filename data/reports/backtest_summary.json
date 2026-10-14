@@ -1,0 +1,23 @@
+{
+  "hit_rate_up": 0.5008602150537634,
+  "hit_rate_down": 0.5696387554813114,
+  "overall_hit_rate": 0.5357559063460112,
+  "avg_up_return": -6.443723828165223e-05,
+  "avg_down_return": -0.00783633401382252,
+  "up_excess_vs_market": -0.0010151054749797843,
+  "down_excess_vs_market": 0.008787002250520651,
+  "excess_breadth": 0.007771896775540867,
+  "excess_tilt": -0.009802107725500435,
+  "up_basket_n": 4724,
+  "down_basket_n": 4812,
+  "judged": 9439,
+  "avg_cost_drag": 0.001695031055900621,
+  "gross_up_excess": 0.0006799255809208367,
+  "cost_share": 2.4929655589733906,
+  "window": [
+    "2024-10-13",
+    "2026-10-13"
+  ],
+  "entry_lag": 1,
+  "rows": 9660
+}

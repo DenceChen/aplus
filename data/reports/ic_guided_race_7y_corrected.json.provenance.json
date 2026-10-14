@@ -1,0 +1,14 @@
+{
+  "code_sha": "426d18be060c2ce3be70f933248cbde27179fae8",
+  "code_dirty": false,
+  "generator": "scripts/ic_guided_race.py",
+  "stamped_at": "2026-10-14T11:29:52+00:00",
+  "note": "手工盖章：运行中的进程看不到今天的 provenance.py 改动（台账第 3 层，无自动守卫）",
+  "double_confound": "本轮含**两处不可分离**的修正：(1) 基准污染修复 (DEFAULT_WEIGHTS 符号翻转与基准对齐)；(2) 赛马自身的 DEFAULT_WEIGHTS 起点更新。**两者同时生效，本报告无法归因到其中任一个**——引用时必须整体引用，不得声称「符号翻转带来了/没带来这个结果」。",
+  "promote": false,
+  "best_test_excess": "+0.10%/年（#3, K=63, t=1.12, n=11 个不重叠观测）",
+  "best_ic_guided": "+0.05%/年（#20, K=5, t=-0.48）——**未跑赢标准臂**",
+  "n_candidates": 97,
+  "elapsed_s": 5362,
+  "rerun_pending": "STOCK_COST_DEFAULT 仍是 0.003（已知低估 1.84×），本报告的绝对收益数字待成本口径对齐后重跑，见 docs/TODO_cost_constant_alignment.md"
+}

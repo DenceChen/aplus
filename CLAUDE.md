@@ -169,7 +169,9 @@ grep -n "<关键词>" data/books/chan_lines.txt         # Chan，按页码引用
    > 而且它**比出来的差距越大越像坏消息**，所以躲过了我对乐观偏差的直觉。
 
    → 修法：口径**在报告里显式标注**，跟着数字一起离开脚本。
-   `bucket_means()` 同时返回 `top`/`bottom`/`spread`/`long_vs_mkt`，
+   `bucket_means()` 返回 `(top, bottom, spread, n)` 四个值
+   （⚠️ 第 4 位是**样本数 n**，不是 `long_vs_mkt` —— 2026-10-14 更正，
+   详见 `docs/MISTAKE_LOG_2026-10-14.md` 第 73 层），
    两个口径**成对输出**，引用时必须带标签。
    `implied_spread()` 的 docstring 现在**必须**写明「多空/顶−底/融不到券」，
    由 `tests/test_ic_to_return.py` 钉死（**变异验证过**）。

@@ -53,6 +53,9 @@ import pandas as pd
 from aplus.adjust import hfq_close
 from aplus.backtest import (MAX_PLAUSIBLE_RETURN, _bars_tradable,
                             _next_bars, _raw_bars)
+# 边车后缀用**单一真相源**，不在这里另抄一遍字面量 ——
+# 抄一遍就是 `docs/MISTAKE_LOG` 第 73 层那个「复制到多处的事实 = 下次漂移的种子」。
+from aplus.provenance import SIDECAR_SUFFIX
 
 # 前瞻收益窗口：(相对「D 之后第一根」的进场偏移, 出场偏移)
 # lag0_leaky = (-1, 0) → D 收盘买、D+1 收盘卖（**前视，仅供对照**）
@@ -287,9 +290,23 @@ def ic_summary(rows: list[dict], factor: str, window: str) -> dict:
 
 
 def _find_ic_report(reports_dir) -> "Path | None":
-    """最新的 `factor_ic*.json`。找不到返回 None——**不回落**到别的文件。"""
+    """最新的 `factor_ic*.json`。找不到返回 None——**不回落**到别的文件。
+
+    ⚠️ 必须**先排掉 provenance 边车**（`SIDECAR_SUFFIX`）。
+    边车的文件名是 `主报告名 + ".provenance.json"`，也就是主文件名的
+    **超长前缀**，字典序必然排在主文件后面 ⇒ `sorted(...)[-1]` 返回的是边车。
+
+    真报告有 `kind/window/factors/windows/fwd_windows/tail_q/bonferroni_crit`，
+    边车只有 `code_sha/code_dirty/generator/stamped_at` 四个 key ⇒
+    下游取因子时 KeyError 被 `except` 吞掉 ⇒ 静默退化成 `unknown=True`。
+
+    **真实后果**：概览页「符号已按实测 IC 校正」这句话当时没有数据支撑，
+    而守它的 5 条测试全部 skip（`consistency()` 一见 unknown 就 skip）——
+    skip 不是通过。由 `tests/test_report_sidecar_selection.py` 钉住。
+    """
     try:
-        files = sorted(Path(reports_dir).glob("factor_ic*.json"))
+        files = sorted(p for p in Path(reports_dir).glob("factor_ic*.json")
+                       if not p.name.endswith(SIDECAR_SUFFIX))
     except (TypeError, OSError):
         return None
     return files[-1] if files else None
@@ -369,7 +386,7 @@ def weight_sign_conflicts(reports_dir, weights: dict) -> dict:
     if unmeasurable:
         parts.append(f"{len(unmeasurable)} 个因子没有够样本量的 IC，未核对："
                      + "、".join(unmeasurable))
-    parts.append("（方向相反≠反过来就能赚；要反过来必须重跑赛马并过七道闸）")
+    parts.append("（方向相反≠反过来就能赚；要反过来必须重跑赛马并过全部闸门）")
     return {"unknown": False, "conflicts": conflicts, "agrees": agrees,
             "unmeasurable": unmeasurable, "checked": scope,
             "ic_window": payload.get("window"),

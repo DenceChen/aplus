@@ -1,0 +1,18 @@
+{
+  "hit_rate_up": 0.4857142857142857,
+  "hit_rate_down": 0.38235294117647056,
+  "overall_hit_rate": 0.43478260869565216,
+  "avg_up_return": -0.0043571600396937445,
+  "avg_down_return": 0.003607232606528627,
+  "up_excess_vs_market": -0.0007638953985469148,
+  "down_excess_vs_market": -0.007200497247675457,
+  "excess_breadth": -0.007964392646222371,
+  "excess_tilt": 0.006436601849128542,
+  "up_basket_n": 35,
+  "down_basket_n": 37,
+  "judged": 69,
+  "avg_cost_drag": 0.003,
+  "gross_up_excess": 0.0022361046014530853,
+  "cost_share": 1.3416188124878028,
+  "as_of": "2026-10-14"
+}

@@ -193,9 +193,43 @@ def test_both_docket_call_sites_fetch_evolution_summary():
 
 
 def test_verdict_js_is_shipped_or_loaded():
-    """index.html 必须能加载这个模块——否则运行时是 ReferenceError。"""
-    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
-    assert "verdict.js" in html, "index.html 没有引用 aplus/web/verdict.js"
+    """index.html 必须能加载这个模块——否则运行时是 ReferenceError。
+
+    ## 为什么不能用 `assert "verdict.js" in html`
+
+    这条曾经就是这么写的，而 `verdict.js` 在 index.html 里出现 **6 处，
+    其中 5 处是注释**（docstring 解释它、注释说明它、末尾注释再提一次）。
+    只剩 1 处是真的 `<script src="/verdict.js">`。
+    ⇒ 把那个 src 改成 `/verdict-disabled.js` 之后，这条测试**依然全绿**
+    （实测 82 passed）——断言被注释喂饱了。
+
+    这是 `CLAUDE.md` 第 13 条（注释满足子串断言）的**第二个实例**，
+    第一个是 `/api/chat/stream`。⇒ 这里必须解析出真正的 `<script src>`，
+    不能对全文做裸子串匹配。
+
+    三环链路这里验两环：
+      ① HTML 里真的有 `<script src="/verdict.js">`（按语法解析，不按子串）
+      ② 被挂到 `/` 上的那个文件**确实存在**（`webapp.py:672` 挂的是整个 `aplus/web/`）
+    第三环（路由真的发得出去）由 E2E 在真浏览器里验。
+    """
+    import re
+
+    web = Path("aplus/web")
+    html = (web / "index.html").read_text(encoding="utf-8")
+
+    # 只认真正的 <script src="...">，注释里的同名字符串不算数
+    srcs = re.findall(r'<script\s[^>]*\bsrc=["\']([^"\']+)["\']', html)
+    assert "/verdict.js" in srcs, (
+        f"index.html 的 <script src> 里没有 /verdict.js，实测有：{srcs}。"
+        "注意不能用 `'verdict.js' in html` 来判——"
+        "全文里有 5 处注释提到它，子串断言会被注释喂饱。"
+    )
+
+    # 被 StaticFiles 挂到 `/` 上，路径必须落到真实文件；否则是 404 → 同样 ReferenceError
+    target = web / "verdict.js"
+    assert target.is_file(), (
+        f"index.html 引用了 /verdict.js，但 {target} 不存在 —— "
+        "静态挂载会 404，运行时是 ReferenceError，测试不该放行")
 
 
 def test_hidden_warning_can_actually_be_hidden():

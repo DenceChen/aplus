@@ -1,0 +1,155 @@
+[
+  {
+    "registered_on": "2026-10-12",
+    "note": "第一批前瞻验证候选。**在看到任何 2026-10-13 之后的行情之前**冻结。\n候选来自三处已完成的检验：2019-2023 独立验证、全历史 7.8 年赛马、以及现任基准。6 组 → Bonferroni 临界 2.63，远低于 84 组赛马的 3.43，门槛更紧、偶然过关更少。",
+    "evidence": "race_composite_full_7y.json / race_composite_v1.json / independent_validation_2019_2023.json / frequency_block_t_2019_2023.json",
+    "candidates": [
+      {
+        "weights": {
+          "mom20": 1.0,
+          "rev5": 0.3,
+          "vol20": 0.5,
+          "vsur": 0.5
+        },
+        "rebalance_every": 1,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": 1.0,
+          "rev5": 0.3,
+          "vol20": 0.0,
+          "vsur": 0.0,
+          "turn20": -1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -0.5,
+          "turnratio": -0.5
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -0.5,
+          "turnratio": -0.5
+        },
+        "rebalance_every": 5,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -1.0
+        },
+        "rebalance_every": 1,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -1.0
+        },
+        "rebalance_every": 5,
+        "buffer_multiple": 3.0
+      }
+    ]
+  },
+  {
+    "registered_on": "2026-10-12",
+    "note": "第二批前瞻验证候选，同样**在看到任何 2026-10-13 之后的行情之前**冻结。\n\n起因：7.8 年 IC 引导赛马（97 组，训练 2019-01~2023-08 / 测试 2023-08~2026-10）首次有候选过闸——`{mom20:-1.0}` K=63，t=+4.14 > 3.47（97 次 Bonferroni），成本占比 4.3%。\n\n**为什么仍然不晋级实盘**：训练/测试切分挡住了「权重拟合」的泄露，但挡不住「候选族的存在是被全窗口 IC 决定的」这一层——IC 诊断跑的是 2019-01~2026-10 全窗口，而正因如此我才去构造 ic_guided 候选族。\n另外该候选**有效观测仅 11 个**、**广度 t=+1.09 不显著**，即超额几乎全部来自涨腿，排序的两端分离能力未被证明。\n\n第一批 6 组里没有 K=63 的纯反转，而同一组权重在 K=1 下成本占比 95%、K=63 下 4.3%——在 5 万本金上，频率不是执行细节，它就是策略本身。",
+    "evidence": "ic_guided_race_7y.json（97 组 · 五条腿全过 · 4195s）/ factor_ic_7y.json（1821 日 IC）/ data/reports/factor_corr（因子相关性）",
+    "candidates": [
+      {
+        "weights": {
+          "mom20": -1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -0.5,
+          "turnratio": -0.5
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -0.5,
+          "turnratio": -0.5
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -1.0,
+          "rev5": 1.0,
+          "vol20": -1.0,
+          "vsur": -1.0,
+          "turn20": -1.0,
+          "turnratio": -1.0,
+          "ivol": -1.0,
+          "rsi": -1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      }
+    ]
+  },
+  {
+    "registered_on": "2026-10-14",
+    "note": "第三批前瞻验证候选：**在看到任何 2026-10-15 之后的行情之前**冻结。\n\n## 为什么要有这一批\n\n前两批（2026-10-12）共 10 组，K 分布 `1×2 / 5×2 / 21×3 / 63×3`。\n判决力以独立调仓周期计（MIN_TEST_PERIODS=3），K 日调仓攒够判决力要 3×K 个交易日：\nK=5 需 15 个交易日、K=21 需 63 个、K=63 需 189 个（约 9 个月）。\n\n**三条硬规则一条都没放松**，提速只来自降低 K：窗口仍严格晚于注册日（外加 2 日隔离带），\nBonferroni 门槛仍按候选数收紧，且**与 K 完全无关**——这两件事由不同的函数管，物理上无法互相冒充。\n\n## 挑谁：只在两处实测里都站得住的\n\n**证据一 · ic_guided_race_7y.json**（97 组，测试段 2023-08~2026-10），同权重 ic_sign_all 的频率轴：\n    K=1  超额 +0.01%  t=+0.21  ← 不过闸（日频成本占比 94.9%）\n    K=5  超额 +0.13%  t=+3.34  ← 过闸，广度 t=+5.02（全集最高）\n    K=21 超额 +0.10%  t=+3.23  ← 过闸\n**权重一个字没改，t 差 15 倍，全部来自频率。**\n\n**证据二 · 2019-2023 独立验证**（962 个交易日，纯反转 {mom20:-1.0}）：\n    K=1 净 −168.9% / K=5 −5.3% / K=21 +77.6% / K=63 +105.7%\n**276 个百分点的差距，全部来自这一个参数。**\n\n这 4 组补的是「低频档位上的空缺」，不是「换个表现更好的」：\n    ① ic_sign_all K=5      —— 第二批只冻结了它的 K=21，K=5 那一格当时是空的\n    ② {mom20:-1.0} K=21    —— 第二批只冻结了它的 K=63，K=21 那一格当时是空的\n    ③ 反转+低换手 K=5 buf3 —— 第一批只冻结了它的 K=5 **无缓冲**版本（t=+3.11）\n    ④ ic_mag_all K=5       —— 按 IC 强度加权，广度 t=+4.34 是全集第二高\n\n## 仍然不能进实盘的原因（一个都没少）\n\n1. 赛马挡不住**候选族的存在**是被全窗口 IC 决定的（IC 诊断跑的是全窗口）；\n2. {mom20:-1.0} 在 K=63 上广度 t=+1.09 不显著，超额几乎全来自涨腿，\n   「10 跌」那半没被证明；\n3. 前瞻验证本身**不晋级**——它只裁决，真要写 weights.json\n   还得再过一遍完整七道闸并由人工确认。\n",
+    "evidence": "ic_guided_race_7y.json（97 组 · 测试段 2023-08~2026-10） / frequency_block_t_2019_2023.json（2019-01~2023-12 独立验证） / candidate_block_audit.json（分腿 t 审计） / scripts/evolve_weekly.py:70-85（成本-频率表）",
+    "candidates": [
+      {
+        "weights": {
+          "mom20": -1.0,
+          "rev5": 1.0,
+          "vol20": -1.0,
+          "vsur": -1.0,
+          "turn20": -1.0,
+          "turnratio": -1.0,
+          "ivol": -1.0,
+          "rsi": -1.0
+        },
+        "rebalance_every": 5,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -0.5,
+          "turnratio": -0.5
+        },
+        "rebalance_every": 5,
+        "buffer_multiple": 3.0
+      },
+      {
+        "weights": {
+          "mom20": -0.0312,
+          "rev5": 0.0243,
+          "vol20": -0.0529,
+          "vsur": -0.0277,
+          "turn20": -0.0447,
+          "turnratio": -0.0367,
+          "ivol": -0.0591,
+          "rsi": -0.0326
+        },
+        "rebalance_every": 5,
+        "buffer_multiple": null
+      }
+    ],
+    "sealed_sha256": "b06187191848f8307c5e05a9ed08bdd8165e7396e402de1f161f785be58332a5"
+  }
+]

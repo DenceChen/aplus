@@ -1,0 +1,1040 @@
+{
+  "window": [
+    "2024-01-02",
+    "2026-10-09"
+  ],
+  "champion": {
+    "mom20": 1.0,
+    "rev5": 0.3,
+    "vol20": 0.5,
+    "vsur": 0.5
+  },
+  "entry_lag": 1,
+  "train_dates": [
+    "2024-01-02",
+    "2025-08-19"
+  ],
+  "test_dates": [
+    "2025-08-27",
+    "2026-10-08"
+  ],
+  "table": [
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4954080293886119,
+          "hit_rate_down": 0.5012913223140496,
+          "overall_hit_rate": 0.49837303136795524,
+          "avg_up_return": -2.3639600638579833e-05,
+          "avg_down_return": 0.0008646918580605605,
+          "up_excess_vs_market": 0.0004010996993861878,
+          "down_excess_vs_market": -0.0012894311580853282,
+          "excess_breadth": -0.0008883314586991404,
+          "excess_tilt": 0.001690530857471516,
+          "judged": 7683,
+          "excess_t": 0.9011305291182382,
+          "excess_days": 395,
+          "breadth_t": -1.1752359368175718,
+          "down_t": -2.075298060295372,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": 0.5385,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.48033924441017734,
+          "hit_rate_down": 0.5352649637819291,
+          "overall_hit_rate": 0.5079547632739122,
+          "avg_up_return": -0.001447888271940277,
+          "avg_down_return": -0.0009613384934173344,
+          "up_excess_vs_market": -0.001339676238435803,
+          "down_excess_vs_market": 0.0008531264599128603,
+          "excess_breadth": -0.0004865497785229426,
+          "excess_tilt": -0.0021928026983486634,
+          "judged": 5217,
+          "excess_t": -2.492839040343045,
+          "excess_days": 266,
+          "breadth_t": -0.4532251660306099,
+          "down_t": 0.8364216356428672,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": 0.374,
+        "n": 5320
+      },
+      "oos_edge": -0.16449999999999998,
+      "weights": {
+        "mom20": 0.5,
+        "rev5": 0.5,
+        "vol20": -1.0,
+        "vsur": 0.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.47443762781186094,
+          "hit_rate_down": 0.5244736842105263,
+          "overall_hit_rate": 0.4990923236514523,
+          "avg_up_return": -0.0023734876360374103,
+          "avg_down_return": -0.0009919151072844308,
+          "up_excess_vs_market": -0.0019487483360126428,
+          "down_excess_vs_market": 0.0005671758072596633,
+          "excess_breadth": -0.0013815725287529795,
+          "excess_tilt": -0.002515924143272306,
+          "judged": 7712,
+          "excess_t": -2.0243873254060762,
+          "excess_days": 395,
+          "breadth_t": -1.0012116007846896,
+          "down_t": 0.6462252029442418,
+          "n_ranked": 3386,
+          "n_universe": 4666
+        },
+        "objective": 0.3042,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.45836487509462526,
+          "hit_rate_down": 0.5354762838102705,
+          "overall_hit_rate": 0.49624494511842865,
+          "avg_up_return": -0.002619961198784514,
+          "avg_down_return": -0.0018549755590173873,
+          "up_excess_vs_market": -0.0025117491652800403,
+          "down_excess_vs_market": 0.0017467635255129133,
+          "excess_breadth": -0.000764985639767127,
+          "excess_tilt": -0.004258512690792953,
+          "judged": 5193,
+          "excess_t": -1.7659461443941809,
+          "excess_days": 266,
+          "breadth_t": -0.40241505847803744,
+          "down_t": 1.7813497774504923,
+          "n_ranked": 3367,
+          "n_universe": 5057
+        },
+        "objective": 0.2451,
+        "n": 5320
+      },
+      "oos_edge": -0.059100000000000014,
+      "weights": {
+        "mom20": 0.6,
+        "rev5": 0.2,
+        "vol20": -0.7,
+        "vsur": 0.3,
+        "turn20": -1.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.46874202602704773,
+          "hit_rate_down": 0.46900053447354356,
+          "overall_hit_rate": 0.46886829395640256,
+          "avg_up_return": -0.003471889183599347,
+          "avg_down_return": 0.0014312236046890355,
+          "up_excess_vs_market": -0.0030471498835745793,
+          "down_excess_vs_market": -0.001855962904713803,
+          "excess_breadth": -0.004903112788288382,
+          "excess_tilt": -0.0011911869788607762,
+          "judged": 7661,
+          "excess_t": -2.943063262432765,
+          "excess_days": 395,
+          "breadth_t": -3.301425742915339,
+          "down_t": -2.058332008818573,
+          "n_ranked": 3386,
+          "n_universe": 4666
+        },
+        "objective": 0.1642,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.45598791084246315,
+          "hit_rate_down": 0.5068332682545881,
+          "overall_hit_rate": 0.48099078341013823,
+          "avg_up_return": -0.0036937965994974,
+          "avg_down_return": 0.0006660755904620644,
+          "up_excess_vs_market": -0.0035855845659929263,
+          "down_excess_vs_market": -0.0007742876239665384,
+          "excess_breadth": -0.004359872189959465,
+          "excess_tilt": -0.002811296942026388,
+          "judged": 5208,
+          "excess_t": -2.447481587210953,
+          "excess_days": 266,
+          "breadth_t": -2.058487979285923,
+          "down_t": -0.7029333487063544,
+          "n_ranked": 3367,
+          "n_universe": 5057
+        },
+        "objective": 0.1224,
+        "n": 5320
+      },
+      "oos_edge": -0.04180000000000002,
+      "weights": {
+        "mom20": 0.0,
+        "rev5": 0.0,
+        "vol20": 0.0,
+        "vsur": 0.0,
+        "turn20": -1.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4642094017094017,
+          "hit_rate_down": 0.546875,
+          "overall_hit_rate": 0.46559873949579833,
+          "avg_up_return": -0.0038661071908212908,
+          "avg_down_return": -0.0024365606026009535,
+          "up_excess_vs_market": -0.003441367890796523,
+          "down_excess_vs_market": 0.002011821302576186,
+          "excess_breadth": -0.0014295465882203373,
+          "excess_tilt": -0.005453189193372709,
+          "judged": 3808,
+          "excess_t": -2.241011750495064,
+          "excess_days": 395,
+          "breadth_t": -0.6386484950525207,
+          "down_t": -0.6437569523355846,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": 0.1215,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4768288012255841,
+          "hit_rate_down": 0.8333333333333334,
+          "overall_hit_rate": 0.4863958255683936,
+          "avg_up_return": -0.0009988218422076114,
+          "avg_down_return": -0.0919448218237924,
+          "up_excess_vs_market": -0.0008906098087031373,
+          "down_excess_vs_market": 0.09183660979028793,
+          "excess_breadth": 0.0909459999815848,
+          "excess_tilt": -0.09272721959899106,
+          "judged": 2683,
+          "excess_t": -0.5088516784923316,
+          "excess_days": 266,
+          "breadth_t": 7.675941180115215,
+          "down_t": 8.559467442328037,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": 0.3973,
+        "n": 5320
+      },
+      "oos_edge": 0.2758,
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "ivol": -0.8
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4483111566018424,
+          "hit_rate_down": 0.51597239969333,
+          "overall_hit_rate": 0.48216340621403914,
+          "avg_up_return": -0.004660159183002665,
+          "avg_down_return": -0.0005565507382569116,
+          "up_excess_vs_market": -0.004235419882977897,
+          "down_excess_vs_market": 0.000131811438232144,
+          "excess_breadth": -0.004103608444745753,
+          "excess_tilt": -0.004367231321210041,
+          "judged": 7821,
+          "excess_t": -3.6215460528619263,
+          "excess_days": 395,
+          "breadth_t": -3.081347233921537,
+          "down_t": 0.1458061856152639,
+          "n_ranked": 3386,
+          "n_universe": 4666
+        },
+        "objective": 0.0586,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.46209249431387417,
+          "hit_rate_down": 0.5401515151515152,
+          "overall_hit_rate": 0.5011367942402425,
+          "avg_up_return": -0.0022323382673610677,
+          "avg_down_return": -0.002230241784332043,
+          "up_excess_vs_market": -0.002124126233856594,
+          "down_excess_vs_market": 0.002122029750827569,
+          "excess_breadth": -2.0964830290248065e-06,
+          "excess_tilt": -0.004246155984684163,
+          "judged": 5278,
+          "excess_t": -1.3559708958409766,
+          "excess_days": 266,
+          "breadth_t": -0.001167911012158861,
+          "down_t": 1.7393953817722714,
+          "n_ranked": 3367,
+          "n_universe": 5057
+        },
+        "objective": 0.2887,
+        "n": 5320
+      },
+      "oos_edge": 0.23010000000000003,
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.0,
+        "vsur": 0.0,
+        "turn20": -1.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4610115911485774,
+          "hit_rate_down": 0.5591397849462365,
+          "overall_hit_rate": 0.4633581897660067,
+          "avg_up_return": -0.004659944243826869,
+          "avg_down_return": -0.007958441716897871,
+          "up_excess_vs_market": -0.004235204943802102,
+          "down_excess_vs_market": 0.0075337024168731035,
+          "excess_breadth": 0.0032984974730710017,
+          "excess_tilt": -0.011768907360675205,
+          "judged": 3889,
+          "excess_t": -2.8982139260196593,
+          "excess_days": 395,
+          "breadth_t": 0.04396532932026724,
+          "down_t": 0.29926522087567653,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": 0.0398,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.45893536121673006,
+          "hit_rate_down": 0.7666666666666667,
+          "overall_hit_rate": 0.46911764705882353,
+          "avg_up_return": -0.0029510431414949217,
+          "avg_down_return": -0.07377640626220638,
+          "up_excess_vs_market": -0.002842831107990448,
+          "down_excess_vs_market": 0.07366819422870191,
+          "excess_breadth": 0.07082536312071146,
+          "excess_tilt": -0.07651102533669236,
+          "judged": 2720,
+          "excess_t": -1.51800707889258,
+          "excess_days": 266,
+          "breadth_t": 6.502256856790685,
+          "down_t": 6.974561753338385,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": 0.1848,
+        "n": 5320
+      },
+      "oos_edge": 0.145,
+      "weights": {
+        "mom20": 0.5,
+        "rev5": 0.3,
+        "vol20": 0.3,
+        "ivol": -0.5
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.45645491803278687,
+          "hit_rate_down": 0.5231280347559417,
+          "overall_hit_rate": 0.48982985800179096,
+          "avg_up_return": -0.005439096132521617,
+          "avg_down_return": -0.000802072479143094,
+          "up_excess_vs_market": -0.005014356832496849,
+          "down_excess_vs_market": 0.00037733317911832644,
+          "excess_breadth": -0.004637023653378523,
+          "excess_tilt": -0.005391690011615176,
+          "judged": 7817,
+          "excess_t": -4.5271398853795075,
+          "excess_days": 395,
+          "breadth_t": -3.729697868623621,
+          "down_t": 0.37318092230259353,
+          "n_ranked": 3386,
+          "n_universe": 4666
+        },
+        "objective": -0.0116,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4394686907020873,
+          "hit_rate_down": 0.5473484848484849,
+          "overall_hit_rate": 0.49345971563981045,
+          "avg_up_return": -0.0042845822000203695,
+          "avg_down_return": -0.002854742767273145,
+          "up_excess_vs_market": -0.004176370166515895,
+          "down_excess_vs_market": 0.0027465307337686713,
+          "excess_breadth": -0.001429839432747224,
+          "excess_tilt": -0.006922900900284567,
+          "judged": 5275,
+          "excess_t": -2.709693311372317,
+          "excess_days": 266,
+          "breadth_t": -0.8041814585072389,
+          "down_t": 2.1796545047618214,
+          "n_ranked": 3367,
+          "n_universe": 5057
+        },
+        "objective": 0.0758,
+        "n": 5320
+      },
+      "oos_edge": 0.0874,
+      "weights": {
+        "mom20": 0.3,
+        "rev5": 0.3,
+        "vol20": 0.2,
+        "vsur": 0.2,
+        "turn20": -0.2
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4582839066824832,
+          "hit_rate_down": 0.458779443254818,
+          "overall_hit_rate": 0.4585794094173982,
+          "avg_up_return": -0.005858321789434441,
+          "avg_down_return": 0.0013065911162077031,
+          "up_excess_vs_market": -0.0054335824894096735,
+          "down_excess_vs_market": -0.0017313304162324707,
+          "excess_breadth": -0.0071649129056421445,
+          "excess_tilt": -0.0037022520731772026,
+          "judged": 6265,
+          "excess_t": -4.032384641260151,
+          "excess_days": 395,
+          "breadth_t": -4.796632864143991,
+          "down_t": -3.9907573075725495,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.0848,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.45232974910394264,
+          "hit_rate_down": 0.4951807228915663,
+          "overall_hit_rate": 0.4797940797940798,
+          "avg_up_return": -0.006966859131474704,
+          "avg_down_return": 0.0002545061006927773,
+          "up_excess_vs_market": -0.00685864709797023,
+          "down_excess_vs_market": -0.00036271813419725134,
+          "excess_breadth": -0.007221365232167481,
+          "excess_tilt": -0.006495928963772979,
+          "judged": 3885,
+          "excess_t": -3.124180521079253,
+          "excess_days": 266,
+          "breadth_t": -3.0548646633740817,
+          "down_t": -0.5216339787010279,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.2061,
+        "n": 5320
+      },
+      "oos_edge": -0.1213,
+      "weights": {
+        "mom20": 0.0,
+        "rev5": 0.0,
+        "vol20": 0.0,
+        "vsur": 0.0,
+        "ivol": -1.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4582839066824832,
+          "hit_rate_down": 0.458779443254818,
+          "overall_hit_rate": 0.4585794094173982,
+          "avg_up_return": -0.005858321789434441,
+          "avg_down_return": 0.0013065911162077031,
+          "up_excess_vs_market": -0.0054335824894096735,
+          "down_excess_vs_market": -0.0017313304162324707,
+          "excess_breadth": -0.0071649129056421445,
+          "excess_tilt": -0.0037022520731772026,
+          "judged": 6265,
+          "excess_t": -4.032384641260151,
+          "excess_days": 395,
+          "breadth_t": -4.796632864143991,
+          "down_t": -3.9907573075725495,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.0848,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4524660471765547,
+          "hit_rate_down": 0.4951807228915663,
+          "overall_hit_rate": 0.47981486243250193,
+          "avg_up_return": -0.006898555448610169,
+          "avg_down_return": 0.0002545061006927773,
+          "up_excess_vs_market": -0.0067903434151056945,
+          "down_excess_vs_market": -0.00036271813419725134,
+          "excess_breadth": -0.007153061549302946,
+          "excess_tilt": -0.006427625280908443,
+          "judged": 3889,
+          "excess_t": -3.1004546303563965,
+          "excess_days": 266,
+          "breadth_t": -3.0321900880082215,
+          "down_t": -0.5216339787010279,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.1992,
+        "n": 5320
+      },
+      "oos_edge": -0.11439999999999999,
+      "weights": {
+        "ivol": 1.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.44852726742490523,
+          "hit_rate_down": 0.49523809523809526,
+          "overall_hit_rate": 0.44991511035653653,
+          "avg_up_return": -0.006921415765410499,
+          "avg_down_return": 0.004233709879599718,
+          "up_excess_vs_market": -0.0064966764653857315,
+          "down_excess_vs_market": -0.004658449179624486,
+          "excess_breadth": -0.011155125645010217,
+          "excess_tilt": -0.0018382272857612458,
+          "judged": 3534,
+          "excess_t": -4.156426002404438,
+          "excess_days": 395,
+          "breadth_t": -0.9106835325019905,
+          "down_t": -0.4405070466949284,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.1998,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.45984784446322907,
+          "hit_rate_down": 0.8,
+          "overall_hit_rate": 0.4702990577632118,
+          "avg_up_return": -0.004447834328881732,
+          "avg_down_return": -0.07757689181638736,
+          "up_excess_vs_market": -0.004339622295377258,
+          "down_excess_vs_market": 0.07746867978288288,
+          "excess_breadth": 0.07312905748750563,
+          "excess_tilt": -0.08180830207826013,
+          "judged": 2441,
+          "excess_t": -2.2018311251505533,
+          "excess_days": 266,
+          "breadth_t": 6.345568061498429,
+          "down_t": 7.1283568176904115,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": 0.0363,
+        "n": 5320
+      },
+      "oos_edge": 0.2361,
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.6,
+        "vol20": 0.5,
+        "vsur": 0.5
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.44798113763631003,
+          "hit_rate_down": 0.4909090909090909,
+          "overall_hit_rate": 0.4486658932714617,
+          "avg_up_return": -0.0072316193736593325,
+          "avg_down_return": -0.0027801169345197207,
+          "up_excess_vs_market": -0.006806880073634565,
+          "down_excess_vs_market": 0.002355377634494953,
+          "excess_breadth": -0.004451502439139611,
+          "excess_tilt": -0.009162257708129519,
+          "judged": 3448,
+          "excess_t": -4.200212352271958,
+          "excess_days": 395,
+          "breadth_t": -1.0405882968596971,
+          "down_t": -0.31174175457536085,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.232,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4597457627118644,
+          "hit_rate_down": 0.847457627118644,
+          "overall_hit_rate": 0.4692021496486151,
+          "avg_up_return": -0.004859002898978303,
+          "avg_down_return": -0.09619742672500743,
+          "up_excess_vs_market": -0.004750790865473828,
+          "down_excess_vs_market": 0.09608921469150296,
+          "excess_breadth": 0.09133842382602914,
+          "excess_tilt": -0.10084000555697678,
+          "judged": 2419,
+          "excess_t": -2.358399915652483,
+          "excess_days": 266,
+          "breadth_t": 7.2957706753041025,
+          "down_t": 8.446253328036384,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.0059,
+        "n": 5320
+      },
+      "oos_edge": 0.22610000000000002,
+      "weights": {
+        "mom20": 1.4,
+        "rev5": 0.6,
+        "vol20": 0.5,
+        "vsur": 0.5
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4408,
+          "hit_rate_down": 0.6976744186046512,
+          "overall_hit_rate": 0.4437121012391247,
+          "avg_up_return": -0.007729524524334965,
+          "avg_down_return": -0.025994469635018846,
+          "up_excess_vs_market": -0.007304785224310197,
+          "down_excess_vs_market": 0.025569730334994076,
+          "excess_breadth": 0.01826494511068388,
+          "excess_tilt": -0.032874515559304276,
+          "judged": 3793,
+          "excess_t": -4.421597006846397,
+          "excess_days": 395,
+          "breadth_t": 0.44278599254477286,
+          "down_t": 1.1335794138098199,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.2868,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.47198772064466615,
+          "hit_rate_down": 0.6097560975609756,
+          "overall_hit_rate": 0.4741216471477144,
+          "avg_up_return": -0.003478491801605634,
+          "avg_down_return": -0.007963916465892491,
+          "up_excess_vs_market": -0.0033702797681011603,
+          "down_excess_vs_market": 0.007855704432388018,
+          "excess_breadth": 0.004485424664286857,
+          "excess_tilt": -0.011225984200489179,
+          "judged": 2647,
+          "excess_t": -1.736797634406331,
+          "excess_days": 266,
+          "breadth_t": 0.39354081086489195,
+          "down_t": 1.4668625215436895,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": 0.1371,
+        "n": 5320
+      },
+      "oos_edge": 0.4239,
+      "weights": {
+        "mom20": 2.0,
+        "rev5": 0.0,
+        "vol20": 0.0,
+        "vsur": 0.0
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4378680800942285,
+          "hit_rate_down": 0.5714285714285714,
+          "overall_hit_rate": 0.4392305450306033,
+          "avg_up_return": -0.009076490788417197,
+          "avg_down_return": -0.011517755495875987,
+          "up_excess_vs_market": -0.00865175148839243,
+          "down_excess_vs_market": 0.01109301619585122,
+          "excess_breadth": 0.0024412647074587897,
+          "excess_tilt": -0.01974476768424365,
+          "judged": 3431,
+          "excess_t": -5.239270165790744,
+          "excess_days": 395,
+          "breadth_t": -0.21798425204961855,
+          "down_t": 0.5365098125379727,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.4259,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.45916208209902665,
+          "hit_rate_down": 0.6875,
+          "overall_hit_rate": 0.4622129436325679,
+          "avg_up_return": -0.005057207186313847,
+          "avg_down_return": -0.03511293492137063,
+          "up_excess_vs_market": -0.004948995152809373,
+          "down_excess_vs_market": 0.03500472288786616,
+          "excess_breadth": 0.030055727735056784,
+          "excess_tilt": -0.03995371804067553,
+          "judged": 2395,
+          "excess_t": -2.4374929682875246,
+          "excess_days": 266,
+          "breadth_t": 2.071463103295547,
+          "down_t": 3.0471621224232774,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.0327,
+        "n": 5320
+      },
+      "oos_edge": 0.3932,
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.41575325006372676,
+          "hit_rate_down": 0.514176245210728,
+          "overall_hit_rate": 0.4649145190099515,
+          "avg_up_return": -0.010586266151652481,
+          "avg_down_return": -0.00022897337636907492,
+          "up_excess_vs_market": -0.010161526851627713,
+          "down_excess_vs_market": -0.00019576592365569268,
+          "excess_breadth": -0.010357292775283406,
+          "excess_tilt": -0.009965760927972021,
+          "judged": 7838,
+          "excess_t": -7.69305195684175,
+          "excess_days": 395,
+          "breadth_t": -7.382358002014898,
+          "down_t": -0.2435982990408024,
+          "n_ranked": 3386,
+          "n_universe": 4666
+        },
+        "objective": -0.5512,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4553030303030303,
+          "hit_rate_down": 0.5364464692482915,
+          "overall_hit_rate": 0.4958285930982177,
+          "avg_up_return": -0.004471491158352918,
+          "avg_down_return": -0.0019648551590456744,
+          "up_excess_vs_market": -0.0043632791248484435,
+          "down_excess_vs_market": 0.0018566431255412003,
+          "excess_breadth": -0.002506635999307243,
+          "excess_tilt": -0.006219922250389644,
+          "judged": 5274,
+          "excess_t": -2.57948129920751,
+          "excess_days": 266,
+          "breadth_t": -1.3639505349347334,
+          "down_t": 1.6649213346435225,
+          "n_ranked": 3367,
+          "n_universe": 5057
+        },
+        "objective": 0.0595,
+        "n": 5320
+      },
+      "oos_edge": 0.6107,
+      "weights": {
+        "mom20": 0.8,
+        "rev5": 0.2,
+        "vol20": 0.5,
+        "vsur": 0.3,
+        "turn20": -0.8
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.432,
+          "hit_rate_down": 0.4993939393939394,
+          "overall_hit_rate": 0.4599163179916318,
+          "avg_up_return": -0.010628491152679286,
+          "avg_down_return": 0.00039346197207043007,
+          "up_excess_vs_market": -0.010203751852654519,
+          "down_excess_vs_market": -0.0008182012720951977,
+          "excess_breadth": -0.011021953124749717,
+          "excess_tilt": -0.00938555058055932,
+          "judged": 5975,
+          "excess_t": -6.559448658769659,
+          "excess_days": 395,
+          "breadth_t": -6.219707054346036,
+          "down_t": -1.3555632800869075,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -0.5605,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4457118715673849,
+          "hit_rate_down": 0.5239576851275669,
+          "overall_hit_rate": 0.4773527931555108,
+          "avg_up_return": -0.007636003869047838,
+          "avg_down_return": -0.0013095920999449953,
+          "up_excess_vs_market": -0.0075277918355433635,
+          "down_excess_vs_market": 0.0012013800664405212,
+          "excess_breadth": -0.006326411769102843,
+          "excess_tilt": -0.008729171901983884,
+          "judged": 3974,
+          "excess_t": -4.050272229748005,
+          "excess_days": 266,
+          "breadth_t": -3.2364186268263104,
+          "down_t": 1.1024520470089247,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.2754,
+        "n": 5320
+      },
+      "oos_edge": 0.2851,
+      "weights": {
+        "mom20": 0.6,
+        "rev5": 0.3,
+        "vol20": 0.8,
+        "vsur": 0.8
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.41942886282508923,
+          "hit_rate_down": 0.5046153846153846,
+          "overall_hit_rate": 0.4619023267706469,
+          "avg_up_return": -0.010867169345210878,
+          "avg_down_return": 0.0006081036600354448,
+          "up_excess_vs_market": -0.010442430045186111,
+          "down_excess_vs_market": -0.0010328429600602125,
+          "excess_breadth": -0.011475273005246324,
+          "excess_tilt": -0.009409587085125898,
+          "judged": 7822,
+          "excess_t": -7.49109331163859,
+          "excess_days": 395,
+          "breadth_t": -7.650294508895514,
+          "down_t": -1.367565346650829,
+          "n_ranked": 3386,
+          "n_universe": 4666
+        },
+        "objective": -0.5823,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4522365428354814,
+          "hit_rate_down": 0.5154050969950551,
+          "overall_hit_rate": 0.48376685019935445,
+          "avg_up_return": -0.005033795112588612,
+          "avg_down_return": -0.00044345952778016045,
+          "up_excess_vs_market": -0.0049255830790841375,
+          "down_excess_vs_market": 0.00033524749427568646,
+          "excess_breadth": -0.004590335584808451,
+          "excess_tilt": -0.005260830573359824,
+          "judged": 5267,
+          "excess_t": -2.8451821670186015,
+          "excess_days": 266,
+          "breadth_t": -2.4412294901692344,
+          "down_t": 0.36094260021825064,
+          "n_ranked": 3367,
+          "n_universe": 5057
+        },
+        "objective": -0.0088,
+        "n": 5320
+      },
+      "oos_edge": 0.5735,
+      "weights": {
+        "mom20": 1.0,
+        "rev5": 0.3,
+        "vol20": 0.5,
+        "vsur": 0.5,
+        "turn20": -0.5
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.41373801916932906,
+          "hit_rate_down": 0.5548387096774193,
+          "overall_hit_rate": 0.520382289838112,
+          "avg_up_return": -0.018656884815870405,
+          "avg_down_return": -0.003532249302137217,
+          "up_excess_vs_market": -0.018232145515845635,
+          "down_excess_vs_market": 0.0031075100021124495,
+          "excess_breadth": -0.015124635513733185,
+          "excess_tilt": -0.021339655517958085,
+          "judged": 5127,
+          "excess_t": -8.278052749257423,
+          "excess_days": 367,
+          "breadth_t": -5.330938838706655,
+          "down_t": 1.6438315652140092,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -1.3028,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.43451143451143454,
+          "hit_rate_down": 0.5276515151515152,
+          "overall_hit_rate": 0.5132970201858379,
+          "avg_up_return": -0.005971286254709095,
+          "avg_down_return": -0.0018333940565973838,
+          "up_excess_vs_market": -0.005863074221204621,
+          "down_excess_vs_market": 0.0017251820230929098,
+          "excess_breadth": -0.004137892198111711,
+          "excess_tilt": -0.007588256244297531,
+          "judged": 3121,
+          "excess_t": -3.500674986211364,
+          "excess_days": 243,
+          "breadth_t": -2.307684388538033,
+          "down_t": 0.8859219674892757,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.073,
+        "n": 5320
+      },
+      "oos_edge": 1.2298,
+      "weights": {
+        "mom20": 0.0,
+        "rev5": 1.0,
+        "vol20": 0.5,
+        "vsur": 0.5
+      }
+    },
+    {
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.238562091503268,
+          "hit_rate_down": 0.5694516971279373,
+          "overall_hit_rate": 0.5449709864603481,
+          "avg_up_return": -0.04676824892399216,
+          "avg_down_return": -0.006825466793599265,
+          "up_excess_vs_market": -0.04634350962396739,
+          "down_excess_vs_market": 0.006400727493574497,
+          "excess_breadth": -0.039942782130392894,
+          "excess_tilt": -0.052744237117541885,
+          "judged": 4136,
+          "excess_t": -6.119543056139976,
+          "excess_days": 191,
+          "breadth_t": -4.686803893996126,
+          "down_t": 3.4573758560330985,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": -4.0894,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.4,
+          "hit_rate_down": 0.5279786829082603,
+          "overall_hit_rate": 0.5232856618995233,
+          "avg_up_return": -0.00968678457557213,
+          "avg_down_return": -0.0012659348727135657,
+          "up_excess_vs_market": -0.009578572542067657,
+          "down_excess_vs_market": 0.0011577228392090917,
+          "excess_breadth": -0.008420849702858566,
+          "excess_tilt": -0.010736295381276748,
+          "judged": 2727,
+          "excess_t": -1.4648971546392446,
+          "excess_days": 84,
+          "breadth_t": -1.2900716697266612,
+          "down_t": 0.5898173959695627,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": -0.4346,
+        "n": 5320
+      },
+      "oos_edge": 3.6548000000000003,
+      "weights": {
+        "mom20": -1.0,
+        "rev5": 1.0,
+        "vol20": 0.5,
+        "vsur": 0.5
+      }
+    }
+  ],
+  "decision": {
+    "promote": false,
+    "best": {
+      "weights": {
+        "mom20": 0.5,
+        "rev5": 0.5,
+        "vol20": -1.0,
+        "vsur": 0.0
+      },
+      "train": {
+        "stats": {
+          "hit_rate_up": 0.4954080293886119,
+          "hit_rate_down": 0.5012913223140496,
+          "overall_hit_rate": 0.49837303136795524,
+          "avg_up_return": -2.3639600638579833e-05,
+          "avg_down_return": 0.0008646918580605605,
+          "up_excess_vs_market": 0.0004010996993861878,
+          "down_excess_vs_market": -0.0012894311580853282,
+          "excess_breadth": -0.0008883314586991404,
+          "excess_tilt": 0.001690530857471516,
+          "judged": 7683,
+          "excess_t": 0.9011305291182382,
+          "excess_days": 395,
+          "breadth_t": -1.1752359368175718,
+          "down_t": -2.075298060295372,
+          "n_ranked": 3437,
+          "n_universe": 4666
+        },
+        "objective": 0.5385,
+        "n": 7900
+      },
+      "test": {
+        "stats": {
+          "hit_rate_up": 0.48033924441017734,
+          "hit_rate_down": 0.5352649637819291,
+          "overall_hit_rate": 0.5079547632739122,
+          "avg_up_return": -0.001447888271940277,
+          "avg_down_return": -0.0009613384934173344,
+          "up_excess_vs_market": -0.001339676238435803,
+          "down_excess_vs_market": 0.0008531264599128603,
+          "excess_breadth": -0.0004865497785229426,
+          "excess_tilt": -0.0021928026983486634,
+          "judged": 5217,
+          "excess_t": -2.492839040343045,
+          "excess_days": 266,
+          "breadth_t": -0.4532251660306099,
+          "down_t": 0.8364216356428672,
+          "n_ranked": 5036,
+          "n_universe": 5057
+        },
+        "objective": 0.374,
+        "n": 5320
+      },
+      "oos_edge": -0.16449999999999998
+    },
+    "train_gain": 0.9643999999999999,
+    "test_excess": -0.001339676238435803,
+    "reason": "**超额硬闸否决**：候选测试段对市场日均超额 -0.13% ≤ +0.00%——赢的是命中率不是 alpha，贴大盘的低风险 beta 换上去对「年化 20%」毫无帮助"
+  },
+  "elapsed_s": 447.1
+}
