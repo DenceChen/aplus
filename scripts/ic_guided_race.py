@@ -56,6 +56,7 @@ from aplus.evolve_race import (EMBARGO_DAYS, TRAIN_RATIO, breadth_tstat,
                                down_excess_tstat, excess_tstat, oos_decision,
                                race, split_window)
 from aplus.factor import FACTOR_NAMES
+from aplus.provenance import stamp  # noqa: E402
 from aplus.factor_ic import (FWD_WINDOWS, MIN_OBS, build_price_cache,
                              daily_ic_ranked, forward_returns,
                              make_ranked_forward, window_block)
@@ -320,6 +321,19 @@ def main() -> int:
     path = reports / args.out
     path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str),
                     encoding="utf-8")
+    # ── 2026-10-14 补盖溯源章 ──────────────────────────────────────
+    # 这份报告是**全项目最吃重的一份**：它是唯一产出过闸候选
+    # `{mom20:-1.0} K=63 t=+4.14` 的赛马，也是冻结进前瞻验证候选集的
+    # 那个数的唯一来源。而 10-12 23:26 那一版同时栽在两处：
+    #   ① 早于基准污染修复（3c846ff，14:02）
+    #   ② 判决用正态近似临界 3.47，而 df=10 的真临界是 5.03
+    # 两处都让数字**看起来完全正常**——这正是不盖章最危险的地方。
+    #
+    # 生成者登记成 `aplus/evolve_race.py`（`oos_decision` 在那里），
+    # 而不是本脚本：判新鲜要看**判决逻辑**是否变过，而不只是驱动脚本。
+    stamp(path, "aplus/evolve_race.py", root=ROOT,
+          extra={"window": out["window"], "n_candidates": out["n_candidates"],
+                 "decision_promote": bool(dec.get("promote"))})
     print(f"\n→ {path}  总耗时 {time.time() - t0:.0f}s")
     return 0
 

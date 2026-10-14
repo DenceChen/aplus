@@ -61,6 +61,11 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
     "market_benchmark_audit.json": "aplus/backtest.py",
+    # 赛马报告的判决逻辑在 evolve_race.oos_decision，不在驱动脚本
+    "ic_guided_race_7y.json": "aplus/evolve_race.py",
+    "ic_guided_race_v1.json": "aplus/evolve_race.py",
+    "reversal_freq_2019_2023.json": "aplus/backtest.py",
+    "regime_control_sweep.json": "aplus/backtest.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
     "fundamental_ic.json": "aplus/factor_ic.py",
     "forward_registry.json": "aplus/forward.py",
