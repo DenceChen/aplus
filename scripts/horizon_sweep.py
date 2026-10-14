@@ -78,6 +78,10 @@ HORIZONS = [1, 5, 10, 20]
 TOP_N = 10                      # 策略实际买的宽度
 N_COMPARISONS = len(HORIZONS)   # 4 次，不是 4×榜宽数
 
+# 随机对照的**稳健性种子组**。见 `seed_panel` 的说明——这不是"多试几次直到
+# 过闸"，那会增加比较次数；这是给**参照本身**降噪，且全部报出。
+SEED_PANEL = [42, 43, 44, 45, 46]
+
 
 def per_year(daily_mean: float, k: int) -> float:
     """K 日收益均值 → 年化。
@@ -122,9 +126,7 @@ def forward_return(daily_map: dict, factors_map: dict, adj_cache: dict,
     if hit is None:
         hit = _build_bar_cache(code, df, factors_map.get(code))
         adj_cache[key] = hit
-    dates, closes = hit[0], hit[1]
-    if not hit[2]:                       # 没有除权事件 → 不复权，但要在结果里可见
-        pass
+    dates, closes, _has_adj, raw, buyable, sellable = hit
     pos = int(np.searchsorted(dates, day, side="right")) - 1
     if pos <= 0:                         # 信号日尚未有 K 线 → 该票当日不存在
         return None
@@ -135,6 +137,16 @@ def forward_return(daily_map: dict, factors_map: dict, adj_cache: dict,
     # 一个专门防自欺的机制，被 off-by-one 变成永远红灯，比没有更糟。
     exit_i = entry + k
     if entry >= len(dates) or exit_i >= len(dates):
+        return None
+    # **成交闸门必须与 `_next_bars` 一致**。首版漏了这一层，K=1 对照组给
+    # t=+0.48 而 `factor_vs_random` 同一实验是 t=0.10——差在这里：
+    # 买不进（涨停/一字板）、跌停卖不掉、停牌要持有到复牌，
+    # `_next_bars` 都判，本函数一概算入。
+    # 配对比较仍然自洽（两臂受同样影响），但**测量工具不一致时，
+    # 绝对年化不能与上一轮并列引用**——那个数字量的不是同一件事。
+    from aplus.backtest import _up_leg_exit
+    exit_i, _reason = _up_leg_exit(raw, buyable, sellable, entry, exit_i, len(dates))
+    if exit_i < 0:                       # 真没成交 → 不进观测，不猜
         return None
     a, b = float(closes[entry]), float(closes[exit_i])
     if not np.isfinite(a) or not np.isfinite(b) or a == 0:
@@ -167,9 +179,11 @@ def arm(xs: dict, days: list, weights: dict | None, seed: int,
                   .sort_values("_s", ascending=False).head(min(TOP_N, N_RANKS)))
         vals = []
         for code in ranked["code"]:
+            # 买不进的**不计入**——与 `_next_bars` 同纪律。计入它等于把
+            # 一笔没成交的交易当成成交来做统计。
             r = forward_return(daily_map, factors_map, adj_cache, code, day, k)
             if r is not None:
-                vals.append(r)          # 买不进的照算，不猜
+                vals.append(r)
         if vals:
             out[day] = float(np.mean(vals))
     return pd.Series(out, dtype=float)
@@ -200,6 +214,63 @@ def compare_k(xs: dict, days: list, k: int, seed: int = RANDOM_SEED) -> dict:
         "diff_annual": per_year(float(d.mean()), k),
         "verdict": v,
     }
+
+
+def seed_panel(xs: dict, days: list, k: int, seeds: list | None = None) -> dict:
+    """同一 K 下，把随机臂换遍一组种子，逐种子算 t。
+
+    ## 为什么必须做这一步
+    单种子随机臂在 K=20（58 个观测）方差极大，却**充当显著性参照**。
+    首轮跑出 t=−3.23「因子显著劣于随机」，而该种子的随机臂报出
+    +23.08%/年——**这个数本身就是警报**：一个 10 只票的随机篮子
+    不该稳定地跑赢市场 23 个点，它很可能只是这一颗种子抽得幸运。
+
+    ## 判据（跑之前定）
+    **不是**「有没有种子过闸」。全部过闸和只有一个种子过闸，证据强度
+    完全不同，而后者更可能是噪声。这里只判一件事：
+
+        是否**所有**种子都在临界值同一侧 → 稳健
+        只要有一个翻面                    → 结论依赖种子，作废
+
+    一次比较只登记 4 个 K；种子是稳健性检查不是新假设，
+    所以 `N_COMPARISONS` 不因它增加——**但也绝不允许只报最好那个种子**。
+    """
+    seeds = seeds or SEED_PANEL
+    s_arm = arm(xs, days, SIGN_FIXED, seeds[0], k)
+    ts = []
+    for sd in seeds:
+        r_arm = arm(xs, days, None, sd, k)
+        both = pd.concat([s_arm, r_arm], axis=1, keys=["s", "r"]).dropna()
+        if len(both) < 3:
+            ts.append(None)
+            continue
+        t = _paired_t(both["s"], both["r"])
+        ts.append({
+            "seed": sd, "n_days": int(len(both)), "paired_t": t,
+            "random_annual": per_year(float(both["r"].mean()), k),
+        })
+    ok = [x for x in ts if x and x["paired_t"] is not None]
+    crit = bonferroni_t(N_COMPARISONS, df=min(
+        (x["n_days"] for x in ok), default=10) - 1)
+    # **稳健 = 全部种子都产出 t 且同侧。** 少一个都不算稳健：
+    # 若某个种子因差值退化被剔除，就在**子集**上判了「所有种子同侧」——
+    # 那正是本脚本要防的自欺（首轮就差点这么读 K=20 的 t=−3.23）。
+    if len(ok) < len(seeds):
+        return {"k": k, "t_crit": crit, "seeds": ts, "robust": False,
+                "verdict": (f"仅 {len(ok)}/{len(seeds)} 个种子产出 t（其余差值退化）"
+                            f"→ **不足以判定稳健**")}
+    signs = {1 if x["paired_t"] > crit else (-1 if x["paired_t"] < -crit else 0)
+             for x in ok}
+    robust = len(signs) == 1 and 0 not in signs
+    if robust and signs.pop() > 0:
+        v = f"**K={k} 在全部 {len(ok)} 个种子上都显著优于随机**——种子稳健"
+    elif robust:
+        v = f"**K={k} 在全部 {len(ok)} 个种子上都显著劣于随机**——种子稳健"
+    elif 0 in signs:
+        v = f"K={k} 有种子落在噪声内 → **结论依赖种子，不成立**"
+    else:
+        v = f"K={k} 种子上正负翻面 → **结论依赖种子，不成立**"
+    return {"k": k, "t_crit": crit, "seeds": ts, "robust": robust, "verdict": v}
 
 
 def main() -> int:
@@ -237,6 +308,21 @@ def main() -> int:
     if not ctrl_ok:
         print("  ⚠️ **对照组没能复现——本脚本有 bug，K>1 的结果一律不可信**")
 
+    # ── 种子稳健性：单种子随机臂在低观测数下是**不可靠的显著性参照** ──
+    panels = []
+    for k in HORIZONS:
+        sp = seed_panel(xs, days, k)
+        panels.append(sp)
+        cells = " ".join(
+            f"{x['paired_t']:+.2f}" if x and x["paired_t"] is not None else " n/a"
+            for x in sp["seeds"])
+        print(f"  K={k:>2}  逐种子t: {cells}   → {sp['verdict']}", flush=True)
+
+    fragile = [p for p in panels if p.get("robust") is False]
+    if fragile:
+        print(f"\n  ⚠️ K={','.join(str(p['k']) for p in fragile)} 的结论**依赖随机种子**，"
+              f"作废——单种子跑出的过闸结果不得引用")
+
     hits = [r for r in rows if r.get("paired_t") is not None
             and abs(r["paired_t"]) >= r.get("t_crit", 99)]
     print(f"\n  → {'K=' + ','.join(str(r['k']) for r in hits) + ' 过闸' if hits else '**所有持仓周期都与随机不可区分**'}")
@@ -254,6 +340,10 @@ def main() -> int:
                "why_annual_divides_by_k": "K 日收益乘 252 会放大 K 倍",
                "no_promotion": "不写 weights.json，不改晋级门限",
            },
+           "seed_panel": panels,
+           "seed_panel_rule": ("判据是「是否所有种子都在临界值同一侧」，"
+                               "不是「是否有种子过闸」。绝不允许只报最好那个种子"),
+           "fragile_horizons": [p["k"] for p in panels if p.get("robust") is False],
            "control_reproduced": ctrl_ok, "rows": rows}
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")

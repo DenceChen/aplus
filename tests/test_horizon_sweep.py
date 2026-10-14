@@ -281,3 +281,149 @@ def test_k1_holds_one_full_session_not_zero():
     r = forward_return({"X": df}, {}, {}, "X", dates[2], 1)
     assert r is not None and abs(r) > 1e-9, f"K=1 的收益是 {r}——exit 落回 entry 了"
     assert r == pytest.approx(closes[4] / closes[3] - 1.0)
+
+
+# ── 成交闸门：必须与 `_next_bars` 同纪律 ──────────────────────────────
+
+def test_unfillable_entry_is_dropped_not_scored_as_a_trade():
+    """进场 bar 买不进 → 这笔**不进观测**。
+
+    首版把买不进的照算，K=1 对照组因此给 t=+0.48 而上游同一实验是
+    t=0.10。配对比较虽然仍自洽（两臂受同样影响），但**工具不一致时
+    绝对年化不能与上游并列引用**——那个数字量的不是同一件事。
+    """
+    import datetime as _dt
+    from scripts.horizon_sweep import forward_return
+
+    n = 30
+    base = _dt.date(2020, 1, 1)
+    dates = [(base + _dt.timedelta(days=i)).isoformat() for i in range(n)]
+    base_close = [10.0 * (1.01 ** i) for i in range(n)]
+    closes, prev = list(base_close), [None] + base_close[:-1]
+    # 信号日 dates[2] → entry=3 → exit=4。
+    # dates[3] 做成**涨停收盘**：can_buy 规则 3 是
+    # `close >= prev×(1+limit) − 0.005`，一字板只是其中一条路径。
+    # 上一版只涨了 6.8% 就断言「买不进」——根本没触线，测试是假通过。
+    closes[3] = prev[3] * 1.10
+    o = list(closes); h = list(closes); lo = list(closes)
+    df = pd.DataFrame({"date": dates, "code": "600000.SH", "open": o,
+                       "high": h, "low": lo, "close": closes,
+                       "volume": 1e6, "amount": 1e7, "prev_close": prev})
+    # 先自证这条数据**确实**判成买不进——否则下面的断言毫无意义
+    from aplus.panel import can_buy
+    assert not can_buy("600000.SH", o[3], h[3], lo[3], closes[3],
+                       1e6, 1e7, prev[3]), "测试数据没造出涨停，断言会空过"
+    r = forward_return({"X": df}, {}, {}, "X", dates[2], 1)
+    assert r is None, f"涨停买不进的一字板被当成成交计入了：{r}"
+
+
+def test_suspended_exit_extends_to_the_first_sellable_bar():
+    """出场 bar 停牌 → **持有到复牌首根可卖 bar**，不是删掉这笔。
+
+    删掉会让这笔亏损从统计里凭空蒸发——`_up_leg_exit` 的 docstring
+    把这条列为硬纪律：亏损无上界，不留痕等于消失。
+    """
+    import datetime as _dt
+    from scripts.horizon_sweep import forward_return
+
+    n = 30
+    base = _dt.date(2020, 1, 1)
+    dates = [(base + _dt.timedelta(days=i)).isoformat() for i in range(n)]
+    closes = [10.0 * (1.01 ** i) for i in range(n)]
+    amt = [1e7] * n
+    amt[4] = 0.0                       # 出场 bar 停牌（无量无额）
+    df = pd.DataFrame({"date": dates, "code": "X", "open": closes,
+                       "high": closes, "low": closes, "close": closes,
+                       "volume": 1e6, "amount": amt, "prev_close": closes})
+    r = forward_return({"X": df}, {}, {}, "X", dates[2], 1)
+    assert r is not None, "停牌出场被整笔删掉了——亏损会凭空蒸发"
+    # 延长到 dates[5] 而不是停在 dates[4]
+    assert r == pytest.approx(closes[5] / closes[3] - 1.0), (
+        f"延长持有落点不对：{r:.6f}（应为 dates[5]/dates[3]）")
+
+
+# ── 种子稳健性：单种子随机臂不是可靠的显著性参照 ──────────────────────
+
+def test_seed_panel_reports_every_seed_not_just_the_best_one():
+    """全部种子都必须出现在输出里。
+
+    只报最好的那个种子 = 增加比较次数后择优 = 制造假阳性。
+    """
+    import pandas as pd
+
+    from scripts.horizon_sweep import SEED_PANEL, seed_panel
+
+    xs = _xs(n_days=120, seed=11)
+    sp = seed_panel(xs, xs["_dates"], 5, seeds=SEED_PANEL)
+    got = {x["seed"] for x in sp["seeds"] if x}
+    assert got == set(SEED_PANEL), f"只报了 {got}——最好的那个被挑出来了吗？"
+
+
+def test_seed_panel_marks_a_flipped_result_as_not_robust():
+    """种子上正负翻面 → 必须判 `robust=False`，而不是报「显著」。
+
+    这是本脚本对自己设的防自欺闸：首轮 K=20 报了 t=−3.23「显著劣于随机」，
+    而那个种子的随机臂报出 +23.08%/年——**参照本身在喊「我可能只是幸运」**，
+    脚本却没听。
+    """
+    import pandas as pd
+
+    import scripts.horizon_sweep as hs
+
+    real_arm = hs.arm
+
+    def fake_arm(xs, days, weights, seed, k):
+        if weights is not None:
+            return real_arm(xs, days, weights, seed, k)
+        # 种子 42 给一条系统偏高的序列，其余给一条偏低的
+        if seed == 42:
+            return pd.Series(0.30, index=days)
+        return pd.Series(-0.30, index=days)
+
+    hs.arm = fake_arm
+    try:
+        sp = hs.seed_panel(_xs(n_days=120), [f"D{i:04d}" for i in range(120)],
+                           5, seeds=hs.SEED_PANEL)
+    finally:
+        hs.arm = real_arm
+    assert sp["robust"] is False, "种子上正负翻面却判为稳健"
+    assert "依赖种子" in sp["verdict"]
+
+
+def test_seed_panel_reports_robust_only_when_every_seed_agrees():
+    import pandas as pd
+
+    import scripts.horizon_sweep as hs
+
+    real_arm = hs.arm
+    factor = {}
+
+    def fake_arm(xs, days, weights, seed, k):
+        if weights is not None:
+            factor["s"] = real_arm(xs, days, weights, seed, k)
+            return factor["s"]
+        # 种子 43 让随机臂**逐点等于**因子臂 → 差值恒为 0 → t 产不出来。
+        # 注意不能写成 `real_arm(..., None, 43, ...)`：那是**另一颗种子**的
+        # 随机臂，和因子臂不相等，差值不退化，这个测试就会变成空断言。
+        if seed == 43:
+            return factor["s"]
+        return pd.Series(-0.30, index=days)
+
+    hs.arm = fake_arm
+    try:
+        sp = hs.seed_panel(_xs(n_days=120), [f"D{i:04d}" for i in range(120)],
+                           5, seeds=hs.SEED_PANEL)
+    finally:
+        hs.arm = real_arm
+    assert sp["robust"] is False, "有一个种子产不出 t 却仍判为稳健"
+    assert "退化" in sp["verdict"], (
+        f"缺种子必须显式报出来，实际报了：{sp['verdict']}")
+
+
+def test_seed_panel_refuses_to_judge_with_too_few_usable_seeds():
+    import scripts.horizon_sweep as hs
+
+    xs = _xs(n_days=6, seed=2)
+    sp = hs.seed_panel(xs, xs["_dates"], 20, seeds=hs.SEED_PANEL)
+    if sp["robust"] is None:
+        assert "不足" in sp["verdict"]
