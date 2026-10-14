@@ -197,6 +197,13 @@ def load_weights(reports_dir):
         return {"weights": dict(DEFAULT_WEIGHTS), "evidence": None,
                 "execution": {"rebalance_every": 1, "buffer_multiple": None},
                 "source": "fallback",
+                # `caveat_kind` 是给前端的**证据状态**，与 caveat 正文配套。
+                # 前端据此查表定标题，不再硬编码——正文改写时标题不会说反话。
+                #   "measured_bad" —— 已实测且结论为负。
+                #   "unraced"     —— 从未赛马。
+                # 2026-10-14 起回落路径是 "unraced"：默认权重符号刚按实测
+                # IC 翻转，方向有证据但整组从未被赛马测过。
+                "caveat_kind": "unraced",
                 "caveat": (
                     "回落默认权重，**未经赛马验证**。符号已按实测 IC 校正"
                     "（2019–2026，8 因子 × 8 年逐年符号 32/32 一致；"
@@ -212,7 +219,7 @@ def load_weights(reports_dir):
     return {"weights": data.get("weights"), "evidence": data.get("evidence"),
             "execution": data.get("execution") or {"rebalance_every": 1,
                                                     "buffer_multiple": None},
-            "source": "file", "caveat": None}
+            "source": "file", "caveat": None, "caveat_kind": None}
 
 
 def live_execution_status(reports_dir) -> dict:

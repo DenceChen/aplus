@@ -21,6 +21,34 @@ const MIN_DAYS_FOR_CAGR = 30;
 const TARGET_CAGR = 0.20;
 
 /**
+ * `caveat_kind` → 判决板标题。
+ *
+ * ## 为什么标题必须由 kind 决定，不能硬编码
+ *
+ * 标题与正文出自同一份记录，两者对证据强度的断言必须一致。曾经出过
+ * 一次真实的矛盾：默认权重符号按实测 IC 翻转后，正文如实改成了
+ * 「方向有证据、效果未验证」，而标题仍写着「当前跑的是已知的坏配置」——
+ * 同一个框里，正文说**没验过**，标题说**验过且是坏的**。
+ *
+ * 两句话都在骗用户，而且方向相反：
+ * · 说「已知为坏」→ 用户以为验过了，下一步该是「换掉它」。
+ * · 说「未验证」  → 用户知道还没验，下一步该是「去验它」。
+ *
+ * 所以：证据状态由**后端判定**并以机器可读的 `caveat_kind` 递下来，
+ * 前端只做查表。不在前端解析中文措辞——改一次文案就会静默出错。
+ *
+ * `measured_bad` —— 已实测且结论为负。
+ * `unraced`     —— 从未赛马，符号方向有证据但整组未验收。
+ */
+const CAVEAT_HEADLINES = {
+  measured_bad: '当前跑的是已知的坏配置',
+  unraced: '当前权重未经赛马验证',
+};
+
+/** kind 缺失或未知时降级到**较弱**的说法。 */
+const DEFAULT_CAVEAT_KIND = 'unraced';
+
+/**
  * caveat 里的 Markdown 记号 → HTML。
  *
  * ## 为什么只处理 `**`，且必须先转义
@@ -54,21 +82,20 @@ function docketWarning(stats, evo, weights) {
   const cagr = stats?.cagr ?? null;
   const nDays = stats?.n_days ?? 0;
 
-  // ── 最高优先级：跑的是一个已测量的坏配置 ──
+  // ── 最高优先级：回落权重，且证据状态必须如实转述 ──
   //
-  // `load_weights` 在回落时返回的 caveat 写得很准：
-  //   「回落默认权重：……在 730 天赛马里排第 81/87 名，测试段超额 −0.74%、
-  //     t=−3.03 —— 这是**已知的坏配置**，不是「中性起点」。日频执行它的
-  //     年成本量级 351%。」
+  // `load_weights` 在回落时返回 `caveat`（正文）与 `caveat_kind`（证据
+  // 状态）。正文是一次实测的完整记录，逐字透传；**标题由 kind 查表**，
+  // 不硬编码——理由见 CAVEAT_HEADLINES 的注释。
   //
   // 这条排在「已被证伪」之前：它比证伪更根本——证伪说的是「这组权重
   // 在独立窗口里被判负」，而这里说的是「线上根本没在跑任何经过赛马的
-  // 权重，跑的是一个已知排倒数第 6 的默认值」。用户据此建仓亏钱，
-  // 责任在配置本身。
+  // 权重」。用户据此建仓亏钱，责任在配置本身。
   if (weights?.caveat) {
+    const kind = weights.caveat_kind || DEFAULT_CAVEAT_KIND;
     return {
       level: 'danger',
-      headline: '当前跑的是已知的坏配置',
+      headline: CAVEAT_HEADLINES[kind] || CAVEAT_HEADLINES[DEFAULT_CAVEAT_KIND],
       detail: weights.caveat,
       detailHtml: renderCaveat(weights.caveat),
     };
@@ -167,5 +194,6 @@ if (typeof require !== 'undefined' && require.main === module) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { docketWarning, renderCaveat, MIN_DAYS_FOR_CAGR, TARGET_CAGR };
+  module.exports = { docketWarning, renderCaveat, CAVEAT_HEADLINES,
+                      MIN_DAYS_FOR_CAGR, TARGET_CAGR };
 }

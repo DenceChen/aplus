@@ -270,11 +270,16 @@ def create_app(data_root, llm=None) -> FastAPI:
         #
         # `source` 也不再压成 `default`：`fallback` 才说得清「没落盘」，
         # `default` 读起来像「一份已知的默认配置」。
+        #
+        # `caveat_kind` 必须一起递出：它是**证据状态**，判决板靠它查表定标题。
+        # 丢掉它，前端就只能硬编码标题，而硬编码的标题在默认权重符号翻转后
+        # 已经和正文说反了话（正文「未验证」/ 标题「已知的坏配置」）。
         return {
             "weights": loaded["weights"],
             "evidence": loaded["evidence"],
             "execution": loaded["execution"],
             "caveat": loaded.get("caveat"),
+            "caveat_kind": loaded.get("caveat_kind"),
             "source": "evolved" if loaded["evidence"] else loaded["source"],
         }
 

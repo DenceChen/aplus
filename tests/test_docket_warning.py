@@ -270,12 +270,118 @@ def test_fallback_bad_config_warns_on_the_overview_page():
     r = _call("docketWarning",
               {"cagr": None, "n_days": 1, "overall_hit_rate": 0.2, "judged": 20},
               {"champion_falsified": True, "champion_windows": 2},
-              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT})
+              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT,
+               "caveat_kind": "measured_bad"})
     assert r["warn"] is not None, "跑着已知坏配置却没有任何警示"
     assert r["warn"]["level"] == "danger"
     assert "坏配置" in r["warn"]["headline"]
     # 必须逐字显示 caveat 全文——那是实测记录，不是文案
     assert r["warn"]["detail"] == BAD_CONFIG_CAVEAT
+
+
+# ---------- 标题必须跟着证据状态走（2026-10-14 默认权重翻转后） ----------
+#
+# 起因：默认权重符号按实测 IC 整体翻转后，`caveat` 正文改成了
+# 「方向有证据、效果未验证」，而前端 headline 仍硬编码
+# 「当前跑的是已知的坏配置」——正文说自己没验过，标题说自己测过且是坏的。
+# 同一个警示框里两句话互相打架，**两句话都在骗用户**，方向还相反。
+#
+# 两种危险是不同的：
+#   · measured_bad —— 测过，结论为负。不建仓等于已知亏损。
+#   · unraced     —— 根本没测过。不建仓等于放弃一个未知的可能性。
+# 标题必须把「是哪一种」讲出来，不能替用户把两者当成一回事。
+
+UNRACED_CAVEAT = (
+    "回落默认权重，**未经赛马验证**。符号已按实测 IC 校正……"
+    "当前状态是「方向有证据、效果未验证」，不是「已验收的冠军」。")
+
+MEASURED_BAD_HEADLINE = "当前跑的是已知的坏配置"
+
+
+def test_unraced_caveat_must_not_be_labelled_a_measured_bad_config():
+    """未赛马验证的配置，标题不得说成「已知的坏配置」。
+
+    这是本文件最重要的一条：说「已知为坏」会让用户以为**已经验过了**，
+    而真实状态是**根本没验过**。两种谎言导致完全不同的下一步动作——
+    前者该换配置，后者该去验。
+    """
+    r = _call("docketWarning", {"cagr": None, "n_days": 1},
+              {"champion_falsified": False},
+              {"source": "fallback", "caveat": UNRACED_CAVEAT,
+               "caveat_kind": "unraced"})
+    assert MEASURED_BAD_HEADLINE not in r["warn"]["headline"], (
+        "未赛马验证 ≠ 已测为坏：标题在夸大证据强度，"
+        f"实得：{r['warn']['headline']}")
+    assert "未经赛马验证" in r["warn"]["headline"], (
+        f"标题必须如实陈述证据状态，实得：{r['warn']['headline']}")
+
+
+def test_unraced_caveat_headline_must_not_contradict_its_own_body():
+    """标题与正文不得同时出现「未验证」和「已知的坏」两种说法。"""
+    r = _call("docketWarning", {"cagr": None, "n_days": 1},
+              {"champion_falsified": False},
+              {"source": "fallback", "caveat": UNRACED_CAVEAT,
+               "caveat_kind": "unraced"})
+    text = r["warn"]["headline"] + " " + r["warn"]["detail"]
+    assert "未经赛马验证" in text
+    assert "已知的坏配置" not in text, (
+        f"同一个警示框里两种互相打架的说法：{text[:160]}")
+
+
+def test_measured_bad_caveat_kind_still_gets_the_bad_config_headline():
+    """反方向：真的测坏了就仍然喊「坏配置」——不许一刀切弱化。"""
+    r = _call("docketWarning", {"cagr": None, "n_days": 1},
+              {"champion_falsified": False},
+              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT,
+               "caveat_kind": "measured_bad"})
+    assert r["warn"]["headline"] == MEASURED_BAD_HEADLINE
+
+
+def test_unknown_or_missing_caveat_kind_falls_back_to_the_weaker_claim():
+    """`caveat_kind` 缺失/未知时必须降级到弱说法，不得默认「已知的坏」。
+
+    失败方向的选择是刻意的：后端忘了带 kind，最多让页面**少说一句**；
+    若默认成「已知的坏」，页面就会**多说一句没根据的话**。
+    多说比少说危险。
+    """
+    for kind in (None, "", "some_kind_from_the_future"):
+        r = _call("docketWarning", {"cagr": None, "n_days": 1},
+                  {"champion_falsified": False},
+                  {"source": "fallback", "caveat": UNRACED_CAVEAT,
+                   "caveat_kind": kind})
+        assert MEASURED_BAD_HEADLINE not in r["warn"]["headline"], (
+            f"caveat_kind={kind!r} 时不得默认成「已知的坏配置」")
+
+
+def test_every_caveat_kind_must_have_a_headline():
+    """`CAVEAT_HEADLINES` 的键必须被本文件显式枚举覆盖。
+
+    反向测试：将来新增一种 kind 却忘了配标题时，本条会失败——
+    逼着新增者同时补一条「这个 kind 该显示什么」的断言，
+    而不是让线上默默显示上一个 kind 的标题。
+    """
+    out = subprocess.run(
+        ["node", "-e",
+         "const v = require(%s);"
+         "console.log(JSON.stringify(v.CAVEAT_HEADLINES));" % json.dumps(
+             str(VERDICT_JS.resolve()))],
+        capture_output=True, text=True, check=True)
+    table = json.loads(out.stdout)
+
+    assert table == {"measured_bad": MEASURED_BAD_HEADLINE,
+                     "unraced": "当前权重未经赛马验证"}, (
+        "CAVEAT_HEADLINES 变了，本文件的 kind 覆盖测试必须同步更新——"
+        "新增 kind 请同时补上它该显示的标题断言")
+
+
+def test_caveat_detail_still_passes_through_verbatim_under_every_kind():
+    """换标题不得动正文——caveat 是一次实测的完整记录。"""
+    for kind, text in (("unraced", UNRACED_CAVEAT),
+                       ("measured_bad", BAD_CONFIG_CAVEAT)):
+        r = _call("docketWarning", {"cagr": None, "n_days": 1},
+                  {"champion_falsified": False},
+                  {"source": "fallback", "caveat": text, "caveat_kind": kind})
+        assert r["warn"]["detail"] == text, f"kind={kind} 下正文被改写了"
 
 
 def test_bad_config_outranks_falsification():
@@ -286,7 +392,8 @@ def test_bad_config_outranks_falsification():
     """
     r = _call("docketWarning", {"cagr": None, "n_days": 1},
               {"champion_falsified": True, "champion_windows": 4},
-              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT})
+              {"source": "fallback", "caveat": BAD_CONFIG_CAVEAT,
+               "caveat_kind": "measured_bad"})
     assert "坏配置" in r["warn"]["headline"], "回落配置必须排在证伪之前"
 
 
