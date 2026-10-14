@@ -535,7 +535,17 @@ def _recover_pending() -> int:
     for bak in sorted(BACKUP_DIR.glob("*.bak")):
         rel = bak.name[:-4].replace("__", "/")
         src = ROOT / rel
-        src.write_bytes(bak.read_bytes())
+        data = bak.read_bytes()
+        try:
+            src.write_bytes(data)
+        except OSError as e:
+            # ★ 还原不了要**喊，不能抛**（2026-10-15 增补）。
+            #   自愈现已挂在**每个** pytest 会话开工前，一次残留不该让
+            #   此后每一场门禁都开不了跑 —— 那是把噪音升级成事故。
+            #   同时**绝不删备份**：这串字节是原件唯一的拷贝；
+            #   源文件被删/改名时更不能凭空 mkdir 造出一个脚本。
+            print(f"⚠️  遗留备份还原失败（备份已保留）：{rel} —— {e}", flush=True)
+            continue
         _clear_pycache(rel)
         bak.unlink()
         n += 1

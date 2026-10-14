@@ -12,6 +12,7 @@
 所以这里的测试重点不是「功能能用」，而是
 **它必须在真实失效场景下喊出来，而且不能对无关改动喊。**
 """
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -493,3 +494,201 @@ def test_the_two_data_root_layouts_are_not_interchangeable(tmp_path):
     assert P.resolve_data_dir(root, flat) == str(flat.resolve() / "master" / "daily")
     # 正控：按错布局算出来的目录**必须不存在**，否则「蒙对」会长期藏着
     assert not (Path(P.resolve_data_dir(root, flat)) / "a.parquet").exists()
+
+
+# ══ 字节判据：`code_sha` 在 dirty 时**标识不了实际跑的代码** ══════════
+#
+# 2026-10-15 实测（`wf_weights_backtest_k5.json`）：
+#
+#   03:20  把 `provenance.stamp(...)` 写进脚本 —— **未提交**
+#   03:21  跑 k=5 ⇒ 侧卡写下 `code_sha = HEAD = 27bcdfd`、`code_dirty = True`
+#   03:29  提交 a09fbdb，其内容 == 03:21 实际跑的那份字节
+#
+# ⇒ 生成之后生成器**确实没再变过**，今天用 HEAD 就能复现 k=5；
+#   而 `27bcdfd` 那棵树里**根本没有盖章调用** ——
+#   **侧卡本身就是它所声称那个 sha 的反证**。
+# ⇒ commit 走查从 27bcdfd 走到 HEAD 会撞见 a09fbdb ⇒ 判 `stale`（实测确实如此）。
+
+
+def test_the_commit_of_dirty_bytes_is_not_mistaken_for_a_later_change(repo):
+    """★ 上面那条误报的最小复现：字节没变，就不该判「生成后动过」。
+
+    这是**过严守卫**的形态：它红的时候把人推向「去重跑/去改本来正确的产物」，
+    而真相是产物完全可复现。见 memory `an-over-strict-guard-...`。
+    """
+    p = _report(repo)
+
+    # 盖章发生在「字节已含新内容、但还没提交」的时刻
+    f = repo["root"] / "aplus" / "backtest.py"
+    f.write_text("# v1\n# stamped into the file\n")
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    st = P.read_stamp(p)
+    assert st["code_dirty"] is True, "★ 用例前提不成立：盖章时工作区不脏"
+    assert st["code_file_sha256"], "★ 用例前提不成立：盖章没写字节哈希"
+
+    # 事后把**刚跑过的那份字节**提交掉 —— 一个字节都没改
+    f.write_text("# v1\n# stamped into the file\n")   # 显式重写，内容不变
+    sha_after = repo["commit"]("commit the bytes that actually ran")
+    assert sha_after != repo["sha1"]
+
+    v = P.freshness(p, root=repo["root"])
+    assert v["verdict"] == "fresh", (
+        f"★ 对一个**当前代码就能复现**的产物报了 `{v['verdict']}`：{v.get('reason')}\n"
+        f"   生成之后生成器一个字节都没动过 —— 变的只是这些字节**什么时候被提交**。\n"
+        f"   ⇒ commit 走查把「脏改动后来被提交」误当成「生成之后动过」。"
+    )
+
+
+def test_byte_evidence_does_not_make_a_dirty_stamp_trustworthy(repo):
+    """★ 字节一致**只证明生成器自己**，不证明它 import 的 `aplus/factor.py` 等。
+
+    ⇒ 这里修的只是**误报**，**不是放松可信度**：dirty 时仍然
+      `trustworthy=False`，且理由要说清「只覆盖到哪一层」。
+    """
+    p = _report(repo)
+    (repo["root"] / "aplus" / "backtest.py").write_text("# v1\n# dirty\n")
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    v = P.freshness(p, root=repo["root"])
+    assert v["verdict"] == "fresh"
+    assert v["trustworthy"] is False, (
+        "★ 盖章时工作区是脏的，却给出了 trustworthy=True —— "
+        "字节哈希只覆盖生成器自身，依赖闭包在那一刻是未知的。"
+    )
+    assert "依赖闭包" in v["reason"], f"★ 理由没说明证据的边界：{v['reason']}"
+
+
+def test_the_report_writing_itself_must_not_change_the_verdict(repo):
+    """★ 产出物造成的「脏」不该改判决，但**会**压低可信度 —— 而后者是**实测的缺陷**。
+
+    实测 2026-10-15：`data/reports/` 是**被跟踪**的（69 个文件）⇒
+    任何报告重跑一遍都把自己的输出改写成 `M` ⇒ `is_dirty()` 为真。
+    ⇒ `code_dirty=True` 对「会写自己输出的报告」是**结构性必然**，
+       `trustworthy` 于是永远是 `False`。
+
+    ⚠️ 这里**只**断言不受影响的部分（`fresh` 不变）；
+       `trustworthy` 恒 False 的口径问题是独立决定，见 CLAUDE.md TODO
+       「`code_dirty` 把产出物算成了代码改动」。
+    """
+    p = _report(repo)
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    st = P.read_stamp(p)
+    assert st["code_file_sha256"], "★ 用例前提不成立：没写字节哈希"
+
+    # 模拟「报告改写了自己的输出」⇒ 工作区多一条 M
+    (repo["root"] / "reports" / "backtest_summary.json").write_text(
+        json.dumps({"hit_rate_up": 0.45}), encoding="utf-8")
+    v = P.freshness(p, root=repo["root"])
+    assert v["verdict"] == "fresh", (
+        f"★ 产出物变化把判决改成了 {v['verdict']}：{v.get('reason')}\n"
+        f"   ⇒ 字节证据在，正是为了不受 git 历史与产物改写影响。"
+    )
+    assert v["trustworthy"] is False, (
+        "★ 若这里变成 True，说明可信度判据被放松了 —— "
+        "本守卫此刻**已知**只能证明生成器自身，闭包未证。"
+    )
+
+
+def test_changing_the_generator_bytes_afterwards_is_caught(repo):
+    """★ 字节判据的**牙齿**：改了生成器字节 ⇒ 不许还是 fresh。
+
+    这条是上一条的镜像：既要不误报「没变」，也要不漏报「变了」。
+    """
+    p = _report(repo)
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    (repo["root"] / "aplus" / "backtest.py").write_text("# v1\n# v2 edited\n")
+    v = P.freshness(p, root=repo["root"])
+    assert v["verdict"] != "fresh", (
+        "★ 生成器字节已被改动，却仍判 fresh —— 字节判据没有牙齿"
+    )
+
+
+def test_the_byte_hash_is_the_files_actual_content(repo):
+    """★ 正控：`code_file_sha256` 必须等于文件的真实 sha256。
+
+    断言的是**内容**，不是「函数返回了一个非空字符串」。
+    """
+    f = repo["root"] / "aplus" / "backtest.py"
+    got = P.code_file_sha256(repo["root"], "aplus/backtest.py")
+    assert got == hashlib.sha256(f.read_bytes()).hexdigest(), "★ 字节哈希不是文件内容的哈希"
+
+
+def test_a_missing_generator_gets_no_byte_hash_rather_than_a_guess(repo):
+    """★ 取不到就返回 `None`，**不做降级猜测**（与 `code_sha` 同规矩）。"""
+    assert P.code_file_sha256(repo["root"], "aplus/nope.py") is None
+    assert P.code_file_sha256(repo["root"], None) is None
+
+
+def test_the_stamp_actually_writes_the_byte_field(repo):
+    """★ 「登记 ≠ 盖章」：字段写进源码里，不等于它真被写进 sidecar。"""
+    p = _report(repo)
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    rec = json.loads(P.sidecar_path(p).read_text(encoding="utf-8"))
+    assert "code_file_sha256" in rec, "★ stamp 没把字节哈希写进 sidecar"
+
+
+# ── 判决**依据**必须可见（2026-10-15 新增）────────────────────────────
+#
+# ★ 为什么这一组和上面 32 条不是同一层：
+#   上面测的是「机制能不能写字段」——那 32 条**全绿**，
+#   而当时 data/reports 下 **12 份 sidecar 一份都没有** `code_file_sha256`
+#   （字段在它们盖章之后才落地）。
+#   ⇒ 守卫断言的是**机制**，我的主张说的是**数据**。
+#     两者之间没有任何测试，于是我把「落进 sidecar」写进了 CLAUDE.md。
+#
+#   这一组测的是**报告层**：审计输出必须说清判决是
+#   「字节证据」还是「只靠 commit 走查」。两种强度差一个量级的绿，
+#   不许看起来一模一样。
+
+def _legacy_sidecar(p, root, generator="aplus/backtest.py", sha=None):
+    """造一份 **`code_file_sha256` 字段不存在** 的旧 sidecar（字段落地之前盖的）。"""
+    p.with_suffix(p.suffix + ".provenance.json").write_text(json.dumps({
+        "code_sha": sha or P.code_sha(root),
+        "code_dirty": False,
+        "generator": generator,
+        "stamped_at": "2026-10-14T00:00:00+00:00",
+    }), encoding="utf-8")
+    return p
+
+
+def test_a_fresh_verdict_without_the_byte_field_says_so(repo):
+    """★ 旧 sidecar 判 fresh 时，**必须**自认「我没有字节证据」。
+
+    这就是 2026-10-15 那 12 份的真实形态：它们真的 fresh，
+    但强度只等于 commit 走查。不许把它印成和字节证据一样的绿。
+    """
+    p = _legacy_sidecar(_report(repo), repo["root"])
+    row = P.freshness(p, generator="aplus/backtest.py", root=repo["root"])
+    assert row["verdict"] == "fresh"
+    assert row["byte_evidence"] is False, "旧 sidecar 不许自称有字节证据"
+    assert "无字节证据" in row["reason"]
+
+
+def test_a_fresh_verdict_with_a_matching_byte_hash_reports_byte_evidence(repo):
+    """★ 正控：新盖的章（有字段且一致）必须自称**有**字节证据。
+
+    没有这条，上面那条会把「永远说没有」也判绿。
+    """
+    p = _report(repo)
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    row = P.freshness(p, generator="aplus/backtest.py", root=repo["root"])
+    assert row["verdict"] == "fresh"
+    assert row["byte_evidence"] is True
+    assert "无字节证据" not in row["reason"]
+
+
+def test_the_cli_prints_the_basis_of_every_fresh_verdict(repo, capsys):
+    """★ 缺口当初就藏在这里：CLI 对 fresh 只印名字，依据一个字都不说。
+
+    真失效形态是**旧的、无字段的 sidecar 在审计里显得和有字节证据的一样绿**。
+    """
+    d = repo["root"] / "reports"
+    _legacy_sidecar(_report(repo, "backtest_summary.json"), repo["root"])
+    p2 = _report(repo, "fresh_with_bytes.json")
+    P.stamp(p2, "aplus/backtest.py", root=repo["root"])
+    P._main(["--reports-dir", str(d), "--root", str(repo["root"])])
+    out = capsys.readouterr().out
+    assert "backtest_summary.json" in out and "fresh_with_bytes.json" in out
+    assert "⚠️ 仅 commit 走查" in out, "无字节证据的那份必须自曝"
+    assert "字节证据" in out, "有字节证据的那份必须说清"
+    # ⇒ 两种绿不许长得一样
+    assert out.count("仅 commit 走查") == 1

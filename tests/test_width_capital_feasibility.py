@@ -21,7 +21,9 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,6 +33,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from aplus import provenance as provenance_mod  # noqa: E402
 from aplus.costs import annual_friction  # noqa: E402
 from aplus.hurdle import COST_REAL_50K, hurdle_rate, rounds_per_year  # noqa: E402
 from scripts.width_capital_feasibility import (  # noqa: E402
@@ -197,20 +200,27 @@ def test_friction_saturates_at_a_positive_floor_it_is_not_inversely_proportional
     )
 
 
-def test_the_1_over_capital_approximation_is_wrong_in_a_direction_that_flips():
-    """★ 那条错公式**必须被量刑，而且必须说清方向会翻转**。
+def test_the_1_over_capital_approximation_understates_capital_by_a_lot():
+    """★ 那条错公式**必须被量刑**：它把回本本金低估掉一半以上。
 
-    实测：N=10 **高估** 2.93%，N≥30 **低估** 最多 39.9%（真实 111.5 万，近似 66.9 万）。
-
-    🚨 方向翻转的机制是可证的：
+    🚨 方向机制是可证的，且**与数据无关**（这一条不许随数据改）：
         naive = (摩擦×C)|₅万 / 毛超额 ，而 (摩擦×C) 单调上升，
         且在解 C\\* 上 (摩擦×C)|C\\* = 毛超额 × C\\*
         ⇒ **naive < 真实 ⟺ 真实 > 5万**
-    N=10 的回本点 4.78 万 **小于** 5 万 ⇒ 近似落在解的右边 ⇒ 高估。
 
-    为什么要钉「方向翻转」而不只是「低估」：
-    **一半的错比全错更危险** —— 固定方向的误差让人以为可以拿它做修正，
-    翻转方向的误差连修正都不成。
+    ★ **本守卫的前提在 2026-10-15 被自己推翻过一次，这是第三次「口径错误掩护了结论」**，
+    而这次被掩护的是守卫自己：
+      旧写「误差方向会翻转」（N=10 高估 2.9%、N≥30 低估 40%）。
+      那个翻转**从来不是近似式的性质**，而是旧产物里毛超额虚高的症状 ——
+      虚高把 C\\*(10) 压到 4.78 万 < 5 万，于是 N=10 落在解的右边。
+      毛超额修正后（4.81% 而非名义 6.39%），C\\*(10) = 16.1 万 > 5 万，
+      ⇒ **五档一律落在解的左边，低估 52.6% ~ 60.3%**，翻转消失。
+
+    ⇒ 于是量刑从「方向翻转」改成「**方向固定但幅度巨大**」。
+    为什么这个改写不是把守卫放松：翻转消失后误差变成**单边**，
+    按原文自己的推理「固定方向的误差让人以为可以拿它做修正」——
+    而 −55% 这个量级根本不是一个能用常数因子修正的偏差。
+    所以判据必须同时钉住**方向**与**量级**，少一个都会漏。
     """
     rpy = _rpy()
     signs = set()
@@ -220,15 +230,22 @@ def test_the_1_over_capital_approximation_is_wrong_in_a_direction_that_flips():
         naive = annual_friction(CAPITAL_5W, EQUITY_WEIGHT, n, rpy) * CAPITAL_5W / gross
         err = (naive - true) / true
         signs.add(err > 0)
-        # 方向由「解相对 5万 的位置」唯一决定
+        # 方向由「解相对 5万 的位置」唯一决定 —— 可证，且五档都成立
         assert (naive < true) is (true > CAPITAL_5W), (
             f"N={n}：近似 {naive:,.0f} vs 真实 {true:,.0f}，"
             f"5 万基准 ⇒ 误差方向应当由 C* {'>' if true > CAPITAL_5W else '<'} 5万 决定"
         )
-        assert abs(err) > 0.02, f"N={n}：误差只有 {err:+.2%}，文档里的量刑需要更正"
-    assert signs == {True, False}, (
-        f"五档里只出现了 {sorted(signs)} 方向的误差 —— "
-        "如果误差不再翻转，请重读上面的推导并改写本守卫的前提"
+        # 量级：实测 52.6%~60.3%，门槛 30% 留一倍以上余量
+        assert abs(err) >= 0.30, (
+            f"N={n}：误差只有 {err:+.2%}（真实 {true:,.0f}，近似 {naive:,.0f}）。"
+            "若毛超额或摩擦口径又动了，先查是不是**量刑数字**要更正，"
+            "别直接把门槛调小 —— 见 CLAUDE.md「预注册门槛」"
+        )
+    assert signs == {False}, (
+        f"五档里出现了 {sorted(signs)} 方向的误差。"
+        "修正后的产物里毛超额一律低于摩擦 ⇒ 五档真实回本点都高于 5 万 ⇒ 近似一律低估。"
+        "若这里重新出现翻转，说明**毛超额又被虚高了**，"
+        "请先查产物口径，不要改本守卫"
     )
 
 
@@ -288,11 +305,34 @@ def test_the_threshold_is_computed_not_typed():
     )
 
 
+def _consumer_content_at(repo_commit: str, rel: str) -> str | None:
+    """该消费者在 `repo_commit` 那一刻的**内容**哈希；取不到返回 None。"""
+    r = subprocess.run(["git", "show", f"{repo_commit}:{rel}"],
+                       capture_output=True, cwd=_ROOT)
+    if r.returncode != 0:
+        return None
+    return hashlib.sha256(r.stdout).hexdigest()
+
+
 def test_the_artifact_is_not_older_than_every_consumer_of_it():
     """★ 产物层守卫的通病（第 96 层）：脚本改了、产物没重跑 ⇒ 数字全是旧的。
 
     本条比单文件 mtime 更进一步：**一个产物有多个消费者**，
-    只要**任一**消费者比产物新，产物就该被判过期。
+    只要**任一**消费者在**产物生成之后**被改过，产物就该被判过期。
+
+    🚨 **2026-10-15 把判据从 mtime 换成内容**（mtime 只是代理，不是证据）：
+      本仓的变异验证会「改源码 → 跑守卫 → 用 `write_bytes` 还原」，
+      内容回到逐位相同，**mtime 却被顶到现在** ⇒ 纯 mtime 判据把
+      「一次没留下痕迹的变异测试」报成「产物过期」，
+      而真实后果是逼人去重跑一个 10 分钟 / GB 级的产物。
+
+    ⚠️ **换判据时最危险的写法是「内容 == HEAD 就算没变」** ——
+      那会让「改了**并提交**」假阴性，而那正是本守卫最该抓的日常。
+    ⇒ 所以真值源是 sidecar 里的 `code_sha`（**产物生成那一刻的 commit**），
+      比对「当前内容」vs「code_sha 时的内容」，两个方向都成立：
+        内容不同 ⇒ 生成之后真的改过 ⇒ 过期（哪怕 mtime 更旧）；
+        内容相同 ⇒ 没改过 ⇒ **mtime 是谎言，不算证据**。
+    无 sidecar / `git show` 取不到时**退回 mtime 并如实标注**（宁可保守）。
     """
     art_mtime = ART.stat().st_mtime
     consumers = [
@@ -302,9 +342,37 @@ def test_the_artifact_is_not_older_than_every_consumer_of_it():
         _ROOT / "aplus" / "costs.py",
         _ROOT / "aplus" / "hurdle.py",
     ]
-    stale = [c.name for c in consumers
-             if c.exists() and c.stat().st_mtime > art_mtime]
-    assert not stale, (
-        f"产物比这些消费者旧：{stale}\n"
-        "⇒ 它们改过而榜宽实验没重跑，**重跑前的绝对收益数字不可引用**"
+    sidecar = ART.with_name(ART.name + provenance_mod.SIDECAR_SUFFIX)
+    code_sha = None
+    if sidecar.exists():
+        code_sha = json.loads(sidecar.read_text(encoding="utf-8")).get("code_sha")
+
+    changed, mtime_lied, no_reference = [], [], []
+    for c in consumers:
+        if not c.exists():
+            continue
+        rel = c.relative_to(_ROOT).as_posix()
+        at_gen = _consumer_content_at(code_sha, rel) if code_sha else None
+        if at_gen is None:
+            # 没有真值源 ⇒ 退回 mtime，并把「这是降级判据」写进失败消息
+            no_reference.append(rel)
+            if c.stat().st_mtime > art_mtime:
+                changed.append(f"{rel}(无真值源，按 mtime 判)")
+            continue
+        if hashlib.sha256(c.read_bytes()).hexdigest() != at_gen:
+            changed.append(rel)
+        elif c.stat().st_mtime > art_mtime:
+            mtime_lied.append(rel)
+
+    assert not changed, (
+        f"这些消费者在产物生成之后被改过：{changed}\n"
+        "⇒ 榜宽实验没重跑，**重跑前的绝对收益数字不可引用**"
+        + (f"\n⚠️ 以下消费者没有可比对的真值源，本次是降级判据：{no_reference}"
+           if no_reference else "")
     )
+    # ★ 让判据把「它凭什么这么说」一起印出来（第 18 种形状）：
+    #   mtime 说更新、内容说没变 —— 这个矛盾必须被看见，而不是被静默吞掉。
+    if mtime_lied:
+        print(f"\n  ℹ️  mtime 比产物新但内容与 code_sha={code_sha[:8]} 逐位相同："
+              f"{mtime_lied}\n     ⇒ 判为**未改动**（mtime 是还原/拷贝留下的假象），"
+              "按 mtime 判会误报")

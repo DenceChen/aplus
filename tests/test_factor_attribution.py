@@ -842,8 +842,21 @@ def test_cutting_the_data_root_wiring_makes_the_guard_go_red(tmp_path):
     mutated = original.replace(_WIRING_SITE, _WIRING_CUT)
     assert mutated != original and mutated.count(marker) == 1
 
-    src.write_text(mutated, encoding="utf-8")
+    # ★ 走 `mutation_check` 的备份约定（2026-10-15 补）。
+    # 本测试直接改写真实源码，而 `finally` 只挡 Python 异常——
+    # 门禁被 OOM SIGKILL 时它不会执行。没有这份磁盘备份，
+    # 下一个 pytest 会话（`tests/conftest.py` 的
+    # `recover_interrupted_mutations`）就没有任何东西可还原，
+    # 源文件会永久停在变异态**并且报告一切正常**。
+    _VICTIM = "scripts/factor_attribution.py"
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import mutation_check as mc
+
+    mc.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    bak = mc._backup_name(_VICTIM)
+    bak.write_bytes(original.encode("utf-8"))
     try:
+        src.write_text(mutated, encoding="utf-8")
         on_disk = src.read_text(encoding="utf-8")
         assert on_disk.count(marker) == 1 and _WIRING_SITE not in on_disk, (
             "变异已核验落地失败 ⇒ 下面的红灯没有任何意义")
@@ -852,6 +865,7 @@ def test_cutting_the_data_root_wiring_makes_the_guard_go_red(tmp_path):
             _assert_data_root_is_honoured(fa, tmp_path)
     finally:
         src.write_text(original, encoding="utf-8")
+        bak.unlink(missing_ok=True)
         importlib.reload(fa)
 
     # 还原后必须重新变绿 —— 否则「变异后变红」可能是因为别的坏理由

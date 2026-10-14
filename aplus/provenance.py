@@ -39,6 +39,7 @@ HEAD 每动一次就全盘报红，红色很快会变成背景噪声——和「
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -245,6 +246,31 @@ def is_dirty(root: Path = ".") -> bool:
     return bool(out)
 
 
+def code_file_sha256(root: Path | str = ".", generator: str | None = None) -> str | None:
+    """生成器**文件字节**的 sha256 —— dirty 时唯一还能标识「实际跑的是什么」的东西。
+
+    ★ 为什么这个字段必须存在：`code_sha` 是 `git rev-parse HEAD`，标识的是
+      **提交**；而实际执行的是**工作区字节**。工作区脏时两者是不同的东西。
+
+      2026-10-15 实测（wf k=5）：章里写 `code_sha=27bcdfd`，
+      而实际跑的是**后来成为 `a09fbdb` 的那些字节** ——
+      `27bcdfd` 那棵树里的脚本**根本没有盖章调用**，
+      即**侧卡本身就是它所声称那个 sha 的反证**。
+
+      更糟的是 commit 走查：它只看 commit，于是把「脏改动后来被提交」
+      判成「生成之后动过」⇒ 对一个**当前代码就能复现**的产物**误报 stale**。
+      这是过严守卫：它红的时候把人推向「去改本来正确的产物」。
+
+    取不到就返回 `None`，**不做降级猜测**（与 `code_sha` 同规矩）。
+    """
+    if not generator:
+        return None
+    f = Path(root) / generator
+    if not f.is_file():
+        return None
+    return hashlib.sha256(f.read_bytes()).hexdigest()
+
+
 #: 数据根。默认取主库日线——**全部回测/实验读的都是它**。
 DATA_DIR = "data/master/daily"
 
@@ -402,6 +428,9 @@ def stamp(report_path: Path | str, generator: str, root: Path = ".",
     rec = {
         "code_sha": code_sha(root),
         "code_dirty": is_dirty(root),
+        # ★ 字节哈希：dirty 时 `code_sha` **标识不了实际跑的代码**。
+        #   没有它，`freshness()` 只能靠 commit 走查，而走查看不见未提交的那部分。
+        "code_file_sha256": code_file_sha256(root, generator),
         # ★ 数据指纹**默认写入**，不做成可选参数：可选 = 下一个报告会忘，
         #   而「忘了」这件事没有任何守卫会报（形状 17：同一语义被处理 N−1 次）。
         #   2026-10-15 的实测代价：`factor_attribution.json` 比数据修复早 77 秒，
@@ -473,16 +502,53 @@ def freshness(report_path: Path | str, generator: str | None = None,
                 "reason": "；".join(problems),
                 "problems": problems, "trustworthy": False, "commits": []}
 
-    touched = commits_touching(root, gen, st["code_sha"])
     dirty = bool(st.get("code_dirty"))
+    touched = commits_touching(root, gen, st["code_sha"])
+
+    # ★ 字节判据**优先于** commit 走查，因为走查有两个**方向**的结构性盲区：
+    #
+    #   ① 假阳性：它只看 commit，看不见「生成时跑的是 A，事后才把 A 提交掉」。
+    #      于是一个当前代码就能复现的产物被判 stale（2026-10-15 实测 k=5）。
+    #   ② 假阴性：它也看不见「生成之后有人改了生成器但**没提交**」。
+    #      那时 `touched` 为空 ⇒ 判 fresh ⇒ **一个假的全清信号**。这个更危险。
+    #
+    #   盖章时记下的内容哈希是**当场**的证据，不依赖之后的 git 历史，
+    #   两个方向都堵得上。
+    #
+    # ⚠️ 边界要说清：字节一致**只证明生成器自己没变**，不证明它 import 的
+    #   `aplus/factor.py` / `hurdle.py` / `store.py` 没变 ⇒ dirty 时仍然
+    #   `trustworthy=False`。这里修的是判决，**不放松可信度**。
+    stamped_bytes = st.get("code_file_sha256")
+    now_bytes = code_file_sha256(root, gen) if gen else None
+    if stamped_bytes and now_bytes:
+        if stamped_bytes == now_bytes:
+            return {"report": name, "verdict": "fresh", "generator": gen,
+                    "reason": "生成器字节与盖章时完全一致" + (
+                        "；但盖章时工作区有未提交改动 ⇒ 只能证明生成器本身，"
+                        "不能证明整个依赖闭包" if dirty else ""),
+                    "commits": [], "trustworthy": not dirty, "byte_evidence": True,
+                    "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at"),
+                    "dirty_at_stamp": dirty, "code_file_sha256": stamped_bytes}
+        return {"report": name, "verdict": "stale", "generator": gen,
+                "reason": "生成器字节已变（内容哈希不同）" + (
+                    f"；另有 {len(touched)} 次提交动过它" if touched else
+                    "；★ 没有任何提交动过它 ⇒ 这是**未提交改动**，commit 走查看不见"),
+                "commits": touched, "trustworthy": False, "byte_evidence": True,
+                "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at"),
+                "dirty_at_stamp": dirty, "code_file_sha256": stamped_bytes,
+                "bytes_match": False}
+
+    # 无字节证据（旧 sidecar）⇒ 退回 commit 走查，行为与从前完全一致。
     if touched:
         return {"report": name, "verdict": "stale", "generator": gen,
                 "reason": f"生成后动过 {gen} {len(touched)} 次",
                 "commits": touched, "trustworthy": False,
                 "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at")}
     return {"report": name, "verdict": "fresh", "generator": gen,
-            "reason": "生成后生成模块未改动",
+            "reason": "生成后生成模块未改动（★ 无字节证据：这份 sidecar 是"
+                      "`code_file_sha256` 落地之前盖的，只能靠 commit 走查）",
             "commits": [], "trustworthy": not dirty,
+            "byte_evidence": False,
             "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at"),
             "dirty_at_stamp": dirty}
 
@@ -542,6 +608,13 @@ def _main(argv=None) -> int:
                     print(f"            · {c}")
             elif r["verdict"] == "unknown":
                 print(f"          {r['reason']}")
+            elif r["verdict"] == "fresh":
+                # ★ 新鲜也必须说清**依据**：字节证据 vs 只靠 commit 走查。
+                # 2026-10-15 实测：12 份 sidecar 全都没有 `code_file_sha256`
+                # （字段在它们盖章之后才落地），而 CLI 当时只印「🟢 新鲜」——
+                # **两种强度差一个量级的绿，看起来一模一样。**
+                print(f"          {r['reason']}  · 依据："
+                      f"{'字节证据' if r.get('byte_evidence') else '⚠️ 仅 commit 走查'}")
     # **stale 非零，unknown 也非零。**
     # unknown 让 CI 变红看起来很烦，但「不知道」被当成「没事」才是真事故——
     # 2026-10-14 我就是这么引用了一份已经作废的报告。
