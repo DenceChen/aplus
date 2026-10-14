@@ -218,6 +218,28 @@ def _next_bars(daily_map: dict, codes: list, after_date: str,
             adj_cache[key] = hit
         dates, closes, has_adj, raw, buyable, sellable = hit
         pos = int(np.searchsorted(dates, after_date, side="right"))   # 首根 > D
+        # ── 该票在信号日**必须已经存在**（`pos == 0` ⟺ D 之前一根 K 线都没有）──
+        #
+        # 事故（2026-10-14 修复）：`pos` 对一只**尚未上市**的票返回 0，于是
+        # `entry = 0` 指向它**上市后的头一根** K 线，`actual_pct` 记成那个
+        # 收益——并且对上市前的**每一个**信号日重复一次。
+        #
+        # 单票验算完全正确（`close/prev_close − 1` 与厂商 `pctChg` 逐位吻合，
+        # 实测 102/106/133 只零不一致），错的是**纳入了哪些票**——
+        # 而那只在聚合层看得见，于是长期无人察觉。
+        #
+        # 市场基准受害最重：`_market_by_day` 从 `daily_map` 全部键随机抽样，
+        # 「D 当天有 K 线」的群体均值 +0.0656%/日，「上市前」群体 −3.47%/日
+        # （1214 天**没有一天为正**）。两者混在一起把基准从 +0.066%/日
+        # 拖到 −0.402%/日——**偏差 −0.468%/日 ≈ −114%/年**，
+        # 而 `up_excess_vs_market` 是本平台主指标，被系统性地虚增约 114 个
+        # 百分点/年。数字看不出坏：−0.40%/日 是个体面的数。
+        #
+        # 停牌**不受影响**：`dates[pos-1] <= D` 由 searchsorted 保证，
+        # 所以只有「D 之前完全没有历史」的上市前股票被挡下，D 当天停牌但
+        # 此前存在的票照常计入（涨腿「持有到复牌」的语义原样保留）。
+        if pos == 0:
+            continue                            # 信号日尚未上市 → 当日不存在
         entry = pos + entry_lag - 1
         exit_i = entry + 1
         if entry < 0 or exit_i >= len(dates):
