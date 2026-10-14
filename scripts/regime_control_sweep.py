@@ -143,11 +143,15 @@ def _metrics(pred: pd.DataFrame) -> dict:
     年化口径：三个量都是**逐日**收益的均值，乘 DAYS_PER_YEAR 得到
     算术年超额。`actual_pct` 由 `_next_bars` 按 ENTRY_LAG 生成，逐行都是
     单日口径，所以 ×244 成立（不是持有期收益，持有期收益会虚报 K 倍）。
+
+    `cost` 必须**按日取均值再求和**：`evaluate_weights` 把同一个组合级 drag
+    写给涨腿每一行，`sum()` 会把每期成本记成 `top_n` 份、整列虚高 10 倍
+    （实测 K=1 报 370.4%，实为 37.04%）。
     """
     st = rolling_stats(pred)
     up, dn = pred[pred["direction"] == "up"], pred[pred["direction"] == "down"]
     n_days = len(set(up["pred_date"])) if len(up) else 0
-    cost = float(up["cost"].sum()) / max(n_days / DAYS_PER_YEAR, 1e-9)
+    cost = float(up.groupby("pred_date")["cost"].mean().sum()) / max(n_days / DAYS_PER_YEAR, 1e-9)
     return {
         "n_days": n_days,
         "annual_cost": cost,

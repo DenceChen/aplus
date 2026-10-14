@@ -45,6 +45,19 @@
 成本口径**不在这里估**：`pred["cost"]` 由 `backtest.cost_drag` 按实际换手
 算出（第一版凭印象写了个 `_annual_cost()`，那是编的，且照样打印出一张
 漂亮的表——见 `_verify_reversal_freq.py` 的同一段教训）。
+
+## 但它必须**按日取均值再求和**，不能直接 `sum()`
+
+`evaluate_weights` 把同一个组合级 drag 写给涨腿的**每一行**
+（`res.loc[res["direction"] == "up", "cost"] = drag`）。于是：
+
+- `groupby("pred_date").mean()` → 每期恰好一个 drag，**正确**；
+- `up["cost"].sum()` → 每期记了 `top_n` 个 drag，**放大 top_n 倍**。
+
+第一版写的是 `sum()`，报出的「年成本 370.4%」实际是 **37.04%**——整列虚高
+10 倍，且**恰好虚高得越离谱的地方（K=1 日频）越致命**：它让「日频因成本
+不可行」这个核心结论看起来像铁证，而真实的 37%/年完全不是那个量级。
+写测试时必须钉住这条，否则改回来不会有任何人发现。
 """
 import argparse
 import json
@@ -122,7 +135,7 @@ def sweep(xs, start: str, end: str, label: str) -> list[dict]:
                     continue
                 n_days = max(len(set(up["pred_date"])), 1)
                 n_years = max(n_days / DAYS_PER_YEAR, 1e-9)
-                cost = float(up["cost"].sum()) / n_years
+                cost = float(up.groupby("pred_date")["cost"].mean().sum()) / n_years
                 t, _ = excess_tstat(pred)
                 bt, _ = breadth_tstat(pred)
                 st = rolling_stats(up)
