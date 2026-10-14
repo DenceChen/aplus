@@ -80,6 +80,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from aplus.backtest import _next_bars, composite_score  # noqa: E402
@@ -89,7 +90,25 @@ DAYS_PER_YEAR = 244
 
 SIGN_FIXED = {"mom20": -1.0, "rev5": 0.3, "vol20": -0.5, "vsur": -0.5}
 WRONG_SIGN = {"mom20": 1.0, "rev5": 0.3, "vol20": 0.5, "vsur": 0.5}
-PAIRS = [("符号修正", SIGN_FIXED), ("错号对照", WRONG_SIGN)]
+# 第三臂：**随机分数**。`None` = 完全不排因子，改为固定种子打乱。
+#
+# 为什么非有它不可（2026-10-14 第一版跑完才想清楚的）：
+# 首版只跑符号修正 + 错号对照，两臂**都**显示「桶0 低于其余每一桶」。
+# 两个方向相反的因子给出同一种形状，最省事的解释不是「这个因子头部反了」，
+# 而是「**横截面最极端的那一端本来就是差的**」——微盘、ST、壳、次新，
+# 它们在任一排序里都占据顶端，与排序依据无关。
+#
+# 错号对照**不能**回答这个问题：错号分数与「是坏股票」高度相关，
+# 它不是中性打乱，是一个**已知很差**的排序。真正中性的是随机分数：
+# 同样的股票池、任意顺序、零因子信息。
+#
+#     随机对照头部也最差 → 普遍结构事实 → 修 universe（流动性/市值过滤），
+#                          平移榜段无效
+#     随机对照头部正常   → 因子特有       → 平移榜段可能有效，但仍需过 3.0 显著性
+#
+# 两条路的修法**方向相反**，选错的代价是几个月白干。所以这个对照必须先跑。
+RANDOM_SEED = 20261014
+PAIRS = [("符号修正", SIGN_FIXED), ("错号对照", WRONG_SIGN), ("随机对照", None)]
 
 BUCKET = 10          # 每桶几只
 N_RANKS = 150        # 看前多少名 → 15 个桶
@@ -99,6 +118,15 @@ PREREG = {
     "head_inverted_if": "桶0 的逐日均值小于桶 1..14 里的每一个",
     "monotone_test": "桶 k 逐日均值随 k 严格递减",
     "better_bucket_test": "桶 k − 桶0 的逐日配对 t ≥ 3.0",
+    "three_way_fork": {
+        "问": "头部反了是这组因子的性质，还是 A 股横截面排序的普遍结构事实？",
+        "随机对照头部也最差": "普遍结构事实 → 修 universe（流动性/市值/流动性过滤），平移榜段无效",
+        "随机对照头部正常": "因子特有 → 平移榜段值得试，但未过 3.0 显著性前仍不算结论",
+        "为何必须先判这条": "两条路的修法方向相反，选错要付几个月的代价",
+    },
+    "multiplicity_note": (
+        "15 个桶 = 15 次比较。纯零假设下最大 |配对 t| 的期望就在 2.5~2.7，"
+        "因此单桶 t=2.7 **不构成证据**，必须过 3.0 且看形状而非只看峰值"),
     "hard_boundary": ("本探针只测 1 日前瞻；K>1 的排名-收益关系未实测，"
                       "任何 K>1 的推断都不得当作结论"),
     "confirm_required": "候选榜段必须到 2024-01~2026-10 复测，并与成本对照后才算结果",
@@ -148,19 +176,33 @@ def _paired_t(a: pd.Series, b: pd.Series) -> float | None:
     return float(mu / se)
 
 
-def probe(xs: dict, dates: list, weights: dict, label: str) -> dict:
+def _score(universe: pd.DataFrame, weights: dict | None, rng) -> pd.Series:
+    """横截面分数。`weights is None` → 固定种子的随机分数（零因子信息）。
+
+    单独抽出来是因为它决定了「随机对照」这根对照柱到底是不是**中性**的：
+    随机必须**每次跑都一样**（同一个种子），否则两次结果对不上时无法区分
+    「结论不稳」与「重跑换了随机数」。有测试钉住这条。
+    """
+    if weights is None:
+        return pd.Series(rng.random(len(universe)), index=universe.index)
+    return composite_score(universe, weights)
+
+
+def probe(xs: dict, dates: list, weights: dict | None, label: str,
+          seed: int = RANDOM_SEED) -> dict:
     """对单个权重配置做一次分桶扫描。返回逐日逐桶的毛收益矩阵。"""
     daily_map = xs.get("_daily_map") or {}
     entry_lag = xs.get("_entry_lag", 1)
     factors_map = xs.get("_factors_map") or {}
     adj_cache = xs.setdefault("_adj_cache", {})
+    rng = np.random.default_rng(seed)
 
     rows = []
     for day in dates:
         universe = xs.get(day)
         if universe is None or universe.empty:
             continue
-        sc = composite_score(universe, weights)
+        sc = _score(universe, weights, rng)
         ranked = (universe.assign(_s=sc).dropna(subset=["_s"])
                   .sort_values("_s", ascending=False).head(N_RANKS))
         if ranked.empty:
@@ -231,24 +273,68 @@ def main() -> int:
         better = [{"bucket": k, "t": _paired_t(daily[k], base)}
                   for k in sorted(daily.columns) if k != 0]
         better = [x for x in better if x["t"] is not None and x["t"] >= 3.0]
+        # 桶0 在全部桶里排第几低（1 = 最差）。布尔容易被单点异常骗，
+        # 名次是连续量，能分清「差很多」与「差一点点」。
+        head_rank = sorted(vals, key=lambda k: vals[k]).index(0) + 1 if 0 in vals else -1
+        _ts = [x["t"] for x in [{"bucket": k, "t": _paired_t(daily[k], base)}
+                                 for k in sorted(daily.columns) if k != 0]
+               if x["t"] is not None]
+        max_t = max(_ts) if _ts else float("nan")
 
         print(f"\n  头部反了（桶0 低于其余每一桶）: {head_inverted}")
         print(f"  严格单调递减: {monotone}")
+        print(f"  桶0 在 {len(vals)} 个桶里排第 {head_rank} 低")
         print(f"  显著优于桶0 的桶（配对 t ≥ 3.0）: "
-              f"{[(x['bucket'], round(x['t'], 2)) for x in better] or '无'}")
+              f"{[(x['bucket'], round(x['t'], 2)) for x in better] or '无'}"
+              f"   全部桶最大 t = {max_t:.2f}")
         if base is not None and len(base.dropna()):
             mk = pd.Series({d: mkt.get(d, 0.0) for d in daily.index}).reindex(daily.index)
             tm = _paired_t(daily[0], mk)
+            f0 = finals.get(0, float("nan"))
+            # 特意并排打出：这两个数同时为真是本项目的常态。
+            # 晋级闸4 读的是**相对**量（excess_t = up_excess − down_excess，
+            # 市场项加倍而不抵消），「亏不亏」读的是**绝对**量（final_multiple）
+            # ——两者方向可以完全相反，这里就是活的例子。
             print(f"  桶0 相对大盘配对 t = {tm if tm is None else round(tm, 2)}"
-                  f"（仅供参考，判定不依赖它）")
+                  f"   而 桶0 绝对复利终值 = {f0:.3f}"
+                  f"（{'跑赢大盘但自己亏钱' if tm and tm > 3 and f0 < 1 else ''}）")
 
         out["configs"][label] = {
             "n_days": r["n_days"], "n_obs": r["n_obs"],
             "annual_mean_by_bucket": {str(k): float(v) for k, v in vals.items()},
             "final_by_bucket": {str(k): v for k, v in finals.items()},
             "head_inverted": head_inverted, "monotone_decreasing": monotone,
+            "head_rank_lowest": head_rank,
+            "max_paired_t_vs_head": max_t,
             "better_than_head": better,
         }
+
+    # 三臂并排的最终判决。放在循环外，是因为这个问题的答案**由对照决定**，
+    # 单看符号修正那一臂会得出相反的结论——这正是首版踩的坑。
+    rnd = out["configs"].get("随机对照", {})
+    sign = out["configs"].get("符号修正", {})
+    if rnd:
+        print(f"\n{'='*88}\n三臂判决：头部反了是**因子性质**还是**A 股横截面普遍事实**？\n{'='*88}")
+        print(f"  符号修正  桶0 排第 {sign.get('head_rank_lowest')} 低   头部反了: {sign.get('head_inverted')}")
+        print(f"  随机对照  桶0 排第 {rnd.get('head_rank_lowest')} 低   头部反了: {rnd.get('head_inverted')}")
+        rnd_inv, sign_inv = rnd.get("head_inverted"), sign.get("head_inverted")
+        if rnd_inv and sign_inv:
+            verdict = ("**普遍结构事实** → 修 universe（流动性/市值过滤），"
+                       "平移榜段无效")
+            out["fork"] = {"conclusion": "market_structure",
+                           "fix": "universe_filter(liquidity, size)",
+                           "rank_shift": "无效，不要做"}
+        elif rnd_inv and not sign_inv:
+            verdict = ("**随机排序的头部反而最差** → 这是排序机制本身的性质，"
+                       "两臂同向但含义不同，须先查 universe 组成")
+            out["fork"] = {"conclusion": "contradictory_needs_investigation"}
+        else:
+            verdict = ("**因子特有** → 榜段平移可能有效，但符号修正最大 t = "
+                       f"{sign.get('max_paired_t_vs_head')} 未过 3.0，仍不算结论")
+            out["fork"] = {"conclusion": "factor_specific",
+                           "fix": "rank_segment_shift",
+                           "caveat": "未过 3.0 显著性前不得实施"}
+        print(f"\n  → {verdict}")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")

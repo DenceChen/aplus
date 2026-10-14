@@ -85,3 +85,80 @@ def test_paired_t_refuses_to_guess_from_too_few_observations(bad):
     from scripts.head_bucket_probe import _paired_t
     import pandas as pd
     assert _paired_t(pd.Series(bad, dtype=float), pd.Series(bad, dtype=float)) is None
+
+
+# ── 随机对照：它是不是一个**中性**的对照柱 ──────────────────────────────
+#
+# 随机对照的全部价值在于「零因子信息」。如果它其实带着信息——
+# 比如复用了现役权重、或排序键不小心留了 code 顺序的痕迹——
+# 那么「随机臂头部也最差 → 是普遍结构事实」这条推论就是**循环论证**：
+# 拿一个含有因子信息的对照去证明因子无关。
+
+def _universe(n: int = 500):
+    """一份只带 code 的横截面——`composite_score` 需要的因子列在别处测。"""
+    import pandas as pd
+    return pd.DataFrame({"code": [f"{i:06d}" for i in range(n)]})
+
+
+def test_random_score_is_reproducible_across_runs():
+    """同一种子 → 逐元素相同。
+
+    不可复现的对照柱会制造一个**无法解释的差异源**：两次跑出不同的数时，
+    没法区分「结论不稳」和「随机数换了」。这个测试把那条歧义关掉。
+    """
+    import numpy as np
+    import pandas as pd
+    from scripts.head_bucket_probe import RANDOM_SEED, _score
+
+    u = _universe()
+    a = _score(u, None, np.random.default_rng(RANDOM_SEED))
+    b = _score(u, None, np.random.default_rng(RANDOM_SEED))
+    assert (a == b).all(), "同种子两次结果不同——对照柱不可复现"
+
+
+def test_random_score_is_unseeded_forever():
+    """固定种子 ≠ 同一个序列反复吐。
+
+    `np.random.default_rng(seed)` 若被误写成全局 `np.random.seed`，
+    抽出来的会是等距递增而不是随机——「随机对照」会退化成「按原顺序排序」。
+    """
+    import numpy as np
+    from scripts.head_bucket_probe import RANDOM_SEED, _score
+
+    u = _universe(200)
+    a = _score(u, None, np.random.default_rng(RANDOM_SEED)).to_numpy()
+    assert a.std() > 0, "分数没有任何离散度，排序退化成原顺序"
+    assert len(set(a[:50])) == 50, "前 50 个分数有重复——随机性不足"
+
+
+def test_random_score_carries_no_factor_information():
+    """随机分数与股票代码**无关**——代码里不该藏着大小/行业信息。
+
+    这条是「中性」的实质检验。若分数与 code 序号相关（例如 RNG 被播种成
+    序号的一部分），对照柱就不是中性的，上面的推论全部作废。
+    """
+    import numpy as np
+    from scripts.head_bucket_probe import RANDOM_SEED, _score
+
+    u = _universe(500)
+    s = _score(u, None, np.random.default_rng(RANDOM_SEED)).to_numpy()
+    idx = np.arange(len(s))
+    r = float(np.corrcoef(idx, s)[0, 1])
+    assert abs(r) < 0.15, f"随机分数与顺序相关系数 {r:.3f}，说明它不是中性的"
+
+
+def test_random_control_actually_reorders_the_universe():
+    """随机对照必须真的**打乱**顺序，否则它等于「按原顺序买前 10」。
+
+    这是最容易出的实现事故：把 `None` 直接当成「不排序」处理，
+    于是 sort_values 变成稳定排序、返回原始顺序的前 10 名——
+    探针照常跑完、照常打印表格，只是**测的完全不是随机**。
+    """
+    import numpy as np
+    from scripts.head_bucket_probe import RANDOM_SEED, _score
+
+    u = _universe(200)
+    ranked = u.assign(_s=_score(u, None, np.random.default_rng(RANDOM_SEED))) \
+              .sort_values("_s", ascending=False)
+    assert list(ranked["code"])[:10] != list(u["code"])[:10], (
+        "随机对照的前 10 名与原始顺序前 10 名相同——随机对照没生效")
