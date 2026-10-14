@@ -54,8 +54,16 @@ def monthly_ic_threshold() -> tuple[float, float]:
     的时候没人会发现——今天已经有三个 P0 属于「两处各自自洽，
     合起来出事」这一族了。
 
-    返回两个数而不是只返回 IC：打印时两个都要，而
-    **只报 IC 会让人忘了它是年毛超额换算过来的**。
+    返回两个数而不是只返回 IC：打印时两个都要，
+    免得只看 IC 而忘了「过关」这件事本来是**关于钱的**。
+
+    ⚠️ 2026-10-14：门槛本身（26.39%）**只由成本推导**，
+    与 IC 换算无关 —— 所以下面 `required_ic` 里那个换算
+    （就是那座已被证伪的桥）是**判决链上唯一的可疑环节**。
+    它现在给 0.01389；常数若再错一次，门槛就跟着错。
+    **外部锚（σ_r=0.02656、成本 0.0055、K=21、目标 20%）都不动时，
+    门槛变动 100% 来自换算那一步** ——
+    `tests/test_verdict_composite.py` 用一条反查把它钉死。
     """
     need = hurdle_rate(rounds_per_year=rounds_per_year(K))
     return need, required_ic(need / DAYS_PER_YEAR, sigma_r=SIGMA_R)
@@ -96,15 +104,28 @@ def main() -> int:
                         judged_from=JUDGED_FROM,
                         equal_weight_years=EQUAL_WEIGHT_YEARS)
 
+    # ── 判决前先说清楚「年毛超额」那一列是什么、不是什么 ──────────
+    #
+    # 2026-10-14：这一列走 `ic_to_return.py` 那座**桥**，而桥已被实测证伪：
+    #   ① 尾部常数分母写成 `1−2q` 而非 `q`，差整 `(1−2q)/q` 倍；
+    #   ② 即使修正常数，桥在 q=0.2 上仍高估实测 **4.02×**，
+    #      且缺口**随 q 变化**（0.25×→0.36×）⇒ 错的是函数不是系数。
+    #
+    # **所以这一列只是「量级参照」，不是估计值，更不许被引用。**
+    # 「判决」那一列只依据 `组合IC` 与门槛，**不受这一列影响**。
+    print("⚠️  「年毛超额」一列走 IC→分位价差的**桥**，该桥已被实测证伪"
+          "（常数错 + 形状错，q=0.2 上高估 4.02×）。\n"
+          "    它只是量级参照，**不是估计值**；判决只依据「组合IC」与门槛。"
+          "实测口径见 scripts/measure_bridge_error.py。")
     print(f"{'年':<6}{'权重来源':>10}{'n':>6}{'组合IC':>10}"
-          f"{'年毛超额':>11}{'t':>8}{'判决':>12}")
-    print("─" * 63)
+          f"{'桥·年毛超额':>13}{'t':>8}{'判决':>12}")
+    print("─" * 65)
     judged = []
     for r in rows:
         ic = r.get("ic_mean")
         if ic is None:
             print(f"{r['year']:<6}{'—':>10}{r['n_days']:>6}{'缺':>10}"
-                  f"{'—':>11}{'—':>8}  {r.get('reason', '无数据')}")
+                  f"{'—':>13}{'—':>8}  {r.get('reason', '无数据')}")
             continue
         gross = annualise(implied_spread(ic, sigma_r=SIGMA_R, kind="spearman"))
         t = r.get("t")
@@ -116,7 +137,7 @@ def main() -> int:
             mark = "— 只报"
             gap = ""
         print(f"{r['year']:<6}{r.get('weights_source', '—'):>10}"
-              f"{r.get('n_used', 0):>6}{ic:>10.5f}{gross:>10.2%}"
+              f"{r.get('n_used', 0):>6}{ic:>10.5f}{gross:>13.2%}"
               f"{t:>8.2f}{mark:>12}{gap}")
 
     # ── 第三问：石川说的「等权往往就很好」，在 A 股成立吗 ────────

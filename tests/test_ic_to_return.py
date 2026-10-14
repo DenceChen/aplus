@@ -57,6 +57,7 @@ Spearman IC ≈ ρ_pearson / 3（对高斯，ρ 小的时候）。
 """
 import math
 
+import numpy as np
 import pytest
 
 from aplus.ic_to_return import (
@@ -129,8 +130,100 @@ def test_the_tail_spread_constant_is_the_one_the_code_computes():
     > 落在 `abs=1e-3` 的容差里所以测试是绿的，
     > 而 `__main__` 却把两个数并排印出来、让人以为它们一样。
     > **容差放宽一次，注释就开始漂。** 现在钉死等式。
+
+    ## ⚠️ 这条测试**抓不到** 2026-10-14 那个 3 倍错误，而它一直在绿
+
+    它断言的是 `TAIL_SPREAD_K == tail_spread_constant()`——
+    **公式与它自己**。公式改成 `2φ(z_q)/q`（正确）或
+    `2φ(z_q)/(1−2q)`（错 3 倍），这条断言**都通过**。
+
+    > 这就是 CLAUDE.md 那条「**只钉前半会假绿**」的又一例：
+    > 钉住「代码与代码一致」只能防**抄错字面量**，
+    > 防不住「**整条公式写错**」。
+    > 防后者只有一条路：**外部锚**——下面两条。
     """
     assert TAIL_SPREAD_K == pytest.approx(tail_spread_constant(), abs=1e-12)
+
+
+def test_the_constant_must_match_a_simulation_of_the_world_it_assumes():
+    """**外部锚**：在高斯世界里**真的做一次分位**，看常数对不对。
+
+    这是唯一能抓住「整条公式写错」的测试。构造让 `ρ_p = 1`
+    （收益 = σ·z，分数 = z 的秩，Spearman = 1），
+    于是真值必然是 `σ·K(q)`——用 40 万个样本实测分位差去对。
+
+    > 旧常数 0.9332 在这里差 **3 倍**，测试**当场红**。
+    """
+    from aplus.ic_to_return import implied_spread, tail_spread_constant
+
+    rng = np.random.default_rng(13)
+    n, sigma = 400_000, 0.02656
+    z = rng.normal(size=n)
+    score = np.argsort(np.argsort(z)).astype(float)      # 严格单调 ⇒ ρ_s = 1
+    ret = sigma * z                                      # ⇒ ρ_p = 1
+
+    k = int(n * 0.20)
+    order = np.argsort(score, kind="stable")
+    measured = ret[order[-k:]].mean() - ret[order[:k]].mean()
+
+    assert measured == pytest.approx(
+        implied_spread(1.0, sigma_r=sigma, kind="spearman"), rel=0.02)
+    assert measured == pytest.approx(
+        sigma * tail_spread_constant(0.20), rel=0.02)
+    # 旧常数：0.9332。差 3 倍，这个断言正是它的照妖镜
+    assert TAIL_SPREAD_K != pytest.approx(2 * 0.28 / 0.6, rel=0.02)
+
+
+def test_the_constant_must_be_finite_at_the_half_split():
+    """**端点行为本身也是判据。** `q → 0.5` 时 K 必须收敛到 **1.5958**。
+
+    旧常数 `2φ(z_q)/(1−2q)` 在这里**发散到 ∞**——
+    而「上半减下半」的答案显然有限（`E[Z|Z>0] = 0.7979`，
+    差 = 1.5958）。**一个在答案显然有限处发散的公式，写错了。**
+
+    > 旧 docstring 在这里写「K = 0（分位重合）」——
+    > 上半与下半**不重合**，那句话是假的，而它**恰好把破绽盖住了**。
+    > 「注释为错误的公式提供理由」是最难查的一类静默失效，
+    > 所以这一条把**数值**钉死，不信注释。
+
+    `tail_q = 0.5` 本身在定义域外（两段刚好不重叠），所以取 `0.499` 看**极限**；
+    `q = 0.5` 抛 `ValueError` 是**对的**，一并钉住。
+    """
+    assert tail_spread_constant(0.499) == pytest.approx(1.5958, abs=0.01)
+    # 旧常数在这里是 39.9 —— 差 25 倍
+    assert tail_spread_constant(0.499) < 2.0
+    with pytest.raises(ValueError):
+        tail_spread_constant(0.5)
+
+
+def test_the_constant_must_fall_as_the_tail_gets_more_extreme():
+    """**单调性是最便宜的判据** —— 它不需要任何蒙特卡洛。
+
+    取更极端的一小撮股票，价差**必须更大**，
+    所以 `K(q)` 必须在 (0, 0.5) 上**严格递减**。
+
+    | q | 1e-6 | 0.01 | 0.05 | 0.2 | 0.4 | 0.49 |
+    |---|---|---|---|---|---|---|
+    | K | 9.897 | 5.330 | 4.125 | 2.800 | 1.932 | 1.628 |
+
+    > 旧公式 `2φ(z_q)/(1−2q)` 的单调性**正好相反**：
+    > 它随 q 递增，且在 q→0 处趋于 **0**——
+    > 也就是「只看最极端的那 0.0001% 反而价差最小」。
+    > **这句话在经济学上说不通**，所以单调性一条就能判它死刑。
+    >
+    > 写这条测试时我先断言了「递增」，实测是**递减**。
+    > **又一次：要么读，要么别猜。**
+    """
+    grid = [1e-6, 0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.49]
+    ks = [tail_spread_constant(q) for q in grid]
+    assert all(b < a for a, b in zip(ks, ks[1:])), \
+        f"K 必须随 q 递减，实际 {[f'{k:.3f}' for k in ks]}"
+    for q, k in zip(grid, ks):
+        assert k == pytest.approx({1e-6: 9.8967, 0.01: 5.3304, 0.05: 4.1254,
+                                   0.1: 3.5100, 0.2: 2.7996, 0.3: 2.3180,
+                                   0.4: 1.9317, 0.49: 1.6278}[q], rel=1e-3)
+    # q → 0 的极限是 `≈ 2·z_q`，**很慢**地发散；不是「一进去就爆炸」
+    assert tail_spread_constant(1e-6) == pytest.approx(9.8967, rel=1e-3)
 
 
 def test_zero_ic_means_zero_edge():
@@ -167,19 +260,33 @@ def test_the_daily_spread_annualises_by_trading_days():
     assert annualise(0.001) == pytest.approx(0.001 * 244, rel=1e-9)
 
 
-def test_the_rev5_signal_is_six_times_short_of_the_daily_hurdle():
+def test_the_rev5_signal_is_twice_short_of_the_daily_hurdle():
     """**本文件最重要的一条。**
 
-    实测 `rev5` 低尾 IC = 0.04863（t=24.031），
-    A 股日收益横截面标准差量级 σ_r = 0.023：
+    实测 `rev5` 低尾 IC = 0.04863（t=24.031），σ_r = 0.023：
 
         ρ_p   = 2·sin(π/6·0.04863) = 0.05089
-        毛超额 = 0.05089 × 0.023 × 0.9332 ≈ 0.109%/日 ≈ **26.7%/年**
+        毛超额 = 0.05089 × 0.023 × **2.7996** ≈ 0.3279%/日 ≈ **80.0%/年**
 
-    日频门槛 154.2% → **差 5.8 倍**。
+    日频门槛 154.2% → **还差 1.93 倍**。
 
     > 这条断言的价值不在数字，在于它**把「排序强」翻译成了「离目标多远」**。
     > 没有这个换算，t=24 会被当成「快到了」。
+    >
+    > **它 2026-10-14 改过一次**：原来钉的是 26.7%/年与「差 5.8 倍」，
+    > 而那组数来自 `K = 2φ(z_q)/(1−2q)` —— **分母用错，差整 3 倍**。
+    >
+    > **教训不在常数错了，而在「把公式的当前输出硬编码进断言」
+    > 会把任何一次错误公式一起冻结**：这条测试从写下的那天起
+    > 就把 3 倍误差当成了正确答案；每次重算都红，
+    > 而**红灯会被读成「环境变了」而不是「原来错了」**。
+    >
+    > 它的对家就在同文件里：
+    > `test_the_tail_spread_constant_is_the_one_the_code_computes`
+    > 断言 `TAIL_SPREAD_K == tail_spread_constant()` —— **公式与自己一致**，
+    > 所以公式从写错那天起就**永远绿**。
+    > **硬编码冻结**与**自指恒绿**是同一枚硬币的两面：
+    > 一个抓不到公式变对，另一个抓不到公式变错。**两者都要外部锚。**
     """
     from aplus.hurdle import hurdle_rate, rounds_per_year
 
@@ -188,33 +295,37 @@ def test_the_rev5_signal_is_six_times_short_of_the_daily_hurdle():
 
     daily_hurdle = hurdle_rate(rounds_per_year=rounds_per_year(1))
 
-    assert gross == pytest.approx(0.267, abs=0.005)
-    assert gross * 5.8 == pytest.approx(daily_hurdle, rel=0.05)
+    assert gross == pytest.approx(0.800, abs=0.005)
+    assert daily_hurdle / gross == pytest.approx(1.93, rel=0.02)
 
 
-def test_the_monthly_clearing_is_too_thin_to_call_a_conclusion():
-    """**这条是本文件最容易被误读的地方，故单独钉住。**
+def test_the_bridge_now_returns_numbers_too_large_to_trust():
+    """**今天最重要的结论：桥已经不能当门槛计算器用了。**
 
-    月频门槛 26.4%，而 `rev5` 低尾换算出 **26.7%**——
-    **形式上刚好越过 0.3 个百分点**。
+    修正常数后，单因子 `rev5` 就给出 **80%/年**毛超额；
+    判决用的合成 IC 0.0709 给出 **约 117%/年**（σ_r = 0.023）。
 
-    但 σ_r 是本项目**唯一还没实测**的关键输入：
-    取 0.022 而不是 0.023，同样的 IC 就掉到 25.5% —— 不够。
+    这不是好消息，而是**模型失效的信号**：同一个线性外推式，
+    常数放大 3 倍就把结论吹成荒谬量级——说明错的**不只是常数**，
+    而是「IC 可线性外推成分位价差」这个**形状**在该 IC 水平上不成立。
 
-    > 所以正确的结论不是「月频可行」，而是
-    > **「月频的可行性完全取决于一个尚未测量的数」**。
-    > 把它写成「差一点点」或「基本可行」都是过度解读。
+    > 所以本文件原有那条「月频余量薄到不能当结论」的测试**被删了**：
+    > 修正常数后余量变成 3 倍，那条结论连同它的前提一起作废。
+    > 替代它的诚实结论是本条 —— **桥给不出可信的数了**。
+    >
+    > 真正的数只有 `scripts/measure_bridge_error.py` **直接测出来**的那个。
+    > 判决脚本打印的「年毛超额」从此只能当**量级参照**，不能当预测。
     """
     from aplus.hurdle import hurdle_rate, rounds_per_year
 
-    monthly_hurdle = hurdle_rate(rounds_per_year=rounds_per_year(21))
-    at_023 = annualise(implied_spread(0.04863, sigma_r=0.023, kind="spearman"))
-    at_022 = annualise(implied_spread(0.04863, sigma_r=0.022, kind="spearman"))
+    rev5 = annualise(implied_spread(0.04863, sigma_r=0.023, kind="spearman"))
+    composite = annualise(implied_spread(0.0709, sigma_r=0.023, kind="spearman"))
+    monthly = hurdle_rate(rounds_per_year=rounds_per_year(21))
 
-    assert at_023 > monthly_hurdle, "σ_r=0.023 时刚好越过月频门槛"
-    assert at_022 < monthly_hurdle, "σ_r 降 4% 就掉下去——余量比噪声薄"
-    # 关键：结论对 σ_r 敏感，所以**不能**当成「月频可行」
-    assert (at_023 - monthly_hurdle) / monthly_hurdle < 0.02
+    assert rev5 > 0.7, f"单因子年毛 {rev5:.1%} 已超出任何可信范围"
+    assert composite > 1.0, f"合成年毛 {composite:.1%} 荒谬"
+    # 「过线 3 倍」这种话本身就该被打问号 —— 月频门槛只有 26.4%
+    assert composite / monthly > 3.0
 
 
 def test_required_ic_inverts_the_formula():
@@ -251,25 +362,24 @@ def test_the_round_trip_holds_across_the_whole_definition_domain():
             f"ρ_p={rho_p} 往返得到 {back}"
 
 
-def test_daily_needs_an_ic_five_times_stronger_than_any_measured():
-    """日频要 154.2% 毛超额 → 反解出的所需 IC ≈ **0.279**。
+def test_daily_needs_an_ic_about_twice_any_measured():
+    """日频要 154.2% 毛超额 → 反解出的所需 IC ≈ **0.0938**（σ_r = 0.023）。
 
-    > 我最初写的是「所需 IC > 1，超出定义域、不可能」。
-    > **那是错的**：0.279 稳稳落在 [−1, 1] 内。
-    > 真正成立的结论是别的，而且更有用：
-    > **所需 IC 是实测最强值 0.0486 的 5.7 倍。**
-    >
-    > 「定义上不可能」与「差 5.7 倍」听起来像一回事，
+    是实测最强值 0.0486 的 **1.93 倍**。
+
+    > 「定义上不可能」与「差 1.93 倍」听起来像一回事，
     > 但决策含义完全不同：前者不必再试，后者是「还有路，但要走很远」。
+    > 修正前这里是 0.279 / 5.7 倍 —— **「要走很远」变成「基本够得着」**，
+    > 而那个翻转**完全来自一个分母**。
     """
     from aplus.hurdle import hurdle_rate, rounds_per_year
 
     need_gross = hurdle_rate(rounds_per_year=rounds_per_year(1))
     ic = required_ic(need_gross / 244, sigma_r=0.023)
 
-    assert ic == pytest.approx(0.279, abs=0.005)
-    assert ic < 1.0, "仍在定义域内——不是「不可能」，是「差 5.7 倍」"
-    assert ic / 0.04863 == pytest.approx(5.7, rel=0.05)
+    assert ic == pytest.approx(0.0938, abs=0.005)
+    assert ic < 1.0, "仍在定义域内 —— 不是「不可能」，是「差 1.93 倍」"
+    assert ic / 0.04863 == pytest.approx(1.93, rel=0.02)
 
 
 def test_an_out_of_domain_demand_is_reported_as_infinity_not_clamped():

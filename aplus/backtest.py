@@ -711,7 +711,18 @@ def evaluate_weights(cross_sections: dict, weights=None, top_n: int = 10,
     daily_map = cross_sections.get("_daily_map") or {}
     market = cross_sections.get("_market") or {}
     entry_lag = cross_sections.get("_entry_lag", ENTRY_LAG)
-    cost = cross_sections.get("_cost", STOCK_COST_DEFAULT)
+    # 成本**只有这一个来源**。
+    #
+    # 这里原来写的是 `cross_sections.get("_cost", STOCK_COST_DEFAULT)`——
+    # 一个看起来「可以按日覆盖成本」的开关。但 `build_cross_sections`
+    # **从不写** `_cost`，全仓（含 tests）也没有第二处写入，
+    # 所以那行代码**永远**走默认分支：不报错、不告警、照样出数，
+    # 只是出的永远是默认口径的数。
+    #
+    # 留着它比删掉它更坏：读代码的人会以为成本口径可调，
+    # 于是在它**调不动**的情况下以为自己已经考虑过成本了——
+    # 一句假话比没有这句话危险，因为它免掉了追问。
+    cost = STOCK_COST_DEFAULT
     factors_map = cross_sections.get("_factors_map") or {}
     adj_cache = cross_sections.setdefault("_adj_cache", {})
     unadjusted = cross_sections.setdefault("_unadjusted", {})

@@ -121,6 +121,32 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "ic_matrices.parquet": "scripts/extract_ic_matrices.py",
     "fundamental_ic.json": "aplus/factor_ic.py",
     "forward_registry.json": "aplus/forward.py",
+    # 2026-10-14 新增。**实测** IC→收益那座桥的误差：
+    # 权重直接取 `verdict_composite` 用的那一份逐年 `walk_forward`，
+    # 横截面走同一个 `build_cross_sections`——差一点点就不可比，
+    # 而「差一点点」正是本项目当天栽过四次的地方。
+    #
+    # ⚠️ **这份报告作废了它自己要质疑的那个公式的用法**：
+    # `ic_to_return.py` 的尾部常数分母曾写成 `1−2q`（中间段宽度）
+    # 而非 `q`（尾部宽度），差整 `(1−2q)/q` 倍（q=0.2 时 3.0 倍）。
+    # 修正常数后桥给出 135%/年，**荒谬**；而直接实测只有 33.51%/年。
+    # 也就是说**常数错了不是全部问题，「IC 可线性外推成分位价差」这个
+    # 形状本身在 IC≈0.07 这个水平上就不成立**。
+    # 所以引用 `verdict_*.py` 打印的「年毛超额」列是不成立的，
+    # 只能用本报告里的 `measured_*` 字段。
+    "bridge_error.json": "scripts/measure_bridge_error.py",
+    # `R⁻¹Σ_f` 逐年权重**第一次**进真实回测引擎。
+    # 在此之前它只在 `verdict_composite.py` 里被打印，从未落盘、从未进过
+    # `evaluate_weights` ——所以「组合 IC 够不够线」与「能不能赚钱」
+    # 这两个问题之间**从来没有一座桥**，只有一次口头类比。
+    #
+    # 保留四件真回测要素：可成交性闸门（开）、按换手计的成本、
+    # Top-N 选股、逐日分块 t。**两个成本口径都报**——
+    # 回测默认 0.003 只是价差那项，真实现况 0.0055（低估 1.84 倍），
+    # 而门槛用的是 0.0055：只报前者 = 分子乐观分母悲观。
+    "wf_weights_backtest.json": "scripts/backtest_walk_forward_weights.py",
+    # 因子个数扫描（石川：因子不是越多越好）。2026-10-14 补登记。
+    "sweep_factor_count.json": "scripts/sweep_factor_count.py",
     "financial_annual_cache.parquet": "aplus/financial.py",
     "evolution_ledger.json": "aplus/ledger.py",
 }

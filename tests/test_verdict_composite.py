@@ -55,17 +55,56 @@ def test_the_threshold_is_derived_not_hardcoded():
 
 
 def test_the_derived_threshold_equals_the_pre_registered_one():
-    """推导出来的数必须**等于**预注册写下的 0.04167。
+    """推导出来的数必须**等于**预注册写下的 **0.01389**。
 
     对不上说明 σ_r 或成本假设被动过——预注册必须同步更新，
     否则就是事后改标准。
+
+    ## 🚨 门槛 2026-10-14 从 0.04167 改成 0.01389，**而且是往松的方向**
+
+    这是本项目最需要自证清白的一次改动，所以把账摊开：
+
+    | 环节 | 改前 | 改后 | 动了吗 |
+    |---|---|---|---|
+    | σ_r 实测 | 0.02656 | 0.02656 | **没动** |
+    | 成本 `COST_REAL_50K` | 0.0055 | 0.0055 | **没动** |
+    | K / 调仓次数 | 21 / 11.6 | 21 / 11.6 | **没动** |
+    | 目标 | 20% | 20% | **没动** |
+    | 判决年份 | 2021~2026 | 2021~2026 | **没动** |
+    | **K(q) 常数** | **0.9332** | **2.7996** | **改了 —— 这里是 bug** |
+
+    两个外部锚 σ_r 与成本都**原封不动**；
+    变的只有「IC 怎么翻译成分位价差」这一步，而那一步的公式
+    **分母写错了，差整 3 倍**（`2φ(z_q)/(1−2q)` 应为 `2φ(z_q)/q`）。
+
+    证据有两条，且**互相独立**：
+    1. 五个 q 值上实测价差 / 旧常数精确等于 `(1−2q)/q`；
+    2. 旧常数在 `q→0.5` 处**发散**，而那里真值 1.5958 显然有限。
+
+    > **方向朝松，所以更要说清楚**：
+    > 如果我只是想让判决更好看而调松了门槛，
+    > 这条测试存在的全部意义就是让它**当场红**——
+    > 数字一旦对不上，必须能立刻指出「是 σ_r/成本被动过」还是
+    > 「是换算常数修对了」。**两者都红，但只有后者是对的**，
+    > 所以这条测试必须把三个锚（σ_r、成本、K）都单独钉住。
     """
-    from aplus.hurdle import DAYS_PER_YEAR, hurdle_rate, rounds_per_year
+    from aplus.hurdle import COST_REAL_50K, DAYS_PER_YEAR, hurdle_rate, rounds_per_year
     from aplus.ic_to_return import required_ic
+
+    # 三个外部锚**逐一钉死**——它们没动，动的是别的地方
+    assert COST_REAL_50K == 0.0055
+    assert rounds_per_year(21) == pytest.approx(244 / 21)
 
     need = hurdle_rate(rounds_per_year=rounds_per_year(21))
     got = required_ic(need / DAYS_PER_YEAR, sigma_r=0.02656)
-    assert got == pytest.approx(0.04167, abs=5e-5)
+    assert got == pytest.approx(0.013890, abs=5e-5)
+
+    # 反向核对：门槛 IC 代回去，应当**恰好**还原出年毛超额门槛。
+    # 这一条让「改松了门槛」不可能悄悄发生——
+    # 门槛 IC 与收益门槛必须**互为反函数**。
+    from aplus.ic_to_return import annualise, implied_spread
+    assert annualise(implied_spread(got, sigma_r=0.02656,
+                                    kind="spearman")) == pytest.approx(need, rel=1e-9)
 
 
 def test_equal_weight_years_are_excluded_from_the_judgement_window():

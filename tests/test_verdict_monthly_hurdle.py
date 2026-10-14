@@ -99,24 +99,28 @@ def test_the_decision_threshold_is_derived_from_the_measured_sigma_r():
     import ast
 
     from aplus.hurdle import DAYS_PER_YEAR, hurdle_rate, rounds_per_year
-    from aplus.ic_to_return import required_ic
+    from aplus.ic_to_return import annualise, implied_spread, required_ic
 
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     # 收集所有**被引用**的字面量节点（赋值右侧、比较、参数……）
     literals = [n.value for n in ast.walk(tree)
                 if isinstance(n, ast.Constant) and isinstance(n.value, float)]
-    assert any(abs(v - 0.04167) < 1e-9 for v in literals) is False, (
-        f"判决线被写死成字面量 {[v for v in literals if 0.04 < v < 0.05]}——"
+    assert any(abs(v - 0.01389) < 1e-9 for v in literals) is False, (
+        f"判决线被写死成字面量 {[v for v in literals if 0.01 < v < 0.02]}——"
         "σ_r 一改它就该自动跟着变"
     )
 
     # 且它算出来的数确实等于预注册的那个
     need = hurdle_rate(rounds_per_year=rounds_per_year(21))
     got = required_ic(need / DAYS_PER_YEAR, sigma_r=0.02656)
-    assert got == pytest.approx(0.04167, abs=5e-5), (
-        f"判决线 {got:.5f} 与预注册的 0.04167 不符——"
+    assert got == pytest.approx(0.013890, abs=5e-5), (
+        f"判决线 {got:.5f} 与预注册的 0.013890 不符——"
         "若是有意改动，预注册必须同步更新，否则就是在事后调标准"
     )
+    # 判决线与收益门槛必须**互为反函数**：门槛 IC 代回去要还原出年毛超额门槛。
+    # 这一条让「偷偷调松门槛」不可能悄悄通过。
+    assert annualise(implied_spread(got, sigma_r=0.02656,
+                                    kind="spearman")) == pytest.approx(need, rel=1e-9)
 
 
 # ── 三、三档齐全时判决能跑完，并给出可核对的数字 ──────────────────
@@ -127,7 +131,11 @@ def test_a_complete_report_produces_a_per_year_verdict(tmp_path):
     特意让 2023 年不过线：判决必须是「有几年不过」，
     而不是「大概差一点」——后者正是第 63 条的形式。
     """
-    years = {str(y): 0.048 if y != 2023 else 0.030 for y in range(2019, 2027)}
+    # 0.010 < 门槛 0.01389 ⇒ 2023 年确实不过线
+    #（原来用的是 0.030，那是在门槛 0.04167 下面的值；
+    #  修正常数后它已经过线了，于是这条测试「意外变绿」——
+    #  又一次：判据变了，**夹具不跟着变就等于没测**）
+    years = {str(y): 0.048 if y != 2023 else 0.010 for y in range(2019, 2027)}
     payload = {"yearly": [
         {"factor": "rev5", "year": y, "n_days": 240,
          "all": 0.026, "tail_low": ic, "tail_high": -0.02,
