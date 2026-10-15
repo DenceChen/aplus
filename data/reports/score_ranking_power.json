@@ -6,16 +6,16 @@
   "by_score_col": {
     "score": {
       "score_col": "score",
-      "n_rows_total": 80,
-      "n_rows_judgeable": 69,
+      "n_rows_total": 100,
+      "n_rows_judgeable": 89,
       "n_rows_dropped_undecidable": 11,
       "dropped_breakdown": {
         "no_data": 8,
         "flat": 3
       },
       "n_rows_score_missing": 0,
-      "n_rows_scored": 69,
-      "n_independent_pred_dates": 4,
+      "n_rows_scored": 89,
+      "n_independent_pred_dates": 5,
       "independent_unit": "pred_date（一天一个独立事件；条目数不是独立观测数）",
       "quartile_rule": "组内（pred_date × direction）按 score 名次切 4 段",
       "quartile_sizes_at_n10": {
@@ -28,63 +28,63 @@
       "arms": {
         "down": {
           "Q1": {
-            "n": 10,
-            "hit_rate": 0.4
+            "n": 13,
+            "hit_rate": 0.5384615384615384
           },
           "Q2": {
-            "n": 8,
-            "hit_rate": 0.5
+            "n": 10,
+            "hit_rate": 0.6
           },
           "Q3": {
-            "n": 10,
-            "hit_rate": 0.4
+            "n": 13,
+            "hit_rate": 0.5384615384615384
           },
           "Q4": {
-            "n": 6,
-            "hit_rate": 0.16666666666666666
+            "n": 8,
+            "hit_rate": 0.375
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.4,
-              0.5,
-              0.4,
-              0.16666666666666666
+              0.5384615384615384,
+              0.6,
+              0.5384615384615384,
+              0.375
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.3113869363053037,
-            "permutation_p_two_sided": 0.8179591020448977,
-            "null_abs_rho_q95_power_floor": 0.41701552872911524,
+            "point_biserial_rho": -0.43960371383711205,
+            "permutation_p_two_sided": 0.8222588870556472,
+            "null_abs_rho_q95_power_floor": 0.5213080885326451,
             "detectable_at_alpha05": false
           }
         },
         "up": {
           "Q1": {
-            "n": 11,
-            "hit_rate": 0.45454545454545453
-          },
-          "Q2": {
-            "n": 7,
+            "n": 14,
             "hit_rate": 0.5714285714285714
           },
+          "Q2": {
+            "n": 9,
+            "hit_rate": 0.4444444444444444
+          },
           "Q3": {
-            "n": 10,
-            "hit_rate": 0.3
+            "n": 13,
+            "hit_rate": 0.3076923076923077
           },
           "Q4": {
-            "n": 7,
-            "hit_rate": 0.7142857142857143
+            "n": 9,
+            "hit_rate": 0.6666666666666666
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.45454545454545453,
               0.5714285714285714,
-              0.3,
-              0.7142857142857143
+              0.4444444444444444,
+              0.3076923076923077,
+              0.6666666666666666
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.20370693002189016,
-            "permutation_p_two_sided": 0.30513474326283685,
-            "null_abs_rho_q95_power_floor": 0.34893586624191425,
+            "point_biserial_rho": -0.15060161033154532,
+            "permutation_p_two_sided": 0.3873306334683266,
+            "null_abs_rho_q95_power_floor": 0.3053686322663129,
             "detectable_at_alpha05": false
           }
         }
@@ -101,16 +101,16 @@
     },
     "adjusted_score": {
       "score_col": "adjusted_score",
-      "n_rows_total": 80,
-      "n_rows_judgeable": 69,
+      "n_rows_total": 100,
+      "n_rows_judgeable": 89,
       "n_rows_dropped_undecidable": 11,
       "dropped_breakdown": {
         "no_data": 8,
         "flat": 3
       },
-      "n_rows_score_missing": 53,
-      "n_rows_scored": 16,
-      "n_independent_pred_dates": 4,
+      "n_rows_score_missing": 63,
+      "n_rows_scored": 26,
+      "n_independent_pred_dates": 5,
       "independent_unit": "pred_date（一天一个独立事件；条目数不是独立观测数）",
       "quartile_rule": "组内（pred_date × direction）按 score 名次切 4 段",
       "quartile_sizes_at_n10": {
@@ -120,36 +120,36 @@
         "Q4": 2
       },
       "quartile_sizes_note": "四分位按名次取整分段，**段大小不均**（n=10 → 3/2/3/2）。这是「组内排名分段的必然」而不是缺陷：只有 n % 4 == 0 才均衡。⇒ 各段命中率的样本量不同，**跨段比较必须读 n**；G4 判的是**单调性**而非段间差值，故不受段大小影响。",
-      "score_missing_note": "⚠️ `adjusted_score` 有 53/69 条可判定记录**缺分数** ⇒ 本口径只用 16 条。引用本口径的任何结论都只能带这个分母。",
+      "score_missing_note": "⚠️ `adjusted_score` 有 63/89 条可判定记录**缺分数** ⇒ 本口径只用 26 条。引用本口径的任何结论都只能带这个分母。",
       "arms": {
         "up": {
           "Q1": {
-            "n": 5,
-            "hit_rate": 0.4
+            "n": 8,
+            "hit_rate": 0.625
           },
           "Q2": {
-            "n": 3,
-            "hit_rate": 0.3333333333333333
-          },
-          "Q3": {
             "n": 5,
             "hit_rate": 0.2
           },
+          "Q3": {
+            "n": 8,
+            "hit_rate": 0.25
+          },
           "Q4": {
-            "n": 3,
-            "hit_rate": 0.3333333333333333
+            "n": 5,
+            "hit_rate": 0.4
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.4,
-              0.3333333333333333,
+              0.625,
               0.2,
-              0.3333333333333333
+              0.25,
+              0.4
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.10512176537704616,
-            "permutation_p_two_sided": 0.7077146142692865,
-            "null_abs_rho_q95_power_floor": 0.49941265370288135,
+            "point_biserial_rho": 0.1411735599838165,
+            "permutation_p_two_sided": 0.4898755062246888,
+            "null_abs_rho_q95_power_floor": 0.3995672098214891,
             "detectable_at_alpha05": false
           }
         }
@@ -166,7 +166,7 @@
     }
   },
   "verdict": "NOT_PASSED_POWERLESS",
-  "verdict_reason": "闸门臂 up：四分位不单调；点二列 ρ=-0.2037，置换 p=0.3051，零分布 95 分位（检出力下限）= 0.3489 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许发布，先攒前瞻期；down 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）单调=False ρ=-0.3114 检出力下限=0.4170",
+  "verdict_reason": "闸门臂 up：四分位不单调；点二列 ρ=-0.1506，置换 p=0.3873，零分布 95 分位（检出力下限）= 0.3054 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许发布，先攒前瞻期；down 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）单调=False ρ=-0.4396 检出力下限=0.5213",
   "publish_allowed": false,
   "what_this_cannot_prove": [
     "**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——n=4 个独立预测日，任何形状都极易出现，包括真的单调的那种；「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",

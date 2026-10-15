@@ -284,6 +284,31 @@ def verdict(point: float | None, plus1sd: float | None) -> str:
     return "INSUFFICIENT"
 
 
+def _a_parity(ref_annual: float, a_annual_pct: float) -> dict:
+    """对拍①：**本脚本的 A 逐位等于主产物的 `sign_fixed.annual_up_excess`**。
+
+    ## 为什么它必须是独立函数（第 124 层：判据不可问就等于没有守卫）
+
+    第一版把这段内联在 `main()` 里，于是它的前提只能靠**跑一次 10 分钟**
+    （面板 270s + 重放 293s）来验 —— 而真实发生的事是：跑完了、被硬闸拒写、
+    才知道自己把一个**已经年化**的数又除了一次 244。
+    ⇒ 「跑一次问一次」的问题不是慢，是**没人愿意为一条判据付 10 分钟**，
+    于是这条判据事实上**从未被单独问过**。
+
+    ⚠️ 两条量在同一个函数里是**同一个数**：
+    `a_annual_pct` 来自 `_pack(a_annual, …)` 的 `annual_pct`，
+    而 `a_annual = float(_metrics(pred)["annual_up_excess"])` ⇒ **已经是年化**。
+    ⇒ 这里**不许**再乘/除 `DAYS_PER_YEAR`：那一层换算在
+    `decompose()` 里的 `a_annual_rebuilt = (a_up − a_mkt) * DAYS_PER_YEAR`
+    已经做完了。
+    """
+    return {
+        "_metrics_annual_up_excess": ref_annual,
+        "A_rowwise_annual_pct": a_annual_pct,
+        "closes": math.isclose(ref_annual, a_annual_pct, rel_tol=1e-12),
+    }
+
+
 def _sha(rel: str) -> str:
     p = ROOT / rel
     return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else ""
@@ -341,13 +366,13 @@ def main(argv=None) -> int:
         arms.append({
             "buffer_multiple": buf,
             "parity": {
-                # 对拍①：本脚本的 A 必须逐位等于主产物的 `sign_fixed.annual_up_excess`
-                "_metrics_annual_up_excess": ref["annual_up_excess"],
+                # 对拍①的实现见 `_a_parity()`——抽成独立函数是为了让它
+                # **1 毫秒可问、可变异**（第 124 层），而它在第一版内联在
+                # `main()` 里，于是只能靠跑一次 10 分钟来问，问出来的第一件事
+                # 是「它一直是错的」。
+                **_a_parity(ref["annual_up_excess"],
+                             rows["A_rowwise"]["annual_pct"]),
                 "_metrics_annual_cost": ref["annual_cost"],
-                "A_rowwise_annual_pct": rows["A_rowwise"]["annual_pct"] / DAYS_PER_YEAR,
-                "closes": math.isclose(
-                    ref["annual_up_excess"],
-                    rows["A_rowwise"]["annual_pct"] / DAYS_PER_YEAR, rel_tol=1e-12),
             },
             # 对拍②：B 与 by_year 已对拍过的 `pooled()` 逐位比
             "B_vs_pooled_ref": d["B_vs_pooled_ref"],

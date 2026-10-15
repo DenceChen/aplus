@@ -1,0 +1,9 @@
+{
+  "code_sha": "8191eceda86c3060105b4ef64ab79c1747b31ec5",
+  "code_dirty": true,
+  "code_file_sha256": "1ebc70ac34a9ba1eb880387206303875a91154331c5b131557988e46b84b42cb",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/regime_control_by_year.py",
+  "stamped_at": "2026-10-15T12:17:39+00:00"
+}

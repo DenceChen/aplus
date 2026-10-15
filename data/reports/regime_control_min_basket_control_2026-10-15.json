@@ -1,0 +1,144 @@
+{
+  "kind": "regime_control_min_basket_control",
+  "provenance_note": "⚠️ **本产物是事后补跑，不是预注册跑法的产物。**它是 PREREG 附则一第三节第 3 条要求的 MIN_BASKET 对照臂，外加 A/B 两个口径的逐位分解。不改任何判据、不覆盖主产物。",
+  "window": [
+    "2021-01-04",
+    "2026-10-09"
+  ],
+  "rebalance_every": 21,
+  "min_basket_constant": 3,
+  "min_basket_source": "aplus/verify.py:19（导入，不写字面量）",
+  "hurdle_from_hurdle_rate": 0.2639047619047619,
+  "hurdle_derivation": "hurdle_rate(target=0.20, cost_per_round=COST_REAL_50K, rounds_per_year=244/LIVE_REBALANCE_EVERY, benchmark_annual=0.0)",
+  "caliber_note": "A=逐行（`rolling_stats`：mean_row(up净) − mean_row(market)）；B=逐日（`_daily_series`：mean_daily(up净) − mean_daily(market)）；C=逐日 + `size >= MIN_BASKET`。⚠️ 预注册第二节字面写的是 `sign_fixed.annual_up_excess`，即 **A**。⚠️ 本脚本**不裁定** A/B 谁是「对」的口径——只给数与分解。",
+  "code_sha256": {
+    "scripts/regime_control_sweep.py": "aa8b970c373a76d766e2574c6a966f7a0e36daf693e39f9642bb6bfc46a38119",
+    "aplus/backtest.py": "4a00bece47623697188f166ee07807b211736babc8afab408027b50ea37fdfee",
+    "aplus/panel_cache.py": "16e05b27696402b113c3b38508c2f2b5847da9a3f1eeb808486cec6c6c297fb8",
+    "aplus/verify.py": "ecfe0ba4f4f781b8ddea5ee45d0f8ea0177337daaeb0b08313b15639d2d8de90"
+  },
+  "arms": [
+    {
+      "buffer_multiple": null,
+      "parity": {
+        "_metrics_annual_up_excess": 0.007479904981219636,
+        "A_rowwise_annual_pct": 0.007479904981219636,
+        "closes": true,
+        "_metrics_annual_cost": 0.03478967741935484
+      },
+      "B_vs_pooled_ref": {
+        "note": "B 与 `regime_control_by_year.py::pooled()` 的逐位对拍",
+        "annual_pct": -0.029035246664691233,
+        "ref_annual_up_excess_NET_pct": -0.02903524666469121,
+        "ref_sd_annual_pct": 0.2227897132504814,
+        "ref_se_annual_pct": 0.09317576001394748,
+        "closes": true
+      },
+      "calibers": {
+        "A_rowwise": {
+          "annual_pct": 0.007479904981219636,
+          "n_days": 1395,
+          "sd_annual_pct": 0.2227897132504814,
+          "se_annual_pct": 0.09317576001394748,
+          "plus1sd_pct": 0.10065566499516712,
+          "verdict": "INSUFFICIENT"
+        },
+        "B_daily": {
+          "annual_pct": -0.029035246664691233,
+          "n_days": 1395,
+          "sd_annual_pct": 0.2227897132504814,
+          "se_annual_pct": 0.09317576001394748,
+          "plus1sd_pct": 0.06414051334925625,
+          "verdict": "INSUFFICIENT"
+        },
+        "C_daily_min_basket": {
+          "annual_pct": -0.03459281721304174,
+          "n_days": 1390,
+          "sd_annual_pct": 0.22246151908012513,
+          "se_annual_pct": 0.09320568691942963,
+          "plus1sd_pct": 0.058612869706387884,
+          "verdict": "INSUFFICIENT"
+        }
+      },
+      "decomposition": {
+        "identity": "A − B = 244 × [ (mean_row(up净) − mean_daily(up净)) − (mean_row(market) − mean_daily(market)) ]",
+        "term_up_rows_minus_daily": 0.00012634851095550114,
+        "term_market_rows_minus_daily": -2.3303749888395862e-05,
+        "reconstructed_A_minus_B": 0.03651515164591087,
+        "observed_A_minus_B": 0.03651515164591087,
+        "residual_per_year": 0.0,
+        "closes_bitwise": true
+      },
+      "basket_size": {
+        "min": 1,
+        "median": 10.0,
+        "max": 10,
+        "n_days_lt_min_basket": 5,
+        "n_days_lt_top_n": 400,
+        "min_basket_constant": 3,
+        "dropped_days_contribution_annual_pct": 7.579846828883766
+      }
+    },
+    {
+      "buffer_multiple": 3.0,
+      "parity": {
+        "_metrics_annual_up_excess": 0.017117813314200227,
+        "A_rowwise_annual_pct": 0.017117813314200227,
+        "closes": true,
+        "_metrics_annual_cost": 0.03463225806451613
+      },
+      "B_vs_pooled_ref": {
+        "note": "B 与 `regime_control_by_year.py::pooled()` 的逐位对拍",
+        "annual_pct": -0.020101235213300414,
+        "ref_annual_up_excess_NET_pct": -0.020101235213300362,
+        "ref_sd_annual_pct": 0.22380230356004926,
+        "ref_se_annual_pct": 0.09359924846994576,
+        "closes": true
+      },
+      "calibers": {
+        "A_rowwise": {
+          "annual_pct": 0.017117813314200227,
+          "n_days": 1395,
+          "sd_annual_pct": 0.22380230356004926,
+          "se_annual_pct": 0.09359924846994576,
+          "plus1sd_pct": 0.11071706178414599,
+          "verdict": "INSUFFICIENT"
+        },
+        "B_daily": {
+          "annual_pct": -0.020101235213300414,
+          "n_days": 1395,
+          "sd_annual_pct": 0.22380230356004926,
+          "se_annual_pct": 0.09359924846994576,
+          "plus1sd_pct": 0.07349801325664534,
+          "verdict": "INSUFFICIENT"
+        },
+        "C_daily_min_basket": {
+          "annual_pct": -0.025626669029811363,
+          "n_days": 1390,
+          "sd_annual_pct": 0.22348015038875593,
+          "se_annual_pct": 0.09363246738569253,
+          "plus1sd_pct": 0.06800579835588116,
+          "verdict": "INSUFFICIENT"
+        }
+      },
+      "decomposition": {
+        "identity": "A − B = 244 × [ (mean_row(up净) − mean_daily(up净)) − (mean_row(market) − mean_daily(market)) ]",
+        "term_up_rows_minus_daily": 0.00012927754118152626,
+        "term_market_rows_minus_daily": -2.3259542947574733e-05,
+        "reconstructed_A_minus_B": 0.037219048527500645,
+        "observed_A_minus_B": 0.037219048527500645,
+        "residual_per_year": 0.0,
+        "closes_bitwise": true
+      },
+      "basket_size": {
+        "min": 1,
+        "median": 10.0,
+        "max": 10,
+        "n_days_lt_min_basket": 5,
+        "n_days_lt_top_n": 402,
+        "min_basket_constant": 3,
+        "dropped_days_contribution_annual_pct": 7.579846828883766
+      }
+    }
+  ]
+}

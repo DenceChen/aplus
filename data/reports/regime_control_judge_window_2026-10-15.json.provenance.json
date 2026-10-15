@@ -1,0 +1,9 @@
+{
+  "code_sha": "8191eceda86c3060105b4ef64ab79c1747b31ec5",
+  "code_dirty": true,
+  "code_file_sha256": "aa8b970c373a76d766e2574c6a966f7a0e36daf693e39f9642bb6bfc46a38119",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/regime_control_sweep.py",
+  "stamped_at": "2026-10-15T12:11:14+00:00"
+}

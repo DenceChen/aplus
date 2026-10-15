@@ -1,0 +1,49 @@
+M1 A 的 market 分量从逐行悄悄改成逐日（把 A 改成半个 B，resid 仍为 0）	scripts/regime_control_min_basket_control.py
+    a_mkt = float(pred["market_pct"].mean())
+=== 变异体 ===
+    a_mkt = float(mkt_b)
+
+M2 A 的 up 分量从逐行悄悄改成逐日（★今日真实形态：A 口径当时零守卫）	scripts/regime_control_min_basket_control.py
+    a_up = float((up["actual_pct"] - up["cost"]).mean())
+=== 变异体 ===
+    a_up = float(up_b.mean())
+
+M3 A 的点估计被减半（分解项不动 ⇒ 「锁不死」断言应当抓它）	scripts/regime_control_min_basket_control.py
+    a_annual = float(_metrics(pred)["annual_up_excess"])
+=== 变异体 ===
+    a_annual = float(_metrics(pred)["annual_up_excess"]) * 0.5
+
+M4 B 的 market 分量改成逐行（B 与 by_year.pooled() 不再逐位一致）	scripts/regime_control_min_basket_control.py
+    b_mkt = float(mkt_b.mean())
+=== 变异体 ===
+    b_mkt = float(pred["market_pct"].mean())
+
+M5 SE 的年化乘数从 ×T 换成 ×1（日 SE 冒充年 SE，★层 93 的第三个乘数）	scripts/regime_control_min_basket_control.py
+        se = sd_day / math.sqrt(n) * DAYS_PER_YEAR
+=== 变异体 ===
+        se = sd_day / math.sqrt(n) * 1.0
+
+M6 MIN_BASKET 对照臂的 keep 写反（≥ 写成 ≤，高估 √244 倍的反向同族）	scripts/regime_control_min_basket_control.py
+    keep = sz >= MIN_BASKET
+=== 变异体 ===
+    keep = sz <= MIN_BASKET
+
+M7 对照臂的门槛从导入的 MIN_BASKET 退化成 1（门槛钉在字面量上）	scripts/regime_control_min_basket_control.py
+    keep = sz >= MIN_BASKET
+=== 变异体 ===
+    keep = sz >= 1
+
+M8 resid 的两项分解被抽掉（★恒等式恒闭合的那一层：差值只剩 A−B）	scripts/regime_control_min_basket_control.py
+    resid = a_annual - b_annual - DAYS_PER_YEAR * ((a_up - b_up) - (a_mkt - b_mkt))
+=== 变异体 ===
+    resid = a_annual - b_annual
+
+M9 对拍①里把已年化的 A 又除一次 244（★今日真实 bug；症状是假红，硬闸拒写产物）	scripts/regime_control_min_basket_control.py
+        "closes": math.isclose(ref_annual, a_annual_pct, rel_tol=1e-12),
+=== 变异体 ===
+        "closes": math.isclose(ref_annual, a_annual_pct / DAYS_PER_YEAR, rel_tol=1e-12),
+
+M10 `plus1sd` 的加数从标准**误**改成标准**差**（★字段名与实现原本就对不上；本变异把实现改成符合字段名，于是「名字 vs 预注册 `+1σ`」的冲突消失）	scripts/regime_control_min_basket_control.py
+                "se_annual_pct": se, "plus1sd_pct": point + se}
+=== 变异体 ===
+                "se_annual_pct": se, "plus1sd_pct": point + sd_annual}

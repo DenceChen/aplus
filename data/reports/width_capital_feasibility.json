@@ -89,6 +89,7 @@
     }
   ],
   "caliber": {
+    "n": "篮子名数（等权持股只数）。⚠️ 它**同时决定摩擦**：每轮成本 ∝ n，而毛超额对 n 近乎饱和 ⇒ **加名数是反向恶化**（本表五档实测摩擦 6.41%→130.97%），不是「宽一点更稳」",
     "gross_annual": "毛超额，**未扣摩擦**。上游 data/reports/factor_width_mde.json 的 gross_annual_pct，标的为「涨腿 − 基准」的年超额",
     "net_at_capital": "净超额 = gross_annual − friction_at_capital，摩擦按**本行 capital=50000** 计。⚠️ 换个本金这一列就变，不是常量",
     "capital_for_breakeven": "解 `gross == annual_friction(capital)` 的数值解 —— **拿毛超额去抵摩擦**，不是让净收益等于目标。⇒ 它的口径是「回本（净=0）」，**不含**任何收益率目标",
