@@ -176,13 +176,18 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 绝不许从输出文件名反推**（那份教训就是反推出来的名字不存在）。
     "regime_control_sweep.json": "scripts/regime_control_sweep.py",
     # 判决窗口两份：同一个脚本、同一段代码，产物写新文件名（预注册第三节约束 1）。
-    # ⚠️ **登记 ≠ 盖章**：这两个脚本都**不调** `provenance.stamp()`
-    # ⇒ 判 fresh 的依据只有 **commit 走查**，不是字节证据。
-    # 如实标注强度，不许假装有字节章。
+    # 🚨 2026-10-15 补记：登记在位，但**两个脚本都不调 `provenance.stamp()`**
+    # ⇒ `freshness()` 判 `unknown`（逐字：「没有溯源 sidecar——生成它的 commit
+    # 无从得知」）⇒ **判决链上的两份产物都不可引用**。
+    # ⇒ 已给两个脚本补上 `stamp(..., expect_bytes=)`（第 125 层模式）并重跑。
     "regime_control_judge_window_2026-10-15.json":
         "scripts/regime_control_sweep.py",
     "regime_control_judge_window_by_year_2026-10-15.json":
         "scripts/regime_control_by_year.py",
+    # PREREG 附则一第三节第 3 条要求的 `MIN_BASKET` 对照臂（写**另一个文件**，
+    # 不覆盖第一份）。⚠️ 它**不是预注册产物**，是事后补跑的对照臂。
+    "regime_control_min_basket_control_2026-10-15.json":
+        "scripts/regime_control_min_basket_control.py",
     # 🚨 2026-10-15：`stats.json` 此前**未登记** ⇒ `freshness()` 判 `unknown`
     # ⇒ 按本模块自己的规矩「不可引用」，而它恰是**已交付产品的前瞻账**
     # （`docs/GOAL_20PCT_VERDICT_2026-10-15.md` 第五节整节引它的字段）。

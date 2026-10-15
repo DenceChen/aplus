@@ -77,6 +77,7 @@ from aplus.backtest import (  # noqa: E402
     build_cross_sections, evaluate_weights, scoreable_count,
 )
 from aplus import panel_cache as PC
+from aplus import provenance
 from aplus.store import LocalStore
 
 ROOT = Path(__file__).resolve().parents[1]  # noqa: E402
@@ -263,6 +264,11 @@ def main() -> int:
                     help="复用已盖章且窗口匹配的缓存。**默认重建**")
     args = ap.parse_args()
 
+    # 第 125 层：`stamp()` 只证明「盖章那一刻盘上的字节」，
+    # 而这份产物要跑几十分钟。⇒ **开跑时**先抓一次字节哈希，
+    # 写盘那一刻对不上就**拒盖**（那枚章会变成反向的错误证据）。
+    expect = provenance.code_file_sha256(ROOT, "scripts/regime_control_sweep.py")
+
     xs = _panel(args.data_root, args.cache, args.reuse,
                start=args.start, end=args.end)
     out = {"kind": "regime_control_sweep", "prereg": PREREG,
@@ -278,6 +284,8 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2),
                         encoding="utf-8")
+    provenance.stamp(args.out, "scripts/regime_control_sweep.py", root=ROOT,
+                     data_root=args.data_root, expect_bytes=expect)
     print(f"\n写出 {args.out}", flush=True)
     return 0
 
