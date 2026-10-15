@@ -98,3 +98,61 @@ hurdle_rate(target=0.20, cost_per_round=COST_REAL_50K=0.0055,
       （⚠️ `regime_control_sweep.json` 当前登记成 `"aplus/backtest.py"`，
       实际写它的是 `scripts/regime_control_sweep.py` —— **接线错误，顺手修**）
 - [ ] 逐年分布入库
+
+---
+
+# 附则：判决跑起来之后才发现的一个缺口（**事后登记，不冒充预注册**）
+
+> ⚠️ **本节写于 `pid 33652` 已在运行之后，属于「补写出来的登记」。**
+> 按纪律「补写出来的登记不能冒充预注册」：
+> **它不回填第二节的任何门槛，也不解释、不修改主指标的定义。**
+> 它只登记一个必须在判决里**并列**印出的对照臂。
+
+## 一、发现：`regime_control_sweep` 缺 `MIN_BASKET`，而 `verify.py` 有
+
+`aplus/verify.py` 记有一次**已发作的事故**（`:229-234` 逐字）：
+
+> 「`.mean()` 默认跳过 NaN，所以「篮子平均收益」可能只由**一只**股票构成——而调用方
+> 完全看不出来。2026-10-11 实测：某日跌篮子 10 只里 9 只没有次日 bar
+> （退市/长期停牌），`.mean()` 静默按剩下的 1 只计算，再被日度汇总平均，
+> **多空价差虚报到 +9.84%**。」
+>
+> 「这里把有效成分数一并报出；逐日聚合与 t 检验用 `MIN_BASKET` 丢弃成分不足的日子
+> ——**宁可少几天样本，不可用一只股票代表一个篮子**。」
+
+落地处：`verify.py:19 MIN_BASKET = 3`、`:398 daily = daily[size >= MIN_BASKET]`。
+
+★ **`scripts/regime_control_sweep.py` 里没有任何等价守卫。**
+它只有 `scripts/regime_control_sweep.py:183 return s.dropna()`——
+那管的是「**这天完全没数据**」，不是「**这天只剩 1 只有效成分**」。
+⇒ `:176 s_up = up.groupby("pred_date")["_x"].mean()` 让**只有 1 只有效成分的日子**
+与**满 10 只的日子等权**进入 `annual_up_excess`。
+
+## 二、为什么这条落在主指标路径上
+
+`_daily_series` → `_metrics` → `rows[i].sign_fixed.annual_up_excess`
+⇒ 第二节的主指标**就在这条路径上**。
+
+⚠️ 但**预注册第二节的主指标不受 `flat` 污染**（另一条污染路径，已实测排除）：
+`data/reports/verification.parquet` 的 3 条 `result == "flat"`（`actual_pct = 0.0`）
+**全在 `down` 腿**（up 腿 `flat n = 0`），而 `:181` 的
+`annual_up_excess = s_up − market` 只用 up 组。
+
+## 三、处置（唯一允许的动作序列）
+
+| # | 动作 | 约束 |
+|---|---|---|
+| 1 | 判决照跑照报 `sign_fixed.annual_up_excess` | **不改主指标定义** |
+| 2 | `PREREG` 三条门槛一个不动 | 尤其不许动 `min_n_ranked` |
+| 3 | 跑完后加 `MIN_BASKET` 对照臂，产物写**另一个文件** | 不覆盖第一份 |
+| 4 | **两个判决并列印出，不许选一个** | 若落在不同档位，必须同时给 |
+
+⚠️ **第 4 条是唯一能证明这不是事后凑结论的办法。**
+⚠️ 无论对照臂结果如何，**本文第二节的四条判决规则一个字不改。**
+
+## 四、明确不许做的事
+
+- ❌ 因为对照臂好看/难看而替换主判决，或只报对自己有利的那个。
+- ❌ 把 `MIN_BASKET` 的对照臂说成「主指标本该如此」并据此重写预注册。
+- ❌ 在 `pid 33652` 运行期间编辑 `scripts/regime_control_sweep.py`（第 125 层）。
+- ❌ 用 `flat` 污染的路径（`annual_breadth`）去解释主指标（`annual_up_excess`）。
