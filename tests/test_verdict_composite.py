@@ -19,6 +19,7 @@
 import ast
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -30,8 +31,44 @@ SCRIPT = Path("scripts/verdict_composite.py")
 
 
 def _run(*extra):
-    return subprocess.run([sys.executable, str(SCRIPT), *extra],
-                          capture_output=True, text=True)
+    """跑判决脚本，`--out` 由**本函数**强制注入，调用点不许自己传。
+
+    ⚠️★ 第 132 层：`--out` 的默认值是**生产产物路径**
+    `data/reports/verdict_composite.json`（`verdict_composite.py:89`），
+    而下面这些测试喂的是**合成 parquet**（`_synthetic_table`）。
+    2026-10-15 实测：`tests/test_verdict_composite.py`
+    的 `test_the_control_arm_is_restricted_to_the_same_years_as_the_main_arm`
+    不传 `--out` ⇒ 每次跑门禁都把生产产物覆盖成
+    「4 个随机因子、years=2026..2028、90 天/年」的数据，
+    然后 `provenance.stamp()` **给它盖上真章**——
+    章的 `data_fp` 取自固定的 `data/master/daily`，与 `--matrices` 无关
+    ⇒ `freshness()` 判 **fresh + 字节证据**。
+    ⇒ 实测后果：`data/reports/verdict_composite.json` 及其 sidecar
+      **被污染的版本已经进了 git**（`8e4b327`），
+      `config.matrices` 字面写着
+      `/private/var/folders/…/pytest-of-airboom/pytest-2330/…/mat.parquet`，
+      而 CLAUDE.md 第 127 层那组数字（6 年 / +0.005011 / 5-of-6）
+      在当前仓库里**没有任何文件能复现**。
+
+    🚨 **不许改成「在每个调用点记得传 `--out`」**——
+      那是第 124 层骂过的「绕过手段是把判据挂在人的记忆上」：
+      下一个新加的测试就会漏，而且是静默地把生产结论换掉。
+    🚨 也**不许**用「临时目录里没有 sidecar」来解释章为什么可信——
+      `stamp()` 是照章不误地盖的，问题不在它，它只是**照实记了错的输入**。
+    ⇒ 所以注入点在 `_run` 内部，并且调用点传 `--out` 会**直接报错**，
+      让「有人想绕过」变成会响的事。
+    """
+    if any(a == "--out" or a.startswith("--out=") for a in extra):
+        raise AssertionError(
+            "`_run` 已经把 --out 钉在临时目录上；调用点不许自己传。\n"
+            "（这条不是为了洁癖：脚本的 --out 默认值是生产产物路径，"
+            "而这里的输入是合成 parquet —— 见本函数 docstring 的第 132 层。）"
+        )
+    with tempfile.TemporaryDirectory() as td:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), *extra,
+             "--out", str(Path(td) / "verdict.json")],
+            capture_output=True, text=True)
 
 
 # ── 一、门槛的唯一真相源是 σ_r ──────────────────────────────────
