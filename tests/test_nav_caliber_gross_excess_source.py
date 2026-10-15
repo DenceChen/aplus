@@ -306,15 +306,66 @@ def test_the_reader_detector_sees_a_real_read_but_ignores_a_registry_key(tmp_pat
 # ══ ④ 预注册不许与产物脱钩 ══════════════════════════════════════════
 # 形状 22 的散文版：G3-ter 那张表是**手抄**的，改产物不改文档就会静默腐烂。
 
+def _prereg_quotes(value: float, doc: str) -> bool:
+    """产物的一个数**是否已被预注册文档引用**。
+
+    ⚠️ 两种合格的写法（**都要认**）：
+      ① 两位小数的百分数：`4.67%` —— 人读的那个；
+      ② **逐位**浮点：`0.04673319056259782` —— §7.2(a) 的对照表用的就是这个。
+
+    🚨 第一版只认 ① ⇒ 一次重跑就把守卫判红，而文档**已经把新值逐位记下来了**
+    （只是精度比守卫要求的更细）⇒ **那是「引用格式之争」，不是「表与产物脱钩」**。
+    而这类红**有毒**：它的修法看起来是「把文档改回两位小数」，
+    也就是**把更精确的证据删成更粗的**（第 112 层：过严的守卫和恒真的一样有害）。
+
+    ⚠️ 反过来也不能放松成「文档里有任何相关数字就算」——
+    那正是第 13 种形状（子串断言被注释满足）。
+    ⇒ 两条都必须是**这个值的合法呈现**，不接受近似值。"""
+    return f"{value * 100:.2f}%" in doc or repr(value) in doc
+
+
 def test_the_prereg_table_quotes_the_artifact_numbers_verbatim():
     cap = json.loads(CAP_REPORT.read_text(encoding="utf-8"))
     width = json.loads(WIDTH_REPORT.read_text(encoding="utf-8"))
     doc = PREREG.read_text(encoding="utf-8")
-    for v in (width["widths"]["10"]["gross_annual_pct"],
-              cap["arms"]["A"]["gross_annual_pct"],
-              cap["arms"]["B"]["gross_annual_pct"],
-              cap["arms"]["C"]["gross_annual_pct"]):
-        assert f"{v * 100:.2f}%" in doc, f"预注册 G3-ter 里没有 {v * 100:.2f}% —— 表与产物脱钩"
+    for name, v in (("factor_width_mde::widths[\"10\"]",
+                     width["widths"]["10"]["gross_annual_pct"]),
+                    ("cap_weighted_benchmark::arms.A",
+                     cap["arms"]["A"]["gross_annual_pct"]),
+                    ("cap_weighted_benchmark::arms.B",
+                     cap["arms"]["B"]["gross_annual_pct"]),
+                    ("cap_weighted_benchmark::arms.C",
+                     cap["arms"]["C"]["gross_annual_pct"])):
+        assert _prereg_quotes(v, doc), (
+            f"预注册 G3-ter 里没有引用 {name} 的 {v!r}"
+            f"（{v * 100:.2f}%）—— 表与产物脱钩")
+
+
+def test_a_number_older_than_the_artifact_must_be_declared_retired_not_silently_kept():
+    """★ 「引用了当前值」**不够**：还要保证**旧值不是被悄悄留在原地当现行值**。
+
+    形状 22 的散文版：§7 正文按规矩不许改（预注册与补记必须分开留痕），
+    而 §7.2(a) 的对照表把新旧两列都记下来了 ⇒ **旧值必然还出现在文档里**。
+
+    ⇒ 所以「文档里有旧值」是**合规**的，「文档只说旧值」才是**腐烂**。
+    ⇒ 判据：凡是文档里出现的、本仓引用过的**旧毛超额**，
+       必须有一句**明写它已作废**的话 ⇒ 否则读者会把两处都当结论。
+
+    ⚠️ 这条不许退化成「文档里有『作废』两个字」（第 13 种形状）：
+    它必须点名**具体的数**。"""
+    doc = PREREG.read_text(encoding="utf-8")
+    #: §7 写下时的值。陈旧性守卫逼着重跑后它已经不准了（§7.2(a) 记录了这件事）。
+    #: **不手打别的档** —— 这一个数就是 §7 G3-ter 唯一许可的那一档。
+    retired = "4.8108%"
+    assert retired in doc, "前提失效：§7 里的旧值不在文档里了，先查是不是被改过"
+    retirement_lines = [ln for ln in doc.splitlines()
+                        if retired in ln and ("作废" in ln or "以本表为准" in ln
+                                              or "重跑后" in ln)]
+    assert retirement_lines, (
+        f"文档里还留着旧值 {retired}，却**没有一句明写它已作废** ⇒ "
+        "读者会把 §7 正文和 §7.2 的对照表当成两个并列结论。\n"
+        "修法：在旧值所在处加作废标注（形状 22：补写出来的标注不能冒充修正，"
+        "但**不改数**是对的，改数才是伪造预注册）。")
 
 
 def test_the_prereg_still_names_the_only_admissible_source():
