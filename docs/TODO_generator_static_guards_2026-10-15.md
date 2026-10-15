@@ -167,6 +167,15 @@ freshness(Path("<abs>/data/reports/placebo_control.json"))
 ⇒ ⚠️ 特别提醒第二条路：它最像「显然的正确修复」，
   **正因为如此**它最危险——**改判据让它变绿，是本仓最常见的自欺形态**。
 
+**★ 可证伪的预测（写下时链④还没落盘）**——
+链④ `spread_tilted_arm` 与 ③ 用的是**同一个** `stamp()`、**同一个** `is_dirty()`，
+而且我已在 ③ 落盘后把工作区**提交干净**（`a561fe8`）⇒ 落盘时全仓除它自己那次写入之外是干净的。
+
+⇒ **预测：`spread_tilted_arm.json.provenance.json` 的 `code_dirty` 也是 `True`。**
+⇒ 若它是 `False`，那说明「产物自己的写入」并不是唯一触发条件（或 `is_dirty` 另有语义），
+  ⇒ **本节的结构性判断就是错的**，先查机制，**不许**直接改判据（第 129 层）。
+
+
 ## 2. `lowfreq_plausibility.json` 没有 sidecar ⇒ 按本仓规矩**不可引用**
 
 实测：文件在（10-14 13:50，2089 字节），`data/reports/lowfreq_plausibility.json.provenance.json`
