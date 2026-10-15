@@ -1,20 +1,20 @@
 {
-  "code_sha": "f420d167bdea4791c50375a4950198bd3ddb1fda",
+  "code_sha": "1f70c660ead5ff202c585304385866fd265cf4fe",
   "code_dirty": true,
-  "code_file_sha256": "d0fdb1cd6d410cc4f45849cc8e85d76c1ec1c24a6c96977e95d69ca57093c7a9",
+  "code_file_sha256": "63149d9d3ea1c417e00f07ed1bf749247aa625812e128c4861814e16826098da",
   "data_fp": "5460:1792002326.672246",
   "data_dir": "data/master/daily",
   "generator": "scripts/spread_tilted_arm.py",
-  "stamped_at": "2026-10-15T01:03:20+00:00",
+  "stamped_at": "2026-10-15T04:48:40+00:00",
   "test_window": [
-    "2023-08-25",
+    "2024-06-20",
     "2026-10-09"
   ],
   "train_window": [
-    "2019-01-02",
-    "2023-08-17"
+    "2021-01-04",
+    "2024-06-12"
   ],
   "A1_C_not_worse_than_A": null,
-  "gates_passed": 1,
-  "A0_arms_degenerate": true
+  "gates_passed": 0,
+  "A0_arms_degenerate": false
 }

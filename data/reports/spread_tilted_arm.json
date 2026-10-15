@@ -1,18 +1,18 @@
 {
   "kind": "spread_tilted_arm",
   "prereg": "docs/TODO_tail_spread_arm_2026-10-15.md",
-  "generated_at": "2026-10-15T09:03:19",
-  "data_root": "/tmp/aplus_snap_1015",
+  "generated_at": "2026-10-15T12:48:40",
+  "data_root": "/Users/airboom/opencode/aplus/data",
   "window": {
     "train": [
-      "2019-01-02",
-      "2023-08-17",
-      1124
+      "2021-01-04",
+      "2024-06-12",
+      832
     ],
     "test": [
-      "2023-08-25",
+      "2024-06-20",
       "2026-10-09",
-      753
+      558
     ],
     "embargo_days": 5,
     "train_ratio": 0.6
@@ -20,84 +20,84 @@
   "ic_window_used": "lag1_real",
   "train_stats": {
     "mom20": {
-      "ic_mean": -0.031473,
-      "ic_n": 1064,
-      "tail_low_mean": 0.015338,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.030055,
-      "tail_high_n": 1064,
-      "spread": 0.04539335437825144,
-      "spread_n": 1064
+      "ic_mean": -0.030511,
+      "ic_n": 832,
+      "tail_low_mean": 0.009841,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.039703,
+      "tail_high_n": 832,
+      "spread": 0.04954339687177402,
+      "spread_n": 832
     },
     "rev5": {
-      "ic_mean": 0.024366,
-      "ic_n": 1064,
-      "tail_low_mean": 0.042662,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.025474,
-      "tail_high_n": 1064,
-      "spread": 0.06813632959690123,
-      "spread_n": 1064
+      "ic_mean": 0.020064,
+      "ic_n": 832,
+      "tail_low_mean": 0.051887,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.019566,
+      "tail_high_n": 832,
+      "spread": 0.07145274398894078,
+      "spread_n": 832
     },
     "vol20": {
-      "ic_mean": -0.052879,
-      "ic_n": 1064,
-      "tail_low_mean": -0.00965,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.023436,
-      "tail_high_n": 1064,
-      "spread": 0.013786576189138167,
-      "spread_n": 1064
+      "ic_mean": -0.05581,
+      "ic_n": 832,
+      "tail_low_mean": -0.016522,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.022872,
+      "tail_high_n": 832,
+      "spread": 0.006349655235788707,
+      "spread_n": 832
     },
     "vsur": {
-      "ic_mean": -0.027673,
-      "ic_n": 1064,
-      "tail_low_mean": 0.005631,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.048906,
-      "tail_high_n": 1064,
-      "spread": 0.05453662048642961,
-      "spread_n": 1064
+      "ic_mean": -0.023208,
+      "ic_n": 832,
+      "tail_low_mean": 0.004021,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.04532,
+      "tail_high_n": 832,
+      "spread": 0.049340755774815004,
+      "spread_n": 832
     },
     "turn20": {
-      "ic_mean": -0.044726,
-      "ic_n": 1064,
-      "tail_low_mean": -0.006871,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.026781,
-      "tail_high_n": 1064,
-      "spread": 0.019910240300775282,
-      "spread_n": 1064
+      "ic_mean": -0.048279,
+      "ic_n": 832,
+      "tail_low_mean": -0.013696,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.027472,
+      "tail_high_n": 832,
+      "spread": 0.013776180041916627,
+      "spread_n": 832
     },
     "turnratio": {
-      "ic_mean": -0.036151,
-      "ic_n": 898,
-      "tail_low_mean": -0.004035,
-      "tail_low_n": 898,
-      "tail_high_mean": -0.026091,
-      "tail_high_n": 898,
-      "spread": 0.02205600271486103,
-      "spread_n": 898
+      "ic_mean": -0.035709,
+      "ic_n": 832,
+      "tail_low_mean": -0.004737,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.026215,
+      "tail_high_n": 832,
+      "spread": 0.021478769090881287,
+      "spread_n": 832
     },
     "ivol": {
-      "ic_mean": -0.059123,
-      "ic_n": 1064,
-      "tail_low_mean": -0.017555,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.024235,
-      "tail_high_n": 1064,
-      "spread": 0.0066794822073219864,
-      "spread_n": 1064
+      "ic_mean": -0.062264,
+      "ic_n": 832,
+      "tail_low_mean": -0.015422,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.021333,
+      "tail_high_n": 832,
+      "spread": 0.005911126931762012,
+      "spread_n": 832
     },
     "rsi": {
-      "ic_mean": -0.032539,
-      "ic_n": 1064,
-      "tail_low_mean": 0.009068,
-      "tail_low_n": 1064,
-      "tail_high_mean": -0.020475,
-      "tail_high_n": 1064,
-      "spread": 0.029542677895336173,
-      "spread_n": 1064
+      "ic_mean": -0.032979,
+      "ic_n": 832,
+      "tail_low_mean": 0.00249,
+      "tail_low_n": 832,
+      "tail_high_mean": -0.022885,
+      "tail_high_n": 832,
+      "spread": 0.025374992999829434,
+      "spread_n": 832
     }
   },
   "arm_weights": {
@@ -122,10 +122,10 @@
       "rsi": 0.125
     },
     "C_SPREAD_TILTED": {
-      "mom20": 0.0938,
+      "mom20": 0.1562,
       "rev5": 0.2188,
       "vol20": -0.1562,
-      "vsur": 0.1562,
+      "vsur": 0.0938,
       "turn20": -0.0938,
       "turnratio": -0.0312,
       "ivol": -0.2188,
@@ -135,59 +135,59 @@
   "test": {
     "arms": {
       "A_IC_TILTED": {
-        "annual_net": -1.3644,
-        "mean_daily": -0.005592,
-        "t": -10.737,
-        "n_days": 752,
-        "n_blocks": 752,
-        "evidence": "充分",
+        "annual_net": -1.497,
+        "mean_daily": -0.006135,
+        "t": -10.081,
+        "n_days": 558,
+        "n_blocks": 558,
+        "evidence": "薄（558 < 681 个独立观测，Chan p.85）",
         "monotonic": false
       },
       "B_EQUAL": {
-        "annual_net": -0.8795,
-        "mean_daily": -0.003604,
-        "t": -3.534,
-        "n_days": 750,
-        "n_blocks": 750,
-        "evidence": "充分",
+        "annual_net": -0.8901,
+        "mean_daily": -0.003648,
+        "t": -3.132,
+        "n_days": 556,
+        "n_blocks": 556,
+        "evidence": "薄（556 < 681 个独立观测，Chan p.85）",
         "monotonic": false
       },
       "C_SPREAD_TILTED": {
-        "annual_net": -1.3644,
-        "mean_daily": -0.005592,
-        "t": -10.737,
-        "n_days": 752,
-        "n_blocks": 752,
-        "evidence": "充分",
+        "annual_net": -1.1274,
+        "mean_daily": -0.00462,
+        "t": -7.934,
+        "n_days": 558,
+        "n_blocks": 558,
+        "evidence": "薄（558 < 681 个独立观测，Chan p.85）",
         "monotonic": false
       }
     },
     "common": {
-      "annual_net": -1.3644,
-      "mean_daily": -0.005592,
-      "t": -10.737,
-      "n_days": 752,
-      "n_blocks": 752,
-      "evidence": "充分",
+      "annual_net": -1.497,
+      "mean_daily": -0.006135,
+      "t": -10.081,
+      "n_days": 558,
+      "n_blocks": 558,
+      "evidence": "薄（558 < 681 个独立观测，Chan p.85）",
       "monotonic": false,
-      "beta_adj_daily": -0.005592,
+      "beta_adj_daily": -0.006135,
       "beta_adj_daily_caliber": "actual_pct − cost − mean(market_pct)，逐日等权；**不是 beta 回归残差**（本仓既有口径同此，见 diagnose_hit_rate.py:126）"
     }
   },
-  "elapsed_s": 466.3,
+  "elapsed_s": 520.2,
   "gates": {
     "G1_beta_adj_daily_excess_positive": false,
     "G2_t_above_3": "False",
     "G3_annual_net_above_20pct": false,
     "G4_score_quartile_monotonic": false,
-    "G5_sample_at_least_681": true,
+    "G5_sample_at_least_681": false,
     "G6_positive_after_cost": false
   },
-  "gates_passed": 1,
-  "A0_arms_degenerate": true,
-  "A1_note": "⚠️ **A4 退化**：A 臂与 C 臂权重逐位相同 ⇒ 跑的是同一条策略，A1 在结构上恒真（C ≥ A 必然成立）⇒ **不判定**。这不是「C 不比 A 差」，是「**换排序依据改变不了任何东西**」。",
+  "gates_passed": 0,
+  "A0_arms_degenerate": false,
+  "A1_note": "样本薄（558 < 681）⇒ 按 A3 **不判定**，不得据现有样本说 C 更好或更差",
   "A1_C_not_worse_than_A": null,
   "A2_C_score_monotonic": false,
-  "A3_thin_sample": false,
+  "A3_thin_sample": true,
   "读法": "C 臂按**训练段的尾部价差**排序倾斜，A 臂按**训练段的 IC** 排序倾斜，两臂构造**完全同构**，唯一差别是排序依据。⇒ A1 测的是「换目标函数」这一个变量。⚠️ 三臂**共享同一段面板**，**不是三个独立实验** ⇒ 不得引用「三臂一致」当稳健性证据。⚠️ C 臂与 A 臂同一天用同一批数据造出来 ⇒ 比 A 臂更接近样本内拟合，报数时必须 deflate，且必须说明 C 臂从未真正前瞻验证过。"
 }

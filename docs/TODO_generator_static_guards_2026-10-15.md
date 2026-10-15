@@ -175,6 +175,31 @@ freshness(Path("<abs>/data/reports/placebo_control.json"))
 ⇒ 若它是 `False`，那说明「产物自己的写入」并不是唯一触发条件（或 `is_dirty` 另有语义），
   ⇒ **本节的结构性判断就是错的**，先查机制，**不许**直接改判据（第 129 层）。
 
+**✅ 预测兑现（2026-10-15 12:48:41 链④落盘后核对）**
+
+```
+④ spread_tilted_arm rc=0 12:48:41  code_sha=1f70c660
+   code_dirty = True   stamped_at = 2026-10-15T04:48:40+00:00
+   generator  = scripts/spread_tilted_arm.py
+③ placebo_control       code_dirty = True   （对照）
+```
+
+★ 它不是「同一个函数跑两次得到同一个答案」那么弱：
+
+| | ③ | ④ |
+|---|---|---|
+| 生成器 | `scripts/placebo_control.py` | `scripts/spread_tilted_arm.py`（**另一个文件**） |
+| 落盘前工作区 | 有未提交改动 | **已提交干净**（`a561fe8` / `1f70c66`） |
+| `code_dirty` | True | **True** |
+
+⇒ 换生成器、换干净度，两次都红 ⇒ **触发条件不是「恰好有别的脏文件」，
+而是盖章动作自己**。§1.3 的结构性判断成立，
+「第一份带完整字节证据的 placebo 产物」在现行盖章顺序下**确实兑现不了**。
+
+⚠️ 反过来说：如果哪天它变成 `False`，那**不是**「缺陷修好了」的证据，
+先查是不是 `is_dirty` 的作用域被收窄过——那正是本节列的三条修法里最危险的那条
+（**改判据让它变绿** = 第 129 层）。
+
 
 ## 2. `lowfreq_plausibility.json` 没有 sidecar ⇒ 按本仓规矩**不可引用**
 
