@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
@@ -94,6 +95,19 @@ def test_no_width_reaches_the_target_net_at_any_capital():
 def test_breakeven_capital_is_where_net_is_exactly_zero():
     """★ 数值解必须**由 `annual_friction` 自己验证**，不许用换算式自证。
 
+    🚨🚨 **2026-10-15 第三次改写**：重跑把 N=10 毛超额从 4.8108% 改到 4.6733%，
+    而摩擦纯比例下界是 4.787% ⇒ `capital_for_breakeven` 变成 **None**。
+    ⚠️ 但这个 None **不是判决**，是 **−0.021σ** 的噪声
+    （毛超额 se = 5.4627%/年，见产物 `breakeven_margin_sigma`）
+    ⇒ 「无解」和上一版的「有解 16.1 万」**两个都在噪声的 5% 以内**。
+
+    ⇒ 所以本条不再假设「解存在」，而是**分岔**：
+      · 有解 ⇒ 照旧用 `annual_friction` 独立验证解（原来的守法）
+      · 无解 ⇒ 断言它**恰好**因为 `gross ≤ 摩擦下界` 而无解，
+        **且**产物明确标注了这个结论落在噪声里
+    ⇒ 「无解」这条分支**不许退化成恒真**：它守的是
+      「产物不许把一个 0.02σ 的判定说成确定结论」。
+
     🚨 第一版是这样写的：
 
         friction_at_cap = g["friction_at_capital"] * CAPITAL_5W / cap
@@ -108,7 +122,20 @@ def test_breakeven_capital_is_where_net_is_exactly_zero():
     for row in _widths().values():
         g = feasibility(row)
         cap = g["capital_for_breakeven"]
-        assert cap is not None, f"N={g['n']} 毛超额低于摩擦下界 ⇒ 回本无解"
+        if cap is None:
+            # 无解分支：必须**恰好**因为毛超额低于摩擦下界，且必须自报不可信
+            assert g["gross_annual"] <= g["friction_floor"], (
+                f"N={g['n']} 报无解，但毛超额 {g['gross_annual']:.4%} "
+                f"高于摩擦下界 {g['friction_floor']:.4%} ⇒ 无解判定被改了"
+            )
+            assert g["breakeven_flips_within_1se"] is True, (
+                f"N={g['n']} 报无解却没标出「±1σ 跨越下界」⇒ "
+                "一个 0.02σ 的判定被说成了确定结论"
+            )
+            assert "结论不成立" in g["breakeven_verdict"], (
+                f"N={g['n']} 的 verdict 文案没说不成立：{g['breakeven_verdict']}"
+            )
+            continue
         friction_at_cap = annual_friction(cap, EQUITY_WEIGHT, g["n"], rpy)
         assert g["gross_annual"] - friction_at_cap == pytest.approx(0.0, abs=1e-9), (
             f"N={g['n']}：毛 {g['gross_annual']:.6f} − "
@@ -146,11 +173,23 @@ def test_the_numeric_solve_agrees_with_an_independent_closed_form():
 
     这是本文件的第 5 种形状的**正解**：不再「用同一个公式回代」，
     而是拿一条**独立推导**的闭式来比。相对差必须到 1e-9。
+
+    🚨 **无解档位也必须走这条路**：闭式在 `cap → ∞` 时退化成**摩擦下界**，
+    那正是判「无解」用的量 ⇒ 无解分支验证的是
+    「`annual_friction` 的下界 == 闭式的下界」，仍然两条独立路径。
+    （直接 `continue` 跳过 = 让一半档位零覆盖，比过时的前提更坏。）
     """
     rpy = _rpy()
     for row in _widths().values():
         g = feasibility(row)
         n, cap, gross = g["n"], g["capital_for_breakeven"], g["gross_annual"]
+        if cap is None:
+            assert _closed_friction(1e12, n, rpy) == pytest.approx(
+                g["friction_floor"], rel=1e-9), (
+                f"N={n}：闭式下界 {_closed_friction(1e12, n, rpy):.6f} != "
+                f"annual_friction 的下界 {g['friction_floor']:.6f}"
+            )
+            continue
         assert _closed_friction(cap, n, rpy) == pytest.approx(gross, rel=1e-9), (
             f"N={n}：闭式在回本本金 {cap:,.0f} 下算得 "
             f"{_closed_friction(cap, n, rpy):.6f}，毛超额 {gross:.6f}"
@@ -208,16 +247,29 @@ def test_the_1_over_capital_approximation_understates_capital_by_a_lot():
         且在解 C\\* 上 (摩擦×C)|C\\* = 毛超额 × C\\*
         ⇒ **naive < 真实 ⟺ 真实 > 5万**
 
-    ★ **本守卫的前提在 2026-10-15 被自己推翻过一次，这是第三次「口径错误掩护了结论」**，
-    而这次被掩护的是守卫自己：
-      旧写「误差方向会翻转」（N=10 高估 2.9%、N≥30 低估 40%）。
-      那个翻转**从来不是近似式的性质**，而是旧产物里毛超额虚高的症状 ——
-      虚高把 C\\*(10) 压到 4.78 万 < 5 万，于是 N=10 落在解的右边。
-      毛超额修正后（4.81% 而非名义 6.39%），C\\*(10) = 16.1 万 > 5 万，
-      ⇒ **五档一律落在解的左边，低估 52.6% ~ 60.3%**，翻转消失。
+    ★ **本守卫的前提在 2026-10-15 被自己推翻过三次，而第三次被推翻的是前提本身**：
+      第一次（方向翻转 N=10 高估 2.9%）：翻转**从来不是近似式的性质**，
+        是旧产物毛超额虚高的症状 —— 虚高把 C\\*(10) 压到 4.78 万 < 5 万。
+      第二次（毛超额修正为 4.81%）：C\\*(10) = 16.1 万 > 5 万，
+        五档一律落在解左边，低估 52.6%~60.3%，翻转消失。
+      第三次（2026-10-15 重跑，毛超额 4.6733% < 摩擦下界 4.787%）：
+        **N=10 的解整个变成 None**，而这个变化只有 **−0.021σ**
+        ⇒ 它不是「近似式错了」，是**判决本身在噪声里**。
+
+    🚨⇒ **判别力改由合成夹具给**（容差判据从真实数据通过里得不到信息量，
+    牙齿只能来自合成夹具）。合成毛超额取 **`摩擦下界 × 1.02`**：
+      · 略高于下界 ⇒ **必然有解**（不受真实毛超额落在哪一侧影响）
+      · 实测解落在 **2.9×5万 ~ 160×5万** ⇒ 全部在解的右边 ⇒ 低估方向可验
+    ⇒ 守卫不再依赖产物是否恰好有解，**第四次也不会失效**。
+    产物那一半**只做观测并报出来**，不参与判据。
+
+    ⚠️ 误差量级本质是 **`cap/5万` 的函数**（1/本金近似在 cap 远大于 5万 时失效），
+    所以夹具**必须离 5 万足够远**：`下界 × 1.5` 会把 N=10 的解压到 3.76 万
+    ⇒ 方向翻转、误差只有 18.8% ⇒ 那是**夹具选错**，不是近似式变好了。
+    ⇒ 夹具**自检**下面两个前提，不成立就当场报错（不许静默降级）。
 
     ⇒ 于是量刑从「方向翻转」改成「**方向固定但幅度巨大**」。
-    为什么这个改写不是把守卫放松：翻转消失后误差变成**单边**，
+    为什么这个改写不是把守卫放松：误差变成**单边**，
     按原文自己的推理「固定方向的误差让人以为可以拿它做修正」——
     而 −55% 这个量级根本不是一个能用常数因子修正的偏差。
     所以判据必须同时钉住**方向**与**量级**，少一个都会漏。
@@ -225,17 +277,31 @@ def test_the_1_over_capital_approximation_understates_capital_by_a_lot():
     rpy = _rpy()
     signs = set()
     for row in _widths().values():
-        g = feasibility(row)
-        n, gross, true = g["n"], g["gross_annual"], g["capital_for_breakeven"]
+        n = int(row["n"])
+        floor = friction_floor(n, rpy)
+        # ── 合成夹具：毛超额 = 下界 × 1.02 ⇒ 必然有解，且解远大于 5 万 ──
+        sd = float(row["annual_sd_pct"])
+        se = sd * math.sqrt(244.0 / int(row["n_days"]))
+        synth = {**row, "gross_annual_pct": floor * 1.02,
+                 "t_naive": floor * 1.02 / se}
+        g = feasibility(synth)
+        gross, true = g["gross_annual"], g["capital_for_breakeven"]
+        assert true is not None, f"N={n} 合成夹具仍无解 ⇒ 下界或求解器坏了"
+        # 夹具自检：方向机制的前提是「解在 5 万右边」，不成立就是夹具选错
+        assert true > CAPITAL_5W, (
+            f"N={n}：夹具解 {true:,.0f} ≤ 5万 ⇒ 误差方向会是**高估**，"
+            "而本守卫量刑的是低估 ⇒ 夹具倍数要调小（如 ×1.02），"
+            "**不许**把门槛调小来迁就它"
+        )
         naive = annual_friction(CAPITAL_5W, EQUITY_WEIGHT, n, rpy) * CAPITAL_5W / gross
         err = (naive - true) / true
         signs.add(err > 0)
-        # 方向由「解相对 5万 的位置」唯一决定 —— 可证，且五档都成立
+        # 方向由「解相对 5万 的位置」唯一决定 —— 可证，且与数据无关
         assert (naive < true) is (true > CAPITAL_5W), (
             f"N={n}：近似 {naive:,.0f} vs 真实 {true:,.0f}，"
             f"5 万基准 ⇒ 误差方向应当由 C* {'>' if true > CAPITAL_5W else '<'} 5万 决定"
         )
-        # 量级：实测 52.6%~60.3%，门槛 30% 留一倍以上余量
+        # 量级：合成夹具实测门槛 30%
         assert abs(err) >= 0.30, (
             f"N={n}：误差只有 {err:+.2%}（真实 {true:,.0f}，近似 {naive:,.0f}）。"
             "若毛超额或摩擦口径又动了，先查是不是**量刑数字**要更正，"

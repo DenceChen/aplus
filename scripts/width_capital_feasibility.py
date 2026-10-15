@@ -76,13 +76,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aplus.costs import annual_friction  # noqa: E402
-from aplus.hurdle import hurdle_rate, rounds_per_year  # noqa: E402
+# ★ `DAYS_PER_YEAR` 从 hurdle 导入（单一真相源）：`gross_se_annual` 的
+#   年化换算要它，而手打一个 244 就是第 137 层的「两份副本之间没有守卫」。
+from aplus.hurdle import DAYS_PER_YEAR, hurdle_rate, rounds_per_year  # noqa: E402
 # ★ 溯源章（2026-10-15 补）。本脚本**不重跑回测**，只把 `factor_width_mde.json`
 #   的毛超额翻译成「要多少本金」⇒ 重跑是秒级的，所以章必须能拿到。
 #   ⚠️ 它此前**既没登记也没盖章** ⇒ 按本仓规矩 `unknown` = 不可引用，
@@ -134,6 +137,39 @@ def solve_capital(n: int, rpy: float, need: float) -> float | None:
     return hi
 
 
+def gross_se_annual(width_row: dict) -> float:
+    """毛超额年化值的**抽样标准误**。
+
+    ⚠️ **必须区分年化 sd 与日 sd**：`annual_sd_pct` 是**日超额序列**年化后的 sd，
+    而 `gross_annual_pct = mean(daily) × 244`，所以
+
+        se(年化) = 244 × sd_日 / sqrt(n_days) = **sd_年化 × sqrt(244 / n_days)**
+
+    直接写 `annual_sd_pct / sqrt(n_days)` 会把年化 sd 当日 sd 用，
+    **低估 15.6 倍**（实测 5.4627%/年被写成 0.3497%/年）。
+    ⚠️ 这个错我在本轮当场犯过一次 ⇒ 所以它必须有守卫。
+
+    ## ★ 双路径交叉验证（第 137 层：两份副本之间没有守卫）
+
+    产物自报 `t_naive = gross / se`。反推 `se = gross / t_naive` 与上面的公式值
+    必须**逐位一致** —— 一条来自本函数，一条来自 `factor_width_mde.py`
+    的独立实现。⚠️ 只用自己这一条路径 = 第 5 种形状（用同一公式自证）。
+    """
+    sd = float(width_row["annual_sd_pct"])
+    n_days = int(width_row["n_days"])
+    se = sd * math.sqrt(DAYS_PER_YEAR / n_days)
+    t_naive = width_row.get("t_naive")
+    if t_naive:
+        se_via_t = float(width_row["gross_annual_pct"]) / float(t_naive)
+        if not math.isclose(se, se_via_t, rel_tol=1e-9):
+            raise AssertionError(
+                f"毛超额标准误两条路径不一致：公式 {se:.10f} vs "
+                f"由 t_naive 反推 {se_via_t:.10f} ⇒ 至少有一条错，"
+                "不许带着分歧继续算判决"
+            )
+    return se
+
+
 def feasibility(width_row: dict, capital: float = CAPITAL_5W,
                 target: float = TARGET_NET, rpy: float | None = None) -> dict:
     """一档名数的金额可行性。**不重新回测**，只做换算 + 数值求解。"""
@@ -141,18 +177,44 @@ def feasibility(width_row: dict, capital: float = CAPITAL_5W,
     if rpy is None:
         rpy = rounds_per_year(21)
     gross = float(width_row["gross_annual_pct"])
+    floor = friction_floor(n, rpy)
+    se = gross_se_annual(width_row)
+    #: 毛超额离摩擦下界还有几个标准误。**判决的强度就在这一个数里。**
+    margin_sigma = (gross - floor) / se
 
     def friction(cap: float) -> float:
         return annual_friction(cap, EQUITY_WEIGHT, n, rpy)
 
+    breakeven = solve_capital(n, rpy, gross)
+    #: 毛超额的 ±1σ 区间。**这不是判据阈值**，是「区间跨不跨过摩擦下界」
+    #: 这个**无阈值**事实的载体 —— 跨过去了，回本有无这个结论就不成立。
+    #: ⚠️ 1σ 取自正态惯例，**没有外部锚**（Harvey 的 t>3.0 是**因子**判据，
+    #:   管不到「派生金额结论」的稳定性）。所以它只作**报告**，不作判决。
+    lo, hi = gross - se, gross + se
+    flips = lo <= floor <= hi
     out = {
         "n": n,
         "gross_annual": gross,
         "friction_at_capital": friction(capital),
         "net_at_capital": gross - friction(capital),
-        "friction_floor": friction_floor(n, rpy),
+        "friction_floor": floor,
         # net = 0 ⇒ friction(cap) == gross
-        "capital_for_breakeven": solve_capital(n, rpy, gross),
+        "capital_for_breakeven": breakeven,
+        # ── 🚨 以下字段回答「上面那个判决有多可信」（2026-10-15 补记）──
+        "gross_se_annual": se,
+        "gross_lo_1se": lo,
+        "gross_hi_1se": hi,
+        "breakeven_margin_sigma": margin_sigma,
+        "breakeven_flips_within_1se": flips,
+        "breakeven_verdict": (
+            f"毛超额 ±1σ = [{lo * 100:.2f}%, {hi * 100:.2f}%]"
+            + (f"，**跨越摩擦下界 {floor * 100:.2f}%**" if flips else "，未跨越摩擦下界")
+            + f"；点估计距下界 {margin_sigma:+.3f}σ ⇒ "
+            + ("**「有无回本本金」这个结论不成立**（不是「没有」也不是「有」）"
+               if flips else
+               ("无解：毛超额低于纯比例摩擦，且区间不跨下界" if breakeven is None
+                else f"有解：{breakeven:,.0f} 元"))
+        ),
     }
     # 🚨 gross − target ≤ 摩擦下界 ⇒ 摩擦永远降不到那个水平 ⇒ **无解**。
     #   必须显式判无解，而不是让除法产出一个「负本金」再由下游解释。
