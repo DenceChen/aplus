@@ -97,6 +97,14 @@ _SAMPLE_N = 64
 #       那正是记录这个历史 bug 的说明（`⇒ 一只票定全池窗口末端`）。
 #   ⇒ 三次消失的答案都是同一个：**冻结名单的价值不在「冻住」，在每次追问
 #     「是被修好了，还是被改名躲过了扫描？」**。三次里两次的答案是「修好了」。
+# 2026-10-16：`scripts/forward_validate.py` 从名单里**移出**——
+#   不是探针语义（它要的就是「全池最新交易日」，不是「读不出来就换票」），
+#   而是当场修掉了：`_latest_trading_day(files)` 逐只读 date 列取全池最大，
+#   全池读不出日期时抛错而不是静默返回 'None'。
+#   依据：300 只随机样本里 12 只比 `files[0]` 更旧（`600747.SH` 停在
+#   2019-12-12）—— 旧写法今天不出事只是因为 `000001.SZ` 恰好最新。
+#   ★ 它进这条名单时是**已登记的债**，不是新引入的（第 165 层的教训：
+#   守卫早就在盯，只是没人做那次「当场判断」）。
 _KNOWN_END_FROM_FILES0 = {
     "scripts/candidate_block_audit.py",
     "scripts/evolve_race_composite.py",
@@ -105,7 +113,6 @@ _KNOWN_END_FROM_FILES0 = {
     "scripts/execution_lag_ab.py",
     "scripts/extract_ic_matrices.py",
     "scripts/factor_ic_diagnostic.py",
-    "scripts/forward_validate.py",
     "scripts/ic_guided_race.py",
     "scripts/measure_bridge_error.py",
     "scripts/placebo_control.py",

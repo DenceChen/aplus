@@ -32,8 +32,11 @@
 """
 
 
+import ast
 import json
+from pathlib import Path
 
+import pandas as pd
 import pytest
 
 
@@ -254,3 +257,139 @@ def test_merge_results_on_empty_dir_still_writes_file(tmp_path):
     from aplus.forward import merge_results
     p = merge_results(tmp_path, [])
     assert p.exists()
+
+
+# ── `latest` 必须代表全池，不能代表一只票（2026-10-15 实测）──
+#
+# `forward_validate.main()` 用 `files[0]`（字母序第一只票）的末日期当
+# `latest`。实测 300 只随机样本里有 **12 只**比它更旧（`600747.SH` 停在
+# 2019-12-12）——今天没出事只因 `000001.SZ` 恰好是全池最新的，**那是运气**。
+# 一旦它停牌，`latest` 静默退回旧日期 ⇒ 面板半开区间吃掉真实最新日 ⇒
+# 窗口恒为 0 天 ⇒ `forward_results.json` 一直写 `[]`，而这个症状与
+# 「样本还没攒够」**逐位同形**（第 148 层）：无报错、无非空输出。
+#
+# 🚨 **判据不许去问今天的数据**（第 118 层的变体：守卫读的是快照，
+# 钉不住被测代码；今天的巧合会让它绿，明天与代码无关的巧合会让它红）。
+# 正确做法是造一个**停牌场景**，让判据问「取法」——
+# 所以这里直接验 `scripts/forward_validate.py` 里那个取法本身。
+
+def _forward_validate_source() -> str:
+    return (Path(__file__).resolve().parent.parent
+            / "scripts" / "forward_validate.py").read_text(encoding="utf-8")
+
+
+def _single_stock_latest(tmp_path) -> pd.Timestamp:
+    """复刻 `forward_validate` 现行取法：`files[0]` 那一票的末日期。"""
+    files = sorted(tmp_path.glob("*.parquet"))
+    return pd.Timestamp(pd.read_parquet(files[0])["date"].max())
+
+
+def test_the_latest_probe_detects_a_suspended_first_stock(tmp_path):
+    """**正控**：把 `000001.SZ` 造到停牌、别的票更新，单只票取法必须露馅。
+
+    这一条是给上面那条判据**量具**的校准：如果构造出来的场景里单只票取法
+    仍然等于全池最大日期，那么「上面那条会红」就只是我在脑子里推的。
+    """
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-01"])}).to_parquet(
+        tmp_path / "000001.SZ.parquet")          # 字母序第一只，已停牌
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-15"])}).to_parquet(
+        tmp_path / "600747.SH.parquet")          # 别的票才是最新
+
+    from_one = _single_stock_latest(tmp_path)
+    pool_max = max(pd.Timestamp(pd.read_parquet(p, columns=["date"])["date"].max())
+                   for p in tmp_path.glob("*.parquet"))
+
+    assert from_one == pd.Timestamp("2026-10-01")
+    assert pool_max == pd.Timestamp("2026-10-15")
+    assert from_one != pool_max, "正控失败：单只票取法在停牌场景下竟然没落后"
+
+
+def test_forward_validate_does_not_take_the_latest_day_from_one_stock():
+    """`forward_validate.py` 不许拿 `files[0]` 一只票的末日期当 `latest`。
+
+    判据钉**性质**（latest 取自全池），不钉字面量：真正的取值代码交给
+    `_latest_trading_day` 这条正控去验，这里只负责堵住「又变回取一只票」
+    这条**回归**路径（第 142 层：同一个文件不够，同一个性质才是及格线）。
+    """
+    src = _forward_validate_source()
+    ast_tree = ast.parse(src, filename="forward_validate.py")
+
+    # 找所有 `X[0]` 形态的订阅：它们是「只取一个元素」的候选。
+    single_element_subs = [
+        (n.lineno, ast.unparse(n.value))
+        for n in ast.walk(ast_tree)
+        if isinstance(n, ast.Subscript)
+        and isinstance(n.slice, ast.Constant)
+        and n.slice.value == 0
+        and isinstance(n.value, ast.Name)
+        and n.value.id == "files"
+    ]
+    assert not single_element_subs, (
+        f"`forward_validate.py` 仍在用 files[0] 取日期（第 "
+        f"{[ln for ln, _ in single_element_subs]} 行）："
+        f"一只票停牌就会让 latest 静默退回，前瞻验证随之停摆，"
+        f"而症状与「样本还没攒够」逐位同形"
+    )
+
+
+def test_the_latest_trading_day_helper_reads_the_whole_pool(tmp_path):
+    """**正控**：`_latest_trading_day` 在停牌场景下必须给出全池最新日。
+
+    上一条只钉「不許 `files[0]`」这个**形态**；这一条钉实现的**行为**——
+    形态钉不住「换成另一只票」或「取均值」这类等价错误（第 142 层：
+    同一个文件不够，同一个性质才是及格线）。
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_fv", Path(__file__).resolve().parent.parent / "scripts" / "forward_validate.py")
+    fv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fv)
+
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-01"])}).to_parquet(
+        tmp_path / "000001.SZ.parquet")          # 字母序第一只，已停牌
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-13"])}).to_parquet(
+        tmp_path / "000002.SZ.parquet")
+    pd.DataFrame({"date": pd.to_datetime(["2026-10-15"])}).to_parquet(
+        tmp_path / "600747.SH.parquet")          # 真正的最新日
+
+    files = sorted(tmp_path.glob("*.parquet"))
+    assert fv._latest_trading_day(files) == "2026-10-15", (
+        "正控失败：`_latest_trading_day` 在有票停牌时没有给出全池最新日——"
+        "那就说明它仍在用一只票代表全池"
+    )
+
+
+def test_the_latest_trading_day_helper_raises_instead_of_returning_none(tmp_path):
+    """全池读不出日期时必须**炸**，不许静默返回 `'None'` 字符串。
+
+    `'None'` 是个非空字符串：`needs_forward_panel` 拿它去比大小会走成
+    「有窗口」，于是整轮静默跳过——症状与「样本还没攒够」逐位同形。
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "_fv2", Path(__file__).resolve().parent.parent / "scripts" / "forward_validate.py")
+    fv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fv)
+
+    bad = tmp_path / "600000.SH.parquet"
+    pd.DataFrame({"not_a_date": [1, 2, 3]}).to_parquet(bad)   # 没有 date 列
+
+    # 🚨 **调用在 `with` 外面**（2026-10-16 变异实测 L3 被放过）：
+    # `pytest.raises` 在函数**不抛**时会立刻 Failed 退出 ⇒ 写在块里的
+    # `assert got != "None"` 永远执行不到 ⇒ 那是一条**恒真断言**，
+    # 看起来在钉「不许返回 'None'」，其实什么都没钉（第 136 层）。
+    # 所以：先拿到返回值，再断言它抛了错；「不抛」这条路必须由本层
+    # 自己的消息报出来，而不是交给 `raises` 的默认消息。
+    raised = None
+    got = "<没调用成功>"
+    try:
+        got = fv._latest_trading_day(sorted(tmp_path.glob("*.parquet")))
+    except Exception as exc:                       # noqa: BLE001 - 任何异常都算「炸了」
+        raised = exc
+
+    assert raised is not None, (
+        f"它返回了 {got!r} 而不是抛错——`'None'` 是个非空字符串，"
+        f"`needs_forward_panel` 拿它比大小会走成「有窗口」，"
+        f"于是整轮静默跳过；症状与「样本还没攒够」逐位同形（第 148 层）"
+    )
+    assert got == "<没调用成功>", "正控自身出错：既没抛又没拿到返回值"

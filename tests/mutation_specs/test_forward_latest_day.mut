@@ -1,0 +1,28 @@
+L1 latest 退回「取读到的第一只票」（合法变异：无 IndentationError）	scripts/forward_validate.py
+if best is None or m > best:
+            best = m
+=== 变异体 ===
+if best is None:
+            best = m
+
+L2 latest 退回 files[0] 一只票代表全池	scripts/forward_validate.py
+latest = _latest_trading_day(files)
+=== 变异体 ===
+latest = str(pd.read_parquet(files[0])["date"].max())
+
+L3 全池读不出日期时返回 'None' 字符串而非抛错（下游会拿它当非空日期）	scripts/forward_validate.py
+if best is None:
+        raise RuntimeError(
+            f"全池 {len(list(files))} 个 parquet 里一个日期都读不出来——"
+            f"主库坏了。别让 latest 变成 'None' 字符串：那会让下游的"
+            f"needs_forward_panel 拿到一个非空字符串而静默跳过整轮，"
+            f"症状与「样本还没攒够」逐位同形（第 148 层）"
+        )
+=== 变异体 ===
+if best is None:
+        return "None"
+
+L4 输出不归一成 YYYY-MM-DD（datetime 列时变成 '2026-10-15 00:00:00'）	scripts/forward_validate.py
+return pd.Timestamp(best).strftime("%Y-%m-%d")
+=== 变异体 ===
+return str(best)

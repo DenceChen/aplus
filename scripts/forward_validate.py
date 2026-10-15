@@ -69,6 +69,55 @@ def evaluate_factory(xs):
     return ev
 
 
+def _latest_trading_day(files) -> str:
+    """全池里最新的交易日。
+
+    ## 为什么不许拿一只票代表全池（2026-10-15 实测）
+
+    原本这里取 `files[0]`（字母序第一只票）的末日期。它今天恰好等于
+    全池最新，**那是运气不是性质**：300 只随机样本里有 12 只比它更旧
+    （`600747.SH` 停在 2019-12-12）。
+
+    一旦 `000001.SZ` 停牌，`latest` 静默退回旧日期 ⇒ 面板的半开区间
+    `[start, latest)` 把真实最新日吃掉 ⇒ 窗口恒为 0 天 ⇒
+    `forward_results.json` 一直写 `[]`。而这个症状与「样本还没攒够」
+    **逐位同形**（第 148 层）：无报错、无非空输出、无非零退出码。
+
+    只读 `date` 列，不整表读入——这是全池扫描，唯一成本就在这里。
+
+    ## 输出格式必须钉死为 `YYYY-MM-DD`
+
+    主库现役 parquet 的 `date` 是 **str** 列（实测 `dtype=str`），所以
+    `str(max)` 恰好就是纯日期。但那只是**现役写入方**的巧合：一旦哪天
+    某条链路写成 datetime 列，`str(Timestamp)` 会变成
+    `'2026-10-15 00:00:00'`，而下游全是**字符串比较**
+    （`needs_forward_panel`、`forward_window`），`'2026-10-15 00:00:00' >
+    '2026-10-15'` 为真会让窗口凭空多算一天。
+
+    所以这里显式归一成日期，不依赖 dtype 的巧合（第 155 层）。
+    """
+    best = None
+    for p in files:
+        try:
+            m = pd.read_parquet(p, columns=["date"])["date"].max()
+        except Exception:  # noqa: BLE001 - 单只坏文件不该让全池取不到日期
+            continue
+        if m is None or (isinstance(m, float) and pd.isna(m)):
+            continue          # 空文件的 max() 是 NaN，不能参与比较
+        if best is None or m > best:
+            best = m
+
+    if best is None:
+        raise RuntimeError(
+            f"全池 {len(list(files))} 个 parquet 里一个日期都读不出来——"
+            f"主库坏了。别让 latest 变成 'None' 字符串：那会让下游的"
+            f"needs_forward_panel 拿到一个非空字符串而静默跳过整轮，"
+            f"症状与「样本还没攒够」逐位同形（第 148 层）"
+        )
+    # 归一成 `YYYY-MM-DD`：dtype 是 str 还是 datetime 都给同一种字面值
+    return pd.Timestamp(best).strftime("%Y-%m-%d")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
@@ -112,7 +161,7 @@ def main() -> int:
     if not files:
         print("主库为空")
         return 1
-    latest = str(pd.read_parquet(files[0])["date"].max())
+    latest = _latest_trading_day(files)
     dates = None
     if args.status_only:
         dates = []
