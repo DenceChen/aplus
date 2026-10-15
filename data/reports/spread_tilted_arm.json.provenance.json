@@ -1,0 +1,20 @@
+{
+  "code_sha": "f420d167bdea4791c50375a4950198bd3ddb1fda",
+  "code_dirty": true,
+  "code_file_sha256": "d0fdb1cd6d410cc4f45849cc8e85d76c1ec1c24a6c96977e95d69ca57093c7a9",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/spread_tilted_arm.py",
+  "stamped_at": "2026-10-15T01:03:20+00:00",
+  "test_window": [
+    "2023-08-25",
+    "2026-10-09"
+  ],
+  "train_window": [
+    "2019-01-02",
+    "2023-08-17"
+  ],
+  "A1_C_not_worse_than_A": null,
+  "gates_passed": 1,
+  "A0_arms_degenerate": true
+}

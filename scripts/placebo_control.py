@@ -494,10 +494,6 @@ def read_width_artifact_t(path: Path) -> float | None:
 
 
 def main(argv=None) -> int:
-    # ★ 第 125 层：开跑时抓一次本文件的字节，盖章时比对。
-    #   这一档要跑 ~46 分钟；期间若有人改了本文件，章会盖上**没跑过的字节**，
-    #   而那种章不是弱证据、是**反向的错误证据** ⇒ 不一致就拒绝盖章。
-    expect_bytes = provenance.code_file_sha256(ROOT, "scripts/placebo_control.py")
     """薄包装：把真正的活放进 `with begin_run(...)`。
 
     `begin_run` 是 `@contextmanager`；写成 `run = begin_run(...)` + `run.done()`
@@ -529,6 +525,16 @@ def _parse_args(argv=None):
 
 
 def _run(args) -> int:
+    # ★ 第 125 层：开跑时抓一次本文件的字节，盖章时比对。
+    #   这一档要跑 ~46 分钟；期间若有人改了本文件，章会盖上**没跑过的字节**，
+    #   而那种章不是弱证据、是**反向的错误证据** ⇒ 不一致就拒绝盖章。
+    #
+    # ⚠️ 必须抓在**这里**、`_run` 的第一行。两个位置都不对：
+    #   · 放 `main()` 里 ⇒ `_run` 读不到（NameError 落在最后一行盖章处，
+    #     而那已经**写完产物**了 ⇒ 产物在、章没有，第 131 层那一颗雷）
+    #   · 放盖章**前**一行 ⇒ 「开跑的字节」变成「盖章的字节」⇒ 检查恒真，
+    #     正是第 125 层要防的那种装饰性守卫
+    expect_bytes = provenance.code_file_sha256(ROOT, "scripts/placebo_control.py")
     # ── 口径守卫：三条预注册的死线，一个都不许在这里被参数改掉 ──
     if not str(args.start).startswith("2021"):
         print(f"🚨 窗口 {args.start} 与判决窗口（2021 起）**不是同一个量**。",

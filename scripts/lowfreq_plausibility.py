@@ -42,6 +42,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd  # noqa: E402
 
 from aplus.backtest import evaluate_weights  # noqa: E402
+from aplus import panel_cache as PC  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
 
 SIGN_FIXED = {"mom20": -1.0, "rev5": 0.3, "vol20": -0.5, "vsur": -0.5}
 WRONG_SIGN = {"mom20": 1.0, "rev5": 0.3, "vol20": 0.5, "vsur": 0.5}

@@ -7,13 +7,15 @@
 
 于是守卫有两种失败模式，两种都很坏：
 1. **该补跑时没跑** —— 一天永久丢失，且**没有任何异常**；
-2. **不该跑时跑了** —— 白占 45 分钟机器，把当天真正的日更挤掉。
+2. **不该跑时跑了** —— 白占 68 分钟机器（实测，见 `guard_vintage.py::COLLECT_MEASURED_S`），
+   把当天真正的日更挤掉。
 
 第 2 种不会丢数据，但它会**制造**第 1 种：一天补跑两次，
 第二天同一天又被触发，机器永远被占着，真正的采集反而排不进来。
 所以「不误触发」和「不漏触发」同等重要。
 """
 import json
+import subprocess
 
 import pandas as pd
 import pytest
@@ -143,7 +145,7 @@ def test_guard_main_does_not_rerun_when_today_is_registered(tmp_path,
                                                            monkeypatch):
     """**不误触发**：已登记就一次网络请求都不发。
 
-    一天补跑两次不是「多做了一件好事」——它把机器占满 45 分钟，
+    一天补跑两次不是「多做了一件好事」——它把机器占满 68 分钟，
     于是第二天真正的采集反而排不进来，**制造**出真正的漏采。
 
     ⚠️ 显式冻钟到 2026-10-14：否则这条断言的真实内容是
@@ -187,7 +189,10 @@ def test_guard_main_reruns_when_today_is_missing(tmp_path, monkeypatch):
     g.main()
     assert len(calls) == 1
     assert "--ensure" in calls[0][0], (
-        "补跑必须带 --ensure，否则重复触发会白跑 45 分钟")
+        "补跑必须带 --ensure，否则重复触发会白跑 68 分钟。"
+        "⚠️ 但这条只钉住**形状**：`--ensure` 挡不挡得住**并发**是另一个量"
+        "（它只能挡「上一次已经跑完」的重复触发，挡不住 68 分钟内的重复），"
+        "那条守卫在文件末尾的「超时四问」里")
 
 
 def test_the_guard_is_independent_of_run_daily():
@@ -411,3 +416,168 @@ def test_every_test_that_calls_main_must_first_freeze_the_clock():
     assert not offenders, (
         "这些测试调了 `g.main()` 却没先冻钟——它们只在自己写下的那天成立：\n  "
         + "\n  ".join(offenders))
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 🚨 超时四问（2026-10-15）
+#
+# 起因：**未捕获的 `subprocess.TimeoutExpired` 让守卫整天变成空操作。**
+# 实测：守卫 09:30 起跑、11:00 抛超时（旧字面量 `timeout=5400`），
+# 抛出后 `span(root)` / `days_missed(root)` **一行都没跑**，
+# 唯一证据是 `data/guard_vintage.err.log` 里一段没人读的 traceback。
+# ⇒ 「**守卫存在**」与「**守卫今天跑了**」不是同一件事。
+#
+# ★ 这几条量的是**产物与判决**（覆盖报告有没有跑、按产物判成了什么），
+#   而**不是**实参里有没有 `--ensure` —— 那只钉住形状（第 119 层同族）。
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _times_out(cmd, **kw):
+    """模拟最容易被误判的那种超时形态：子进程被掐，什么也没留下。"""
+    raise subprocess.TimeoutExpired(cmd=cmd, timeout=kw.get("timeout"))
+
+
+def test_a_timeout_does_not_silence_the_guard(tmp_path, monkeypatch, capsys):
+    """**能力守卫**：超时之后，覆盖报告**必须仍然跑**。
+
+    旧写法让 `TimeoutExpired` 直接冒出去 ⇒ 守卫在这一天**什么都不报**。
+    而它的失败形态与「今天没缺口」**逐位同形**（都是「没有输出」）——
+    这正是第 89 层的形状（「拒绝出判决」写成「什么都不留」）。
+
+    ⇒ 所以断言的不是「返回 0」，而是**`span` 真的被调到了**。
+    """
+    import scripts.guard_vintage as g
+    root = tmp_path / "v"
+    _register(root, ["2026-10-13"])
+    monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-14")
+    monkeypatch.setattr(g.subprocess, "run", _times_out)
+    seen = []
+    monkeypatch.setattr(g, "span", lambda *a, **k: (seen.append(a) or {
+        "first": "2026-10-13", "last": "2026-10-13",
+        "n_days": 1, "calendar_days": 1, "gaps": []}))
+    monkeypatch.setattr(g, "days_missed", lambda *a, **k: [])
+    capsys.readouterr()                       # 丢掉 import 期可能留下的输出
+
+    g.main()
+    assert seen, (
+        "超时之后守卫没跑覆盖报告 ⇒ 它在这一天整个变成空操作。"
+        "它的职责是**报覆盖**，不是**报采集成功**；后者只是顺带做的事。")
+
+
+def test_a_timeout_is_not_read_as_success(tmp_path, monkeypatch, capsys):
+    """**反控（一端）**：超时且产物里**仍没有**今天 ⇒ 必须说「仍未登记」。
+
+    这是超时最容易被读成成功的方向：子进程跑过了、没抛别的错、
+    一切看起来正常。于是今天的 PIT 快照被当成落了盘——
+    而**源站过了今天就取不回这一天的值**。
+    """
+    import scripts.guard_vintage as g
+    root = tmp_path / "v"
+    _register(root, ["2026-10-13"])
+    monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-14")
+    monkeypatch.setattr(g.subprocess, "run", _times_out)
+    monkeypatch.setattr(g, "span", lambda *a, **k: {
+        "first": "2026-10-13", "last": "2026-10-13",
+        "n_days": 1, "calendar_days": 1, "gaps": []})
+    monkeypatch.setattr(g, "days_missed", lambda *a, **k: [])
+    capsys.readouterr()
+
+    g.main()
+    out = capsys.readouterr().out
+    assert "仍未登记" in out, (
+        "超时且产物里没有今天，却没说「仍未登记」——"
+        "把超时读成了成功 ⇒ 今天的 PIT 快照会被当成落了盘。\n"
+        f"实际输出：\n{out}")
+
+
+def test_a_timeout_is_not_read_as_failure(tmp_path, monkeypatch, capsys):
+    """**反控（另一端）**：超时但产物里**有**今天 ⇒ 必须认出「其实完成了」。
+
+    「子进程超时退出」与「快照已经写完」在终端上**长得一模一样**
+    （第 8 种形状：退出码/进程状态都不是事实）。
+    ⇒ 唯一的判据是回头看 manifest。
+
+    ⚠️ 只写上一条的话，「复查产物」这个动作本身就是恒真的装饰——
+    第 87 层（只有零假设臂没有正控臂）的同族。
+    """
+    import scripts.guard_vintage as g
+    root = tmp_path / "v"
+    _register(root, ["2026-10-13"])
+    monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-14")
+
+    def _wrote_then_hung(cmd, **kw):
+        _register(root, ["2026-10-14"])    # 产物已经落盘，只是没退出
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kw.get("timeout"))
+
+    monkeypatch.setattr(g.subprocess, "run", _wrote_then_hung)
+    monkeypatch.setattr(g, "span", lambda *a, **k: {
+        "first": "2026-10-13", "last": "2026-10-14",
+        "n_days": 2, "calendar_days": 2, "gaps": []})
+    monkeypatch.setattr(g, "days_missed", lambda *a, **k: [])
+    capsys.readouterr()
+
+    g.main()
+    out = capsys.readouterr().out
+    assert "仍未登记" not in out and "已登记" in out, (
+        "子进程超时退出，但 manifest 里今天已登记 ⇒ 必须说「采集其实完成了」。"
+        "判它是失败会把一次成功的采集报成永久损失。\n"
+        f"实际输出：\n{out}")
+
+
+def test_a_real_failure_still_exits_non_zero(tmp_path, monkeypatch, capsys):
+    """**回归守卫**：`try/except` 只接超时，**不许**把真失败一起吞了。
+
+    ⚠️ 上一条守的是「超时不许 raise」，很容易顺手把 `returncode != 0`
+    也一起放过 ⇒ 采集真失败时守卫反而报「已完成」。
+    这是加 `try` 时最经典的搭便车。
+    """
+    import scripts.guard_vintage as g
+
+    class _Failed:
+        stdout, stderr, returncode = "", "boom", 7
+
+    root = tmp_path / "v"
+    _register(root, ["2026-10-13"])
+    monkeypatch.setattr(g, "VINTAGE_ROOT", root)
+    _freeze_today(g, monkeypatch, "2026-10-14")
+    monkeypatch.setattr(g.subprocess, "run", lambda *a, **k: _Failed())
+    monkeypatch.setattr(g, "span", lambda *a, **k: {
+        "first": "2026-10-13", "last": "2026-10-13",
+        "n_days": 1, "calendar_days": 1, "gaps": []})
+    monkeypatch.setattr(g, "days_missed", lambda *a, **k: [])
+
+    with pytest.raises(SystemExit) as exc:
+        g.main()
+    assert exc.value.code == 7, (
+        f"真失败被吞了：退出码 {exc.value.code!r}，期望透传子进程的 7")
+
+
+def test_the_timeout_has_real_headroom_over_the_measured_run():
+    """**外部锚**：超时余量由**实测耗时**推导，不许回到手写字面量。
+
+    实测单跑 **68.3 分钟**（`data/vintage.log` 收尾行自报，
+    原文「2026-10-15: 65391 行 / 5460 只 / 141 列 / 耗时 68.3 分钟」）。
+    旧字面量 5400 秒 = 90 分钟 ⇒ 余量只有 **21.7 分钟**——
+    那不是安全边际，是一枚硬币：机器上只要还有第二个采集实例
+    （实测确实有，见 `docs/TODO_vintage_double_collection_2026-10-15.md`），
+    这个作业就被拖过线，守卫再次变成空操作。
+
+    ⚠️ 这条钉的是**比值**，不是绝对值 —— 钉绝对值等于把今天的机器
+    状态冻结成判据；明天机器快了它就红，而红着会把人推向
+    「改本来正确的超时值」这个错误动作（第 112 层：过严的守卫）。
+    """
+    from scripts.guard_vintage import COLLECT_MEASURED_S, COLLECT_TIMEOUT_S
+
+    assert COLLECT_MEASURED_S == pytest.approx(68.3 * 60), (
+        "实测耗时必须留在 68.3 分钟这个**有出处**的数上（data/vintage.log）。"
+        "换数不是错，但换了就要改出处注释——否则下一个人无法核对它。")
+    assert COLLECT_TIMEOUT_S >= 3 * COLLECT_MEASURED_S, (
+        f"超时只有 {COLLECT_TIMEOUT_S / COLLECT_MEASURED_S:.2f}× 实测 —— "
+        "双实例争抢时各自约 2× 慢，不足 3× 就又会变成空操作")
+    # 旧字面量必须**确实**余量不足，否则这条守卫的前提就没了
+    assert 5400 < 2 * COLLECT_MEASURED_S, (
+        "旧字面量 5400 秒现在竟然有 2× 余量 ⇒ "
+        "本守卫的前提（它余量不足）已失效，量错了再说，不要顺手改断言")

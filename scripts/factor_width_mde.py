@@ -305,10 +305,6 @@ decide_for_test = decide
 
 
 def main(argv=None) -> int:
-    # ★ 第 125 层：开跑时抓一次本文件的字节，盖章时比对。
-    #   这一档要跑 ~14 分钟；期间若有人改了本文件，章会盖上**没跑过的字节**，
-    #   而那种章不是弱证据、是**反向的错误证据** ⇒ 不一致就拒绝盖章。
-    expect_bytes = provenance.code_file_sha256(ROOT, "scripts/factor_width_mde.py")
     """薄包装：把真正的活放进 `with begin_run(...)`。
 
     ★ 第一版写的是 `run = begin_run(...)` 然后结尾 `run.done()` ——
@@ -338,6 +334,16 @@ def _parse_args(argv=None):
 
 
 def _run(args) -> int:
+    # ★ 第 125 层：开跑时抓一次本文件的字节，盖章时比对。
+    #   这一档要跑 ~14 分钟；期间若有人改了本文件，章会盖上**没跑过的字节**，
+    #   而那种章不是弱证据、是**反向的错误证据** ⇒ 不一致就拒绝盖章。
+    #
+    # ⚠️ 必须抓在**这里**、`_run` 的第一行。两个位置都不对：
+    #   · 放 `main()` 里 ⇒ `_run` 读不到（NameError 落在最后一行盖章处，
+    #     而那已经**写完产物**了 ⇒ 产物在、章没有，第 131 层那一颗雷）
+    #   · 放盖章**前**一行 ⇒ 「开跑的字节」变成「盖章的字节」⇒ 检查恒真，
+    #     正是第 125 层要防的那种装饰性守卫
+    expect_bytes = provenance.code_file_sha256(ROOT, "scripts/factor_width_mde.py")
     widths = [int(w) for w in args.widths.split(",") if w.strip()]
 
     # ── 窗口守卫：口径必须与判决一致 ──

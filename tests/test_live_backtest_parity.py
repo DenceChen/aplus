@@ -104,4 +104,12 @@ def test_live_path_is_not_the_legacy_reference_implementation(tmp_path):
          for p in sorted((store.root / "master" / "daily").glob("*.parquet"))},
         as_of=dates[70])
     assert "ivol" in live.columns, "实盘已退回参照实现（无 ivol）"
-    assert "ivol" in legacy.columns or legacy["ivol"].isna().all() or True
+    # ⚠️ 2026-10-15 第 131 层删掉的原句：
+    #     assert "ivol" in legacy.columns or legacy["ivol"].isna().all() or True
+    # 那条**恒真**（末项 `or True`）⇒ 它从来不判任何东西，
+    # 而它在文件里的样子与旁边两条真断言一模一样 ⇒ 「守卫在这里」是假的。
+    # 由 `tests/test_generator_names_resolve.py::test_no_guard_in_tests_asserts_a_constant_truth` 逮到。
+    #
+    # 这里**不补一条新的判据**：那需要一个从实测量推导的门槛并预注册
+    # （「参照实现允不允许缺 ivol」是个尚未测过的问题，不许顺手拍）。
+    # ⇒ 缺口登记在 `docs/TODO_generator_static_guards_2026-10-15.md`。

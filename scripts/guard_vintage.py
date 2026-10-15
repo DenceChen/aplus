@@ -16,8 +16,40 @@ launchd 的日历触发**不补跑**：机器在触发时刻睡着或关机，�
 而「今天不落盘，源站那天服务过的原始值永久丢失」——
 **没有任何补救手段能把它找回来**，这是本项目唯一一个不可逆的任务。
 
-采集器自带 `--ensure`（重复触发是空操作），
-所以守卫「今天已登记就跳过」的判据让一天被触发两次也只付一次网络往返。
+采集器自带 `--ensure`：今天**已登记**就直接退出。
+守卫「今天已登记就跳过」的判据也基于同一句话。
+
+🚨 **但这两句合起来是一句假话，2026-10-15 实测证伪**：
+「已登记」只在采集器**跑完并写完 manifest 之后**才为真，
+而跑完要 **68.3 分钟**（`data/vintage.log` 自报）。
+⇒ **`--ensure` 只能挡住「上一次已经跑完」的重复触发，挡不住 68 分钟内的重复。**
+⇒ 而本机恰好有**两个调度器在 30 分钟内各起一次**
+（`com.aplus.guardvintage` 9:30、`com.aplus.vintage` 10:00，指向同一个采集器）——
+`--ensure` 的「查了再动」窗口长达 68 分钟，**不是原子的**，两次都读到「未登记」。
+
+> 这一条的形状值得单独记：**文档与代码完全一致，两者一起错在世界上。**
+> 旧文原话是「让一天被触发两次也只付一次网络往返」——
+> 听起来像在描述一个已经成立的机制，而它描述的是一个**尚不存在**的机制。
+> （与形状 128 同族：help 说的是快照，实现取的是一只票。
+> 这里文档说的是「已登记」，现实里差着 68 分钟。）
+>
+> ⇒ 缺陷登记：`docs/TODO_vintage_double_collection_2026-10-15.md`。
+> ⚠️ 本守卫里两处**照抄了这句假话**的注释/断言（「45 分钟」那个数也早已过期，
+> 实测 68.3）—— 它们钉住的是「实参里传了 `--ensure`」这个**形状**，
+> 而 `--ensure` 能不能挡住并发是**另一个量**（第 119 层同族）。
+
+## 两个调度器
+
+| launchd 项 | 时刻 | 做什么 |
+|---|---|---|
+| `com.aplus.guardvintage` | 9:30 | 本脚本 → **自己再起一次**采集 |
+| `com.aplus.vintage` | 10:00 | 直接跑采集器 |
+
+⇒ 守卫在 9:30 就跑完了它「判断该不该补跑」的职责，
+10:00 的那个调度器面对的是一个**尚未落盘**的日子 ⇒ 于是重复。
+**守卫永远抓不到「定时器漏跑」，因为它总是先跑。**
+修法应当是让守卫**晚于**采集器并只在其失败时兜底，
+但那要改 launchd 调度，属于独立一轮工作，见上面那份 TODO。
 
 ## 它**不会**去补历史缺口
 
@@ -48,6 +80,24 @@ DAILY_DIR = ROOT / "data" / "master" / "daily"
 #: 取前 N 只取并集。实测 5 只就收敛到 1884 天、400 只仍是 1884，
 #: 40 只是安全余量，代价 0.26 秒。
 CALENDAR_SAMPLE = 40
+
+# ── 采集作业的实测耗时与由此推出的超时 ───────────────────────────────
+#: **实测单跑耗时 68.3 分钟**，出处：`data/vintage.log` 2026-10-15 那次跑
+#: 自己的收尾行 ——「2026-10-15: 65391 行 / 5460 只 / 141 列 / 耗时 68.3 分钟，
+#: 失败 0 只」。⚠️ 这是**产物自己报的数**，不是估算。
+COLLECT_MEASURED_S = 68.3 * 60
+#
+#: 🚨 旧字面量 `timeout=5400`（90 分钟）**只比实测多 22 分钟**——
+#:   那不是安全边际，是一枚硬币。而机器上只要还有**第二个采集实例**
+#:   在跑（launchd `com.aplus.guardvintage` 9:30 与 `com.aplus.vintage` 10:00
+#:   指向同一个采集器，见 §两个调度器），这一个就被拖过线。
+#:   **2026-10-15 实测**：守卫 09:30 起跑、11:00 抛 `TimeoutExpired`；
+#:   同一时段另一次采集 11:08 正常收尾。
+#:
+#: ⇒ 超时取 **3× 实测**：机器上确有第二个实例（争抢 ⇒ 各自约 2× 慢），
+#:   3× 覆盖「双实例 + 常规争抢」。它是**兜底**，不是判据——
+#:   双实例本身是缺陷，见 `docs/TODO_vintage_double_collection_2026-10-15.md`。
+COLLECT_TIMEOUT_S = 3 * COLLECT_MEASURED_S
 
 _CAL: dict[str, set[str]] = {}
 
@@ -201,14 +251,41 @@ def main() -> int:
         print(f"vintage {today} 已登记，无需补跑")
     else:
         print(f"vintage {today} 未登记 → 立即采集（只抓今天）")
-        r = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" /
-                                 "collect_financial_vintage.py"), "--ensure"],
-            cwd=ROOT, capture_output=True, text=True, timeout=5400)
-        print(r.stdout[-2000:])
-        if r.returncode != 0:
-            print(r.stderr[-2000:])
-            raise SystemExit(r.returncode)
+        timed_out = False
+        try:
+            r = subprocess.run(
+                [sys.executable, str(ROOT / "scripts" /
+                                     "collect_financial_vintage.py"), "--ensure"],
+                cwd=ROOT, capture_output=True, text=True,
+                timeout=COLLECT_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            # 🚨 超时**既不是成功也不是失败**：子进程可能已经写完 manifest
+            #   只是没退出，也可能真的卡住。两种在终端上长得一模一样
+            #   （第 8 种形状：退出码/进程状态都不是事实）。
+            #   ⇒ 判决必须**回头再看一眼产物**，不许拿超时当结论。
+            #
+            # ⚠️ 这里**不 raise**：旧写法让 TimeoutExpired 直接冒出去，
+            #   于是 `span(root)` / `days_missed(root)` **一行都没跑** ——
+            #   守卫在超时那天**整个变成空操作**，而唯一的证据是一段
+            #   没人读的 traceback。「守卫存在」与「守卫今天跑了」不是一回事。
+            timed_out = True
+            print(f"⚠️ 采集超过 {COLLECT_TIMEOUT_S / 60:.0f} 分钟仍未退出"
+                  f"（实测单跑 {COLLECT_MEASURED_S / 60:.1f} 分钟，"
+                  f"留 {COLLECT_TIMEOUT_S / COLLECT_MEASURED_S:.1f}× 余量）")
+            print("   ⚠️ 超时**不是结论**。下面按**产物**重判今日是否已登记。")
+        else:
+            print(r.stdout[-2000:])
+            if r.returncode != 0:
+                print(r.stderr[-2000:])
+                raise SystemExit(r.returncode)
+
+        if timed_out:
+            if today in registered_days(root):
+                print(f"   ⇒ 产物显示 {today} **已登记** —— 采集其实完成了，"
+                      f"只是子进程没退出")
+            else:
+                print(f"   ⇒ 产物显示 {today} **仍未登记** —— "
+                      f"今天的快照可能没落盘（源站过了今天就取不回这一天的值）")
 
     s = span(root)
     missed = days_missed(root)

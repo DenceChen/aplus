@@ -1,0 +1,40 @@
+N1 shell lint 恒真：判决的接线被摘掉，而探测器仍然有眼睛（**本轮实测存活的那一条**）	tests/test_generator_names_resolve.py
+assert not swallowed, (
+        "bash 3.2 会把这些变量**静默**代入空串：\n  " + "\n  ".join(swallowed) +
+=== 变异体 ===
+assert True or not swallowed, (
+        "bash 3.2 会把这些变量**静默**代入空串：\n  " + "\n  ".join(swallowed) +
+
+N2 docstring lint 恒真：同上，两条 lint 都被摘掉时正控也不喊	tests/test_generator_names_resolve.py
+assert not demoted, (
+        "main() 的 docstring 被挤到了后面 ⇒ 源码里看得见、__doc__ 里读不到：\n  "
+=== 变异体 ===
+assert True or not demoted, (
+        "main() 的 docstring 被挤到了后面 ⇒ 源码里看得见、__doc__ 里读不到：\n  "
+
+N3 未定义名判定恒真：`_load` 永远认为每个名字都可见 —— 与「探测器没长眼」同形	tests/test_generator_names_resolve.py
+        if name in self._visible():
+=== 变异体 ===
+        if True:
+
+N4 shell 正则恒真：把 `[A-Za-z_]` 加进负向断言 ⇒ 这个模式**永远匹配不到任何东西**，而「0 处命中」与「扫干净了」在输出上完全同形（**本轮我自己真写错过的那一版**）	tests/test_generator_names_resolve.py
+r"\$(?!\{|\(|\d)([A-Za-z_][A-Za-z0-9_]*)(?=[^\x00-\x7f])")
+=== 变异体 ===
+r"\$(?!\{|\(|\d|[A-Za-z_])([A-Za-z_][A-Za-z0-9_]*)(?=[^\x00-\x7f])")
+
+N5 名单解析器恒返回空：自检必须喊，否则后面所有绿都是假的	tests/test_generator_names_resolve.py
+    return sorted(set(out))
+=== 变异体 ===
+    return []          # (变异体) 名单恒空
+
+N6 docstring 判据反向：把「不在第一条」改成「在第一条」⇒ 降级反而放过，从没写过的反被红	tests/test_generator_names_resolve.py
+            if pos and pos[0] != 0:
+=== 变异体 ===
+            if pos and pos[0] == 0:
+
+N7 元守卫自己被阉割：`_always_truthy` 恒返回 False ⇒ 恒真断言再也认不出（正控必须喊）	tests/test_generator_names_resolve.py
+if isinstance(node, ast.Constant):
+        return bool(node.value)
+=== 变异体 ===
+if isinstance(node, ast.Constant):
+        return False

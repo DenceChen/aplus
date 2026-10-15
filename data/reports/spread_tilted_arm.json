@@ -1,0 +1,193 @@
+{
+  "kind": "spread_tilted_arm",
+  "prereg": "docs/TODO_tail_spread_arm_2026-10-15.md",
+  "generated_at": "2026-10-15T09:03:19",
+  "data_root": "/tmp/aplus_snap_1015",
+  "window": {
+    "train": [
+      "2019-01-02",
+      "2023-08-17",
+      1124
+    ],
+    "test": [
+      "2023-08-25",
+      "2026-10-09",
+      753
+    ],
+    "embargo_days": 5,
+    "train_ratio": 0.6
+  },
+  "ic_window_used": "lag1_real",
+  "train_stats": {
+    "mom20": {
+      "ic_mean": -0.031473,
+      "ic_n": 1064,
+      "tail_low_mean": 0.015338,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.030055,
+      "tail_high_n": 1064,
+      "spread": 0.04539335437825144,
+      "spread_n": 1064
+    },
+    "rev5": {
+      "ic_mean": 0.024366,
+      "ic_n": 1064,
+      "tail_low_mean": 0.042662,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.025474,
+      "tail_high_n": 1064,
+      "spread": 0.06813632959690123,
+      "spread_n": 1064
+    },
+    "vol20": {
+      "ic_mean": -0.052879,
+      "ic_n": 1064,
+      "tail_low_mean": -0.00965,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.023436,
+      "tail_high_n": 1064,
+      "spread": 0.013786576189138167,
+      "spread_n": 1064
+    },
+    "vsur": {
+      "ic_mean": -0.027673,
+      "ic_n": 1064,
+      "tail_low_mean": 0.005631,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.048906,
+      "tail_high_n": 1064,
+      "spread": 0.05453662048642961,
+      "spread_n": 1064
+    },
+    "turn20": {
+      "ic_mean": -0.044726,
+      "ic_n": 1064,
+      "tail_low_mean": -0.006871,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.026781,
+      "tail_high_n": 1064,
+      "spread": 0.019910240300775282,
+      "spread_n": 1064
+    },
+    "turnratio": {
+      "ic_mean": -0.036151,
+      "ic_n": 898,
+      "tail_low_mean": -0.004035,
+      "tail_low_n": 898,
+      "tail_high_mean": -0.026091,
+      "tail_high_n": 898,
+      "spread": 0.02205600271486103,
+      "spread_n": 898
+    },
+    "ivol": {
+      "ic_mean": -0.059123,
+      "ic_n": 1064,
+      "tail_low_mean": -0.017555,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.024235,
+      "tail_high_n": 1064,
+      "spread": 0.0066794822073219864,
+      "spread_n": 1064
+    },
+    "rsi": {
+      "ic_mean": -0.032539,
+      "ic_n": 1064,
+      "tail_low_mean": 0.009068,
+      "tail_low_n": 1064,
+      "tail_high_mean": -0.020475,
+      "tail_high_n": 1064,
+      "spread": 0.029542677895336173,
+      "spread_n": 1064
+    }
+  },
+  "arm_weights": {
+    "A_IC_TILTED": {
+      "mom20": 0.0938,
+      "rev5": 0.2188,
+      "vol20": -0.1562,
+      "vsur": 0.1562,
+      "turn20": -0.0938,
+      "turnratio": -0.0312,
+      "ivol": -0.2188,
+      "rsi": 0.0312
+    },
+    "B_EQUAL": {
+      "mom20": 0.125,
+      "rev5": 0.125,
+      "vol20": 0.125,
+      "vsur": 0.125,
+      "turn20": 0.125,
+      "turnratio": 0.125,
+      "ivol": 0.125,
+      "rsi": 0.125
+    },
+    "C_SPREAD_TILTED": {
+      "mom20": 0.0938,
+      "rev5": 0.2188,
+      "vol20": -0.1562,
+      "vsur": 0.1562,
+      "turn20": -0.0938,
+      "turnratio": -0.0312,
+      "ivol": -0.2188,
+      "rsi": 0.0312
+    }
+  },
+  "test": {
+    "arms": {
+      "A_IC_TILTED": {
+        "annual_net": -1.3644,
+        "mean_daily": -0.005592,
+        "t": -10.737,
+        "n_days": 752,
+        "n_blocks": 752,
+        "evidence": "充分",
+        "monotonic": false
+      },
+      "B_EQUAL": {
+        "annual_net": -0.8795,
+        "mean_daily": -0.003604,
+        "t": -3.534,
+        "n_days": 750,
+        "n_blocks": 750,
+        "evidence": "充分",
+        "monotonic": false
+      },
+      "C_SPREAD_TILTED": {
+        "annual_net": -1.3644,
+        "mean_daily": -0.005592,
+        "t": -10.737,
+        "n_days": 752,
+        "n_blocks": 752,
+        "evidence": "充分",
+        "monotonic": false
+      }
+    },
+    "common": {
+      "annual_net": -1.3644,
+      "mean_daily": -0.005592,
+      "t": -10.737,
+      "n_days": 752,
+      "n_blocks": 752,
+      "evidence": "充分",
+      "monotonic": false,
+      "beta_adj_daily": -0.005592,
+      "beta_adj_daily_caliber": "actual_pct − cost − mean(market_pct)，逐日等权；**不是 beta 回归残差**（本仓既有口径同此，见 diagnose_hit_rate.py:126）"
+    }
+  },
+  "elapsed_s": 466.3,
+  "gates": {
+    "G1_beta_adj_daily_excess_positive": false,
+    "G2_t_above_3": "False",
+    "G3_annual_net_above_20pct": false,
+    "G4_score_quartile_monotonic": false,
+    "G5_sample_at_least_681": true,
+    "G6_positive_after_cost": false
+  },
+  "gates_passed": 1,
+  "A0_arms_degenerate": true,
+  "A1_note": "⚠️ **A4 退化**：A 臂与 C 臂权重逐位相同 ⇒ 跑的是同一条策略，A1 在结构上恒真（C ≥ A 必然成立）⇒ **不判定**。这不是「C 不比 A 差」，是「**换排序依据改变不了任何东西**」。",
+  "A1_C_not_worse_than_A": null,
+  "A2_C_score_monotonic": false,
+  "A3_thin_sample": false,
+  "读法": "C 臂按**训练段的尾部价差**排序倾斜，A 臂按**训练段的 IC** 排序倾斜，两臂构造**完全同构**，唯一差别是排序依据。⇒ A1 测的是「换目标函数」这一个变量。⚠️ 三臂**共享同一段面板**，**不是三个独立实验** ⇒ 不得引用「三臂一致」当稳健性证据。⚠️ C 臂与 A 臂同一天用同一批数据造出来 ⇒ 比 A 臂更接近样本内拟合，报数时必须 deflate，且必须说明 C 臂从未真正前瞻验证过。"
+}
