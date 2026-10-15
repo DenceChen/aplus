@@ -16,3 +16,10 @@ H3 退出码分层退回 `rc != 0`（收集错误重新被记成「守住了」�
         elif rc == 1:
 === 变异体 ===
         elif rc != 0:
+
+H4 闸门返回值与计分累加器同名（累加器被 True 覆盖 ⇒ 逐条 ✅ 而汇总对不上）	scripts/mutation_harness.py
+gate_ok, note = _syntax_gate(p, mutant)
+        if not gate_ok:
+=== 变异体 ===
+ok, note = _syntax_gate(p, mutant)
+        if not ok:

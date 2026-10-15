@@ -27,6 +27,7 @@
 CI 跑不到。所以这里用 `subprocess` 调 node，测试仍然留在全仓测试套里。
 """
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -457,16 +458,151 @@ def test_fallback_caveat_is_fed_into_the_docket():
             f"{fn} 没取 /api/weights —— 概览页不知道当前跑的是回落配置")
 
 
-def test_both_docket_call_sites_must_pass_all_three_arguments():
-    """两个调用点都必须传齐 stats / evo / weights。"""
-    import re
+# ---------- 实参接线：**位置**对应，不是「这个词出现过」 ----------
 
+#: `(实参最内层标识符, 形参名)` —— **逐位写死，两列都必须对上**。
+#:
+#: 🚨 为什么不能写「实参名 == 形参名」：第 4 位形参叫 `predictions`，
+#:    两个调用点传的是 `pred`。**绑定完全正确、只是名字不同。**
+#:    「名字相等」在第 4 位是**假的** ⇒ 拿它当判据会得到一条**永远红的守卫**，
+#:    而永远红的守卫会持续红到有人去改本来正确的代码（第 112 层）。
+#: ⇒ 两列分开钉：实参侧只看**最内层标识符**（容忍 `status.` 这类前缀，
+#:   否则把外层变量改名 `status`→`st` 就误报），形参侧**从定义里解析**（不许重打）。
+#:
+#: ⚠️ 而**第 4 位也要钉**：它钉的是「两个调用点在这一位传的是同一个标识符」
+#:   + 「实参个数与形参个数相同」，不是名字相等。
+DOCKET_BINDINGS = (
+    ("stats", "stats"),
+    ("evo", "evo"),
+    ("weights", "weights"),
+    ("pred", "predictions"),      # 名字不同、绑定正确
+)
+
+_DOCKET_DEF = re.compile(r"function\s+renderDocket\s*\(([^)]*)\)\s*\{")
+
+
+def _docket_formals(html: str) -> list[str]:
+    """从 `function renderDocket(...)` 的**定义**里解析形参表。"""
+    m = _DOCKET_DEF.search(html)
+    assert m, ("正控失败：认不出 `function renderDocket(` 的定义 ⇒ "
+               "下面的判据整个落空（不是接线对了，是探测器坏了）")
+    return [a.strip() for a in m.group(1).split(",") if a.strip()]
+
+
+def _docket_call_sites(html: str) -> list[list[str]]:
+    """返回**真调用点**的实参表，**排除函数定义自身**。
+
+    ⚠️ 定义那行 `function renderDocket(stats, evo, weights, predictions)`
+    与调用点**长得几乎一样**，旧写法 `re.findall` 会把它算进去 ——
+    于是 `len(calls) >= 2` 这道正控被定义**免费顶掉一位**，
+    真实调用点只剩一条时也照样「通过」。
+    """
+    dm = _DOCKET_DEF.search(html)
+    out = []
+    for m in re.finditer(r"\brenderDocket\s*\(([^)]*)\)", html):
+        if dm is not None and dm.start() <= m.start() < dm.end():
+            continue                      # 这就是定义自己
+        out.append([a.strip() for a in m.group(1).split(",")])
+    return out
+
+
+def _innermost(arg: str) -> str:
+    """实参的最内层标识符：`status.stats` → `stats`，`pred(1)` → `pred`。"""
+    name = re.sub(r"\(.*\)\s*$", "", arg.strip())      # 去掉尾随调用
+    name = name.split(".")[-1].strip()                  # 去掉成员访问前缀
+    return name.split("[")[0].strip()                   # 去掉下标
+
+
+def test_every_render_docket_call_site_binds_its_arguments_by_position():
+    """每个 `renderDocket` 调用点都必须**按位置**把值喂进正确的形参。
+
+    🚨 这条**替换**掉了旧写法 `assert name in arg`（「括号里出现过这个词」）：
+    子串判据被 `renderDocket(weights_snapshot, evo, stats)` **完全满足** ——
+    实参顺序整个反了，而 JS 没有静态检查会拦，
+    错的实参变成 `undefined` 流进渲染逻辑、**不报错、直接渲染错**
+    （体内 `stats` 被独立使用 7 次，四个形参**都没有默认值回退**）。
+    ⇒ 这是第 144 层：断言与被断言者不是同一个变量
+    ——「词出现过」与「第 k 个实参喂第 k 个形参」是两个命题。
+    """
     html = Path("aplus/web/index.html").read_text(encoding="utf-8")
-    calls = re.findall(r"renderDocket\(([^)]*)\)", html)
-    assert len(calls) >= 2, f"预期至少 2 个调用点，实得 {len(calls)}"
-    for arg in calls:
-        for name in ("stats", "evo", "weights"):
-            assert name in arg, f"调用点 renderDocket({arg}) 缺 {name}"
+    formals = _docket_formals(html)
+    sites = _docket_call_sites(html)
+
+    assert len(sites) >= 2, (
+        f"正控失效：预期至少 2 个**真**调用点，实得 {len(sites)} ⇒ "
+        f"下面每一条断言都可能在一条都没检查到的情况下变绿。"
+        f"（旧写法 `re.findall` 会把函数**定义**也算成调用点，"
+        f"于是这一条正控曾被定义免费顶掉一位。）")
+
+    assert len(formals) == len(DOCKET_BINDINGS), (
+        f"形参表实得 {formals}，而绑定表登记了 {len(DOCKET_BINDINGS)} 位。\n"
+        f"  ⇒ 判据与代码脱钩了：要么有人加了形参（必须同步绑定表并复核"
+        f"新位的实参是谁），要么这条守卫已经不再描述真实的接线。")
+
+    for args in sites:
+        assert len(args) == len(formals), (
+            f"调用点传了 {len(args)} 个实参，形参有 {len(formals)} 个："
+            f"renderDocket({', '.join(args)})\n"
+            f"  ⇒ 少传的形参拿到 `undefined`，而 `renderDocket` 内部"
+            f"**无条件重写判决板**，缺的那一位不会报错，只会渲染错或静默留白。")
+        for pos, ((want_arg, want_formal), got_arg, got_formal) in enumerate(
+                zip(DOCKET_BINDINGS, args, formals), start=1):
+            assert _innermost(got_arg) == want_arg, (
+                f"第 {pos} 位实参是 `{got_arg}`（标识符 `{_innermost(got_arg)}`），"
+                f"而绑定表登记的是 `{want_arg}`。\n"
+                f"  全量：renderDocket({', '.join(args)})\n"
+                f"  ⇒ 最常见成因是**实参顺序被调换**：子串判据对调换**完全免疫**"
+                f"（`weights_snapshot, evo, stats` 里三个词一个不少）。")
+            assert got_formal == want_formal, (
+                f"第 {pos} 位形参实得 `{got_formal}`，绑定表登记的是 `{want_formal}`。\n"
+                f"  形参表：{formals}\n"
+                f"  ⇒ 有人改了 `renderDocket` 的签名，却没同步调用点 —— "
+                f"**所有调用点会静默错位**，而门禁一条都不会红。")
+
+
+def test_the_position_guard_can_reject_a_shuffled_call_site():
+    """**正控**：上面那条探测器必须认得出「顺序反了」，否则它是装饰。
+
+    ⚠️ 这条正控钉的是**判决**（`_innermost` 比对）而不是**探测器**
+    ——只测「正则能不能抓到调用点」的话，
+    「抓到但比对逻辑恒真」与「比对正确」在输出上**逐位同形**（第 131 层）。
+    """
+    formals = ("stats", "evo", "weights", "predictions")
+    good = ["status.stats", "evo", "weights", "pred"]
+
+    # 真配置逐位通过
+    assert [_innermost(a) for a in good] == [w for w, _ in DOCKET_BINDINGS]
+    assert list(zip([_innermost(a) for a in good], formals)) == list(DOCKET_BINDINGS)
+
+    # 三个反例必须被抓：顺序反 / 名字像但不是它 / 少一个
+    for bad, why in (
+        (["status.stats", "weights", "evo", "pred"], "evo 与 weights 调换"),
+        (["status.stats", "weights_snapshot", "evo", "pred"], "子串像、标识符不是它"),
+        (["status.stats", "weights", "evo"], "少传一个"),
+    ):
+        caught = (len(bad) != len(formals)
+                  or [_innermost(a) for a in bad] != [w for w, _ in DOCKET_BINDINGS]
+                  or list(zip([_innermost(a) for a in bad], formals)) != list(DOCKET_BINDINGS))
+        assert caught, f"正控失败：{why} 这个反例竟然能通过 ⇒ 主判据恒绿"
+
+
+def test_the_call_site_probe_excludes_the_function_definition():
+    """**正控**：`_docket_call_sites` 必须**不把定义自己**算成调用点。
+
+    旧写法 `re.findall` 把 `function renderDocket(stats, evo, weights, predictions)`
+    也收进来 ⇒ `len(calls) >= 2` 在**只剩一个真调用点**时照样成立
+    ⇒ 那道正控曾经被定义免费顶掉一位，且它**看起来完全正常**。
+    """
+    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
+    sites = _docket_call_sites(html)
+    assert sites, "正控失败：一个真调用点都认不出 ⇒ 探测器坏了"
+    assert all(s != ["stats", "evo", "weights", "predictions"] for s in sites), (
+        "定义自身被算成了调用点 ⇒ 正控 `len(sites) >= 2` 被免费顶掉一位")
+
+    # 反控：一份**只有定义**的合成源码必须认出 0 个调用点
+    only_def = "function renderDocket(stats, evo, weights, predictions) { return 1; }"
+    assert _docket_call_sites(only_def) == [], (
+        "反控失败：只有定义的源码竟被认出了调用点 ⇒ 排除逻辑恒真")
 
 
 # ---------- caveat 的 Markdown 加粗：必须先转义再还原 ----------

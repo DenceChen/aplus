@@ -24,12 +24,23 @@
 ⚠️ **上面四项全在验「变异正确地落到了文件里」，
 一条都没验「落进去的那段代码本身是不是合法」** —— 第 121 层。
 
-另有一条**独立于跑测试**的前置检查：**变异体必须能 `compile()`**。
+另有一条**独立于跑测试**的前置检查：**变异体必须能被解析**
+（`.py` 走 `compile()`；`.html`/`.js` 走**逐块 `node --check`**；
+`.json` 走 `json.loads`；无解析器的后缀会**印出来**并放行）。
 理由是实测出来的对称性：同一条语法非法的变异，
 pytest 在收集期 import 它给 `rc=2 / 1 error`，
 在函数体内 import 它给 **`rc=1 / 1 failed`** ——
 **与「守卫真的抓到了缺陷」逐位相同。**
 ⇒ 光靠 rc 分层抓不住后者；只能在跑之前挡住。
+
+🚨🚨 **这条闸门曾经写死 `compile()`，于是对 JavaScript 目标恒假**（2026-10-15 实测）：
+第一次变异 `aplus/web/index.html` 时四条**全部**报「解析不了 ⇒ 不可验证」，
+而那不是变异体坏了，是**闸门用错了语言**。
+⇒ 而它报的那句「不可验证」与「证据作废」**逐位同形**
+⇒ **恒为假的闸门比没有闸门更贵**：它把「没检查」说成「检查失败」，
+人于是会去改规格（冤枉规格）或去改本来正确的代码（第 112 层通则）。
+⇒ 修法不是「Python 之外一律放行」（那是恒真的闸门，一样有害），
+是**逐个后缀问「它有没有解析器」，有就用真的那个**。
 
 还有一条判据分层：**只有 `rc == 1` 才算被杀**
 （rc∈{2,3,4,5} = 收集/用法/内部错误/中断 ⇒ 不可验证，按存活计入上界）。
@@ -64,6 +75,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -218,6 +230,101 @@ def load_specs(path: Path) -> list[Spec]:
     return specs
 
 
+def _syntax_gate(p: Path, mutant: str) -> tuple[bool, str | None]:
+    """第 121 层闸门：**按目标文件的真实语言**解析变异体。
+
+    返回 `(通过?, 说明)`。⚠️ `说明` 一定会被打印出去 ——
+    **静默的闸门与没有闸门同形**（形状 6 的读侧版本）：
+    一个恒为假的开关看起来比没有开关更可信，因为它让人以为做过检查。
+
+    🚨🚨 **这条闸门曾经写死 `compile(...)`（2026-10-15 实测踩到）**：
+    本机第一次拿它变异 `aplus/web/index.html`（JavaScript），四条**全部**
+    报「变异体解析不了 ⇒ 不可验证」—— 而那不是变异体坏了，
+    是**闸门用错了语言**。⚠️ 而它报的那句「不可验证」与「证据作废」逐位同形
+    ⇒ 人会以为「这批变异写错了」而回头改规格，或更糟：
+    以为「守卫有问题」而回头改本来正确的代码（第 112 层通则）。
+    ⇒ **恒为假的闸门比没有闸门更贵**，因为它把「没检查」说成「检查失败」。
+
+    ⇒ 处置不是「Python 之外一律放行」（那换成恒真的闸门，同样有害）：
+      **有解析器的后缀用真解析器**，逐个后缀问「这东西有没有解析器」。
+
+    | 后缀 | 闸门 | 理由 |
+    |---|---|---|
+    | `.py` | `compile()` | 原形 |
+    | `.html`/`.htm` | 抽内联 `<script>` → **逐块 `node --check`** | 仓里已有这条闸门（`tests/test_chat_wiring.py::test_every_inline_script_block_actually_parses`）⇒ **复用它抽块的量具，不重写正则**（第 163 层） |
+    | `.js`/`.mjs` | `node --check` 整个文件 | |
+    | `.json` | `json.loads` | |
+    | 其余 | **打印「无解析器」并放行** | 本仓的文本型目标（`.md`/`.txt`）没有任何东西会解析它 ⇒ 第 121 层的危害**结构上不存在**；但**必须印出来**，不许静默 |
+
+    ⚠️ 「抽不到内联脚本块」判**不可验证**而不是判通过：
+    空输出 ≠ 判决（第 130 层）—— 探测器坏了与「变异体合法」逐位同形。
+    """
+    suffix = p.suffix.lower()
+
+    if suffix == ".py":
+        try:
+            compile(mutant, str(p), "exec")
+        except SyntaxError as e:
+            return False, (f"变异体**解析不了**（{type(e).__name__}: {e.msg}"
+                           f"，行 {e.lineno}）⇒ **不可验证**，跳过 pytest。")
+        return True, None
+
+    if suffix in (".html", ".htm", ".js", ".mjs"):
+        node = shutil.which("node")
+        if node is None:
+            return False, ("本机没有 `node` ⇒ 前端语法闸门跑不了 ⇒ **不可验证**"
+                           "（不许「反正没人解析它」就放行：浏览器会）。")
+        with tempfile.TemporaryDirectory() as td:
+            if suffix in (".js", ".mjs"):
+                blocks = [mutant]
+            else:
+                blocks = _inline_scripts(mutant)
+                if not blocks:
+                    return False, ("变异体里**一个内联 `<script>` 都抽不到** ⇒ "
+                                   "不是变异体合法，是探测器坏了 ⇒ **不可验证**。")
+            for i, code in enumerate(blocks):
+                f = Path(td) / f"blk{i}.mjs"
+                f.write_text(code, encoding="utf-8")
+                r = subprocess.run([node, "--check", str(f)],
+                                   capture_output=True, text=True)
+                if r.returncode != 0:
+                    return False, (f"第 {i} 个内联脚本块**解析不了** ⇒ "
+                                   f"**不可验证**，跳过 pytest：\n"
+                                   f"{r.stderr.strip()[:400]}")
+        return True, None
+
+    if suffix == ".json":
+        try:
+            json.loads(mutant)
+        except json.JSONDecodeError as e:
+            return False, f"变异体**不是合法 JSON**（{e}）⇒ **不可验证**，跳过 pytest。"
+        return True, None
+
+    return True, (f"⚠️ 后缀 `{suffix}` **没有解析器** ⇒ 第 121 层闸门**未执行**。"
+                  f"本仓的文本型目标不会被任何东西解析，危害结构上不存在；"
+                  f"但这一条**不许当成「查过了」**。")
+
+
+def _inline_scripts(src: str) -> list[str]:
+    """抽内联 `<script>`（跳过 `src=` 外部脚本）。
+
+    🚨 **从 `tests/test_chat_wiring.py` 按路径 import，不照抄它的正则**（第 163 层）：
+    手写一份会在它改掉抽法时静默分叉 —— 那时台子会拿一个**没人验过**的抽法
+    给出「解析通过」，而真实浏览器里那块脚本早就没了。
+    """
+    global _INLINE_SCRIPTS
+    if _INLINE_SCRIPTS is None:
+        spec = importlib.util.spec_from_file_location(
+            "_chat_wiring_for_harness", ROOT / "tests" / "test_chat_wiring.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _INLINE_SCRIPTS = mod._inline_scripts
+    return _INLINE_SCRIPTS(src)
+
+
+_INLINE_SCRIPTS = None
+
+
 def run(specs: list[Spec], node: str) -> tuple[int, int]:
     print(f"== 正控：基线必须绿（node={node}）==", flush=True)
     base_rc, base_tail, _ = _pytest(node)
@@ -247,17 +354,24 @@ def run(specs: list[Spec], node: str) -> tuple[int, int]:
         #   而测试在**函数体内** import 它 ⇒ **rc=1 / "1 failed"** ——
         #     与「守卫真的抓到了缺陷」逐位相同。
         #   ⇒ 靠 rc 分层**抓不住**后者：两边都是 1。
-        #   ⇒ 正解是**在跑 pytest 之前**就把「它压根不是合法 Python」挡掉：
+        #   ⇒ 正解是**在跑 pytest 之前**就把「它压根解析不了」挡掉：
         #     一个语法非法的变异体不是实验，它只制造信用。
-        try:
-            compile(mutant, str(p), "exec")
-        except SyntaxError as e:
-            print(f"⚠️  {spec.label}\n     变异体**解析不了**（{type(e).__name__}: {e.msg}"
-                  f"，行 {e.lineno}）⇒ **不可验证**，跳过 pytest。"
+        #   ⚠️ 闸门按**目标文件的真实语言**走，见 `_syntax_gate`。
+        # 🚨 累加器叫 `ok`；🚨 **闸门的返回值不许也叫 `ok`** ——
+        #   第一版就踩了：`ok, note = _syntax_gate(...)` 把累加器覆盖成 `True`，
+        #   随后 `ok += good` 变成 `True + True == 2`，
+        #   于是「四条全杀」被计成 **2/4**，而台子逐条打的是 ✅ ✅ ✅ ✅。
+        #   ★ **症状与「有两条变异被放过」逐位同形**（第 148 层同族），
+        #   而正确动作恰好相反：不是去改那两条变异体，是去改这个命名。
+        gate_ok, note = _syntax_gate(p, mutant)
+        if not gate_ok:
+            print(f"⚠️  {spec.label}\n     {note}"
                   f"\n     规格必须是能跑起来的源码片段：一条语法非法的变异体"
                   f"无论 pytest 吐哪个码，都拿不到关于守卫的任何信息。",
                   flush=True)
             continue
+        if note:
+            print(f"ℹ️  {spec.label}\n     {note}", flush=True)
 
         with tempfile.TemporaryDirectory() as td:
             shutil.copy2(p, Path(td) / "orig")

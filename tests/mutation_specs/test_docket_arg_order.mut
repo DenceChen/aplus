@@ -1,0 +1,25 @@
+D1 调用点0 的 evo/weights 对调（旧子串判据对它免疫）	aplus/web/index.html
+]);
+    renderDocket(status.stats, evo, weights, pred);
+=== 变异体 ===
+]);
+    renderDocket(status.stats, weights, evo, pred);
+
+D2 调用点0 的 stats 改成 stats_meta（含子串 'stats' ⇒ 旧判据照样绿）	aplus/web/index.html
+]);
+    renderDocket(status.stats, evo, weights, pred);
+=== 变异体 ===
+]);
+    renderDocket(status.stats_meta, evo, weights, pred);
+
+D3 调用点1 整个少传第 4 个实参	aplus/web/index.html
+$('down-count').textContent = `${pred.down.length} 只`;
+    renderDocket(status.stats, evo, weights, pred);
+=== 变异体 ===
+$('down-count').textContent = `${pred.down.length} 只`;
+    renderDocket(status.stats, evo, weights);
+
+D4 形参表被改名（改签名不改调用点 ⇒ 全调用点静默错位）	aplus/web/index.html
+function renderDocket(stats, evo, weights, predictions) {
+=== 变异体 ===
+function renderDocket(stats, evo, weights, preds) {

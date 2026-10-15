@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 from pathlib import Path
@@ -270,3 +271,112 @@ def test_the_source_file_is_restored_byte_for_byte_after_every_spec(tmp_path):
     mh.run(specs, str(node))
 
     assert src.read_bytes() == before, "被测文件没被逐位还原"
+
+
+# ── 台子的计分累加器不许被同名解包遮蔽（2026-10-15 实测）──
+#
+# 下面是本轮真踩的坑，**症状与「有两条变异被放过」逐位同形**（第 148 层同族）：
+#
+#     ok = 0                                  ← 累加器
+#     for spec in specs:
+#         ok, note = _syntax_gate(p, mutant)  ← 🚨 同名解包把累加器覆盖成 True
+#         ...
+#         ok += good                          ← True + True == 2
+#
+# 四条变异**逐条都打了 ✅**，汇总却打 `变异台：2/4 条符合预期`。
+# 而正确动作恰好相反：不是去改那两条变异体，是去改这个命名。
+#
+# ⚠️ **这三条既有守卫本来就能抓住它**（2026-10-15 实测 rc=1 / 3 failed：
+# `assert (2,1)==(1,1)`、`assert (1,1)==(0,1)` ×2）——
+# 但那是**巧合**，它们各自钉的是自己的场景，计分断言只是顺带撞上了算术。
+# ⇒ 本条买的是「那份覆盖是设计」：哪天有人为修某个场景而调了期望值，
+#   遮蔽的覆盖会**无声消失**，而没有任何东西会提这件事。
+#   （这正是第 144 层：「有守卫」与「守卫在守」是两个独立命题。）
+
+def _run_fn() -> ast.FunctionDef:
+    src = (ROOT / "scripts" / "mutation_harness.py").read_text(encoding="utf-8")
+    tree = ast.parse(src, filename="mutation_harness.py")
+    fn = next((n for n in tree.body
+               if isinstance(n, ast.FunctionDef) and n.name == "run"), None)
+    assert fn is not None, "正控失败：认不出 `mutation_harness.run()`"
+    return fn
+
+
+def _destructured_bindings(fn: ast.AST, name: str) -> list[tuple[int, str]]:
+    """`fn` 里**以解包形态**绑定 `name` 的每一处。
+
+    🚨 **只查解包，不查普通赋值**：`ok = max(ok, x)` 是合法的累加器写法，
+    而 `ok, note = f(...)` 在 Python 里是**覆盖**不是累加 ——
+    两者的差别是**形态**上的，用同一个判据去抓会得到一条过严的守卫，
+    而过严的守卫和恒真的一样有害（第 112 层通则）。
+    """
+    hits: list[tuple[int, str]] = []
+
+    def scan_target(target: ast.AST, kind: str) -> None:
+        for n in ast.walk(target):
+            if isinstance(n, ast.Name) and n.id == name and isinstance(n.ctx, ast.Store):
+                hits.append((n.lineno, kind))
+
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Assign):
+            # 单名目标 = 普通赋值（合法）；元组/列表目标 = 解包（遮蔽机制）
+            for t in node.targets:
+                if isinstance(t, (ast.Tuple, ast.List)):
+                    scan_target(t, "解包赋值")
+        elif isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, (ast.Tuple, ast.List)):
+                scan_target(node.target, "带注解的解包赋值")
+        elif isinstance(node, ast.For):
+            if isinstance(node.target, (ast.Tuple, ast.List)):
+                scan_target(node.target, "for 解包")
+        elif isinstance(node, ast.comprehension):
+            if isinstance(node.target, (ast.Tuple, ast.List)):
+                scan_target(node.target, "推导式解包")
+        elif isinstance(node, ast.withitem):
+            if isinstance(node.optional_vars, (ast.Tuple, ast.List)):
+                scan_target(node.optional_vars, "with 解包")
+        elif isinstance(node, ast.NamedExpr):
+            if isinstance(node.target, (ast.Tuple, ast.List)):
+                scan_target(node.target, "海象解包")
+        elif isinstance(node, ast.ExceptHandler):
+            if isinstance(node.name, str) and node.name == name:
+                hits.append((node.lineno, "except … as"))
+        elif isinstance(node, ast.alias):
+            bound = node.asname or node.name.split(".")[0]
+            if bound == name:
+                hits.append((getattr(node, "lineno", 0), "import"))
+    return sorted(hits)
+
+
+def test_the_tally_accumulator_is_never_bound_by_a_destructuring_assignment():
+    """`run()` 的计分累加器 `ok` 不许以**解包**形态被绑定。
+
+    后果不是「少算几条」，是**计分与它自己打印的判决脱钩**：
+    台子逐条打 ✅、汇总打 2/4，而这两个数本该恒等。
+    """
+    hits = _destructured_bindings(_run_fn(), "ok")
+    assert not hits, (
+        f"`mutation_harness.run()` 里有 {len(hits)} 处把计分累加器 `ok` "
+        f"按解包绑定了：{[(ln, kind) for ln, kind in hits]}\n"
+        f"  ⇒ `ok, note = …` 在 Python 里是**覆盖**累加器，不是给它记分，"
+        f"随后 `ok += good` 就变成 `True + …`。\n"
+        f"  ⇒ 症状是**逐条 ✅ 而汇总对不上**，与「有变异被放过」逐位同形，"
+        f"而正确动作恰好相反：改这个命名，不是去改变异体。\n"
+        f"  ⇒ 累加器之外的返回值请用别的名字（第 144 层："
+        f"「同一个文件」不够，「同一个变量」才是及格线）。")
+
+
+def test_the_accumulator_probe_recognizes_a_shadowed_accumulator():
+    """**正控**：上面的探测器必须认得出人写的遮蔽，否则它恒绿。
+
+    两条各来一份：一句是真会犯的错（解包），一句是**必须放行**的合法写法
+    （`ok = max(ok, x)`）—— 只测前者的话，探测器变宽成「凡绑定即报错」
+    也没人能发现，而那是一条会永远红的守卫（第 112 层）。
+    """
+    bad = "def run():\n    ok = 0\n    ok, note = f()\n    return ok\n"
+    good = "def run():\n    ok = 0\n    for x in xs:\n        ok = max(ok, x)\n    return ok\n"
+    for src, why in ((bad, "解包绑定"), (good, "普通赋值")):
+        hits = _destructured_bindings(ast.parse(src), "ok")
+        assert bool(hits) == (why == "解包绑定"), (
+            f"正控失败：对「{why}」的判定是 {bool(hits)}，"
+            f"探测器认错了这种形态 ⇒ 主守卫恒绿或恒红")
