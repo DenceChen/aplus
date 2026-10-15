@@ -122,6 +122,55 @@
     }
   },
   "excess_contribution_note": "复利年化**不可相减** ⇒ 超额贡献必须走比值 ((1+c_bk)/(1+c_mkt))^(1/years) − 1。⚠️ 「相减」的 +0.61pp 是错的（分数减分数得到的是差不是比值的年化）。⚠️ 它的 MDE 取**同源净超额序列**的 MDE（delta method 未做，属已知近似）。",
+  "gap_to_target_by_benchmark": {
+    "equal_weight": {
+      "arm": "equal_weight",
+      "role": "判决臂",
+      "c_mkt_fraction": 0.09947103514598311,
+      "c_mkt_source": "market_nav_caliber.json:equal_weight.geometric_annual_pct / 100.0",
+      "required_excess_annual": 0.01542102069416118,
+      "required_is_annualized": true,
+      "neither_side_is_a_point_estimate": true,
+      "per_combo": {
+        "bt003": {
+          "measured_excess_annual": 0.0009669115895649671,
+          "measured_over_required": 0.06270088139697953,
+          "measured_abs_over_mde": 0.009030534739016688,
+          "measured_sign_determinable": false
+        },
+        "real": {
+          "measured_excess_annual": -0.00403287126313534,
+          "measured_over_required": -0.26151779075572446,
+          "measured_abs_over_mde": 0.03746214176473808,
+          "measured_sign_determinable": false
+        }
+      }
+    },
+    "cap_weight": {
+      "arm": "cap_weight",
+      "role": "⚠️ 敏感性臂（非判决）",
+      "c_mkt_fraction": 0.01808663656249898,
+      "c_mkt_source": "market_nav_caliber.json:cap_weight.geometric_annual_pct / 100.0",
+      "required_excess_annual": 0.029172070320555354,
+      "required_is_annualized": true,
+      "neither_side_is_a_point_estimate": true,
+      "per_combo": {
+        "bt003": {
+          "measured_excess_annual": 0.014522220564985755,
+          "measured_over_required": 0.4978124762969957,
+          "measured_abs_over_mde": 0.13563123941742228,
+          "measured_sign_determinable": false
+        },
+        "real": {
+          "measured_excess_annual": 0.009454729578686205,
+          "measured_over_required": 0.3241021111903796,
+          "measured_abs_over_mde": 0.08782685999965144,
+          "measured_sign_determinable": false
+        }
+      }
+    }
+  },
+  "gap_to_target_note": "⚠️⚠️ **本块的两个数都不是点估计**：分子的实测超额 |x|/M < 1（连符号都定不了），分母的所需超额继承 c_mkt 的 MDE（±20.01%/年，判决臂）⇒ 「实测/需要」是**两个不可定符号的量相除**，只作形状陈述，**不许**当「离目标还有多远」的量化结论引用。⚠️ 基准臂的选取是**预注册**的（见 VERDICT_BENCH_ARM），不许因为读数难看就换成敏感性臂（第 91 层）。",
   "verdict_reading": 0.10556283216930074,
   "verdict_mde_annual": 0.22673751360772554,
   "verdict_upper_one_sided_95": 0.3323003457770263,

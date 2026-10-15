@@ -31,10 +31,28 @@ sys.path.insert(0, str(ROOT))
 from aplus.hurdle import DAYS_PER_YEAR as R          # noqa: E402  244，唯一真相源
 
 ART = ROOT / "data/reports/wf_weights_backtest_k21.daily.parquet"
+CALIBER = ROOT / "data/reports/market_nav_caliber.json"
 TARGET = 0.20
 # 超额腿的键名前缀：`净超额@<组合>`。⚠️ 单一真相源 —— `main()` 建腿与
 # `excess_contribution()` 取腿**都必须**用它，不许两处各硬编码一个字符串。
 EXCESS_LEG_PREFIX = "净超额@"
+
+#: 判决基准臂 —— **预注册选定的**，不许因为读数难看就换成另一支（第 91 层：
+#: 看了数据再改判据）。守卫：
+#: `tests/test_nav_caliber_judgment.py::test_the_verdict_benchmark_is_the_equal_weight_arm_and_not_the_cap_weighted_one`
+VERDICT_BENCH_ARM = "equal_weight"
+#: 敏感性臂 —— 只报「换一把尺子会怎样」，**不是**判决臂。
+#: 🚨 实测两臂的「达标所需超额」差 **7.9 倍**（6.27% vs 49.78% 的实测/需要比值），
+#: 而真毛值在 `gross.annual_pct`（2021 是 −0.0768 不是 −0.1106）
+#: ⇒ 只报一支会让人以为「离目标多远」是有答案的问题。
+SENSITIVITY_BENCH_ARMS = ("cap_weight",)
+#: `market_nav_caliber.json` 的 `*_pct` 字段是**百分数**（`9.9471` = 9.9471%），
+#: 本脚本其余量（`cagr` / `mde_as_annual_pct`）是**小数**。
+#: 🚨 两者字段名同为 `*_pct` 而单位相反 —— 2026-10-16 我第一次接 caliber 时
+#: 就把 `9.9471` 当小数用，算出「基准年化 +994.71%」。
+#: ⇒ 全仓**第一处生产侧**换算（测试里的 `_as_fraction` 不算生产侧）在此，
+#:    守卫见 `tests/test_basket_nav_01_verdict.py::test_the_caliber_percent_scale_is_converted_exactly_once`。
+CALIBER_PCT_SCALE = 100.0
 
 
 def tier(name: str, r: np.ndarray) -> dict:
@@ -110,6 +128,46 @@ def excess_contribution(cb: float, cm: float, yrs: float,
             "excess_leg_key": key,
             "abs_over_mde": abs(val) / Mx,
             "sign_determinable": bool(abs(val) >= Mx)}
+
+
+def caliber_benchmark_fraction(cal: dict, arm: str) -> float:
+    """从 caliber 读某条基准臂的几何年化，返回**分数**。
+
+    ⚠️ caliber 的 `*_pct` 是**百分数**（`9.9471` = 9.9471%），而本脚本其余量
+       （`cagr` / `mde_as_annual_pct`）是**小数** ⇒ 两个字段名同为 `*_pct`
+       而单位相反。2026-10-16 第一次接 caliber 时就把 `9.9471` 当小数用，
+       算出「基准年化 +994.71%」。
+    ⇒ 换算**只许在这里发生一次**（`CALIBER_PCT_SCALE` 是唯一真相源）。
+
+    🚨 `arm` 必须显式传入、且必须真在 caliber 里 —— **不许有「默认那条」**：
+    「判决臂 vs 敏感性臂」的区分本身就是要守的东西（第 119 层：换了被诊断的对象，
+    而读数照样印得出来）。
+    """
+    if not isinstance(cal.get(arm), dict) or "geometric_annual_pct" not in cal.get(arm, {}):
+        have = sorted(k for k, v in cal.items()
+                      if isinstance(v, dict) and "geometric_annual_pct" in v)
+        raise KeyError(f"caliber 没有 {arm!r} 这条基准臂；现有臂 = {have}")
+    return float(cal[arm]["geometric_annual_pct"]) / CALIBER_PCT_SCALE
+
+
+def required_excess(target: float, c_mkt: float, yrs: float) -> float:
+    """达标所需的**超额贡献**（**年化**，比值口径，与 `excess_contribution()` 同口径）。
+
+    🚨🚨 **必须年化**。未年化的 `(1+T)/(1+c_mkt) − 1` 是**每期**比值，
+    把它标成「/年」就会与年化的实测混在一个比值里 ——
+    2026-10-16 实测这个错让「实测/需要」从 **6.27%** 变成 **1.06%**（差 5.93×），
+    而错的那个数被写进了预注册文档。
+    ⇒ 判据（不是注释）：年化后必然满足 `(1 + 本函数) ** yrs == (1+target)/(1+c_mkt)`，
+      这是几何均值的**定义**（与本函数实现路径无关 ⇒ 不是第 109 层的「用公式重算」）。
+
+    ⚠️ 这个量**不是**判决量：达标判决用 `judge(c_account, M_account, …)`，
+       账户净值本身**基准无关**（`market + net_excess ≡ 篮子净`）⇒ 不需要基准。
+       本函数只回答「若市场腿是 X，账户还差多少超额」。
+    ⚠️ 它继承 `c_mkt` 的不可测性（`|c_mkt| < M_mkt`）⇒ 形状陈述，不是点估计。
+    """
+    if yrs <= 0.0:
+        raise ValueError(f"years 必须为正，实得 {yrs!r}")
+    return ((1.0 + target) / (1.0 + c_mkt)) ** (1.0 / yrs) - 1.0
 
 
 def judge(cc: float, MM: float, label: str) -> tuple[list[str], float]:
@@ -232,6 +290,47 @@ def main() -> int:
               f"{'符号可定' if xc[nm]['sign_determinable'] else '🚨 连符号都定不了'}")
     print("   ⚠️ 分母 = 抽样面板等权（随机 150 只，单 seed），不是中证全指。")
 
+    # ── 达标所需的超额贡献：**按基准分臂报**，不许只报一支 ──────────────
+    print("\n=== 达标所需的超额贡献（年化，比值口径）—— 🚨 按基准分臂 ===")
+    print("   ⚠️ 达标判决**不需要基准**（账户净值 = 篮子净，基准无关）。")
+    print("   下面只回答「若市场腿是 X，账户还差多少超额」⇒ 它**整体**随基准变。")
+    cal = json.loads(CALIBER.read_text(encoding="utf-8"))
+    if int(cal["n_days"]) != len(df):
+        raise SystemExit(f"🚨 基准口径窗口 {cal['n_days']} 天 ≠ 判决窗 {len(df)} 天 "
+                         f"⇒ 两者不是同一个量，不许相除（口径不可比就不许比）")
+    by_arm: dict[str, dict] = {}
+    for arm in (VERDICT_BENCH_ARM,) + SENSITIVITY_BENCH_ARMS:
+        c_mkt = caliber_benchmark_fraction(cal, arm)
+        req = required_excess(TARGET, c_mkt, yrs)
+        tag = "判决臂" if arm == VERDICT_BENCH_ARM else "⚠️ 敏感性臂（非判决）"
+        row: dict = {"arm": arm, "role": tag,
+                     "c_mkt_fraction": c_mkt,
+                     "c_mkt_source": f"{CALIBER.name}:{arm}.geometric_annual_pct / {CALIBER_PCT_SCALE}",
+                     "required_excess_annual": req,
+                     "required_is_annualized": True,
+                     "neither_side_is_a_point_estimate": True,
+                     "per_combo": {}}
+        if arm == VERDICT_BENCH_ARM and abs(c_mkt - mc) > 1e-12:
+            raise SystemExit(f"🚨 判决臂 c_mkt 与逐日序列算出的 {mc!r} 不一致 "
+                             f"（caliber {c_mkt!r}）⇒ 两个来源已分叉，不许继续报")
+        for nm in ("bt003", "real"):
+            cb = rows[{"bt003": 1, "real": 2}[nm]]["cagr"]
+            xa = excess_contribution(cb, c_mkt, yrs, excess_legs, nm)
+            row["per_combo"][nm] = {
+                "measured_excess_annual": xa["annual_pct"],
+                "measured_over_required": xa["annual_pct"] / req,
+                "measured_abs_over_mde": xa["abs_over_mde"],
+                "measured_sign_determinable": xa["sign_determinable"],
+            }
+            print(f"  [{arm:12s}|{tag}] c_mkt={c_mkt:+.4%}/年   所需={req:+.4%}/年   "
+                  f"{nm:6s} 实测={xa['annual_pct']:+.4%}/年  实测/需要={xa['annual_pct']/req:+8.2%}")
+        by_arm[arm] = row
+    _v = by_arm[VERDICT_BENCH_ARM]["per_combo"]["bt003"]["measured_over_required"]
+    _s = by_arm[SENSITIVITY_BENCH_ARMS[0]]["per_combo"]["bt003"]["measured_over_required"]
+    print(f"   🚨 两臂「实测/需要」之比 = {_s / _v:.2f}×（判决臂 {_v:+.2%} vs 敏感性臂 {_s:+.2%}）"
+          f" ⇒ 「离目标多远」**没有基准无关的答案**；基准无关的只有 "
+          f"「账户 {rows[1]['cagr']:+.4%} vs 目标 {TARGET:.0%}，缺 {(TARGET - rows[1]['cagr']):+.2%}」。")
+
     out = {
         "artifact": str(ART.relative_to(ROOT)),
         "artifact_sha256": hashlib.sha256(ART.read_bytes()).hexdigest(),
@@ -247,6 +346,14 @@ def main() -> int:
             "复利年化**不可相减** ⇒ 超额贡献必须走比值 ((1+c_bk)/(1+c_mkt))^(1/years) − 1。"
             "⚠️ 「相减」的 +0.61pp 是错的（分数减分数得到的是差不是比值的年化）。"
             "⚠️ 它的 MDE 取**同源净超额序列**的 MDE（delta method 未做，属已知近似）。",
+        "gap_to_target_by_benchmark": by_arm,
+        "gap_to_target_note":
+            "⚠️⚠️ **本块的两个数都不是点估计**：分子的实测超额 |x|/M < 1（连符号都定不了），"
+            "分母的所需超额继承 c_mkt 的 MDE（±20.01%/年，判决臂）"
+            "⇒ 「实测/需要」是**两个不可定符号的量相除**，只作形状陈述，"
+            "**不许**当「离目标还有多远」的量化结论引用。"
+            "⚠️ 基准臂的选取是**预注册**的（见 VERDICT_BENCH_ARM），"
+            "不许因为读数难看就换成敏感性臂（第 91 层）。",
         "verdict_reading": v["cagr"],
         "verdict_mde_annual": v["mde_as_annual_pct"],
         "verdict_upper_one_sided_95": U,

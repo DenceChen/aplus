@@ -5,10 +5,17 @@
     —— 守卫正是那条防线，所以这些不是装饰性约束。
 
 ⚠️⚠️ **本文件只覆盖 import 得到的纯函数**：`tier()` / `account_nav()` /
-    `excess_contribution()` / `judge()`。`main()` 里的**编排**（例如
-    「多条命中时用 `‖` 拼起来而不是只取最后一条」）**不在覆盖范围内** ——
+    `excess_contribution()` / `caliber_benchmark_fraction()` / `required_excess()` /
+    `judge()`。`main()` 里的**编排**（例如「多条命中时用 `‖` 拼起来而不是只取最后一条」、
+    「`gap_to_target_by_benchmark` 是否两支都报」）**不在覆盖范围内** ——
     断言它只能去读产物，而读快照的守卫**等价于没守**：改了源码不重跑照样绿
-    （第 96 层）。⚠️ 这条覆盖缺口是**已知欠账**，不是遗漏；见 §18.11。
+    （第 96 层）。⚠️ 这条覆盖缺口是**已知欠账**，不是遗漏；见 §18.11 / §18.13。
+
+★ **可测性障碍的通用问法**（这一天撞上两次）：写任何守卫之前先问
+    「它能被 `import` 吗」。`judge()` 与 caliber 换算都曾只存在于 `main()` 内部
+    ⇒ 守卫连 import 都做不到 ⇒ 那段逻辑**零守卫**，
+    连「写一个 import 就炸的守卫」也不行。处置一律是**先提取到模块级**，
+    并用**重跑对拍**（不是眼睛看）证明提取不改行为。
 """
 import importlib.util
 import math
@@ -192,6 +199,89 @@ def test_upper_bound_is_c_plus_M_not_c_and_not_c_times_M():
         _, uu = M.judge(c, mm, "x")
         assert uu == pytest.approx(c + mm), f"U 应 = c+M = {c + mm:.6f}，实得 {uu:.6f}"
         assert uu != pytest.approx(c) or mm == 0.0
+
+
+# ── N9 达标所需的超额必须**年化**（2026-10-16 我把每期比值当成年化，
+#     让「实测/需要」从 6.27% 变成 1.06%，差 5.93×，且错数进了预注册文档）──
+
+def test_required_excess_is_annualized_and_monotone_decreasing_in_years():
+    """所需超额 = `((1+T)/(1+c_mkt))^(1/y) − 1`，**不是** `(1+T)/(1+c_mkt) − 1`。
+
+    两条断言**互相独立**，因为只写一条会漏：
+    ① **几何均值的定义**（把年化率复利回去必须还原成每期比值）。
+       ⚠️ 这**不是**第 109 层的「用公式重算自己的字段」：同一条式子写两遍是恒等式、
+       零信息量；而「复利回去要还原」是**年化这个量自己的定义**，与实现路径无关。
+    ② **对 `y` 严格单调递减**（每期比值 > 1 时，期限越长，年化所需越接近 0）。
+       未年化的写法**与 `y` 无关**（是个常数）⇒ 这条独立于 ① 把「漏掉 `**(1/y)`」
+       的写法杀掉，且不依赖任何数值容差。
+    ⚠️ 这里刻意**不**用「到正确式的距离 vs 到错式的距离×N」——那种写法我今天
+    先写成 `abs(got-e√R) > 10*abs(eR-e√R)`，结果把一条**本来正确的公式**判死了
+    （两个距离本就几乎相等）。⇒ 排除某个错式时，判据要与错式**成比例**地表述，
+    或干脆换一条与它无关的性质。
+    """
+    T, cm, y = 0.20, 0.0995, 5.717
+    got = M.required_excess(T, cm, y)
+
+    # ① 定义锚：年化率复利 y 期后还原成每期比值
+    per_period = (1.0 + T) / (1.0 + cm)
+    assert (1.0 + got) ** y == pytest.approx(per_period, rel=1e-12), \
+        f"(1+{got:.8f})^{y} 未还原成每期比值 {per_period:.8f}"
+
+    # ② 形状锚：期限越长越接近 0（未年化写法是常数 ⇒ 这条独立杀掉它）
+    seq = [M.required_excess(T, cm, yy) for yy in (1.0, 2.0, 5.717, 20.0)]
+    assert all(b < a for a, b in zip(seq, seq[1:])), f"未随期限单调递减：{seq}"
+    # ⚠️ 显式钉住「错式是常数」：它在 y 变化时一动不动
+    naive = per_period - 1.0
+    assert [naive] * 4 != seq, "未年化写法与期限无关 ⇒ 它不是年化率"
+
+    with pytest.raises(ValueError):
+        M.required_excess(T, cm, 0.0)
+
+
+# ── N10 caliber 的 `*_pct` 是**百分数**，换算只许发生一次 ──────────────────
+
+def test_the_caliber_percent_scale_is_converted_exactly_once():
+    """caliber 的 `9.9471` = **9.9471%**；当小数用会算出「基准年化 +994.71%」。
+
+    ⚠️ **外部锚**：年化收益不可能低于 −100% ⇒ 换算后必落在 `(−1, 1)`。
+    这条不需要公式也不需要容差，且**方向对称**（百分数当分数读会 > 1，当场红）。
+    ⚠️ `arm` **不许有默认值**：一旦有了默认值，「判决臂」与「敏感性臂」的区分
+       就会在某次调用里被悄悄抹掉，而读数照样印得出来（第 119 层）。
+       ⇒ 少传参数必须炸（TypeError），传错名字也必须炸（KeyError）。
+    """
+    cal = {"equal_weight": {"geometric_annual_pct": 9.94710351459831},
+           "cap_weight": {"geometric_annual_pct": 1.808663656249898}}
+    got = M.caliber_benchmark_fraction(cal, "equal_weight")
+    assert -1.0 < got < 1.0, f"年化收益不可能超出 (−1,1)，实得 {got} ⇒ 量纲错了"
+    assert got != pytest.approx(9.94710351459831), "原样返回 ⇒ 换算没发生"
+    # ⚠️ 两条基准臂必须能被分别取到，且不是同一个数
+    assert M.caliber_benchmark_fraction(cal, "cap_weight") != pytest.approx(got)
+    # ⚠️ 无默认臂：漏传参数必须炸，而不是悄悄用判决臂
+    with pytest.raises(TypeError):
+        M.caliber_benchmark_fraction(cal)
+    with pytest.raises(KeyError):
+        M.caliber_benchmark_fraction(cal, "不存在的臂")
+
+
+# ── N11 判决臂是**预注册**的那支，不许因为读数难看就换 ───────────────────
+
+def test_the_verdict_arm_is_the_preregistered_one_and_not_a_sensitivity_arm():
+    """判决臂 = `equal_weight`；敏感性臂里不许含判决臂。
+
+    ⚠️ 实测两臂「实测/需要」差 **7.94×**（6.27% vs 49.78%）⇒ 换臂就是换结论。
+    ⚠️ 但换臂**仍然是错的**：判决臂是**预注册**的（`VERDICT_BENCH_ARM`），
+       看了数据再换就是第 91 层。⇒ 正确处置是**加对照臂**（敏感性臂），
+       不是换掉判决臂 —— 本条守的正是这个区别。
+    ⚠️ 外部锚来自既有守卫
+       `tests/test_nav_caliber_judgment.py::test_the_verdict_benchmark_is_the_equal_weight_arm_and_not_the_cap_weighted_one`，
+       那条钉的是**测试内**的 helper；本条钉的是**生产侧**的常量（第 96 层：
+       产物层/测试层守卫对生产代码零覆盖）。
+    """
+    assert M.VERDICT_BENCH_ARM == "equal_weight"
+    assert M.VERDICT_BENCH_ARM not in M.SENSITIVITY_BENCH_ARMS, \
+        "判决臂同时出现在敏感性臂里 ⇒ 「敏感性」这个词失去意义"
+    assert "cap_weight" in M.SENSITIVITY_BENCH_ARMS, \
+        "⚠️ 少一条对照臂 ⇒ 「离目标多远」会被当成有唯一答案的问题"
 
 
 # ── N8 超额贡献走比值，**复利年化不可相减** ─────────────────────────
