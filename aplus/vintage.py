@@ -48,6 +48,13 @@ MANIFEST_NAME = "_manifest.jsonl"
 #: 返回帧上记录的「**实际**用了哪一天的快照」。回退发生时它 ≠ 请求日期。
 SNAPSHOT_DATE_ATTR = "snapshot_date"
 
+#: manifest 里「当天丢掉过什么」三个键。**提成常量是为了让读侧无从手打**——
+#: 打错的键名与没写这个字段长得一模一样（形状 6：看着像开关，实际焊死）。
+#: 守卫：`tests/test_vintage_dup_accounting.py`。
+DUP_DROPPED_FIELD = "n_dup_dropped"
+SRC_DUP_CODES_FIELD = "n_source_dup_codes"
+SRC_DUP_ROWS_FIELD = "n_source_dup_rows"
+
 
 # ── 路径 ────────────────────────────────────────────────────────────
 
@@ -77,7 +84,9 @@ def _digest(df: pd.DataFrame) -> str:
 
 
 def write_snapshot(root: Path | str, day: str, df: pd.DataFrame,
-                   amend: bool = True) -> Path:
+                   amend: bool = True,
+                   dup_dropped: int | None = None,
+                   source_dup: dict[str, int] | None = None) -> Path:
     """落盘某一天的快照。**只写这一天。**
 
     ## 为什么存整帧，不做列裁剪
@@ -90,6 +99,19 @@ def write_snapshot(root: Path | str, day: str, df: pd.DataFrame,
 
     用来模拟「有人绕过本模块直接改了文件」，好让 `verify_integrity` 能抓到。
     生产路径永远走默认的 `amend=True`。
+
+    ## `dup_dropped` / `source_dup`：**传不进 `0`，只能传或传 `None`**
+
+    这两个是**采集当天丢掉过什么**的证据（形状 19：章里没有字段能表达这件事）。
+    它们**只能由调用方声明**，本模块无从重算：
+    `dup_dropped` 含中间 flush 合并时的丢弃，而落盘帧里推不出来。
+
+    ⚠️ **`None` ⇒ 键缺席，不是写 `0`。**
+    2026-10-14/15 的历史条目**永久没有**这两个字段（那时还没量）；
+    若拿不到就写 `0`，则「没量过」与「量过、确实没有」**逐位同形**
+    ⇒ 这个字段只在它为真的那天有意义，而失效时**无任何信号**
+    ⇒ 形状 6「假装能调」的镜像：一个**恒为 0** 的字段比没有字段更坏。
+    ⇒ 读侧同样**不许 `.get(key, 0)`** 回落（守卫 `tests/test_vintage_dup_accounting.py`）。
     """
     root = Path(root)
     out = df.copy()
@@ -134,6 +156,15 @@ def write_snapshot(root: Path | str, day: str, df: pd.DataFrame,
             "n_cols": int(persisted.shape[1]),
             "sha256": _digest(digest_frame),
         }
+        # 当天丢掉过什么 —— **只有调用方声明得了这两个数**（见 docstring）。
+        # 「涉及几只」与「丢了几行」是**两个量**：一只票重复 50 次只涉及 1 只，
+        # 却丢 50 行 ⇒ 只记前者会让清理工作量被严重低估。
+        # `None` ⇒ **缺席**，不写 0（原因见 docstring：缺档必须可区分）。
+        if dup_dropped is not None:
+            entry[DUP_DROPPED_FIELD] = int(dup_dropped)
+        if source_dup is not None:
+            entry[SRC_DUP_CODES_FIELD] = int(len(source_dup))
+            entry[SRC_DUP_ROWS_FIELD] = int(sum(source_dup.values()))
         # **追加，不覆盖。** 覆盖就抹掉了「这一天的值后来变过」这个事实，
         # 而那个事实正是 vintage 唯一要回答的问题。
         with manifest_path(root).open("a", encoding="utf-8") as f:

@@ -441,7 +441,28 @@ def main() -> int:
 
     # 只有整轮抓完才登记 manifest。中途失败的那几只也要记进去，
     # 否则将来没人知道那天缺了谁。
-    snap = write_snapshot(args.root, day, df)
+    #
+    # ⚠️ `dup_dropped` / `source_dup` **必须一起登记**（形状 19）：
+    #   它们此前只 `print` 到 stdout，而 `data/vintage.log` **不是账本**
+    #   （不进 git、会被轮转、没人对账）⇒ 将来想知道「这份快照当天丢过什么」，
+    #   唯一的答案会是不许知道。
+    #   ⚠️ **石川 §6 的对象不是这张表**（`data/books/cn_factor_lines.txt:5023-5034`
+    #   逐字：讲的是「Wind/Tushare 的**三大表**」，例子是**大智慧 601519.SH
+    #   2014 年合并资产负债表**的存储层四类记录）。
+    #   ⇒ 它只支撑「同一报告期多行**不是天然异常**」，
+    #   **不能**支撑「本采集器这张东财财务指标表会给出版本对」。
+    #   本模块实测结论恰相反：当前源每个报告期只存一行、**没有版本维度**
+    #   （见 `aplus/vintage.py` 模块 docstring）⇒ 下面那道 `return 2`
+    #   今天守的是**潜伏**缺陷（盘上 `孤儿日 = []`，`source_dup` 从未触发），
+    #   而潜伏不等于不存在——登记这两个数正是为了让它哪天变成活的时有据可查。
+    #   ⇒ 实参取自 `res[...]`，**不许传 0**：传 0 会让全部守卫照常绿，
+    #   而账本从此每天记同一个常量（`tests/test_vintage_dup_accounting.py`）。
+    #   到这里 `source_dup` 必然为空——上面那道 `return 2` 已经把非空的挡掉了，
+    #   登记它是为了让「这份快照当天源站是干净的」成为**账本里的陈述**，
+    #   而不是 stdout 里的一句承诺。
+    snap = write_snapshot(args.root, day, df,
+                          dup_dropped=res["dup_dropped"],
+                          source_dup=res["source_dup"])
     # 溯源章（第 19 层在 PIT 链上的实例）：产物一落盘，代码与产物的关系就断了。
     # ⚠️ `data_root=args.root` + `daily_subdir=""` = 「目录本身就是数据」：
     #   不传就走默认的 `data/master/daily`，而**本脚本一次都没读过它**

@@ -1,0 +1,42 @@
+D1 采集器传字面量 0 而非真值	scripts/collect_financial_vintage.py
+snap = write_snapshot(args.root, day, df,
+                          dup_dropped=res["dup_dropped"],
+                          source_dup=res["source_dup"])
+=== 变异体 ===
+snap = write_snapshot(args.root, day, df,
+                          dup_dropped=0,
+                          source_dup=res["source_dup"])
+
+D2 采集器整个不传这两个实参	scripts/collect_financial_vintage.py
+snap = write_snapshot(args.root, day, df,
+                          dup_dropped=res["dup_dropped"],
+                          source_dup=res["source_dup"])
+=== 变异体 ===
+snap = write_snapshot(args.root, day, df)
+
+D3 写盘点收到计数却把它写死成 0	aplus/vintage.py
+if dup_dropped is not None:
+            entry[DUP_DROPPED_FIELD] = int(dup_dropped)
+=== 变异体 ===
+if dup_dropped is not None:
+            entry[DUP_DROPPED_FIELD] = 0
+
+D4 未声明时回落成 0 而不是键缺席	aplus/vintage.py
+if dup_dropped is not None:
+            entry[DUP_DROPPED_FIELD] = int(dup_dropped)
+=== 变异体 ===
+entry[DUP_DROPPED_FIELD] = int(dup_dropped or 0)
+
+D5 只看行数不看涉及几只（两个量对调）	aplus/vintage.py
+entry[SRC_DUP_CODES_FIELD] = int(len(source_dup))
+            entry[SRC_DUP_ROWS_FIELD] = int(sum(source_dup.values()))
+=== 变异体 ===
+entry[SRC_DUP_CODES_FIELD] = int(sum(source_dup.values()))
+            entry[SRC_DUP_ROWS_FIELD] = int(len(source_dup))
+
+D6 源站有重复时只打印不拦（登记成伪证据）	scripts/collect_financial_vintage.py
+print(f"     …共 {len(res['source_dup'])} 只")
+        return 2
+=== 变异体 ===
+print(f"     …共 {len(res['source_dup'])} 只")
+        return 0
