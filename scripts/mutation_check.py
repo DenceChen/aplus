@@ -1019,6 +1019,92 @@ MUTATIONS: list[tuple[str, str, str, str, str, list[str]]] = [
      "G1 的**唯一数据闸门**被取反 ⇒ 缺交易日反而放行。"
      "方向与「恒真」相反：它会让缺日**照出数**",
      ["tests/test_nav_caliber_judgment.py"]),
+
+    # ── hurdle_nav_caliber：§8「基准项从假设变参数」的守卫 ───────────────
+    # ★ 全部打在**用点**（return 行 / 转发实参），不打在定义点。
+    #   打在定义点的变异会靠「签名里还有这个参数」存活 ⇒ 虚高存活率、伪造「守卫有洞」。
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "    return (float(target) - float(benchmark_annual)\n"
+     "            + float(rounds_per_year) * float(cost_per_round))",
+     "    return (float(target) + float(benchmark_annual)\n"
+     "            + float(rounds_per_year) * float(cost_per_round))",
+     "★ 最毒的变异：基准项**加**而不是减 ⇒ 净值口径门槛**偏高**一个基准。"
+     "方向与「默认路径不变」**正交** —— 默认 0.0 时两式**同一个数**，"
+     "⇒ 只有真的把基准传进去的那几条测试能杀掉它（`test_the_nav_caliber_hurdle_is_exactly_one_benchmark_lower`）",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "    return (float(target) - float(benchmark_annual)\n"
+     "            + float(rounds_per_year) * float(cost_per_round))",
+     "    return (float(target) + float(rounds_per_year) * float(cost_per_round))",
+     "基准项被**整个删掉** ⇒ 退回 §8 之前的行为。"
+     "⚠️ 这一条在**默认路径上与原码逐位相同**，所以它考的是"
+     "「基准传进去时有没有被用」——正是「第 137 层：两份副本之间没有守卫」",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "                         round(hurdle_rate(target, cost_per_round, n,\n"
+     "                                           benchmark_annual), 4)})",
+     "                         round(hurdle_rate(target, cost_per_round, n,\n"
+     "                                           0.0), 4)})",
+     "🚨 `table` 收了基准却**硬写 0.0** 转发下去 —— 正是 §8 G7 点名的"
+     "「四把尺子里只有一把会量」"
+     "⇒ 必须由 `test_the_upper_layers_actually_forward_it_not_just_accept_it` 的"
+     "**正控**杀掉（签名检查会通过，返回值不变才会被发现）",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "    ok = feasible_k(gross_excess, cost_per_round, target, freqs,\n"
+     "                    benchmark_annual)",
+     "    ok = feasible_k(gross_excess, cost_per_round, target, freqs)",
+     "`max_affordable_daily` 吞掉基准 ⇒ 净值口径下会给出**偏高的**可行频率",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "            if gross_excess >= hurdle_rate(target, cost_per_round,\n"
+     "                                           rounds_per_year(k),\n"
+     "                                           benchmark_annual)]",
+     "            if gross_excess >= hurdle_rate(target, cost_per_round,\n"
+     "                                           rounds_per_year(k))]",
+     "`feasible_k` 吞掉基准 ⇒ 最底层之外的一把尺子不量",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "                benchmark_annual: float = 0.0) -> float:",
+     "                benchmark_annual: float = 0.099471) -> float:",
+     "🚨🚨 **G7-bis 违规**：把实测基准烤成**默认值** ⇒ 9 条仓内调用点**全体被改**，"
+     "而默认路径守卫会当场转红。"
+     "这一条证明「实测值不许进代码」不是洁癖：它是第 119 层的实体化 —— "
+     "一个 150 只抽样的数一旦变成默认值，全仓判决就都继承了它的噪声",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "aplus/hurdle.py",
+     "    if cost_per_round < 0:\n"
+     "        raise ValueError(f\"每轮成本不得为负，收到 {cost_per_round}\")",
+     "    if cost_per_round < 0 or benchmark_annual < 0:\n"
+     "        raise ValueError(f\"每轮成本不得为负，收到 {cost_per_round}\")",
+     "🚨 顺手给**基准**也加负值报错 —— 「负基准 ⇒ 门槛该升高」被误判成错误"
+     "⇒ 必须由 `test_a_negative_benchmark_is_accepted_because_it_is_not_a_cost` 杀掉",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    ("hurdle_nav_caliber", "tests/test_hurdle_nav_caliber.py",
+     "BENCH_PCT = 9.94710351459831",
+     "BENCH_PCT = 994710351459831.0",
+     "🚨 **测试侧**的量纲错：把百分数当分数用（**第 138 层原样**，本轮真的犯过一次）。"
+     "守卫若只是照抄测试自己的数，这条变异会**存活** ⇒ 证明"
+     "`test_the_benchmark_used_by_this_file_comes_from_the_artifact` 是唯一真正的外部锚",
+     ["tests/test_hurdle_nav_caliber.py"]),
+
+    # ⚠️ 这里**曾经**有一条「三把尺子的签名检查改成恒真」的变异，
+    #    它在签名检查还是唯一覆盖时**存活**。补上 `feasible_k` /
+    #    `max_affordable_daily` 的**正控**（返回值必须随基准变）之后，
+    #    它被那条更强的守卫**完全覆盖** ⇒ 变异随即被杀。
+    # ⇒ 那条变异已**删除**：它守的洞（转发）已经补上，
+    #   留着它只会让人以为「守卫有洞」，进而改本来正确的代码（第 112 层）。
+    # ⇒ `test_the_four_public_entry_points_all_default_to_the_same_number`
+    #   里的签名检查保留，但它是**防御性冗余**：判别力由正控提供，
+    #   它只负责在参数压根没收时给出可读报错。
 ]
 def _clear_pycache(rel_path: str) -> None:
     d = (ROOT / rel_path).parent / "__pycache__"

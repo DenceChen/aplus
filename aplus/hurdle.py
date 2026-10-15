@@ -44,6 +44,19 @@ A 股上不存在这种东西，而任何声称存在的方法
 年成本上限 = `rounds_per_year × cost_per_round`，对应**每期全换仓**
 （换手率 = 1）。实际换手通常更低，所以这是**上限**，
 真实门槛在 `hurdle_rate` 与实测年成本之间。
+
+## §8 基准项：从**假设**变成**参数**（预注册 `docs/TODO_nav_vs_excess_caliber_2026-10-15.md` §8）
+
+上面恒等式里缺的那一项（基准年化）曾是**藏起来的假设**：签名里没有它，
+于是「目标 20% 净值」被当成「20% 超额」来用。§8 把它变成**显式的末位参数**
+`benchmark_annual`，**默认 `0.0`** ⇒ 9 条仓内调用点的数字**逐位不变**，
+判决也**一字不改**（这正是它不属于放松门槛的依据，G9）。
+
+⚠️ **默认 0.0 是记账，不是「假设基准不存在」**：基准窗口实测等权几何年化
+**9.9471%**（`data/reports/market_nav_caliber.json`）。
+⚠️ **这个实测值不许写进本模块的常量**（G7-bis）——它是 150 只抽样的数，
+且偏差方向**非系统性**（§7.1）⇒ 烤进代码等于让全仓判决继承它的噪声。
+**基准必须是调用方的输入。**
 """
 from __future__ import annotations
 
@@ -65,38 +78,28 @@ COST_REAL_50K = 0.0055
 
 
 def hurdle_rate(target: float = TARGET_NET, cost_per_round: float = COST_REAL_50K,
-                rounds_per_year: float = DAYS_PER_YEAR) -> float:
-    """达到 ``target`` 净值所需的**年毛超额**。
+                rounds_per_year: float = DAYS_PER_YEAR,
+                benchmark_annual: float = 0.0) -> float:
+    """达到 ``target`` **账户净值**所需的**年毛超额**。
 
-        净 = 毛超额 − 年成本   ⇒   毛超额 = target + rounds × cost
+        账户净值 = **基准** + 毛超额 − 年成本
+        ⇒ 毛超额 = **target − benchmark_annual + rounds × cost**
 
-    ## ★ 上面的恒等式**省略了基准项**（2026-10-15 实测，预注册
-    ## `docs/TODO_nav_vs_excess_caliber_2026-10-15.md`）
+    ## ★ `benchmark_annual` 是 §8 预注册加进来的**基准项**（默认 `0.0`）
 
-    真实的账户净值是
+    默认 `0.0` ⇒ 本式退化成 `target + rounds × cost`，
+    与 9 条仓内调用点**逐位一致**，判决不变。
+    ⚠️ 这**不是放松门槛**，而是把一个**藏起来的假设**摆到签名上：
+      调用方现在可以**选择**按净值口径答（「用户的钱会不会涨」），
+      也可以按超额口径答（「因子有没有效」）。两者都必须标注（G7-ter）。
 
-        账户净值 = **基准** + 超额 − 摩擦
+    ⚠️ 参数**必须在末位**：`aplus/evolve_race.py:519` 用 3 个**位置**参数调用本函数，
+    插在中间会静默改变它的语义（`rounds_per_year` 被当成基准）。
 
-    而上面那式**只在基准年化 = 0 时成立**。用户的目标字面上是
-    「年化 20%」= **账户净值**，本函数给的是**要拿到多少超额**——
-    基准若年化 +10%，净值口径的门槛就比这里算出来的**低整整一个基准**。
-
-    ⚠️ **本函数一个字都不改**，因为它有 8 个消费者，
-    全仓判决都挂在它上面（`width_capital_feasibility` /
-    `factor_width_mde` / `verdict_monthly_hurdle` /
-    `backtest_walk_forward_weights` / `verdict_composite` /
-    `ic_to_return` / `evolve_race` …）。
-    ⇒ 改法必须是**先把判决窗口上的基准收益测出来**，
-      再决定是加基准项还是保留超额口径（预注册 §4 G3 三分支）。
-    ⇒ 在那之前调低门槛 = **把目标调低**，不是「找到了能赚钱的办法」
-      （第 129 层：降 K 是提速不是达标）。
-
-    ⚠️ 但这**不是**说超额口径本身是错的：石川在
-    `data/books/cn_factor_lines.txt:565`/`:571` 明确用超额衡量因子有效性，
-    而同一本书 `:9877`–`:9878` 把**绝对收益**与**超额收益**并列。
-    ⇒ 「因子有效/无效」用超额判（**现有因子判决不必改**），
-      「用户的钱会不会涨」用净值判（**这一句本函数答不了**）。
-    ⇒ 两者可以并存，把它们合并成一个是本函数真正的缺陷。
+    ⚠️ 基准**负值合法**，且它是**唯一允许为负**的参数：
+      负基准 = 市场跌 ⇒ 净值门槛**应该更高**，不是更低。
+      若顺手给它也加负值报错，就把一个正确方向判成错误。
+      （成本与轮数仍然报错，见下。）
 
     注意参数是**年调仓次数**，不是 K。K 是「每 K 个交易日调仓一次」，
     所以 `rounds = DAYS_PER_YEAR / K`。第一版在这里把两者搞混，
@@ -110,7 +113,8 @@ def hurdle_rate(target: float = TARGET_NET, cost_per_round: float = COST_REAL_50
         raise ValueError(f"每轮成本不得为负，收到 {cost_per_round}")
     if rounds_per_year < 0:
         raise ValueError(f"年调仓次数不得为负，收到 {rounds_per_year}")
-    return float(target) + float(rounds_per_year) * float(cost_per_round)
+    return (float(target) - float(benchmark_annual)
+            + float(rounds_per_year) * float(cost_per_round))
 
 
 def rounds_per_year(k: int) -> float:
@@ -121,38 +125,56 @@ def rounds_per_year(k: int) -> float:
 
 
 def feasible_k(gross_excess: float, cost_per_round: float = COST_REAL_50K,
-               target: float = TARGET_NET, freqs=FREQS) -> list[int]:
+               target: float = TARGET_NET, freqs=FREQS,
+               benchmark_annual: float = 0.0) -> list[int]:
     """给定毛超额，返回**够得着**目标的调仓周期 K。
 
     毛超额为负时返回空列表——这不是「没有频率可用」的委婉说法，
     是「这个信号在任何频率下都到不了 20%」的直接结论。
+
+    ⚠️ `benchmark_annual` **必须往 `hurdle_rate` 传**，不能收下就算完
+    （预注册 §8 G7：四个公开入口一个都不许把基准吞在手里）。
+    只在签名里收下它、比较时仍用旧门槛 = 造了
+    「四把尺子里只有一把会量」而调用方**从签名上看不出来**。
     """
     return [k for k in freqs
             if gross_excess >= hurdle_rate(target, cost_per_round,
-                                           rounds_per_year(k))]
+                                           rounds_per_year(k),
+                                           benchmark_annual)]
 
 
 def max_affordable_daily(gross_excess: float, cost_per_round: float = COST_REAL_50K,
-                         target: float = TARGET_NET, freqs=FREQS) -> int:
+                         target: float = TARGET_NET, freqs=FREQS,
+                         benchmark_annual: float = 0.0) -> int:
     """够得着目标的**最高**调仓频率（日频 = K 1）。
 
     返回 0 表示一次都不调仓才够得着——注意这通常意味着
     「信号不够强到值得交易」，而不是「那就别交易」。
+
+    ⚠️ 同样**必须转发**基准（预注册 §8 G7）。
     """
-    ok = feasible_k(gross_excess, cost_per_round, target, freqs)
+    ok = feasible_k(gross_excess, cost_per_round, target, freqs,
+                    benchmark_annual)
     return min(ok) if ok else 0
 
 
 def table(target: float = TARGET_NET, freqs=FREQS,
-          cost_per_round: float = COST_REAL_50K) -> list[dict]:
-    """给人看的那张表。**报告与测试共用同一份算术**，避免两处漂移。"""
+          cost_per_round: float = COST_REAL_50K,
+          benchmark_annual: float = 0.0) -> list[dict]:
+    """给人看的那张表。**报告与测试共用同一份算术**，避免两处漂移。
+
+    ⚠️ 同样**必须转发**基准（预注册 §8 G7）。
+    传进来的基准会**同时**改变每一行的 `annual_cost` 之外的
+    `gross_excess_needed` —— 这正是调用方要的净值口径表。
+    """
     rows = []
     for k in freqs:
         n = rounds_per_year(k)
         rows.append({"k": k, "rounds_per_year": round(n, 1),
                      "annual_cost": round(n * cost_per_round, 4),
                      "gross_excess_needed":
-                         round(hurdle_rate(target, cost_per_round, n), 4)})
+                         round(hurdle_rate(target, cost_per_round, n,
+                                           benchmark_annual), 4)})
     return rows
 
 

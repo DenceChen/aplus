@@ -47,3 +47,6 @@ llm.json
 
 # macOS
 .DS_Store
+
+# 测试/变异台的临时工作区（跑一次就重建，不是产物）
+.testtmp/
