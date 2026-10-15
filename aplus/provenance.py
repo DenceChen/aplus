@@ -166,7 +166,23 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 重跑见 docs/TODO_rerun_reversal_report.md。
     "VOID_reversal_freq_2019_2023__cost_10x_and_double_deduct.json":
         "aplus/backtest.py",
-    "regime_control_sweep.json": "aplus/backtest.py",
+    # 🚨 2026-10-15 接线修正（D2）：这里原来登记成 `aplus/backtest.py`，
+    # 而唯一写它的是 `scripts/regime_control_sweep.py`
+    # （`:261` 默认 `--out`、`:278-281` 唯一的 `write_text` 写盘点）。
+    # ⚠️ `aplus/backtest.py` 只是它 import 的库，不是生成器 ——
+    # 登记错生成器会让 `commits_touching()` 追错文件，
+    # 于是「谁动过这个产物」答的是另一个脚本的提交历史。
+    # ⚠️ 第 123 层：**生成器名只从写盘点与 `DEFAULT_GENERATORS` 读，
+    # 绝不许从输出文件名反推**（那份教训就是反推出来的名字不存在）。
+    "regime_control_sweep.json": "scripts/regime_control_sweep.py",
+    # 判决窗口两份：同一个脚本、同一段代码，产物写新文件名（预注册第三节约束 1）。
+    # ⚠️ **登记 ≠ 盖章**：这两个脚本都**不调** `provenance.stamp()`
+    # ⇒ 判 fresh 的依据只有 **commit 走查**，不是字节证据。
+    # 如实标注强度，不许假装有字节章。
+    "regime_control_judge_window_2026-10-15.json":
+        "scripts/regime_control_sweep.py",
+    "regime_control_judge_window_by_year_2026-10-15.json":
+        "scripts/regime_control_by_year.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
     # 2026-10-14 重跑：`yearly` 补齐三档（原实现只聚合 `all`，
     # 是**口径不一致**——全段表出三档、逐年表只出一档）。
