@@ -1035,3 +1035,43 @@ def test_the_negative_control_still_lands_on_arm_b():
     assert v_arm.get("portfolio_weighting") == "cap(uniform)", (
         f"V 臂的组合端口径标签是 {v_arm.get('portfolio_weighting')!r}，"
         f"应当是 `cap(uniform)` —— 它说的是「走市值加权那段代码 + 全等假市值」")
+
+
+def test_a_non_finite_input_is_refused_rather_than_falling_into_a_preregistered_branch():
+    """🚨 NaN **不属于任何一支预注册判决**，不许滑进 `CAP_POSITIVE_NOT_SIG`。
+
+    ★ 实测原写法（2026-10-15）：`NaN <= 0` 与 `NaN >= t_crit` **都是 False**
+      ⇒ 两支都被跳过 ⇒ 落进第三支，而第三支的文案把它**印成一次测量**：
+
+      | 入参 | 原判决 | 原文案 |
+      |---|---|---|
+      | `gross=NaN, t=None` | `CAP_POSITIVE_NOT_SIG` | 「C 臂毛超额 **+nan%/年 > 0**」 |
+      | `gross=.05, t=NaN`   | `CAP_POSITIVE_NOT_SIG` | 「… **t = nan < 1.9600**」 |
+
+      ⇒ 那不是「缺档被读成结论」，是**凭空造出一个方向性结论**：
+        `t = nan < 1.96` 读起来就是「测得偏小」。
+
+    ⇒ 与 `factor_attribution` 的 `isfinite` vs `!= 0` **同型**：
+      NaN 与所有值比较都是 False，于是「不满足任何条件」=
+      「不满足任何**可观测**条件」。
+    """
+    import math
+    from cap_weighted_benchmark import decide
+
+    nan = float("nan")
+    for gross, t, tag in ((nan, None, "毛超额 NaN"),
+                          (nan, nan, "两个都 NaN"),
+                          (0.05, nan, "只有 t 是 NaN")):
+        v, why = decide(gross, t)
+        assert v == "CAP_UNMEASURABLE", \
+            f"{tag} 应当拒绝判定，却落进了 {v}"
+        # ★ 文案本身也不许把 NaN 印成一次测量或一个方向
+        assert "nan <" not in why, f"{tag}：文案把 NaN 印成了「测得偏小」：{why}"
+        assert "方向为正" not in why, f"{tag}：文案凭空断言了方向：{why}"
+    # 正控：有限的 0 / ±inf 之外的值不受影响
+    assert decide(0.05, 5.0)[0] == "CAP_FACTOR_WORKS"
+    assert decide(0.05, 1.5)[0] == "CAP_POSITIVE_NOT_SIG"
+    assert decide(0.0, 9.0)[0] == "CAP_ZERO_OR_NEGATIVE"
+    # ±inf 同样不是有限值
+    assert decide(math.inf, 5.0)[0] == "CAP_UNMEASURABLE"
+    assert decide(0.05, -math.inf)[0] == "CAP_UNMEASURABLE"

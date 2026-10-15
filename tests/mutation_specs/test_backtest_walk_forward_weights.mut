@@ -1,0 +1,17 @@
+W1 默认末端从钉死值退回空串（回落被删 ⇒ `or …date.max()` 也不复存在 ⇒ 默认调用直接崩/跑出不可比窗口）	scripts/backtest_walk_forward_weights.py
+ap.add_argument("--end", default=WINDOW_END_PINNED)
+=== 变异体 ===
+ap.add_argument("--end", default="")
+
+W2 末端留空的拒绝被短接（`--end ""` 滑过去 ⇒ 窗口长度不再可复现，且产物里看不出差别）	scripts/backtest_walk_forward_weights.py
+if not args.end.strip():
+        print(f"🚨 `--end` 不许留空：末端必须显式钉死（形状 23：一只票定全池窗口）。"
+              f"当前默认 {WINDOW_END_PINNED}（主库比它新，多出来的天数不许默认吃掉）。",
+              file=sys.stderr)
+        return 2
+=== 变异体 ===
+if False and not args.end.strip():
+        print(f"🚨 `--end` 不许留空：末端必须显式钉死（形状 23：一只票定全池窗口）。"
+              f"当前默认 {WINDOW_END_PINNED}（主库比它新，多出来的天数不许默认吃掉）。",
+              file=sys.stderr)
+        return 2

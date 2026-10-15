@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from datetime import date
@@ -116,7 +117,39 @@ def decide(gross_annual: float, t_blocked: float | None) -> tuple[str, str]:
 
     ★ 分支顺序 = 判据的严厉程度降序，且**互斥、无重叠**：
       第一条把「≤ 0」全部吃掉，后两条只对「> 0」成立。
+
+    ## 🚨🚨 NaN 不是「未知」，是「压根没算出数」——它不属于任何一支（2026-10-15）
+
+    实测原写法在 NaN 上的行为：
+
+    | 入参 | 原判决 | 原文案 |
+    |---|---|---|
+    | `gross=NaN, t=None` | `CAP_POSITIVE_NOT_SIG` | 「C 臂毛超额 **+nan%/年 > 0**」 |
+    | `gross=NaN, t=NaN`   | `CAP_POSITIVE_NOT_SIG` | 「…**t = nan < 1.9600**」 |
+    | `gross=.05, t=NaN`   | `CAP_POSITIVE_NOT_SIG` | 「…**t = nan < 1.9600**」 |
+
+    原因与 `np.isfinite` vs `!= 0` **完全同型**：`NaN <= 0` 与
+    `NaN >= T_CRIT` **都是 False** ⇒ 两支都被跳过 ⇒ 落进第三支。
+
+    🚨 而第三支的文案会**把 NaN 印成一次测量**，并断言「方向为正」：
+       `t = nan < 1.9600` 读起来就是「测得偏小」，
+       `+nan%/年 > 0` 读起来就是「方向为正」。
+       ⇒ 这不是缺档被读成结论，是**凭空造出一个方向性结论**。
+
+    ⇒ 新增第 0 支 `CAP_UNMEASURABLE`。**它不是第四个预注册分支**，
+      而是「预注册的三支**没有这一状态**」的显式声明 ——
+      缺档必须报错、绝不回落（本仓铁律）。
     """
+    if not math.isfinite(gross_annual) or (
+            t_blocked is not None and not math.isfinite(t_blocked)):
+        return ("CAP_UNMEASURABLE",
+                f"🚨 **判决不下**：C 臂毛超额 = {gross_annual!r}、"
+                f"t = {t_blocked!r}，至少一项**不是有限值**。"
+                "NaN 不是「未知」也不是「测得小」——是**压根没算出数**，"
+                "而 `NaN <= 0` 与 `NaN >= t_crit` 都是 False，"
+                "会让它一路滑进 `CAP_POSITIVE_NOT_SIG`，文案再把这份 NaN "
+                "**印成一次「t 比 t_crit 小」的测量**。⇒ **预注册的三支没有这一状态**，"
+                "此处不判定；先查上游为何没算出数。")
     if gross_annual <= 0:
         return ("CAP_ZERO_OR_NEGATIVE",
                 f"C 臂毛超额 {gross_annual:+.2%}/年 ≤ 0 ⇒ **A 臂那 6.95%/年"

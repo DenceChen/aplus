@@ -1,0 +1,16 @@
+C1 NaN 闸门被整个短接（两支都跳过 ⇒ 滑进 NOT_SIG 并被印成一次测量）	scripts/cap_weighted_benchmark.py
+if not math.isfinite(gross_annual) or (
+            t_blocked is not None and not math.isfinite(t_blocked)):
+=== 变异体 ===
+if False and (not math.isfinite(gross_annual) or (
+                t_blocked is not None and not math.isfinite(t_blocked))):
+
+C2 「毛超额 ≤ 0」退回「< 0」（等号丢失 ⇒ 恰好为 0 时滑进错误分支）	scripts/cap_weighted_benchmark.py
+if gross_annual <= 0:
+=== 变异体 ===
+if gross_annual < 0:
+
+C3 「t ≥ t_crit」退回「t > t_crit」（等号丢失 ⇒ 恰好显著时被判不显著）	scripts/cap_weighted_benchmark.py
+if t_blocked is not None and t_blocked >= T_CRIT_5PCT:
+=== 变异体 ===
+if t_blocked is not None and t_blocked > T_CRIT_5PCT:

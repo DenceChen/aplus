@@ -69,8 +69,25 @@ _SAMPLE_N = 64
 #   （与 `DEFAULT_GENERATORS` 同一手法：名单会腐，但腐的方式是逼人思考。）
 #   `run_daily.py` / `audit_survivorship/audit.py` 不在内：那是「探针」语义
 #   （读不出来就换一只票），不是拿单点当全池窗口。
+# 🚨 2026-10-15：`backtest_walk_forward_weights.py` **从名单里消失了**，
+#   而它是被**修好**才消失的 —— `--end` 留空的回落（`files[0]`）已删除，
+#   默认改用 `WINDOW_END_PINNED`，且产物写 `window{start,end,…}`。
+#   ⇒ 守卫自己的报错写着「消失的也要解释：是被修好了，还是被改名躲过了扫描？」——
+#   答案是前者，已逐行核对：`grep files[0]` 在它里只剩注释里的引用。
+#   ⇒ ⚠️ 「消失」在这里是好消息。冻结名单的价值就在这一问。
+#
+# 🚨🚨 2026-10-15 当天第二次：`spread_tilted_arm.py` 也从名单里消失，
+#   **同样是修好才消失的**，而且这次连**起点**那一半也是活 bug：
+#     `start = a.start or str(pd.read_parquet(files[0])["date"].min())`
+#   实测 `files[0]`（`000001.SZ`）起点 `2019-01-02`，**全池最早是
+#   `1994-09-28`（`000043.SZ`）** ⇒ 静默砍掉 24 年历史，零告警。
+#   而 `--end` 的 help 写着「缺省 = 快照最晚日」——help 与实现**两句话
+#   都不是真的**。已改走 `panel.market_date_axis`（形状 17：日期轴唯一实现），
+#   help 改成「全池日期轴最早/最晚日」。新增守卫 `G1/G2` 钉这个形态。
+#   ⇒ ★ 值得单独记的是**末端为什么没被发现**：池最晚 `2026-10-14` **就是
+#   `000001.SZ` 本人**，两端同时「恰好相等」。**只测末端会得到「没问题」**，
+#   而同一行的起点是活的。
 _KNOWN_END_FROM_FILES0 = {
-    "scripts/backtest_walk_forward_weights.py",
     "scripts/candidate_block_audit.py",
     "scripts/evolve_race_composite.py",
     "scripts/evolve_race_fast.py",
@@ -115,6 +132,189 @@ def _end(p: pathlib.Path) -> str:
 def _sample(files: list[pathlib.Path]) -> list[pathlib.Path]:
     stride = max(1, len(files) // _SAMPLE_N)
     return files[::stride][:_SAMPLE_N]
+
+
+def _pool_lo() -> tuple[str, str]:
+    """全池真正的最早起点 —— 读 parquet **元数据统计量**，不读数据页。
+
+    ⚠️ 为什么不用 pandas 全扫：单只 0.03 s × 5460 ≈ 143 s，会把守卫拖成慢测试。
+    ⚠️ 为什么不用抽样：见下面那条守卫 docstring —— 抽样在这里给出**假绿**。
+    元数据统计量与 `pd.read_parquet(columns=["date"])` 已逐位核对一致
+    （`000043.SZ` / `000001.SZ` 各一次，见本文件提交历史）。
+    """
+    import pyarrow.parquet as pq
+    best = ("<none>", "<none>")
+    for p in sorted(_DAILY.glob("*.parquet")):
+        f = pq.ParquetFile(p)
+        for rg in range(f.metadata.num_row_groups):
+            for c in range(f.metadata.num_columns):
+                col = f.metadata.row_group(rg).column(c)
+                if col.path_in_schema == "date" and col.statistics is not None:
+                    if str(col.statistics.min) < best[0]:
+                        best = (str(col.statistics.min), p.stem)
+    return best
+
+
+_STA = "scripts/spread_tilted_arm.py"
+
+
+def _sta_source() -> str:
+    return (_ROOT / _STA).read_text(encoding="utf-8")
+
+
+def _reads_a_parquet_through_a_list_subscript(source: str) -> list[str]:
+    """找出「**按下标**从 parquet 读一只票」的调用，返回可读描述。
+
+    ⚠️⚠️ 第一版谓词写成「任何对 Name 的下标」⇒ **立刻过严**：
+      它把 `out["x"]`、`tuple[...]`，以及**修复代码自己刚写的 `axis[0]`**
+      一起判红（实测该文件有 90+ 处这种下标）。
+      ⇒ 这正是记忆里那条：**过严的守卫和恒真的守卫一样有害**——
+      它是绿的/红的，但它会把人推向「去改本来正确的代码」。
+
+    ⇒ 收窄到**真正有害的形状**：调用 `read_parquet`，且实参里含下标。
+    这个谓词与变量名无关 ⇒ 改名成 `paths[0]` 骗不过；
+    也不误伤 `axis[0]` / `out["x"]` / `tuple[...]`。
+    """
+    tree = ast.parse(source)
+    hits: list[str] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "read_parquet"):
+            continue
+        if any(isinstance(a, ast.Subscript) for a in node.args):
+            hits.append(f"L{node.lineno}: {ast.unparse(node)[:70]}")
+    return hits
+
+
+def test_G1_the_window_bounds_never_come_from_one_single_file():
+    """★ 起点**和**末端都不得从任何单只票派生（形状 18 的两半）。
+
+    为什么单独给 `spread_tilted_arm.py` 开一条，而不是只靠上面那份冻结名单：
+    名单是**登记制**——修好了要**有人手动撤**，忘了撤就退化成「已知问题清单」。
+    这条是**形态制**——不管谁写、怎么写，只要从「某一只」读日期就红。
+    """
+    hits = _reads_a_parquet_through_a_list_subscript(_sta_source())
+    assert not hits, (
+        f"{_STA} 又从**某一只票**读日期了：\n  " + "\n  ".join(hits) +
+        "\n窗口/日期边界必须来自 `aplus.panel.market_date_axis`（全池并集）。")
+
+
+def test_G1_positive_control_the_detector_is_not_vacuous():
+    """给 G1 的谓词上**双向**正控：认得出真会犯的，认不出合法的。
+
+    没有反向那半条，谓词可能因为「什么都不匹配」而恒真。
+    没有正向那半条，谓词可能退化成「什么都不匹配」还照样绿。"""
+    bad = ("files = sorted(d.glob('*.parquet'))\n"
+           "start = str(pd.read_parquet(files[0])['date'].min())\n")
+    assert _reads_a_parquet_through_a_list_subscript(bad), "谓词认不出 files[0]"
+    # 合法形态：整池路径 / 整池拼接，都**不该**被判红
+    ok = ("df = pd.read_parquet(a.data_root / 'master' / 'daily' / 'all.parquet')\n"
+          "axis = market_date_axis(daily_map)\n"
+          "start, end = axis[0], axis[-1]\n")
+    assert not _reads_a_parquet_through_a_list_subscript(ok), (
+        "谓词把 `axis[0]` / `axis[-1]` 这类**合法**的日期轴取法也判红了 ⇒ 过严")
+
+
+def _argparse_help(flag: str) -> str | None:
+    """取 `add_argument(flag, …, help=…)` 的 **help 实参原文**。
+
+    🚨 为什么不能 `assert "快照最早日" not in src`（我第一版就是这么写的，
+    当场红）：整份源码里都**有**这两个词 —— 在我新写的注释里，
+    那段注释正在**引用旧 help 文案**说明它曾经是错的。
+    ⇒ 文本全文匹配会把「历史叙述」读成「当前行为」，第 123 层同族。
+    ⇒ 必须落到 AST 的 `help=` 实参上。
+    """
+    tree = ast.parse(_sta_source())
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "add_argument"):
+            continue
+        flags = [a.value for a in node.args
+                 if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+        if flag not in flags:
+            continue
+        for kw in node.keywords:
+            if kw.arg == "help":
+                return ast.literal_eval(kw.value)
+    return None
+
+
+def test_G2_the_window_default_routes_through_the_single_date_axis():
+    """形状 17：日期轴只有**一个**实现，脚本不许自己做第二遍并集。"""
+    src = _sta_source()
+    assert "from aplus.panel import market_date_axis" in src, (
+        f"{_STA} 不许自己算日期轴；缺省窗口必须走 "
+        "`aplus.panel.market_date_axis`（全池日期轴的唯一实现）。")
+    assert "market_date_axis(daily_map)" in src, (
+        f"{_STA} 引入了 market_date_axis 却没拿它定缺省窗口 —— "
+        "⚠️ 先确认是不是被改了名躲过了扫描。")
+    # help 文本必须**说真话**：它描述的就是上面那两行的行为。
+    for flag in ("--start", "--end"):
+        help_text = _argparse_help(flag)
+        assert help_text is not None, f"{_STA} 的 {flag} 没有 help 文本了"
+        assert "快照最早日" not in help_text and "快照最晚日" not in help_text, (
+            f"{_STA} 的 {flag} help 仍写着「快照最早/最晚日」，"
+            "而实现是全池日期轴。两句话不一致 = 至少有一句在骗读代码的人。")
+        assert "全池日期轴" in help_text, (
+            f"{_STA} 的 {flag} help 应当说清缺省值来自**全池日期轴**，"
+            f"当前写的是：{help_text!r}")
+
+
+def test_G2_positive_control_the_help_extractor_reads_the_real_argument():
+    """上条的正控：抽取器必须认得**真会犯**的形态，而不是返回 None 一路绿。"""
+    assert _argparse_help("--start") is not None, "抽取器连 --start 都取不到"
+    assert "全池日期轴" in _argparse_help("--start"), (
+        "抽取器取到的不是 --start 的 help")
+    assert _argparse_help("--nonexistent-flag") is None, (
+        "不存在的 flag 必须返回 None，否则它其实在返回别的东西")
+
+
+def test_the_single_point_start_would_have_been_wrong_so_the_guard_is_not_ceremony():
+    """★ 这条不是钉生产形态，是钉**为什么要有 G1**——那个已经消失的事实。
+
+    生产已改走 `market_date_axis`，所以「`files[0]` 起点 ≠ 全池起点」
+    这件事在代码里**再也看不出来**了。若不把它钉成守卫，
+    「起点单点依赖不是问题」这个（当时很流行、后来证伪的）说法会重新长回来。
+
+    🚨 实测 2026-10-15：`files[0]` 起点 `2019-01-02`，
+    **全池**最早 `1994-09-28`（`000043.SZ`），另 `300114.SZ` 起于 `2010-08-27`
+    ⇒ 从 `files[0]` 兜底会**静默砍掉两只票的 24 年历史**，零告警。
+
+    ⚠️ 这条曾经让我写出**反向**的注释：我先量「抽样 96 只的最早起点」，
+    得到 `2019-01-02`，就下了「起点没偏、是潜伏」的结论并写进冻结名单。
+    全池一扫才发现两只早期票**一只都没进抽样**
+    ⇒ **探针的「没发现」长得和「不存在」一模一样**（第 123 层）。
+    这也是为什么 `_pool_lo()` 全扫（1.7 s，读元数据统计量）而不抽样。
+    """
+    files = _panel_files()
+    f0 = sorted(files)[0]
+    lo0 = str(pd.read_parquet(f0, columns=["date"])["date"].min())
+    lo_pool, who = _pool_lo()
+
+    assert lo0 != lo_pool, (
+        f"`files[0]`（{f0.stem}）的起点现在**就是**全池最早 `{lo_pool}`。"
+        "⇒ 单点依赖在起点侧不再是隐患。"
+        "⚠️ 那通常意味着**数据又被修了**（补历史）；先确认这一点，"
+        "再决定 G1 的紧迫性 —— **别直接删 G1**。")
+
+
+def test_a_strided_sample_cannot_see_the_earliest_history_in_the_pool():
+    """★ 给上一条上枷锁：抽样**确实**看不见最早的票 —— 这是它的已知盲区。
+
+    没有这条，`_sample()` 可以退化成任意东西而上面那条照样绿；
+    而上面那条今天**只能**全池才判得对。⇒ 本问题**禁用** `_sample()`。
+    """
+    files = _panel_files()
+    lo_sample = min(str(pd.read_parquet(p, columns=["date"])["date"].min())
+                    for p in _sample(files))
+    lo_pool, who = _pool_lo()
+
+    assert lo_sample != lo_pool, (
+        f"抽样现在**能**看见全池最早的 `{who}`（{lo_pool}）了。"
+        "⇒ 抽样恰好在前沿问题上变成有效的；"
+        "仍不必改用抽样（全扫只要 1.7 s，抽样省不下什么）。")
 
 
 # ── 正控：抽样本身必须真的包含被审查的对象 ──────────────────────────
@@ -236,6 +436,15 @@ def test_the_three_sites_without_an_end_override_are_still_exactly_three():
         "scripts/significance_check.py",
         "scripts/execution_lag_ab.py",
         "scripts/evolve_weekly.py",
+        # 🚨 2026-10-15 曾登记 `spread_tilted_arm.py`，注释写着「本轮不修」。
+        #   同一天晚些时候**修掉了**，理由与后果都记在这里（别把「不修」读成「不修」）：
+        #     当时的顾虑是「改动会动既有窗口，属引入新问题」。
+        #     而实测证明这个顾虑的前提是错的 ——
+        #       末端：池最晚 2026-10-14 **就是 `000001.SZ` 本人** ⇒ **不动**；
+        #       起点：全池最早 1994-09-28 vs `files[0]` 的 2019-01-02
+        #             ⇒ 缺省窗口本来就少 24 年，**不动才是错的**。
+        #     「怕改坏」不能成为不核对事实的理由：先量影响半径（两端各差多少），
+        #     再决定改不改。⇒ 已改走 `panel.market_date_axis`，形态由 G1/G2 钉住。
     }
     assert unguarded == expected, (
         f"★ 无兜底的单点依赖集合变了。\n"

@@ -1,0 +1,112 @@
+{
+  "kind": "verdict_composite_three_arm",
+  "generated_by": "scripts/verdict_composite.py",
+  "note": "「桥·年毛超额」那一列走已被实测证伪的 IC→分位价差桥（常数错 + 形状错，q=0.2 上高估 4.02×），**不许被引用**；判决只依据组合 IC 与门槛。",
+  "config": {
+    "matrices": "/private/var/folders/hd/q0_8f1493_q_srhcqg6q_z9c0000gn/T/pytest-of-airboom/pytest-2330/test_the_control_arm_is_restri0/mat.parquet",
+    "factors": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "judged_from": 2021,
+    "equal_weight_years": [
+      2019,
+      2020
+    ],
+    "weight_rule_main": "optimal",
+    "n_days_extracted": 270,
+    "date_min": "2026-01-01",
+    "date_max": "2028-12-22"
+  },
+  "threshold": {
+    "need_pct": 0.2639047619047619,
+    "ic": 0.013890106515233716,
+    "sigma_r": 0.02656,
+    "derived_from": "σ_r 实测 + 月频成本假设（外部锚，非字面量）"
+  },
+  "judged_years": [
+    2027,
+    2028
+  ],
+  "n_fail_years": 0,
+  "three_arm": {
+    "threshold_ic": 0.013890106515233716,
+    "years": [
+      2027,
+      2028
+    ],
+    "by_year": {
+      "2027": {
+        "optimal": 0.742730030609329,
+        "sign_only": 0.7428324760913589,
+        "equal_raw": -0.0019123967473897263,
+        "optimal_minus_sign": -0.00010244548202997805,
+        "pass_optimal": true,
+        "pass_sign": true,
+        "pass_equal": false,
+        "weights": {
+          "0": 0.6023033093368191,
+          "1": -0.6013567051086566,
+          "2": 0.6005060491187427,
+          "3": -0.5860573110182727
+        },
+        "weights_source": "walk_forward"
+      },
+      "2028": {
+        "optimal": 0.743922976670792,
+        "sign_only": 0.7439483977280773,
+        "equal_raw": -0.002497424460250947,
+        "optimal_minus_sign": -2.5421057285313076e-05,
+        "pass_optimal": true,
+        "pass_sign": true,
+        "pass_equal": false,
+        "weights": {
+          "0": 0.6023096179877091,
+          "1": -0.5990485979982415,
+          "2": 0.5958186208141262,
+          "3": -0.5932291561973769
+        },
+        "weights_source": "walk_forward"
+      }
+    },
+    "summary": {
+      "mean_advantage_optimal_over_sign": -6.393326965764556e-05,
+      "advantage_as_fraction_of_threshold": -0.0046027918927423585,
+      "sign_arm_failures": 0,
+      "equal_arm_failures": 2,
+      "sign_not_worse_years": 2,
+      "n_years": 2,
+      "equal_arm_ic_negative_years": 2
+    },
+    "arm_definitions": {
+      "optimal": "w ∝ R⁻¹Σ_f（optimal_weights），只用该年之前的数据 —— **主判决**",
+      "sign_only": "sign(历史 IC) —— 只学方向，一个系数都不学，代码里自称「石川那句话的最强版本 / 真正及格线」",
+      "equal_raw": "1/√k 原样 —— 连方向都不学。⚠️ **7/8 因子 IC 为负 ⇒ 这一臂的 IC 必然为负**，它是「不学任何东西」的下界，**不是「等权」的中性对照**"
+    }
+  },
+  "vs_best_single_factor": {
+    "2027": {
+      "composite_ic": 0.742730030609329,
+      "best_single": "3",
+      "best_single_ic": -0.3130294505258589,
+      "increment": 0.42970058008347006
+    },
+    "2028": {
+      "composite_ic": 0.743922976670792,
+      "best_single": "1",
+      "best_single_ic": -0.3142571110316457,
+      "increment": 0.42966586563914627
+    }
+  },
+  "default_weights_reference": {
+    "weights": {
+      "mom20": -1.0,
+      "rev5": 0.3,
+      "vol20": -0.5,
+      "vsur": -0.5
+    },
+    "why_here": "★ `DEFAULT_WEIGHTS` **不是判决路径用的权重**。判决路径 = `walk_forward` → `train_weights` → `optimal_weights`（8 因子、逐年变、只用该年之前）。`DEFAULT_WEIGHTS` 是 `composite_score(weights=None)` 的回落，即**实盘出单**路径的默认。⇒ 两者结构不同：`ivol` 在 DEFAULT 里恒 0 而在判决里幅度最大；`vol20` 符号相反。把 DEFAULT_WEIGHTS 当成「现状基线」会认错基线（第 127 层）。"
+  }
+}

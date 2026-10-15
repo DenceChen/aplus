@@ -100,20 +100,33 @@ def test_a_leaky_window_is_never_usable_even_when_it_has_no_overlap():
     ★ 而它**不报错、不崩**，还产出一个完整的判决字典。
     这是最坏的一类：证据齐整、口径有毒。
 
-    ⇒ 构造一个「leak 窗口字母序在前 + 零重叠 + 更强的反相关」的产物：
-    若筛选只看重叠，判决条件会被 leak 窗口的数满足 ⇒ 红。
+    ⇒ 构造一个「leak 窗口**零重叠**、字母序在前」的产物：
+    若筛选只看重叠，leak 窗口会进 `usable` ⇒ 红。
+
+    ## 这条守卫的牙在**集合成员**，不在 cond1（第一版的自我描述过头了）
+
+    第一版写「若筛选只看重叠，判决条件会被 leak 窗口的数满足 ⇒ 必须红」。
+    🚨 **那是假的**：新夹具里两个窗口的 signed ρ 都是 −1.0 ⇒ cond1 都是 True
+    ⇒ 把 leak 放进来 `all()` **照样是 True** ⇒ 通过 cond1 **观察不到**筛选坏没坏。
+    ⇒ 牙只有两处，都在本条断言里：`usable_windows` 与 `per_window_verdict` 的成员。
+    ⚠️ 记下来是因为「守卫的自我描述不可信，就是守卫本身不可信的信号」——
+    而这一条是**我自己**又犯了一次（第一次犯在 `test_all_windows_...` 上）。
     """
     ic = {"windows": ["lag0_leaky", "lag1_real"],
           "fwd_windows": {"lag0_leaky": [-1, 0], "lag1_real": [0, 1]},
-          # leak 窗口给一个**比 lag1_real 更强**的反相关（−0.99），
-          # 若筛选只看重叠、不看前视，判决条件就会被它满足 ⇒ 必须红
-          "table": _ic_table(extra_leak=(-0.99, 0.05, 0.95))}
+          # leak 窗口的 mom20 低尾命中率拉到 0.95（价差最大 ⇒ IC 最负），
+          # 形状与其他窗口同构 —— 它**只**该因为含前视而被排除，不该因为别的
+          "table": _ic_table(extra_leak=0.95)}
     wf = _wf()
     res = wvs.diagnose(_write_ic(ic), _write_wf(wf))
     assert "lag0_leaky" not in res["usable_windows"], \
         "含前视的窗口进了可用集合 —— 这会把判决建在用了未来数据的口径上"
     assert res["usable_windows"] == ["lag1_real"]
-    # 判决条件必须只由 lag1_real 决定：它的 |IC|ρ尾部 = −0.9286 ⇒ cond1 真
+    assert "lag0_leaky" not in res["per_window_verdict"], \
+        "leak 窗口的判决条件不该被算出来 —— 算了就说明它进了判决链"
+    # leak 窗口**零重叠**（fwd=(-1,0) ⇒ 重叠长度 max(0−(−1),1)=1 ⇒ 倍数 1.0），
+    # 所以只看重叠的筛选**放它过** ⇒ 这条断言确实卡的是「前视」这一维
+    assert res["windows"]["lag0_leaky"]["overlap_factor"] == pytest.approx(1.0)
     assert res["per_window_verdict"]["lag1_real"]["cond1_ic_antispread"] is True
 
 
@@ -241,15 +254,15 @@ def test_all_windows_must_agree_not_just_one_of_them():
     """
     ic = _ic_fixture()
     # 加第二个**合格**窗口（无前视 + 零重叠），且它的 cond1 为假：
-    # 令 |IC| 与尾部价差**同向** ⇒ ρ = +1.0 ⇒ `rho <= -crit` 不成立
-    same_order = [("mom20", -0.9, 0.90, 0.91), ("rev5", -0.8, 0.50, 0.51),
-                  ("vol20", -0.7, 0.30, 0.31), ("vsur", -0.6, 0.20, 0.21),
-                  ("turn20", -0.5, 0.40, 0.41), ("turnratio", -0.4, 0.25, 0.26),
-                  ("ivol", -0.3, 0.35, 0.36), ("rsi", -0.2, 0.45, 0.46)]
-    for f, icv, hi, lo in same_order:
-        ic["table"].append({"factor": f, "window": "lag2_real", "all": icv,
-                            "all_t": 1.0, "tail_high_hit": hi, "tail_low_hit": lo,
-                            "n_days": 1820})
+    # 令**带符号** IC 与尾部价差**同向** ⇒ ρ = +1.0 ⇒ `rho <= -crit` 不成立。
+    # ⚠️ 价差必须**严格单调**（第一版手抄成八个都差 0.01 ⇒ 全是并列
+    #   ⇒ 秩相关退化 ⇒ ρ = NaN，而 `NaN <= -crit` 是 False ⇒ 正控当场亮红灯）。
+    same_order = [("mom20", 0.60), ("rev5", 0.50), ("vol20", 0.40), ("vsur", 0.30),
+                  ("turn20", 0.20), ("turnratio", 0.15), ("ivol", 0.10), ("rsi", 0.05)]
+    for f, sp in same_order:
+        ic["table"].append({"factor": f, "window": "lag2_real", "all": sp,
+                            "all_t": 1.0, "tail_high_hit": 0.30,
+                            "tail_low_hit": 0.30 + sp, "n_days": 1820})
     ic["windows"].append("lag2_real")
     ic["fwd_windows"]["lag2_real"] = [0, 2]
 
@@ -327,11 +340,18 @@ def test_a_window_that_fails_the_bar_must_weaken_the_verdict_not_be_dropped():
             "判决变弱不是被数据判出来的，是被筛选藏起来的")
     if weak and all(d["per_window_verdict"][k]["cond2_weight_not_following"]
                     for k in d["usable_windows"]):
-        assert d["verdict"] == "DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE", \
+        assert d["verdict"] != "WEIGHT_TARGET_MISMATCH", \
             (f"有窗口没过门槛（{weak}）却仍报 WEIGHT_TARGET_MISMATCH ⇒ "
              "把「一致」当成了「显著」")
+        # ⚠️ 这里**不再**钉死是哪一个「弱」标签：
+        #   2026-10-15 起 ρ 的方向有两个含义完全相反的分支
+        #   （反向 = 有病灶 / 同向 = 本就一致），而**哪一个分支**
+        #   取决于带符号 ρ 的正负，由 `test_the_middle_verdict_label_requires_a_
+        #   negative_correlation` 单独钉。
+        #   钉死标签会把「换个窗口」这种数据变化变成红灯，
+        #   而红灯会诱使人去动筛选（第 112 层，最糟的方向）。
     assert d["rho_sign_consistent_across_all_windows"] is True, \
-        "四个窗口的 ρ 全为负 ⇒ 方向一致；这条若不成立，说明窗口数据变了，须重判"
+        "各窗口的 ρ 符号一致；这条若不成立，说明窗口数据变了，须重判"
 
 
 def test_the_verdict_is_reported_together_with_the_conditions_that_made_it():
@@ -378,16 +398,18 @@ def test_a_window_with_the_opposite_sign_must_make_the_direction_inconsistent():
     ⇒ 写死 True 的变异当场变红。
     """
     ic = _ic_fixture()
-    # ⚠️ 价差必须**严格单调**，且**跟 |IC| 同向**（两个序列一起动）：
-    #   第一版我手抄成 `0.9x − 0.9y`，八个价差全等于 −0.01 ⇒ 全是并列
-    #   ⇒ 秩相关退化 ⇒ ρ ≈ 0（正控当场亮红灯，这正是正控的用途）。
-    #   第二版单调对了却**方向反了**：|IC| 随 rank 递减、价差随 rank 递增
-    #   ⇒ ρ = −1.0 ⇒ 正控又亮红灯。
-    #   ⇒ 第三版：`hi` 固定 0.50，`lo` 也随 rank 递减 ⇒ 价差同向递减 ⇒ ρ = +1.0。
-    order = [("mom20", 0.90), ("rev5", 0.80), ("vol20", 0.70), ("vsur", 0.60),
-             ("turn20", 0.50), ("turnratio", 0.40), ("ivol", 0.30), ("rsi", 0.20)]
-    for rank, (f, absic) in enumerate(order):
-        ic["table"].append({"factor": f, "window": "lag3_pos", "all": -absic,
+    # ⚠️ 价差必须**严格单调**，且与**带符号** IC 同向递减（两个序列一起动）：
+    #   第一版八个价差全相等 ⇒ 全是并列 ⇒ 秩相关退化
+    #   ⇒ ρ ≈ 0（正控当场亮红灯，这正是正控的用途）。
+    #   第二、三版单调对了却在 `|IC|` 约定下校准 ——
+    #   而 2026-10-15 起判决走**带符号** IC（本条是该修正的第一个受害者）。
+    #   ⇒ 现在：`tail_low_hit` 与 `all` **同时**随 rank 递减 ⇒ ρ_signed = +1.0。
+    #   ⇒ 同一夹具在 `|IC|` 约定下给 ρ = −1.0 ⇒ **两个字段符号相反**，
+    #     这正是形状 119 在夹具层的自证。
+    order = [("mom20", -0.20), ("rev5", -0.30), ("vol20", -0.40), ("vsur", -0.50),
+             ("turn20", -0.60), ("turnratio", -0.70), ("ivol", -0.80), ("rsi", -0.90)]
+    for rank, (f, icv) in enumerate(order):
+        ic["table"].append({"factor": f, "window": "lag3_pos", "all": icv,
                             "all_t": 1.0, "tail_high_hit": 0.50,
                             "tail_low_hit": 0.50 + (8 - rank) * 0.01,
                             "n_days": 1820})
@@ -395,8 +417,11 @@ def test_a_window_with_the_opposite_sign_must_make_the_direction_inconsistent():
     ic["fwd_windows"]["lag3_pos"] = [0, 1]
 
     res = wvs.diagnose(_write_ic(ic), _write_wf(_wf()))
-    assert res["windows"]["lag3_pos"]["rho_absIC_vs_spread"] > 0, \
-        "正控失效：这个窗口本该 ρ > 0"
+    assert res["windows"]["lag3_pos"]["rho_signedIC_vs_spread"] > 0, \
+        "正控失效：这个窗口本该 ρ_signed > 0"
+    assert res["windows"]["lag3_pos"]["rho_absIC_vs_spread"] < 0, \
+        ("本夹具 |IC| 与价差反向、带符号 IC 与价差同向 —— "
+         "两者符号相反正是这条守卫要钉的分岔点")
     assert res["rho_sign_consistent_across_all_windows"] is False, \
         "有窗口符号相反却报「方向一致」⇒ 中间态判决会被错误地打开"
 
@@ -529,27 +554,178 @@ def test_the_real_artifact_reports_the_measured_facts_it_verdicts_on():
         assert len(v["per_factor"]) == 8, "八个因子的明细必须齐全"
 
 
+# ══════════ 判决量必须是**带符号** IC（形状 119）══════════
+
+def test_the_verdict_must_use_the_signed_ic_not_its_magnitude():
+    """🚨 **第 119 层**：判决量曾是被诊断对象**根本不用**的那个量。
+
+    ## 错在哪
+
+    `weight_vs_spread.py` 第一版写
+
+        abs_ic = [abs(r["all"]) for r in rows]      # ← |IC|
+        rho_ic = spearman(abs_ic, spread_v)
+
+    而生产权重是 `w ∝ R⁻¹·s_f`，其中的 `s_f` **就是带符号 IC**。
+    ⇒ 诊断脚本在用 `|IC|` 去量一个**按带符号 IC 排序**的系统。
+
+    ★ **实测把符号整个翻了**（2026-10-15，训练段 2019-01-02~2023-08-17）：
+    ρ(带符号 IC, 尾部价差) = **+1.0000**，ρ(|IC|, 尾部价差) = **−1.0000**。
+    ⇒ 「IC 与尾部价差错配、权重系统性投给了尾部最弱的因子」这个结论，
+    **是在一个生产代码里不存在的量上量出来的**。
+
+    这比「诊断算错了」更隐蔽：两边都自洽、都出数、都不崩，
+    而且结论**方向明确**（「该换目标函数」）—— 最像真发现的那种错。
+
+    ## 本条的判据：**同一份数据，两种约定，结论相反**
+
+    夹具让 8 个 IC 全负且 `all = −spread`：
+    - 按带符号 IC ⇒ ρ = −1.0 ⇒ `cond1_ic_antispread = True`
+    - 按 |IC|       ⇒ ρ = +1.0 ⇒ `cond1_ic_antispread = False`
+    ⇒ 一行改动（`abs(r["all"])` → `r["all"]`）就能翻掉 cond1 ⇒ 变异必红。
+    """
+    out = wvs.diagnose(_write_ic(_ic_fixture()), _write_wf(_wf()))
+    v = out["windows"]["lag1_real"]
+    assert v["rho_signedIC_vs_spread"] == pytest.approx(-1.0), \
+        f"夹具的带符号 ρ 应恰为 −1.0，实得 {v['rho_signedIC_vs_spread']}"
+    assert v["rho_absIC_vs_spread"] == pytest.approx(+1.0), \
+        "本夹具下 |IC| 与价差**同向** —— 两个字段必须符号相反，否则夹具无区分力"
+    assert v["per_factor"], "逐因子明细缺失"
+    # 判决必须落在**带符号**那一侧
+    assert out["cond_ic_antispread"] is True, \
+        "带符号 IC 与尾部价差反向（ρ=−1）却没判 cond1 ⇒ 判决读的是 |IC|"
+    assert out["per_window_verdict"]["lag1_real"]["cond1_ic_antispread"] is True
+
+
+def test_the_middle_verdict_label_requires_a_negative_correlation():
+    """`DIRECTION_CONSISTENT_...` 这个名字在说「反向」，**同向不许落进来**。
+
+    ## 为什么必须拆
+
+    第一版只判「符号一致与否」，于是 ρ = **+1.0**（一致**同向**）
+    与 ρ = −0.64（一致**反向**但没过门槛）落进**同一个标签**。
+    ⇒ 标签在说「反向」而实测是「同向」⇒ **标签变成一句假话**，
+    而读判决的人正是靠这句话决定要不要去改目标函数。
+
+    ⇒ 两个方向的含义完全相反：
+      · ρ < 0 ⇒ 权重系统性投给了尾部最弱的因子 ⇒ **有病灶**
+      · ρ > 0 ⇒ 权重排序与策略下注方向**本就一致** ⇒ **没有病灶可修**
+
+    ## 判据：ρ 全为正 ⇒ 必须是 `NO_MISMATCH_AT_MEASURED_WIDTH`
+    """
+    ic = _ic_fixture()
+    for r in ic["table"]:                 # 把所有 IC 翻正 ⇒ ρ_signed 全为 +1
+        r["all"] = -r["all"]
+    out = wvs.diagnose(_write_ic(ic), _write_wf(_wf()))
+    assert all(v["rho_signedIC_vs_spread"] > 0
+               for v in out["windows"].values()), "夹具失效：ρ 应全为正"
+    assert out["cond_ic_antispread"] is False
+    assert out["corr_direction"] == "not_negative"
+    assert out["verdict"] == "NO_MISMATCH_AT_MEASURED_WIDTH", \
+        (f"ρ 同向（权重与价差本就一致）却报 {out['verdict']} ⇒ "
+         "标签在说「反向」而实测是「同向」")
+
+
+def test_the_middle_verdict_label_is_reachable_and_means_what_it_says():
+    """🚨 变异台实测 **W12 存活**：中间态判决被并进「无错配」，25 条全绿。
+
+    ## 为什么活下来了
+
+    修完第 119 层之后，真产物里 `rho_signedIC_vs_spread` **全为正**
+    ⇒ `corr_negative = False` ⇒ `DIRECTION_CONSISTENT_...` 那个分支
+    **在真产物上根本不可达** ⇒ W12 是**空操作**。
+    而测试里**没有任何一条**断言过这个标签 ⇒ 25 条全绿。
+    ⇒ 第 9 种形状的又一次：那条分支**从未被任何输入分岔过**。
+
+    这与 [[guards-only-count-after-mutation]] 同源但更靠前：
+    **代码在、真产物上可达性为 0、守卫也照抄同一份不可达的真产物**
+    ⇒ 三层一起绿。
+
+    ## 本条的判据
+
+    构造一个**夹具**：全部窗口 ρ_signed < 0（⇒ `corr_negative` 为真），
+    但有一个窗口 |ρ| 没过 0.7386 的门槛（⇒ `cond1` 为假）
+    ⇒ 判决必须落在**中间态标签**上。
+
+    ⚠️ 排列是搜出来的，不是手抄的：`(3,7,8,5,6,4,2,1)` 给 ρ = **−0.5952**
+    （离门槛 0.7386 留了 0.14 的余量 —— 贴着门槛的排列 −0.7381 会让守卫
+    一旦换表就变成永远红/永远绿，**比没有守卫更坏**）。
+    ⇒ 断言把 ρ 本身钉住（正控），夹具退化时当场亮红灯。
+    """
+    ic = _ic_fixture()
+    ic["windows"].append("lag4_weak")
+    ic["fwd_windows"]["lag4_weak"] = [0, 4]
+    ic["table"].extend(_weak_window_rows())
+    out = wvs.diagnose(_write_ic(ic), _write_wf(_wf()))
+    assert out["windows"]["lag4_weak"]["rho_signedIC_vs_spread"] == pytest.approx(-0.5952), \
+        ("夹具退化：弱窗口的 ρ 必须精确落在 (−0.7386, 0) 内 —— "
+         "贴着门槛会让守卫在换表时变成永远红或永远绿")
+    assert out["cond_ic_antispread"] is False, "有窗口没过门槛 ⇒ cond1 必须为假"
+    assert out["corr_direction"] == "negative"
+    assert out["verdict"] == "DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE", \
+        (f"反向一致、有窗口没过门槛，却报 {out['verdict']} ⇒ "
+         "中间态标签不可达 ⇒ 变异 W12 会变成空操作")
+
+
+def _weak_window_rows(window="lag4_weak"):
+    """一个 ρ_signed = −0.5952 的窗口：**反向但不过门槛**。
+
+    排列 `(3,7,8,5,6,4,2,1)` 是**搜**出来的（18951 个排列里最接近 −0.60 的），
+    不是手抄的 ⇒ 手抄必错，而错的排列可能落在门槛另一侧。
+    `spread` 秩 1..8 按 `FACT` 顺序分配，`all` 按 IC 秩**降序**赋值。
+    """
+    hi = 0.30
+    spread = {"mom20": 0.60, "rev5": 0.50, "vol20": 0.40, "vsur": 0.30,
+              "turn20": 0.20, "turnratio": 0.15, "ivol": 0.10, "rsi": 0.05}
+    order = ["mom20", "rev5", "vol20", "vsur", "turn20", "turnratio", "ivol", "rsi"]
+    ic_rank = dict(zip(order, (3, 7, 8, 5, 6, 4, 2, 1)))   # spread 秩 → IC 秩
+    # IC 秩 1 最高（值最小）……秩 8 最低。全为负 ⇒ |IC| 的排序恰好相反。
+    by_ic_rank = sorted(range(8), key=lambda k: ic_rank[order[k]])
+    val = {order[k]: round(-0.01 * (by_ic_rank.index(k) + 1), 3) for k in range(8)}
+    return [{"factor": f, "window": window, "all": val[f], "all_t": 1.0,
+             "tail_high_hit": hi, "tail_low_hit": hi + spread[f], "n_days": 1818}
+            for f in order]
+
+
 # ══════════ 测试夹具 ══════════
 
 def _ic_table(extra_leak=None):
-    """八因子 × 两个窗口。数值取自真产物 lag1_real 那组（形状一致、数可自造）。"""
-    base = [("mom20", -0.03587, 0.3300, 0.5535), ("rev5", 0.02622, 0.3795, 0.7166),
-            ("vol20", -0.05142, 0.3740, 0.4981), ("vsur", -0.02899, 0.2279, 0.5283),
-            ("turn20", -0.04281, 0.3405, 0.4871), ("turnratio", -0.03734, 0.3650, 0.4695),
-            ("ivol", -0.05899, 0.3734, 0.4410), ("rsi", -0.03664, 0.3690, 0.5513)]
+    """八因子 × 四个窗口。**数是自造的，形状是刻意设计的**（形状 119 的修正）。
+
+    ## 设计目标：让「带符号」与「|IC|」两种约定给出**相反**的 cond1
+
+    `all = −spread` 且 `all` **全为负** ⇒
+
+    | 排序依据 | ρ vs 尾部价差 | `cond1_ic_antispread` |
+    |---|---|---|
+    | 带符号 IC | **−1.0** | **True** |
+    | \\|IC\\| | **+1.0** | False |
+
+    ⇒ 改一行（`abs(r["all"])` → `r["all"]`）就能把 cond1 整个翻过来
+    ⇒ 守卫对这条约定有牙。
+
+    ⚠️ **为什么必须全为负**：带符号排序与 |IC| 排序只有在 IC **有正有负**时才分岔。
+    夹具若混着正负号，两种约定可能同时为真或同时为假 ⇒ 这条守卫就成了安慰剂
+    （第 9 种形状：没有区分力的断言等于没有断言）。
+
+    ⚠️ 真实数据恰好就是这个形状 —— 8 个因子里 7 个 IC 为负 ——
+    所以「取绝对值翻转符号」不是夹具的人造巧合，是**现场的实情**。
+    """
+    hi = 0.30
+    spread = {"mom20": 0.60, "rev5": 0.50, "vol20": 0.40, "vsur": 0.30,
+              "turn20": 0.20, "turnratio": 0.15, "ivol": 0.10, "rsi": 0.05}
     rows = []
-    for f, ic, hi, lo in base:
-        rows.append({"factor": f, "window": "lag1_real", "all": ic, "all_t": 1.0,
-                     "tail_high_hit": hi, "tail_low_hit": lo, "n_days": 1821})
-        rows.append({"factor": f, "window": "hold4", "all": ic * 1.2, "all_t": 1.0,
-                     "tail_high_hit": hi * 0.9, "tail_low_hit": lo * 1.05, "n_days": 1818})
-        rows.append({"factor": f, "window": "hold21", "all": ic * 1.5, "all_t": 1.0,
-                     "tail_high_hit": hi * 0.8, "tail_low_hit": lo * 1.1, "n_days": 1801})
-    leak = extra_leak or (base[0][1] * 0.5, 0.20, 0.90)
-    for f, ic, hi, lo in base:
-        ic2, hi2, lo2 = (lo, hi, leak[2]) if f == "mom20" else (ic, hi, lo)
-        rows.append({"factor": f, "window": "lag0_leaky", "all": ic2,
-                     "all_t": 1.0, "tail_high_hit": hi2, "tail_low_hit": lo2,
+    for win, scale, n in (("lag1_real", 1.0, 1821), ("hold4", 1.2, 1818),
+                          ("hold21", 1.5, 1801)):
+        for f, sp in spread.items():
+            rows.append({"factor": f, "window": win, "all": -sp * scale,
+                         "all_t": 1.0, "tail_high_hit": hi,
+                         "tail_low_hit": hi + sp, "n_days": n})
+    leak_hi = extra_leak or 0.90        # mom20 在 leak 窗口的低尾命中率
+    for f, sp in spread.items():
+        lo = leak_hi if f == "mom20" else hi + sp
+        rows.append({"factor": f, "window": "lag0_leaky", "all": -(lo - hi),
+                     "all_t": 1.0, "tail_high_hit": hi, "tail_low_hit": lo,
                      "n_days": 1822})
     return rows
 

@@ -1,9 +1,28 @@
 """审计 1：DB 里真实的交易日历长什么样。
 
-两趟：
-  A) 全目录 parquet 元数据扫描 -> 复刻 panel.py 的 `ref = max(daily_map, key=len)`
-     找出回测面板真正用的那一只参考股。
-  B) 分层抽样读 date 列 -> 抽并集日历。
+🚨🚨 **本脚本的 A 趟已作废（2026-10-15，第 126 层）** ⇒ 默认拒绝运行。
+
+它复刻的是 `panel.py` 的 `ref = max(daily_map, key=len)` ——「用行数最多的那一只
+的日期当全市场日期轴」。**生产代码早就不这么干了**：`panel.py::window_dates`
+现在走 `market_date_axis`（全体并集），并对空窗口抛 `ValueError`。
+⇒ 「回测面板真正用的那一只参考股」**这个对象今天不存在**，A 趟问的是一个已废的问题。
+
+更糟的是**它连自己的快照都重现不出来**（实测 2026-10-15）：
+
+  |              | 快照落盘时（2026-10-14 11:17） | 今天重跑会得到 |
+  |--------------|------------------------------|----------------|
+  | `ref`        | `000001.SZ`                  | `000043.SZ`    |
+  | `ref_rows`   | 1884                         | 6127           |
+
+数据修复把 `000043.SZ` 从 221 行补到 6127 行之后，`max(key=len)` 选中的就是它了
+——**和 `panel.py` 文档里记录的那次引爆是同一只票**。顺带 `000001.SZ` 自己也
+1884 → 1885（补了一个交易日）。⇒ **提交在仓里的脚本与提交在仓里的 JSON 已经不对应**，
+而当时**没有任何守卫会发现这件事**。
+
+⇒ B 趟（分层抽样 + 并集日历）**仍然有效**，而且比当初更重要：并集正是生产现在用的东西。
+所以这里**不删脚本、不删 JSON**（第 25 层：撤回已提交结论需要独立判决，不是顺手做的），
+只把作废的那一半**变成显式拒绝**：不带 `--ack-superseded` 一律 rc=2，
+免得有人重跑它、把 `db_calendar.json` 覆盖成「今天那个 ref」，然后照着死前提读结论。
 
 只读。不写任何生产文件。
 """
@@ -14,7 +33,21 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-import pyarrow.parquet as pq
+# 🚨 作废闸门放在最前面（连 pyarrow 都不 import）⇒ 守卫跑它只要毫秒级。
+if "--ack-superseded" not in sys.argv:
+    print(
+        "🚨 本脚本的 `ref = max(key=len)` 那一趟**已作废**（第 126 层）：\n"
+        "   生产 `panel.py::window_dates` 现在走全体并集（`market_date_axis`），\n"
+        "   「面板的参考股」这个对象今天不存在。\n"
+        "   而且仓里的 `db_calendar.json`（2026-10-14 11:17）**已经无法由本脚本重现**：\n"
+        "   快照 ref = 000001.SZ / 1884 行；今天重跑会选 000043.SZ / 6127 行。\n"
+        "   ⇒ 你若只想重放当时的历史快照，加 `--ack-superseded`，并记住产物会覆盖。\n"
+        "   ⇒ 若你想要**生产真正在用的**日历，去看 `panel.py::market_date_axis`，不是这里。",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+import pyarrow.parquet as pq  # noqa: E402  （刻意放在闸门之后）
 
 ROOT = Path("/Users/airboom/opencode/aplus")
 DAILY = ROOT / "data" / "master" / "daily"

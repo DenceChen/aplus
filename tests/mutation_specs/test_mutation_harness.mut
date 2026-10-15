@@ -1,0 +1,18 @@
+H1 变异体语法检查被摘掉（语法炸弹于是去跑 pytest，rc=1 伪装成「守住了」）	scripts/mutation_harness.py
+try:
+            compile(mutant, str(p), "exec")
+        except SyntaxError as e:
+=== 变异体 ===
+try:
+            pass
+        except SyntaxError as e:
+
+H2 字节码缓存清理被摘掉（同长度变异被旧 .pyc 吃掉 ⇒ 整条变异变成空操作）	scripts/mutation_harness.py
+            drop_bytecode_cache(p)          # 🚨 否则同长度的变异会被 pyc 缓存吃掉
+=== 变异体 ===
+            pass  # 变异体已写盘就完事
+
+H3 退出码分层退回 `rc != 0`（收集错误重新被记成「守住了」）	scripts/mutation_harness.py
+        elif rc == 1:
+=== 变异体 ===
+        elif rc != 0:

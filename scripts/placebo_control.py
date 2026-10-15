@@ -73,6 +73,14 @@ from aplus.composite import unpack  # noqa: E402
 from aplus.factor import FACTOR_NAMES  # noqa: E402
 from aplus.snapshot import load_factors_map  # noqa: E402
 from aplus.store import LocalStore  # noqa: E402
+# ★ 溯源章。2026-10-15 补：这份产物的判决 `PLACEBO_NULL` 是全项目的
+#   **承重判决**（「t=2.44 是不是因子」），而它此前**既没登记也没盖章**
+#   ⇒ 按本仓自己的规矩，`unknown` = **不许引用**。
+#   ⇒ 登记 + 盖章两件都要：登记是「谁生成它」，盖章是「跑的是哪份字节」。
+# ⚠️ 用 `provenance.stamp(...)` 而不是 `from ... import stamp`：
+#   守卫 `test_registered_is_not_actually_stamp` 按 **AST** 找
+#   `*.stamp(...)` 属性调用；裸名调用它看不见 ⇒ 会把一条真接线判成没接。
+from aplus import provenance  # noqa: E402
 
 # ★ 权重、`run_year`、逐日聚合、分块 t、成本链**全部从主回测 import**，
 #   一件都不自己写。自己写一遍 = 造第二台测量仪，两台之间的差永远查不出来。
@@ -660,6 +668,16 @@ def _run(args) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=float),
                         encoding="utf-8")
+    # ★ 盖章必须在**写完之后**：章记的是「产物落盘那一刻」的字节哈希。
+    #   ⚠️ 而它只对**真跑**生效——手写一个 sidecar 是形状 16
+    #   （从不可测的输入捏造一个与真章无法区分的文件），比红着更糟。
+    provenance.stamp(args.out, "scripts/placebo_control.py", root=ROOT,
+          extra={"verdict": out.get("verdict"),
+                 "verdict_branch": out.get("verdict_branch"),
+                 "n_reps": out.get("conditions", {}).get("n_reps"),
+                 "p0_t_blocked": out.get("p0_t_blocked"),
+                 "test_window": out.get("window"),
+                 "k_rebalance_every": out.get("k_rebalance_every")})
     print(f"\n→ {args.out}｜总耗时 {time.time() - t0:.0f}s")
     return 0
 

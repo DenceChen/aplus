@@ -35,10 +35,22 @@ import math
 import numpy as np
 from pathlib import Path
 
-# ── 三个外部锚。**不 import 本仓任何模块**，就是为了保持独立。 ──────────
+# ── 三个外部锚。**不 import 本仓任何计算模块**，就是为了保持独立。 ──────────
+# ⚠️ 2026-10-15 例外说明：下面那句「不 import 本仓任何模块」的**本意**是
+#   「不借用本仓算出来的数」（门槛/成本/年化乘数都自己从外部锚推）。
+#   `aplus.provenance` 是**纯 sidecar 写入器**，不含任何计算，
+#   引入它**不破坏独立性**，而它换来的是这份产物从「不可引用」变成可引用。
 TARGET_NET = 0.20
 COST_REAL_50K = 0.0055
 DAYS_PER_YEAR = 244
+
+import sys  # noqa: E402
+# 🚫 不要把它别名成 `_sys`：仓库里没有命名冲突，而别名会让
+#   `tests/test_script_entrypoint_imports_are_satisfiable.py` 的 AST 扫描
+#   （按 `sys.path.insert` 的字面形状找调用点）**整条看不见这行**
+#   ⇒ 脚本从命令行跑就会 ModuleNotFoundError，而守卫报「没有 insert」。
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from aplus import provenance  # noqa: E402
 
 
 def hurdle_gross(k: int) -> float:
@@ -205,12 +217,21 @@ def main(argv=None) -> int:
 
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"targets": {"TARGET_NET": TARGET_NET,
+                               "COST_REAL_50K": COST_REAL_50K,
+                               "DAYS_PER_YEAR": DAYS_PER_YEAR},
+                   "rows": rows}
         args.json_out.write_text(
-            json.dumps({"targets": {"TARGET_NET": TARGET_NET,
-                                    "COST_REAL_50K": COST_REAL_50K,
-                                    "DAYS_PER_YEAR": DAYS_PER_YEAR},
-                        "rows": rows}, ensure_ascii=False, indent=2),
+            json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8")
+        # ⚠️ 盖章必须在写完之后，且**只能靠真跑**拿 ——
+        #   手写 sidecar 是形状 16（捏造一个与真章无法区分的文件），比红着更糟。
+        provenance.stamp(args.json_out, "scripts/k_sweep_extract.py",
+                         root=Path(__file__).resolve().parents[1],
+                         extra={"n_rows": len(rows),
+                                "DAYS_PER_YEAR": DAYS_PER_YEAR,
+                                "COST_REAL_50K": COST_REAL_50K,
+                                "TARGET_NET": TARGET_NET})
         print(f"\n已写 {args.json_out}")
     return 0
 

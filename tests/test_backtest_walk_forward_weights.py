@@ -200,3 +200,70 @@ def test_t_is_computed_on_blocks_of_the_rebalance_period():
     assert "block=rebalance_every" in src or "block=args.rebalance_every" in src, (
         "t 必须按调仓周期分块——这是 2026-10-11 修过的真实缺陷"
     )
+
+
+# ── ⑤ 判决窗口末端（2026-10-15，形状 23 的第二个受害者）──────────────
+#
+#  起因：`--end` 默认 `""`，而调用点是
+#  `end = args.end or str(pd.read_parquet(files[0])["date"].max())`
+#  —— 那个回落是**一只票定全池窗口**：`files[0]` 是 glob 排序后的第一只。
+#
+#  ★ 实测：`files[0]` = `000001.SZ.parquet`，它的 `date.max()` = **2026-10-14**，
+#    而全仓其余 20+ 份产物钉的是 **2026-10-12**
+#    ⇒ 已出的那 5 份 k 产物窗口比别人**长 2 天**，与所有别的东西不可比。
+#    `CLAUDE.md` 第 1266 行早就为**另一个脚本**记过同一件事并显式绕开过 ——
+#    也就是说这个坑**被遇到过、被绕过了、但没有被根治**。
+#
+#  修法：默认钉死 + 留空即拒 + 删掉那个永远不可能触发的回落。
+
+
+def test_the_default_window_end_is_pinned_rather_than_empty():
+    """★ 不传 `--end` 时必须拿到**钉死的字符串**，不是空串。
+
+    ⚠️ 这条能便宜地问出来，是因为 CLI 被拆成了 `_parse_args`；
+      拆之前，「默认是什么」只能在跑完 10 分钟回测之后才看得到 ——
+      **判据不可问，就等于没有守卫**。
+    """
+    assert M._parse_args([]).end == M.WINDOW_END_PINNED
+    assert M.WINDOW_END_PINNED == "2026-10-12", (
+        f"钉死的末端变成了 {M.WINDOW_END_PINNED!r} —— "
+        f"改它是一个**判据变更**，得先改预注册，不是改个常量"
+    )
+
+
+def test_the_pinned_end_is_the_same_one_every_other_report_uses():
+    """★ 单一真相源：`cap_weighted_benchmark` / `basket_weighting` 必须同值。
+
+    ⚠️ 三处各写一个字符串字面量，迟早会漂；这里钉的是「**漂了会红**」，
+      不是「它们相等」——后者在只有两处时会漏掉第三处。
+    """
+    import importlib.util as _u
+    for name, mod in (("cap_weighted_benchmark", "cap_weighted_benchmark.py"),
+                      ("basket_weighting", "basket_weighting.py")):
+        spec = _u.spec_from_file_location(f"_pin_{name}", _SCRIPT.parent / mod)
+        m = _u.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        assert m.WINDOW_END_PINNED == M.WINDOW_END_PINNED, (
+            f"{name} 的钉死末端是 {m.WINDOW_END_PINNED!r}，"
+            f"而 backtest_walk_forward_weights 是 {M.WINDOW_END_PINNED!r} "
+            f"⇒ 这三份产物的窗口不可比"
+        )
+
+
+def test_a_blank_window_end_is_refused_with_a_diagnosable_message(tmp_path, capsys):
+    """末端留空必须**拒**且**说清为什么**。
+
+    ⚠️ 锚在「末端」这个**判据专属**的字上，而不是 `end` ——
+      `build_panel` 自己的报错也含 `end`，守卫会守成「响」
+      而不是「响得可诊断」（第 121 层入口二的同族）。
+    """
+    dummy = tmp_path / "m.parquet"          # 只过 `is_file()`，读不到它
+    dummy.write_bytes(b"")
+
+    rc = M.main(["--matrices", str(dummy), "--end", "   "])
+
+    err = capsys.readouterr().err
+    assert rc == 2, f"末端留空被放行了（rc={rc}）"
+    assert "末端" in err, (
+        f"拒了但没说为什么，读者只能自己去猜是哪一条纪律：{err[-300:]!r}"
+    )

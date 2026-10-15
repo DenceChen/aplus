@@ -1,8 +1,9 @@
 {
-  "code_sha": "f2814182bde992e3dfe575013cc9c3cf2195fad9",
+  "code_sha": "f420d167bdea4791c50375a4950198bd3ddb1fda",
   "code_dirty": true,
+  "code_file_sha256": "61a2dd78c9b0d4c2e7bb02aa250960c9a92fe5812e323567512d3891117e3725",
   "data_fp": "5460:1792002326.672246",
   "data_dir": "data/master/daily",
   "generator": "scripts/backtest_walk_forward_weights.py",
-  "stamped_at": "2026-10-14T19:40:51+00:00"
+  "stamped_at": "2026-10-15T02:08:27+00:00"
 }

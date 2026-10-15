@@ -21,6 +21,19 @@
     ③ 哈希真的变了（写入后源码逐位不同）
     ④ 还原后逐位一致
 
+⚠️ **上面四项全在验「变异正确地落到了文件里」，
+一条都没验「落进去的那段代码本身是不是合法」** —— 第 121 层。
+
+另有一条**独立于跑测试**的前置检查：**变异体必须能 `compile()`**。
+理由是实测出来的对称性：同一条语法非法的变异，
+pytest 在收集期 import 它给 `rc=2 / 1 error`，
+在函数体内 import 它给 **`rc=1 / 1 failed`** ——
+**与「守卫真的抓到了缺陷」逐位相同。**
+⇒ 光靠 rc 分层抓不住后者；只能在跑之前挡住。
+
+还有一条判据分层：**只有 `rc == 1` 才算被杀**
+（rc∈{2,3,4,5} = 收集/用法/内部错误/中断 ⇒ 不可验证，按存活计入上界）。
+
 用法：
 
     .venv/bin/python scripts/mutation_harness.py --node tests/xxx.py 变异规格.py
@@ -30,6 +43,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -53,10 +67,43 @@ def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def drop_bytecode_cache(p: Path) -> None:
+    """清掉被测文件的 `__pycache__` 条目 —— 🚨 第 121 层的第二个入口。
+
+    实测（2026-10-15）：把 `return 1` 改成 `return 2`（**长度不变**、
+    同一秒内写入），文件哈希确实变了，而 `importlib` 按路径加载时
+    **仍然执行旧的 `.pyc`** ⇒ 变异对被测模块**等于没发生**。
+
+    ⇒ 「字节变了」**不等于**「被测对象变了」。
+      Python 的 pyc 校验键是 (源文件 mtime, 大小)，两者都没变 ⇒ 缓存命中。
+
+    本仓的测试**大量**用 `spec_from_file_location` 按路径加载脚本，
+    所以这不是假想：一条同长度的变异会静默变成空操作。
+
+    ⚠️ 失效方向说明：这种情况台子报的是**存活**（保守方向，不会给假信用），
+      但它会让人去「修一条本来正确的守卫」—— 那是最贵的错误方向。
+    """
+    cache = p.parent / "__pycache__"
+    if not cache.is_dir():
+        return
+    for c in cache.glob(f"{p.stem}.cpython-*.pyc"):
+        try:
+            c.unlink()
+        except OSError:
+            pass
+
+
 def _pytest(node: str) -> tuple[int, str, str]:
     r = subprocess.run(
         [PY, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", node],
         cwd=ROOT, capture_output=True, text=True, timeout=3600,
+        # 🚨 绝不让这一跑在仓里留下 .pyc（第 121 层）：
+        #   字节码缓存的校验键是 (源文件 mtime, 大小)，一次变异跑会在
+        #   同一秒内反复写同一个文件 ⇒ 缓存命中 ⇒ 后续任何按路径
+        #   import 该脚本的测试都会执行**旧代码**。
+        #   （`drop_bytecode_cache` 清的是**已存在**的缓存；这里断掉**新写**的。）
+        #   与老台子 `mutation_check.py::_run` 的做法保持一致。
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     tail = [x for x in r.stdout.splitlines() if x.strip()]
     return r.returncode, (tail[-1] if tail else "(无输出)"), r.stdout
@@ -122,9 +169,30 @@ def run(specs: list[Spec], node: str) -> tuple[int, int]:
             print(f"❌ {spec.label}\n     旧串匹配 {n} 处（必须恰好 1）⇒ 空操作，绿灯是假的",
                   flush=True)
             continue
+        mutant = src.replace(spec.old, spec.new, 1)
+
+        # 🚨🚨 第 121 层：**变异体自己解析不了时，它产生的任何「红」都不是信用。**
+        #   实测（2026-10-15）：同一条变异，pytest 在**收集期** import 它 ⇒
+        #     rc=2 / "1 error"；
+        #   而测试在**函数体内** import 它 ⇒ **rc=1 / "1 failed"** ——
+        #     与「守卫真的抓到了缺陷」逐位相同。
+        #   ⇒ 靠 rc 分层**抓不住**后者：两边都是 1。
+        #   ⇒ 正解是**在跑 pytest 之前**就把「它压根不是合法 Python」挡掉：
+        #     一个语法非法的变异体不是实验，它只制造信用。
+        try:
+            compile(mutant, str(p), "exec")
+        except SyntaxError as e:
+            print(f"⚠️  {spec.label}\n     变异体**解析不了**（{type(e).__name__}: {e.msg}"
+                  f"，行 {e.lineno}）⇒ **不可验证**，跳过 pytest。"
+                  f"\n     规格必须是能跑起来的源码片段：一条语法非法的变异体"
+                  f"无论 pytest 吐哪个码，都拿不到关于守卫的任何信息。",
+                  flush=True)
+            continue
+
         with tempfile.TemporaryDirectory() as td:
             shutil.copy2(p, Path(td) / "orig")
-            p.write_text(src.replace(spec.old, spec.new, 1), encoding="utf-8")
+            p.write_text(mutant, encoding="utf-8")
+            drop_bytecode_cache(p)          # 🚨 否则同长度的变异会被 pyc 缓存吃掉
             if sha(p) == base:
                 print(f"❌ {spec.label}\n     哈希没变 ⇒ 没写进去", flush=True)
                 shutil.copy2(Path(td) / "orig", p)
@@ -135,7 +203,24 @@ def run(specs: list[Spec], node: str) -> tuple[int, int]:
                 print(f"⛔ {spec.label}\n     还原后哈希未回到基线", flush=True)
                 continue
 
-        caught = rc != 0
+        # 🚨🚨 第 116 层在**变异台自己身上**复发（2026-10-15 实测）：
+        #   `caught = rc != 0` 会把 pytest 的**用法/收集错误**（rc=2，
+        #   例如变异体把 `if` 挪到第 0 列造出 IndentationError，文件压根解析不了）
+        #   记成「守住了」。那个 kill 是**假的** ——
+        #   守卫并没有拦住任何东西，是被测文件先死了。
+        #
+        #   ⇒ 只有 **rc == 1**（真失败）才算 killed。
+        #      rc ∈ {2,3,4,5} = 「不可验证」：按**未捕获**计入（保守方向），
+        #      并把理由原文印出来，不许读者自己脑补。
+        if rc == 0:
+            caught = False
+        elif rc == 1:
+            caught = True
+        else:
+            print(f"⚠️  {spec.label}\n     rc={rc} 属 pytest 的非失败退出码"
+                  f"（用法错误 / 收集错误 / 中断）⇒ **不可验证**，"
+                  f"不计 killed。原样输出：{tail}", flush=True)
+            caught = False
         good = caught if spec.expect == "killed" else not caught
         ok += good
         print(f"{'✅' if good else '❌'} {spec.label}"

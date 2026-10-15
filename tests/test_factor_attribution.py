@@ -914,3 +914,64 @@ def test_the_data_root_is_restored_after_the_run(tmp_path):
                  tmp_path / "r.json")
     assert fa.DATA_ROOT == before == fa.DEFAULT_DATA_ROOT, (
         f"跑完之后数据根变成了 {fa.DATA_ROOT} ⇒ 全局量没还原")
+
+
+# ══════════ 样本量外推：CLAUDE.md 那句「还差 2.6 倍」的输入，零覆盖 ══════════
+
+def test_the_days_needed_extrapolation_is_positive_and_correct_for_both_signs():
+    """🚨 `days_needed_for_80pct_power` 此前**一条守卫都没有**，而它是
+    「现有 66 个独立观测 / 还差 2.6 倍」这条核心结论的唯一输入。
+
+    ⚠️ 待办清单里曾把它记成「符号 bug」——**实测不存在**：
+    `(t_power / t_obs) ** 2` 的平方把负号吃掉了，五档探针（t 为正 / 负 / 近零）
+    全给正数且量级正确。⇒ **待办里的一句推测被当成缺陷记了好几轮。**
+    真缺的不是修复，是**没有任何东西钉住它本该有的性质**。
+
+    ⇒ 三条性质一次钉住：
+      ① **正**（它是天数，负数读作「需要 −1262 天」）
+      ② 与**闭式相等**：`n·(t_power/|t_obs|)²`
+      ③ 在 `|t|` 上**单调递减**（效应越强，需要的样本越少）
+    """
+    import math
+    rng = np.random.default_rng(7)
+    prev = None
+    for mu in (0.0008, -0.0008, 0.0000, 0.0040, -0.0040):
+        r = fa.power_floor(rng.normal(mu, 0.01, 1400))
+        t, need = r["t_naive"], r["days_needed_for_80pct_power"]
+        if t == 0:
+            continue
+        assert need is not None and need > 0, \
+            f"mu={mu:+.4f}（t={t:+.3f}）⇒ days_needed={need}，天数不可能 ≤ 0"
+        closed = r["n"] * (fa.T_POWER_TARGET / abs(t)) ** 2
+        assert need == pytest.approx(math.ceil(closed), rel=0.02), \
+            f"mu={mu:+.4f} ⇒ 实测 {need} 与闭式 {closed:.1f} 不符"
+        prev = need if prev is None else min(prev, need)   # 只看单调性方向
+    # ③ 用一对量级差得最远的：|t| 越大，需要的天数必须严格更少
+    weak = fa.power_floor(rng.normal(0.0002, 0.01, 1400))
+    strong = fa.power_floor(rng.normal(0.0040, 0.01, 1400))
+    assert strong["days_needed_for_80pct_power"] < weak["days_needed_for_80pct_power"], \
+        "效应更强的样本反而需要更多天数 ⇒ 公式方向反了"
+
+
+def test_an_untestable_t_gives_none_rather_than_a_bogus_day_count():
+    """t 不可用时必须给 `None`，不许给一个假装算得出来的天数。
+
+    ⚠️ 给出巨大但有限的数字在报告上**长得和真答案一模一样**，
+    而读者只会记得「需要 4 万天」。
+
+    ★ 写这条时我先假定「全零序列 ⇒ t 恒为 0」，**当场红**：实测
+    `t_naive = NaN`（方差为 0 ⇒ 0/0）。**假定错的那一侧恰好更危险** ——
+    若代码按 `t_obs != 0` 判断，NaN 会通过这一关（NaN != 0 为真）
+    ⇒ `n·(t_power/NaN)² = NaN` ⇒ `int(ceil(NaN))` 抛异常。
+    ⇒ 真正的守卫是 **`isfinite`**，不是 `!= 0`。
+    """
+    # 方差为 0 ⇒ t 是 NaN ⇒ 天数不可算
+    z = fa.power_floor(np.zeros(300))
+    assert not np.isfinite(z["t_naive"]), \
+        f"零方差序列的 t 应当不可用，实测 {z['t_naive']}"
+    assert z["days_needed_for_80pct_power"] is None, \
+        "t 不可用时给出了天数 ⇒ 那是 NaN 产物，报告上读起来像「真的算过」"
+    # 正常序列必须仍给得出数（正控，否则本条会退化成「永远是 None」）
+    ok = fa.power_floor(np.random.default_rng(3).normal(0.001, 0.01, 400))
+    assert ok["days_needed_for_80pct_power"] is not None, \
+        "本条守卫正在把「一律给 None」也判成通过 —— 它需要一条正控"

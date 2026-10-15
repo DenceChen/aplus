@@ -48,6 +48,11 @@
     .venv/bin/python scripts/backtest_walk_forward_weights.py \
         --matrices data/reports/ic_matrices.parquet \
         --out data/reports/wf_weights_backtest.json
+
+★ **不要传 `--end`**（形状 23）。默认值 `WINDOW_END_PINNED` = `2026-10-12`，
+与 `cap_weighted_benchmark` / `basket_weighting` 同一真相源；
+主库实际到 `2026-10-14`，那多出来的两天**必须显式排除**，
+否则这份产物与全仓其余 20+ 份不可比，而 json 里没有任何字段能说明差别。
 """
 from __future__ import annotations
 
@@ -76,6 +81,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: 与判决的 K=21 同一口径：月频调仓。
 K = 21
+
+# ★ 形状 23：判决窗口末端**钉死**，与 `cap_weighted_benchmark` / `basket_weighting`
+#   共用同一个值（2026-10-12）。主库实际到 10-14，**多出来那两天不许默认吃掉** ——
+#   「多 2 天数据是免费的」正是第 99 层，而窗口是预注册判据的一部分。
+WINDOW_END_PINNED = "2026-10-12"
 
 _VERDICT = None
 
@@ -454,23 +464,37 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
     return out
 
 
-def main() -> int:
+def _parse_args(argv=None):
+    """把 CLI 单独拆出来：**默认末端是一个判据，判据必须能被直接问**。
+
+    守卫要问「不传 `--end` 时它是什么」；而这个问题在 `main` 里
+    只能靠把整个回测跑一遍才问得出来 —— 那是 10 分钟。
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrices", type=Path,
                     default=Path("data/reports/ic_matrices.parquet"))
     ap.add_argument("--factors", default="")
     ap.add_argument("--start", default="2021-01-01")
-    ap.add_argument("--end", default="")
+    ap.add_argument("--end", default=WINDOW_END_PINNED)
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/wf_weights_backtest.json"))
     ap.add_argument("--top-n", type=int, default=10)
     ap.add_argument("--bottom-n", type=int, default=10)
     ap.add_argument("--rebalance-every", type=int, default=K)
-    args = ap.parse_args()
+    return ap.parse_args(argv)
 
+
+def main(argv=None) -> int:
+    args = _parse_args(argv)
     if not args.matrices.is_file():
         raise SystemExit(f"抽取表不存在：{args.matrices}；先跑 scripts/extract_ic_matrices.py")
+
+    if not args.end.strip():
+        print(f"🚨 `--end` 不许留空：末端必须显式钉死（形状 23：一只票定全池窗口）。"
+              f"当前默认 {WINDOW_END_PINNED}（主库比它新，多出来的天数不许默认吃掉）。",
+              file=sys.stderr)
+        return 2
 
     lin = _rescale_check()
     if not lin["linear"]:
@@ -487,7 +511,15 @@ def main() -> int:
     if not files:
         print("主库为空")
         return 1
-    end = args.end or str(pd.read_parquet(files[0])["date"].max())
+    end = args.end
+    # ★ 形状 23（2026-10-15 补）：这里原来写的是
+    #   `end = args.end or str(pd.read_parquet(files[0])["date"].max())`
+    #   —— 那个回落是**一只票定全池窗口**：`files[0]` 是 glob 排序后的第一只
+    #   （实测 `000001.SZ`），它的 `date.max()` 今天落在 **2026-10-14**，
+    #   而全仓其余 20+ 份产物钉的是 **2026-10-12**
+    #   ⇒ 这 5 份 k 产物的窗口比别人**长 2 天**，与所有别的东西不可比。
+    #   `CLAUDE.md` 第 1266 行早就为**另一个脚本**记过同一件事并显式绕开过。
+    #   现在留空已被拒绝（见上），回落**永远不可能触发** ⇒ 删掉，不留死代码。
 
     t0 = time.time()
     print(f"\n权重来自判决同一份抽取表，判决年 "
@@ -607,6 +639,15 @@ def main() -> int:
                  "观测单位是「一次调仓决策」。可成交性闸门已开。"
                  "两个成本口径都报：回测默认低估真实现况 1.84 倍。"),
         "years": rows,
+        # ★ 窗口长度必须**写进产物**。原来这份 json 里没有任何日期字段 ——
+        #   于是「昨天那份比今天这份少两天」这件事**在产物里不可见**，
+        #   而窗口是预注册判据的一部分（第 99 层同族）。
+        #   `end` 是钉死的请求末端，`end_actual` 是真的量到的那一天
+        #   （末段可能因停牌/缺档少几天，两个都写才读得出窗口多长）。
+        "window": {"start": args.start, "end": args.end,
+                   "start_actual": dates[0] if dates else None,
+                   "end_actual": dates[-1] if dates else None,
+                   "n_days": len(dates)},
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")

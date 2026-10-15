@@ -251,7 +251,39 @@ def test_scan_does_not_count_its_own_sidecars_as_reports(repo):
 # 而 `code_sha` 全程「新鲜」：代码没变，数据变了，
 # 而章里**没有任何字段能表达这件事**。
 
-_CITED = ("factor_width_mde.json", "factor_attribution.json")
+_CITED = ("factor_width_mde.json", "factor_attribution.json",
+          "placebo_control.json")
+
+
+def test_every_stamped_report_resolves_back_to_a_registered_generator():
+    """🚨 **盖了章却查不到生成器** = 比「没盖章」更隐蔽的一种不可引用。
+
+    2026-10-15 实测：`placebo_control.json` 的判决 `PLACEBO_NULL` 是全项目的
+    **承重判决**（在它之前「因子有效」一个字都不能写），
+    而它**既没登记也没盖章** ⇒ 按本模块自己的规矩它 `unknown` = 不可引用，
+    **而它自己从不发出这个信号**。
+
+    ⇒ 那是形状 6 的**镜像**：形状 6 是「假装能调」（开关焊死、永远走默认），
+    这一条是「**假装不可引用**」—— 产物照常出数、判决照常被抄进文档，
+    缺的那份证据**只影响能不能引用**，所以现场看什么都是对的。
+
+    ⇒ 本条只判**已盖章**的一侧（反向的「已登记必须真盖章」由
+    `test_registered_is_not_enough_the_writer_must_actually_stamp` 覆盖）。
+    ⚠️ 刻意**不**判「仓里每一份报告都得有 sidecar」——
+    那会是一条**永远红**的守卫（69 份里大半是历史中间产物），
+    而**永远红的守卫会把人推向「为了变绿去乱盖章」这个错误修法**（第 112 层）。
+    """
+    # ⚠️ 用**真仓库根**，不用 `repo` 夹具 —— 那个夹具是 tmp_path 里的假仓库
+    #   （它测的是「相对 HEAD 算得对不对」），扫不到真产物。
+    root = Path(P.__file__).resolve().parent.parent
+    stamped = sorted(p.name for p in (root / "data/reports").glob("*.provenance.json"))
+    assert stamped, "一份 sidecar 都没有 ⇒ 探测器坏了，不是仓里真的干净"
+    unknown = [n for n in stamped
+               if P.resolve_generator(n[: -len(".provenance.json")]) is None]
+    assert not unknown, (
+        f"这些产物盖了章却解析不出生成器 ⇒ 读者无从判断它出自哪份代码："
+        f"{unknown}。要么补进 DEFAULT_GENERATORS，要么删掉那份 sidecar"
+        f"（**盖一个假章比不盖更坏** —— 形状 16）")
 
 
 def test_the_reports_we_actually_decide_by_are_registered():
@@ -305,8 +337,18 @@ def test_registered_is_not_enough_the_writer_must_actually_stamp():
         #    （又是一条「红的原因不对」的守卫）。
         seen: list[str] = []
         for node in ast.walk(tree):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "stamp"):
+            # ★ 两种真接线形态都要认：`provenance.stamp(...)` 与 `stamp(...)`
+            #   （`from aplus.provenance import stamp`）。
+            #   ⚠️ 第一版只认属性调用，于是我给 `placebo_control.py` 写的是
+            #   裸名导入的 `stamp(...)` ⇒ 守卫报「没接线」而它**明明接着**。
+            #   —— 又一次「红的原因不对」的守卫：**把真接线判成没接**，
+            #      而人会去「修」一个正确的写法。
+            is_stamp_call = (isinstance(node, ast.Call)
+                             and ((isinstance(node.func, ast.Attribute)
+                                   and node.func.attr == "stamp")
+                                  or (isinstance(node.func, ast.Name)
+                                      and node.func.id == "stamp")))
+            if is_stamp_call:
                 seen += [a.value for a in node.args
                          if isinstance(a, ast.Constant) and isinstance(a.value, str)]
         assert gen in seen, (
@@ -618,6 +660,54 @@ def test_a_missing_generator_gets_no_byte_hash_rather_than_a_guess(repo):
     assert P.code_file_sha256(repo["root"], None) is None
 
 
+def test_a_generator_path_that_does_not_exist_is_unknown_never_fresh(repo):
+    """★ 第 123 层：**「查不到动过」与「查不到那个文件」必须分开**。
+
+    实测（2026-10-15）：`freshness(f, "scripts/wf_weights_backtest.py")` ——
+    那个文件**根本不存在**，而 `commits_touching` 对不存在的路径返回 `[]`、
+    `code_file_sha256` 返回 `None` ⇒ 走查得出「没有提交动过它」
+    ⇒ **判 fresh**。
+
+    🚨 这正是**最贵的那个答案**：一个真实 stale 的 k 产物，
+      仅仅因为生成器名字写错，就从「不许引用」变成「可以引用」。
+      （脏工作区时 `trustworthy=False` 恰好兜住了它，
+       **但工作区一干净就是一次彻底的假 fresh**。）
+
+    ⇒ 所以显式传入的生成器路径必须在仓里**真实存在**，否则一律 `unknown`。
+    """
+    p = _report(repo)
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    repo["commit"]("commit so the tree is clean")          # ⇒ trustworthy 本该是 True
+
+    got = P.freshness(p, "aplus/nope.py", root=repo["root"])
+
+    assert got["verdict"] == "unknown", (
+        f"生成器不存在却判了 {got['verdict']}：{got['reason']}"
+    )
+    assert got["trustworthy"] is False
+    assert "不存在" in got["reason"], (
+        f"拒了但没说为什么，读者无从判断是自己写错了还是产物真过期：{got['reason']!r}"
+    )
+
+
+def test_a_generator_that_is_deleted_afterwards_also_stops_being_fresh(repo):
+    """反控：不是「只有我手打错的名字」会触发，而是**任何**取不到的文件。
+
+    ⚠️ 这条同时钉住方向：生成器被**删掉**时，git 走查同样返回空
+    ⇒ 旧代码照样判 fresh。**删除比改名更隐蔽**，因为没人会去改调用点。
+    """
+    p = _report(repo)
+    P.stamp(p, "aplus/backtest.py", root=repo["root"])
+    (repo["root"] / "aplus" / "backtest.py").unlink()
+    repo["commit"]("删掉生成器")
+
+    got = P.freshness(p, "aplus/backtest.py", root=repo["root"])
+
+    assert got["verdict"] == "unknown", (
+        f"生成器被删却判了 {got['verdict']}：{got['reason']}"
+    )
+
+
 def test_the_stamp_actually_writes_the_byte_field(repo):
     """★ 「登记 ≠ 盖章」：字段写进源码里，不等于它真被写进 sidecar。"""
     p = _report(repo)
@@ -692,3 +782,146 @@ def test_the_cli_prints_the_basis_of_every_fresh_verdict(repo, capsys):
     assert "字节证据" in out, "有字节证据的那份必须说清"
     # ⇒ 两种绿不许长得一样
     assert out.count("仅 commit 走查") == 1
+
+
+def test_default_generators_has_no_duplicate_keys():
+    """登记表里**同一个产物不许登记两次**。
+
+    ★ 2026-10-15 实测踩到：`k_sweep_summary.json` 被登记了两次
+      （一处是「找生成器」那轮补的，一处是今天补盖章那轮补的）。
+      而 `DEFAULT_GENERATORS` 是 **dict 字面量** ⇒ 后者**静默覆盖**前者：
+      **不报错、不告警、登记表读起来完全正常。**
+
+    ⇒ 运行时永远看不到这个重复（dict 已经把它吞了），
+      所以只能在 **AST 层**数键：出现两次就红。
+
+    为什么值得一条守卫：**重复登记意味着有一次登记从来没生效过**，
+      而读表的人无从知道是哪一次。这与「陈旧产物能通过一致性检查」同源 ——
+      一致性检查查的是「彼此吻合」，查不出「这一条根本没被用上」。
+    """
+    import ast
+
+    src = Path(P.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(src)
+
+    # ⚠️ `DEFAULT_GENERATORS` 带类型标注 ⇒ 节点是 **AnnAssign**，不是 Assign。
+    #   写成只认 `Assign` 的第一版在这上面抛 `StopIteration` ——
+    #   **红的原因不对**：读起来像「数据有问题」，实际是「守卫自己写错了」。
+    #   而 `next(..., None)` + 找不到就 return 更糟：那是一条**静默通过**的守卫，
+    #   它自己失效了都不知道。所以这里显式断言找到了。
+    def _is_dg(node):
+        if isinstance(node, ast.AnnAssign):
+            return getattr(node.target, "id", None) == "DEFAULT_GENERATORS"
+        if isinstance(node, ast.Assign):
+            return any(getattr(t, "id", None) == "DEFAULT_GENERATORS"
+                       for t in node.targets)
+        return False
+
+    nodes = [n for n in ast.walk(tree) if _is_dg(n)]
+    assert nodes, "源码里找不到 DEFAULT_GENERATORS 的赋值节点 —— 守卫失效了（宁可红）"
+    keys = [k.value for k in nodes[0].value.keys if isinstance(k, ast.Constant)]
+    assert keys, "赋值节点里一个键都没有 —— 守卫在数别的东西"
+    assert len(keys) == len(set(keys)), "登记了重复的产物名（dict 已静默吞掉其中一次）"
+    dupes = sorted({k for k in keys if keys.count(k) > 1})
+    assert not dupes, f"重复登记：{dupes}"
+    # 反向对照：AST 数出来的键必须与运行时 dict 一致，否则上面那条在数别的东西
+    assert set(keys) == set(P.DEFAULT_GENERATORS)
+
+
+# ── 第 125 层：盖章时校验「跑的和盖章的是同一份字节」 ─────────────────
+
+def test_the_stamp_refuses_when_the_generator_changed_mid_run(repo):
+    """★ 这条守的是「产物正在生成时，它的生成器字节必须冻结」。
+
+    2026-10-15 的实测代价：K 链串行跑 ~10 分钟一档，我一边跑一边改生成器，
+    而 `stamp()` 是在**每档写盘那一刻**算哈希 ⇒ 算的是**当时盘上**的字节，
+    不是**这一档执行**的字节 ⇒ K=5 用旧字节跑完却盖上新字节的哈希。
+    ⇒ 那枚章说的不是「这份产物是这些字节造的」，
+      而是「写盘那一刻磁盘上恰好是这些字节」—— **反向的错误证据**。
+
+    ⇒ 不一致时**必须拒绝盖章**：偏写出去比不写更坏。
+    """
+    root = repo["root"]
+    gen = "aplus/backtest.py"
+    (root / "reports" / "master" / "daily").mkdir(parents=True, exist_ok=True)
+    before = P.code_file_sha256(root, gen)
+
+    # 「跑的过程中」被改了 —— 这是本条要抓的**唯一**事件
+    (root / gen).write_text("# v2 —— 在产物生成期间被改\n", encoding="utf-8")
+
+    report = _report(repo)
+    with pytest.raises(RuntimeError) as ei:
+        P.stamp(report, gen, root=root, expect_bytes=before)
+
+    msg = str(ei.value)
+    assert before in msg and P.code_file_sha256(root, gen) in msg, (
+        "拒绝必须**同时报出两侧的字节** —— 只说「不一致」的话，"
+        "读的人无从判断是谁变了")
+    assert "第 125 层" in msg, "拒绝要说清这是哪条铁律，否则会被当成环境问题"
+
+
+def test_the_refusal_happens_before_any_write(repo):
+    """🚨 拒绝必须发生在**写盘之前**（第 126 层：闸门放在 `json.dump` 之后，
+    会**先覆盖掉原始证据再打印「已作废」**）。"""
+    root = repo["root"]
+    gen = "aplus/backtest.py"
+    (root / "reports" / "master" / "daily").mkdir(parents=True, exist_ok=True)
+    before = P.code_file_sha256(root, gen)
+    (root / gen).write_text("# v2\n", encoding="utf-8")
+
+    report = _report(repo)
+    side = P.sidecar_path(report)
+    side.write_text('{"code_sha": "PREVIOUS-EVIDENCE"}', encoding="utf-8")
+    keep = side.read_bytes()
+
+    with pytest.raises(RuntimeError):
+        P.stamp(report, gen, root=root, expect_bytes=before)
+
+    assert side.read_bytes() == keep, (
+        "★ 拒绝之后仍把旧 sidecar 覆盖了 —— 那是**用一条警告换走了原始证据**。")
+
+
+def test_the_matching_case_stamps_normally(repo):
+    """正控：字节没变时**必须照常盖章** ——
+    否则这条守卫会退化成「永远拒绝」，而那等价于没有 provenance。"""
+    root = repo["root"]
+    gen = "aplus/backtest.py"
+    (root / "reports" / "master" / "daily").mkdir(parents=True, exist_ok=True)
+    expect = P.code_file_sha256(root, gen)
+
+    out = P.stamp(_report(repo), gen, root=root, expect_bytes=expect)
+    rec = json.loads(out.read_text(encoding="utf-8"))
+    assert rec["code_file_sha256"] == expect
+
+
+def test_omitting_expect_bytes_keeps_the_old_behaviour(repo):
+    """⚠️ 刻意**不做成必填**。
+
+    几十个调用点，一次性改完会把「大家都在传」变成「大家都在抄一个变量」——
+    那样检查照样在，而没人再读它（第 102 层：探针打在自己的副本上）。
+    ⇒ 正确性靠新脚本按模式写，而不是靠把旧调用点全改一遍。
+    """
+    root = repo["root"]
+    out = P.stamp(_report(repo), "aplus/backtest.py", root=root)
+    assert json.loads(out.read_text(encoding="utf-8"))["code_file_sha256"]
+
+
+def test_the_comparison_is_exact_and_not_a_prefix_match(repo):
+    """★ 抓「只比前 8 位」那种截断。
+
+    真实失效形态：`expect_bytes[:8] != now_bytes[:8]` 看着完全够用
+    （commit 短 sha 本来就只 8 位），而**篡改者只要保留前 8 位就绕过了**。
+    ⚠️ 我第一版的测试只做「把生成器整个改掉」⇒ 前缀当然也不同 ⇒
+    **截断实现照样绿**（变异 N2 存活）。⇒ 必须构造
+    「**前缀逐位相同、尾部不同**」的输入才问得到这个问题。
+    """
+    root = repo["root"]
+    gen = "aplus/backtest.py"
+    (root / "reports" / "master" / "daily").mkdir(parents=True, exist_ok=True)
+    now = P.code_file_sha256(root, gen)
+
+    forged = now[:8] + "0" * (len(now) - 8)
+    assert forged != now and forged[:8] == now[:8], "夹具本身没造出「前缀同、尾不同」"
+
+    with pytest.raises(RuntimeError):
+        P.stamp(_report(repo), gen, root=root, expect_bytes=forged)

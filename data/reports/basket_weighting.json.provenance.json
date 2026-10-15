@@ -1,0 +1,15 @@
+{
+  "code_sha": "f420d167bdea4791c50375a4950198bd3ddb1fda",
+  "code_dirty": true,
+  "code_file_sha256": "f3508955dd4eddf52cf8f15ef315904170cf490f50ed1233867677538f71829f",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/basket_weighting.py",
+  "stamped_at": "2026-10-15T01:36:32+00:00",
+  "verdict": "SD_NEUTRAL",
+  "n": 200,
+  "k": 21,
+  "window": 60,
+  "capital": 50000.0,
+  "friction_annual_pct": 50.56609523809523
+}

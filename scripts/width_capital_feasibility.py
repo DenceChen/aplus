@@ -83,6 +83,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aplus.costs import annual_friction  # noqa: E402
 from aplus.hurdle import hurdle_rate, rounds_per_year  # noqa: E402
+# ★ 溯源章（2026-10-15 补）。本脚本**不重跑回测**，只把 `factor_width_mde.json`
+#   的毛超额翻译成「要多少本金」⇒ 重跑是秒级的，所以章必须能拿到。
+#   ⚠️ 它此前**既没登记也没盖章** ⇒ 按本仓规矩 `unknown` = 不可引用，
+#   而 CLAUDE.md「五档回本所需本金」那张表**就是照着它写的**。
+from aplus import provenance  # noqa: E402
 
 DEFAULT_ARTIFACT = Path("data/reports/factor_width_mde.json")
 TARGET_NET = 0.20
@@ -207,6 +212,15 @@ def main(argv: list[str] | None = None) -> int:
         }
         args.out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
                             encoding="utf-8")
+        # ⚠️ 盖章必须在写完之后，且**只能靠真跑**拿 ——
+        #   手写 sidecar 是形状 16（捏造一个与真章无法区分的文件），比红着更糟。
+        provenance.stamp(args.out, "scripts/width_capital_feasibility.py",
+                         root=Path(__file__).resolve().parents[1],
+                         extra={"any_width_reaches_target":
+                                payload["any_width_reaches_target"],
+                                "target_net": payload["target_net"],
+                                "source_artifact": str(args.artifact),
+                                "capital": payload["capital"]})
         print(f"→ {args.out}")
     return 0
 

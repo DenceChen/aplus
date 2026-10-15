@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -32,10 +33,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 import pandas as pd
 
+from aplus import provenance
 from aplus.composite import daily_ic_series, unpack, walk_forward
-from aplus.factor import FACTOR_NAMES
+from aplus.factor import DEFAULT_WEIGHTS, FACTOR_NAMES
 from aplus.hurdle import DAYS_PER_YEAR, hurdle_rate, rounds_per_year
 from aplus.ic_to_return import annualise, implied_spread, required_ic
+
+ROOT = Path(__file__).resolve().parents[1]
 
 #: σ_r **实测值**，出处 `data/reports/xsec_sigma_r.json`（带溯源章）。
 #: 不写死门槛的理由与 `verdict_monthly_hurdle.py` 相同：
@@ -81,6 +85,13 @@ def main() -> int:
                     default=Path("data/reports/ic_matrices.parquet"))
     ap.add_argument("--factors", default="",
                     help="逗号分隔，默认全部 8 个")
+    ap.add_argument("--out", type=Path,
+                    default=Path("data/reports/verdict_composite.json"),
+                    help="★ 本判决的 JSON 产物。**2026-10-15 之前这里不存在**——"
+                         "三臂数字只活在终端里，于是「原样等权 6/6 全败、"
+                         "朴素翻号 6/6 过线」这条结论无人可查，"
+                         "差点被一份新预注册重新发现一遍（见第 127 层）。"
+                         "**只印不落 = 数字等于没测**。")
     args = ap.parse_args()
 
     if not args.matrices.is_file():
@@ -217,6 +228,7 @@ def main() -> int:
     dates, Rs, sf = unpack(df, factors)
     yrs = np.array([int(str(d)[:4]) for d in dates])
     judged_years = {r["year"] for r in judged}
+    singles_json: dict[str, dict] = {}
     if judged_years:
         by_year = {r["year"]: r for r in judged}
         singles = {}
@@ -234,6 +246,17 @@ def main() -> int:
                 ic_s = np.asarray(ic_s)[np.isfinite(ic_s)]
                 per[nm] = ic_s.mean() if len(ic_s) else float("nan")
             singles[y] = (ic_c.mean() if len(ic_c) else float("nan"), per)
+            # ★ NaN 不是合法 JSON（`json.dumps` 会写出裸 `NaN`，严格解析器直接报错）
+            #   ⇒ 缺值一律落 `None`，不让「没有观测」变成「无法解析的产物」。
+            bnm = max(per, key=lambda k: abs(per[k]))
+            c_ic = float(ic_c.mean()) if len(ic_c) else None
+            singles_json[str(y)] = {
+                "composite_ic": c_ic,
+                "best_single": bnm,
+                "best_single_ic": (float(per[bnm]) if np.isfinite(per[bnm]) else None),
+                "increment": (abs(c_ic) - abs(float(per[bnm]))
+                              if c_ic is not None and np.isfinite(per[bnm]) else None),
+            }
 
         hdr = f"{'年':<6}{'合成':>9}{'最好单因子':>11}{'哪个':>10}{'增量':>9}"
         print(hdr)
@@ -249,6 +272,94 @@ def main() -> int:
         if wins < len(singles):
             print("→ 组合**没有**在样本外普遍占优——即便过线也不能当成"
                   "「找到了更好的信号」，只能说「这条路还没死」。")
+
+    # ── 落盘（2026-10-15，第 127 层）────────────────────────────────
+    #
+    # 🚨 **这三臂的排序是本仓最容易被重新发现的结论之一**：
+    #   原样等权 `1/k` **6/6 全败且 IC 六年全为负**（不是弱一点，是**符号翻转**——
+    #   8 个因子里 7 个 IC 为负，原样平均必然抵消成负）；
+    #   朴素翻号（只学方向、一个系数都不学）**6/6 过线**；
+    #   最优定权相对它的年均优势只有门槛的 **36.1%**，6 年里 5 年占优。
+    # ⇒ 拿「原样等权」当对照臂，等于**预注册一场输定了的比赛**，
+    #   而它的失败会被读成「等权不行」——
+    #   `docs/TODO_equal_weight_control_arm_2026-10-15.md` 正是这么写的。
+    # ⇒ 所以下面这份 JSON 是**判决的一部分**，不是日志。
+    three_arm = {
+        "threshold_ic": ic_need,
+        "years": common,
+        "by_year": {
+            str(y): {
+                "optimal": opt_by_year[y]["ic_mean"],
+                "sign_only": sign_by_year[y]["ic_mean"],
+                "equal_raw": eq_by_year[y]["ic_mean"],
+                "optimal_minus_sign": opt_by_year[y]["ic_mean"] - abs(sign_by_year[y]["ic_mean"]),
+                "pass_optimal": opt_by_year[y]["pass_"],
+                "pass_sign": sign_by_year[y]["pass_"],
+                "pass_equal": eq_by_year[y]["pass_"],
+                "weights": opt_by_year[y]["weights"],
+                "weights_source": opt_by_year[y].get("weights_source"),
+            }
+            for y in common
+        },
+        "summary": {
+            "mean_advantage_optimal_over_sign": float(np.mean(gains)) if gains else None,
+            "advantage_as_fraction_of_threshold":
+                float(np.mean(gains)) / ic_need if gains else None,
+            "sign_arm_failures": int(sign_fail),
+            "equal_arm_failures": int(eq_fail),
+            "sign_not_worse_years": int(sign_wins),
+            "n_years": len(common),
+            "equal_arm_ic_negative_years": int(
+                sum(1 for y in common if eq_by_year[y]["ic_mean"] < 0)),
+        },
+        "arm_definitions": {
+            "optimal": "w ∝ R⁻¹Σ_f（optimal_weights），只用该年之前的数据 —— **主判决**",
+            "sign_only": "sign(历史 IC) —— 只学方向，一个系数都不学，"
+                         "代码里自称「石川那句话的最强版本 / 真正及格线」",
+            "equal_raw": "1/√k 原样 —— 连方向都不学。"
+                         "⚠️ **7/8 因子 IC 为负 ⇒ 这一臂的 IC 必然为负**，"
+                         "它是「不学任何东西」的下界，**不是「等权」的中性对照**",
+        },
+    }
+
+    res = {
+        "kind": "verdict_composite_three_arm",
+        "generated_by": "scripts/verdict_composite.py",
+        "note": ("「桥·年毛超额」那一列走已被实测证伪的 IC→分位价差桥"
+                 "（常数错 + 形状错，q=0.2 上高估 4.02×），**不许被引用**；"
+                 "判决只依据组合 IC 与门槛。"),
+        "config": {
+            "matrices": str(args.matrices),
+            "factors": factors,
+            "judged_from": JUDGED_FROM,
+            "equal_weight_years": list(EQUAL_WEIGHT_YEARS),
+            "weight_rule_main": "optimal",
+            "n_days_extracted": int(len(df)),
+            "date_min": str(df["date"].min()),
+            "date_max": str(df["date"].max()),
+        },
+        "threshold": {"need_pct": need, "ic": ic_need, "sigma_r": SIGMA_R,
+                      "derived_from": "σ_r 实测 + 月频成本假设（外部锚，非字面量）"},
+        "judged_years": sorted(r["year"] for r in judged),
+        "n_fail_years": int(sum(1 for r in judged if not r["pass_"])),
+        "three_arm": three_arm,
+        "vs_best_single_factor": singles_json,
+        "default_weights_reference": {
+            "weights": dict(DEFAULT_WEIGHTS),
+            "why_here": (
+                "★ `DEFAULT_WEIGHTS` **不是判决路径用的权重**。"
+                "判决路径 = `walk_forward` → `train_weights` → `optimal_weights`"
+                "（8 因子、逐年变、只用该年之前）。`DEFAULT_WEIGHTS` 是 "
+                "`composite_score(weights=None)` 的回落，即**实盘出单**路径的默认。"
+                "⇒ 两者结构不同：`ivol` 在 DEFAULT 里恒 0 而在判决里幅度最大；"
+                "`vol20` 符号相反。把 DEFAULT_WEIGHTS 当成「现状基线」会认错基线"
+                "（第 127 层）。"),
+        },
+    }
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
+    provenance.stamp(args.out, "scripts/verdict_composite.py", root=ROOT)
+    print(f"\n→ {args.out}")
 
     print()
     if not judged:

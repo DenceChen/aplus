@@ -1,0 +1,12 @@
+P1 生成器存在性检查被摘掉（不存在的路径 ⇒ commit 走查返回空 ⇒ **判 fresh**，即最贵的那个答案）	aplus/provenance.py
+if gen and not (root / gen).is_file():
+        problems.append(
+            f"生成器路径 `{gen}` 在仓里**不存在** ⇒ 判据本身没跑"
+            f"（多半是写错了名字，或它被改名/删除；"
+            f"用 `resolve_generator({name})` 拿登记值重查）")
+=== 变异体 ===
+if False and gen and not (root / gen).is_file():
+        problems.append(
+            f"生成器路径 `{gen}` 在仓里**不存在** ⇒ 判据本身没跑"
+            f"（多半是写错了名字，或它被改名/删除；"
+            f"用 `resolve_generator({name})` 拿登记值重查）")

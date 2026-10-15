@@ -243,9 +243,18 @@ def diagnose(ic_path: Path = IC_REPORT, wf_path: Path = WF_REPORT) -> dict:
         fs = [r["factor"] for r in rows]
         if not all(f in weights for f in fs):
             continue                       # 该窗口的因子集与权重集不同，跳过并留痕
-        abs_ic = [abs(r["all"]) for r in rows]
+        # ★★ 判决必须用**带符号** IC —— 生产权重 `w ∝ R⁻¹·s_f` 里的 `s_f`
+        #   **就是带符号的 IC**，`|IC|` 是这个系统**从来不用的量**。
+        #   本脚本第一版拿 `abs(r["all"])` 下判决（2026-10-15 修正）：
+        #   2026-10-15 的三臂对照臂在**训练段**上实测
+        #   `ρ(带符号 IC, 尾部价差) = +1.0000`、`ρ(|IC|, 尾部价差) = −1.0000`
+        #   ⇒ 取绝对值把**符号整个翻过来**，于是「IC 与尾部价差错配」这个结论
+        #   是在诊断一个**生产代码没有的量**（形状 119：代理不是真相）。
+        signed_ic = [r["all"] for r in rows]
+        abs_ic = [abs(v) for v in signed_ic]
         spread_v = [spread[f] for f in fs]
         abs_w = [abs(weights[f]) for f in fs]
+        rho_signed_ic = spearman(signed_ic, spread_v)
         rho_ic = spearman(abs_ic, spread_v)
         rho_w = spearman(abs_w, spread_v)
         n_days = rows[0]["n_days"]
@@ -263,6 +272,10 @@ def diagnose(ic_path: Path = IC_REPORT, wf_path: Path = WF_REPORT) -> dict:
             "lookahead": int(fwd[0]) < 0,
             "effective_independent_obs": round(eff, 1),
             "overlap_factor": round(n_days / eff, 2),
+            # 判决依据（生产实际使用的量）
+            "rho_signedIC_vs_spread": round(rho_signed_ic, 4),
+            # ⚠️ 以下两项**不参与判决**：`|IC|` 不是生产用的量，
+            #   `|w|` 只是个观察量。留在产物里是为了对照，不是因为它该说话。
             "rho_absIC_vs_spread": round(rho_ic, 4),
             "rho_absW_vs_spread": round(rho_w, 4),
             "per_factor": {r["factor"]: {
@@ -312,39 +325,57 @@ def diagnose(ic_path: Path = IC_REPORT, wf_path: Path = WF_REPORT) -> dict:
     #   这比只报最干净那个窗口得出的结论弱，而那个弱是**真实**的。
     per_window = {k: {"overlap_factor": v["overlap_factor"],
                        "effective_independent_obs": v["effective_independent_obs"],
-                       "cond1_ic_antispread": v["rho_absIC_vs_spread"] <= -crit,
+                       "cond1_ic_antispread": v["rho_signedIC_vs_spread"] <= -crit,
                        "cond2_weight_not_following": v["rho_absW_vs_spread"] < crit}
                   for k, v in usable.items()}
     cond1 = all(x["cond1_ic_antispread"] for x in per_window.values())
     cond2 = all(x["cond2_weight_not_following"] for x in per_window.values())
     # 描述性事实与判决分开报：方向在四个窗口上一致（全是负），
     # 而「显著」是另一回事 —— 混成一句就会把「一致」读成「显著」。
-    signs = {k: (1 if v["rho_absIC_vs_spread"] < 0 else -1)
+    signs = {k: (1 if v["rho_signedIC_vs_spread"] < 0 else -1)
              for k, v in out["windows"].items()}
     out["usable_windows"] = sorted(usable)
     out["per_window_verdict"] = per_window
     out["rho_sign_consistent_across_all_windows"] = len(set(signs.values())) == 1
     out["cond_ic_antispread"] = cond1
     out["cond_weight_not_following_spread"] = cond2
+    # ★ 「方向一致」有两个方向，而**两个方向的含义完全相反**（形状 119 的修正）：
+    #   · ρ < 0：IC 与尾部价差**反向** ⇒ 权重系统性投给了尾部最弱的因子 ⇒ 有病灶
+    #   · ρ > 0：IC 与尾部价差**同向** ⇒ 权重排序与策略下注方向**本就一致** ⇒ 没有病灶
+    # 第一版只判「符号一致与否」，于是 ρ=+1.0 也落进
+    # `DIRECTION_CONSISTENT_...` 那个名字里说「反向」的分支 ⇒ **标签变成假话**。
+    corr_negative = (out["rho_sign_consistent_across_all_windows"]
+                     and all(v["rho_signedIC_vs_spread"] < 0
+                             for v in out["windows"].values()))
+    out["corr_direction"] = "negative" if corr_negative else "not_negative"
     if cond1 and cond2:
         out["verdict"] = "WEIGHT_TARGET_MISMATCH"
-    elif out["rho_sign_consistent_across_all_windows"] and cond2:
+    elif corr_negative and cond2:
         out["verdict"] = "DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE"
     else:
         out["verdict"] = "NO_MISMATCH_AT_MEASURED_WIDTH"
     out["读法"] = (
         "IC 是全截面**平均**相关（被中段主导），策略只吃**两端**。"
-        "若两者负相关而权重跟着 IC 走，权重就系统性地投给了尾部最弱的因子 "
+        "若两者**负相关**而权重跟着 IC 走，权重就系统性地投给了尾部最弱的因子 "
         "⇒ **改权重幅度没用，要改权重学习的目标函数**。"
         "本判决只覆盖「权重投给了谁」，不覆盖「策略赚不赚钱」——"
         "后者由预注册的 G1~G6 判。\n"
+        "⚠️ **2026-10-15 修正：判决量从 |IC| 改成带符号 IC。**\n"
+        "   生产权重 `w ∝ R⁻¹·s_f` 里的 `s_f` **就是带符号 IC**；\n"
+        "   第一版拿 `abs()` 下判决，而实测\n"
+        "   ρ(带符号 IC, 尾部价差)=+1.0000、ρ(|IC|, 尾部价差)=−1.0000\n"
+        "   ⇒ 取绝对值把**符号整个翻过来**，"
+        "   于是「IC 与尾部价差错配」是在一个**生产代码没有的量**上量出来的。\n"
+        "   `rho_absIC_vs_spread` 仍留在产物里，但**不参与判决**。\n"
         "判决三态怎么读：\n"
         "  · WEIGHT_TARGET_MISMATCH：结构主张在**每个**不含前视的窗口上都越过了门槛。\n"
-        "  · DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE：**方向**在所有窗口一致，\n"
+        "  · DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE：**反向**在所有窗口一致，\n"
         "    但有窗口没过显著性门槛 —— 通常是那个窗口重叠高、独立观测少。\n"
         "    ⚠️ **这不是「显著」，不要当显著引用**；它是「一致但未处处站住」。\n"
         "    它比「只报最干净那个窗口」弱，而那个弱是真实的。\n"
-        "  · NO_MISMATCH_AT_MEASURED_WIDTH：在 8 个因子的秩相关宽度上，没有证据。")
+        "  · NO_MISMATCH_AT_MEASURED_WIDTH：在 8 个因子的秩相关宽度上，没有证据。\n"
+        "    ★ 含 ρ **同向**（`corr_direction = not_negative`）这一情形：\n"
+        "      权重排序与策略下注方向本就一致 ⇒ **没有错配可修**。")
     return out
 
 

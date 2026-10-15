@@ -1,0 +1,42 @@
+B1 契约断裂被换回 df.index 回落（★原缺陷：整数索引→1970⇒date<=upto 恒真⇒sd 全来自未来）	scripts/basket_weighting.py
+if "date" not in df.columns:
+        raise KeyError(
+            f"{code} 的日线缺 `date` 列（实有 {list(df.columns)[:8]}）—— "
+            "契约断裂，不是数据缺失。**绝不可回落成 `df.index`**："
+            "整数索引会变成 1970 年，于是 `date <= upto` 恒真、"
+            "未来行全被留下，sd 直接带前视且全程无报错。")
+    dates = pd.to_datetime(df["date"])
+=== 变异体 ===
+dates = pd.to_datetime(df["date"] if "date" in df.columns else df.index)
+
+B2 契约断裂的显式报错被短路（改由 pandas 抛裸 KeyError：仍是「响」但不再可诊断）	scripts/basket_weighting.py
+if "date" not in df.columns:
+        raise KeyError(
+            f"{code} 的日线缺 `date` 列（实有 {list(df.columns)[:8]}）—— "
+            "契约断裂，不是数据缺失。**绝不可回落成 `df.index`**："
+            "整数索引会变成 1970 年，于是 `date <= upto` 恒真、"
+            "未来行全被留下，sd 直接带前视且全程无报错。")
+=== 变异体 ===
+if False and "date" not in df.columns:
+        raise KeyError(
+            f"{code} 的日线缺 `date` 列（实有 {list(df.columns)[:8]}）—— "
+            "契约断裂，不是数据缺失。**绝不可回落成 `df.index`**："
+            "整数索引会变成 1970 年，于是 `date <= upto` 恒真、"
+            "未来行全被留下，sd 直接带前视且全程无报错。")
+    dates = pd.to_datetime(df["date"])
+
+D1 末端留空的拒绝被短接（`--end ""` 滑过去 ⇒ `or None` 把 None 交给 build_panel）	scripts/basket_weighting.py
+if not args.end.strip():
+        print(f"🚨 `--end` 不许留空：末端必须显式钉死（形状 23：一只票定全池窗口）。"
+              f"当前默认 {WINDOW_END_PINNED}。", file=sys.stderr)
+        return 2
+=== 变异体 ===
+if False and not args.end.strip():
+        print(f"🚨 `--end` 不许留空：末端必须显式钉死（形状 23：一只票定全池窗口）。"
+              f"当前默认 {WINDOW_END_PINNED}。", file=sys.stderr)
+        return 2
+
+D2 默认末端从钉死值退回空串（默认调用直接崩，且窗口长度不再可复现）	scripts/basket_weighting.py
+ap.add_argument("--end", default=WINDOW_END_PINNED)
+=== 变异体 ===
+ap.add_argument("--end", default="")

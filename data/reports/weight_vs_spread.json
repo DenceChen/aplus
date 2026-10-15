@@ -15,6 +15,7 @@
       "lookahead": false,
       "effective_independent_obs": 1821.0,
       "overlap_factor": 1.0,
+      "rho_signedIC_vs_spread": 0.9286,
       "rho_absIC_vs_spread": -0.9286,
       "rho_absW_vs_spread": 0.119,
       "per_factor": {
@@ -93,6 +94,7 @@
       "lookahead": true,
       "effective_independent_obs": 1822.0,
       "overlap_factor": 1.0,
+      "rho_signedIC_vs_spread": 0.5238,
       "rho_absIC_vs_spread": -0.5238,
       "rho_absW_vs_spread": 0.119,
       "per_factor": {
@@ -171,6 +173,7 @@
       "lookahead": false,
       "effective_independent_obs": 454.5,
       "overlap_factor": 4.0,
+      "rho_signedIC_vs_spread": 0.8333,
       "rho_absIC_vs_spread": -0.8333,
       "rho_absW_vs_spread": 0.0952,
       "per_factor": {
@@ -249,6 +252,7 @@
       "lookahead": false,
       "effective_independent_obs": 85.8,
       "overlap_factor": 21.0,
+      "rho_signedIC_vs_spread": 0.6905,
       "rho_absIC_vs_spread": -0.6429,
       "rho_absW_vs_spread": 0.0238,
       "per_factor": {
@@ -328,13 +332,13 @@
     "lag1_real": {
       "overlap_factor": 1.0,
       "effective_independent_obs": 1821.0,
-      "cond1_ic_antispread": true,
+      "cond1_ic_antispread": false,
       "cond2_weight_not_following": true
     },
     "hold4": {
       "overlap_factor": 4.0,
       "effective_independent_obs": 454.5,
-      "cond1_ic_antispread": true,
+      "cond1_ic_antispread": false,
       "cond2_weight_not_following": true
     },
     "hold21": {
@@ -347,6 +351,7 @@
   "rho_sign_consistent_across_all_windows": true,
   "cond_ic_antispread": false,
   "cond_weight_not_following_spread": true,
-  "verdict": "DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE",
-  "读法": "IC 是全截面**平均**相关（被中段主导），策略只吃**两端**。若两者负相关而权重跟着 IC 走，权重就系统性地投给了尾部最弱的因子 ⇒ **改权重幅度没用，要改权重学习的目标函数**。本判决只覆盖「权重投给了谁」，不覆盖「策略赚不赚钱」——后者由预注册的 G1~G6 判。\n判决三态怎么读：\n  · WEIGHT_TARGET_MISMATCH：结构主张在**每个**不含前视的窗口上都越过了门槛。\n  · DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE：**方向**在所有窗口一致，\n    但有窗口没过显著性门槛 —— 通常是那个窗口重叠高、独立观测少。\n    ⚠️ **这不是「显著」，不要当显著引用**；它是「一致但未处处站住」。\n    它比「只报最干净那个窗口」弱，而那个弱是真实的。\n  · NO_MISMATCH_AT_MEASURED_WIDTH：在 8 个因子的秩相关宽度上，没有证据。"
+  "corr_direction": "not_negative",
+  "verdict": "NO_MISMATCH_AT_MEASURED_WIDTH",
+  "读法": "IC 是全截面**平均**相关（被中段主导），策略只吃**两端**。若两者**负相关**而权重跟着 IC 走，权重就系统性地投给了尾部最弱的因子 ⇒ **改权重幅度没用，要改权重学习的目标函数**。本判决只覆盖「权重投给了谁」，不覆盖「策略赚不赚钱」——后者由预注册的 G1~G6 判。\n⚠️ **2026-10-15 修正：判决量从 |IC| 改成带符号 IC。**\n   生产权重 `w ∝ R⁻¹·s_f` 里的 `s_f` **就是带符号 IC**；\n   第一版拿 `abs()` 下判决，而实测\n   ρ(带符号 IC, 尾部价差)=+1.0000、ρ(|IC|, 尾部价差)=−1.0000\n   ⇒ 取绝对值把**符号整个翻过来**，   于是「IC 与尾部价差错配」是在一个**生产代码没有的量**上量出来的。\n   `rho_absIC_vs_spread` 仍留在产物里，但**不参与判决**。\n判决三态怎么读：\n  · WEIGHT_TARGET_MISMATCH：结构主张在**每个**不含前视的窗口上都越过了门槛。\n  · DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE：**反向**在所有窗口一致，\n    但有窗口没过显著性门槛 —— 通常是那个窗口重叠高、独立观测少。\n    ⚠️ **这不是「显著」，不要当显著引用**；它是「一致但未处处站住」。\n    它比「只报最干净那个窗口」弱，而那个弱是真实的。\n  · NO_MISMATCH_AT_MEASURED_WIDTH：在 8 个因子的秩相关宽度上，没有证据。\n    ★ 含 ρ **同向**（`corr_direction = not_negative`）这一情形：\n      权重排序与策略下注方向本就一致 ⇒ **没有错配可修**。"
 }

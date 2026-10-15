@@ -90,6 +90,14 @@ SELF_PATH = "aplus/provenance.py"
 #: 表外的报告一律 `unknown` —— **漏登记比登记错更安全**，
 #: 因为登记错只是漏报，漏登记会让人以为没人管。
 DEFAULT_GENERATORS: dict[str, str] = {
+    # 2026-10-15 登记（第 127 层）：三臂判决（最优定权 / 朴素翻号 / 原样等权）。
+    # 🚨 登记**卡在 K 链跑完之后才做** —— `aplus/provenance.py` 正在被链的
+    #   `backtest_walk_forward_weights.py` 调用（`provenance.stamp()`），
+    #   在它运行时改它就是第 125 层本人。
+    # 为什么非登记不可：这份产物落盘前，三臂数字**只活在终端里** ⇒
+    #   「原样等权 6/6 全败」无人可查 ⇒ 「等权够不够」被当成未回答的问题
+    #   **带着一个错的基线重新预注册了一遍**。
+    "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
     "market_benchmark_audit.json": "aplus/backtest.py",
@@ -98,6 +106,11 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 错因：输出文件名**不绑在脚本上**（来自调用者的 `--json-out`），
     # 所以 `grep k_sweep` 匹配不到源文件，grep 的空被读成了「不存在」。
     # ⇒ 「用字面量 grep 找生成器」是探针陷阱，不是捷径。
+    # ⚠️⚠️ 2026-10-15 实测：这个键**曾被登记两次**（这里 + 更靠后的 ⑤ 号那段）。
+    #   `DEFAULT_GENERATORS` 是 dict 字面量 ⇒ 后者**静默覆盖**前者，
+    #   不报错、不告警、登记表读起来还完全正常。重复的那一条已删除。
+    #   ⇒ 守卫 `tests/test_provenance.py::test_default_generators_has_no_duplicate_keys`
+    #   用 AST 数键，出现两次就红。**重复登记 = 有一次登记从来没生效过。**
     "k_sweep_summary.json": "scripts/k_sweep_extract.py",
     # 赛马报告的判决逻辑在 evolve_race.oos_decision，不在驱动脚本
     "ic_guided_race_7y.json": "aplus/evolve_race.py",
@@ -143,6 +156,32 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # ② 权重目标函数错配诊断：判「权重跟的是 IC，策略吃的是尾部价差」
     #    三态判决；守卫在 tests/test_weight_vs_spread.py + tests/mutation_specs/
     "weight_vs_spread.json": "scripts/weight_vs_spread.py",
+    # 尾部价差配权三臂对照（预注册 A1/A2/A3）。
+    # ⚠️ 它的**存在理由**曾是一个被证伪的前提：`weight_vs_spread.json`
+    #   判决「IC 与尾部价差错配」，而那个判决量曾是 |IC| ——
+    #   生产权重用的是带符号 IC，ρ 的符号整个反过来（形状 119）。
+    #   登记它是为了让「前提被证伪」这件事本身**可追溯**，不是为了让它可引用。
+    "spread_tilted_arm.json": "scripts/spread_tilted_arm.py",
+    # ③ 安慰剂对照：判「t=2.44 是不是因子，还是一个差基准」。
+    #    判决 `PLACEBO_NULL` 是全项目的**承重判决**——
+    #    在它之前「因子有效」一个字都不能写。
+    # 🚨 2026-10-15 补登记：它此前**既没登记也没盖章**，
+    #    而按本模块自己的规矩 `unknown` = **不许引用**
+    #    ⇒ 一份决定「因子有没有效」的产物一直在**不可引用**状态。
+    #    这不是形状 6 的变体（那是「假装能调」），是它的镜像：
+    #    **假装不可引用**——产物照常出数、判决照常被写进文档，
+    #    而它自己从不发出「我不可引用」的信号。
+    "placebo_control.json": "scripts/placebo_control.py",
+    # ④ 榜宽结果的**金额翻译**：把毛超额换算成「要多少本金才能回本 / 到 20% 净」。
+    #    CLAUDE.md「回本所需本金 16.1/23.9/55.9/81.2/182.3 万」那张表就是照它写的。
+    #    不重跑回测、只读 `factor_width_mde.json` ⇒ 秒级。
+    # 🚨 2026-10-15 补登记 + 补盖章：它此前**两者皆无**，而这张表是
+    #    「本金只能吃掉损耗、不能创造收益」那条**结构性结论**的全部依据。
+    "width_capital_feasibility.json": "scripts/width_capital_feasibility.py",
+    # 篮子权重（等权 / sd / 波动率目标）：判决 `SD_NEUTRAL`，依据是 sd 只降 1.3%
+    # 而均值代价吃掉 0.7 个 sd。⚠️ 2026-10-15 补登记 + 补盖章：它此前两者皆无，
+    # 而「按波动率缩权」这条路被否掉、实盘改用等权，这个判决是**唯一的依据**。
+    "basket_weighting.json": "scripts/basket_weighting.py",
     # 组合 IC 的**充分统计量**（每日 R 8×8 与 Σ_f 8），1882 天 340s。
     # 存下来之后所有权重方案秒级迭代，不再读面板。
     #
@@ -421,7 +460,8 @@ def resolve_data_dir(root: Path | str = ".", data_root: Path | str | None = None
 def stamp(report_path: Path | str, generator: str, root: Path = ".",
           extra: dict | None = None,
           data_root: Path | str | None = None,
-          daily_subdir: str = "master/daily") -> Path:
+          daily_subdir: str = "master/daily",
+          expect_bytes: str | None = None) -> Path:
     """给一份刚生成的报告盖上溯源章。
 
     写在**报告旁边**而不是报告内部：报告的 schema 是下游在读的，
@@ -431,14 +471,44 @@ def stamp(report_path: Path | str, generator: str, root: Path = ".",
       `daily_subdir` 必须是这个脚本的布局（见 `resolve_data_dir`）。
       不传就退回仓库那份 —— 那正是 2026-10-15
       「指纹读成 fresh 而数据是 `/tmp` 快照」的成因。
+
+    🚨🚨 `expect_bytes`（第 125 层）：**盖章那一刻盘上的字节**，
+      不等于**这次执行真正跑的那些字节** ——
+      K 链串行跑 ~10 分钟一档，我在跑的过程中改了生成器，
+      `stamp()` 就在每档写盘那一刻算哈希 ⇒ 章上写的是「写盘时盘上恰好是这些字节」，
+      而不是「这份产物是这些字节造出来的」。
+      ⇒ 两侧不一致时**不是弱证据，是反向的错误证据** ⇒ **拒绝盖章**。
+
+      用法（由 `main()` 开头抓一次）：
+
+          expect = provenance.code_file_sha256(ROOT, GENERATOR)
+          ...跑…
+          stamp(out, GENERATOR, root=ROOT, expect_bytes=expect)
+
+      不传 `expect_bytes` ⇒ **不做这项检查**（保持旧行为）。
+      ⚠️ 这是**刻意**不做成必填：几十个调用点，一次性改完会把
+      「大家都在传」变成「大家都在抄一个变量」——
+      那样检查照样在，而没人再读它（第 102 层：探针打在自己的副本上）。
+      ⇒ 正确性靠**新写的脚本按这个模式写** + 下面那条守卫钉住「用了就必须传」。
     """
     data_dir = resolve_data_dir(root, data_root, daily_subdir)
+    now_bytes = code_file_sha256(root, generator)
+    if expect_bytes is not None and expect_bytes != now_bytes:
+        raise RuntimeError(
+            f"拒绝盖章：生成器在**跑的过程中**被改过。\n"
+            f"  {generator}\n"
+            f"  开跑时的字节 {expect_bytes}\n"
+            f"  盖章时的字节 {now_bytes}\n"
+            f"⇒ 这枚章说的不是「这份产物是这些字节造的」，"
+            f"而是「写盘那一刻盘上恰好是这些字节」（第 125 层）。\n"
+            f"⇒ 铁律：**产物正在生成时，它的生成器字节必须冻结**。"
+            f"重跑这一档，别把这次的数字当数用。")
     rec = {
         "code_sha": code_sha(root),
         "code_dirty": is_dirty(root),
         # ★ 字节哈希：dirty 时 `code_sha` **标识不了实际跑的代码**。
         #   没有它，`freshness()` 只能靠 commit 走查，而走查看不见未提交的那部分。
-        "code_file_sha256": code_file_sha256(root, generator),
+        "code_file_sha256": now_bytes,
         # ★ 数据指纹**默认写入**，不做成可选参数：可选 = 下一个报告会忘，
         #   而「忘了」这件事没有任何守卫会报（形状 17：同一语义被处理 N−1 次）。
         #   2026-10-15 的实测代价：`factor_attribution.json` 比数据修复早 77 秒，
@@ -505,6 +575,21 @@ def freshness(report_path: Path | str, generator: str | None = None,
     if not gen:
         problems.append(f"不在 DEFAULT_GENERATORS 里，不登记来源就无法判定"
                         f"（在 {SELF_PATH} 的 DEFAULT_GENERATORS 补一行）")
+    # 🚨🚨 第 123 层：**生成器路径不存在时，旧代码判 `fresh`。**
+    #   实测（2026-10-15）：`freshness(f, "scripts/wf_weights_backtest.py")` ——
+    #   那个文件**根本不存在**（真名是 `backtest_walk_forward_weights.py`），
+    #   而 `commits_touching` 对不存在的路径返回 `[]`，
+    #   `code_file_sha256` 返回 `None` ⇒ 走查说「没有提交动过它」
+    #   ⇒ **判 fresh**。脏工作区时 `trustworthy=False` 兜住了它，
+    #   **但工作区一干净就是一次彻底的假 fresh**，也就是最贵的那个答案。
+    #
+    #   ⇒ 「查不到动过」与「查不到那个文件」必须分开。
+    #     前者才是证据；后者是**什么都没查**。
+    if gen and not (root / gen).is_file():
+        problems.append(
+            f"生成器路径 `{gen}` 在仓里**不存在** ⇒ 判据本身没跑"
+            f"（多半是写错了名字，或它被改名/删除；"
+            f"用 `resolve_generator({name})` 拿登记值重查）")
     if problems:
         return {"report": name, "verdict": "unknown", "generator": gen,
                 "reason": "；".join(problems),

@@ -1,0 +1,124 @@
+S1 训练段签名被摘掉（全样本上定符号再用同段验收＝自证）	scripts/spread_tilted_arm.py
+    for day in train_dates:
+=== 变异体 ===
+    for day in sorted(xs):
+
+S2 _clean 把 0 当成缺失丢掉（None 与 0 不分）	scripts/spread_tilted_arm.py
+    return [float(v) for v in vals if v is not None]
+=== 变异体 ===
+    return [float(v) for v in vals if v]
+
+S3 缺价差时静默排到队尾而不报错	scripts/spread_tilted_arm.py
+    missing = [f for f in factors if f not in present]
+=== 变异体 ===
+    missing = [f for f in factors if f not in present and False]
+
+S4 权重丢一个因子（组合维度变少而不报错）	scripts/spread_tilted_arm.py
+    raw = {f: (n - 1) / 2.0 - i for i, f in enumerate(order)}
+    # 平局：名次相等的因子取名次均值（不会出现，但显式处理更安全）
+    total = sum(abs(v) for v in raw.values())
+    if total == 0:
+        return {f: 0.0 for f in factors}
+    return {f: round(raw[f] / total, 4) for f in factors}
+  
+  
+def ic_tilted_weights(ic: dict, factors) -> dict:
+=== 变异体 ===
+    raw = {f: (n - 1) / 2.0 - i for i, f in enumerate(order)}
+    # 平局：名次相等的因子取名次均值（不会出现，但显式处理更安全）
+    total = sum(abs(v) for v in raw.values())
+    if total == 0:
+        return {f: 0.0 for f in factors}
+    return {f: round(raw[f] / total, 4) for f in order[:-1]}
+  
+  
+def ic_tilted_weights(ic: dict, factors) -> dict:
+
+S5 A 臂偷偷改成按 |IC| 排（等价于多加一个绝对值变量）	scripts/spread_tilted_arm.py
+    order = sorted(present, key=lambda f: ic[f]["ic_mean"], reverse=True)
+=== 变异体 ===
+    order = sorted(present, key=lambda f: abs(ic[f]["ic_mean"]), reverse=True)
+
+S6 样本薄时照样给 A1 判决	scripts/spread_tilted_arm.py
+    thin = blocks is None or blocks < MIN_DAILY_POINTS
+=== 变异体 ===
+    thin = False
+
+S7 A1 方向被事后掰弯（C 更差也算过）	scripts/spread_tilted_arm.py
+        a1 = C["annual_net"] >= A["annual_net"]   # 已确认两者都非 None
+=== 变异体 ===
+        a1 = C["annual_net"] >= 0   # 已确认两者都非 None
+
+S8 测不出来被当成没问题（G1 闸门恒过）	scripts/spread_tilted_arm.py
+        "G1_beta_adj_daily_excess_positive": _pos(common.get("beta_adj_daily")),
+=== 变异体 ===
+        "G1_beta_adj_daily_excess_positive": True,
+
+S9 独立观测数下限从 681 偷偷降到 100	scripts/spread_tilted_arm.py
+MIN_DAILY_POINTS = 681
+=== 变异体 ===
+MIN_DAILY_POINTS = 100
+
+S10 G2 的 t 门槛从 3.0 降到 2.0	scripts/spread_tilted_arm.py
+MIN_T = 3.0
+=== 变异体 ===
+MIN_T = 2.0
+
+S11 年化按 252 交易日（必须精确 244）	scripts/spread_tilted_arm.py
+    annual = mean * 244.0
+=== 变异体 ===
+    annual = mean * 252.0
+
+S12 diagnose 用下标取值（缺键即崩，丢掉本可出的部分判决）	scripts/spread_tilted_arm.py
+    common = test.get("common", {})
+=== 变异体 ===
+    common = test["common"]
+
+S13 A0 三态退回两态（缺权重 ⇒ 判「不退化」，放出一个恒真的 A1）	scripts/spread_tilted_arm.py
+    degenerate = None if (w_a is None or w_c is None) else (w_a == w_c)
+=== 变异体 ===
+    degenerate = (w_a is not None and w_c is not None and w_a == w_c)
+
+S14 A0 闸门被整个摘掉（同一条策略跑两遍也照发 A1 判决）	scripts/spread_tilted_arm.py
+    if degenerate is True:
+=== 变异体 ===
+    if False:
+
+S15 A2/G4 对齐键取行号而非 code（第一版写法：merge 时 dtype 就炸）	scripts/spread_tilted_arm.py
+    "code": pd.Series(codes).astype(str).to_numpy(),
+=== 变异体 ===
+    "code": sc.index,
+
+S16 A2/G4 只对齐 dtype、键仍是行号（★不崩不报错，静悄悄恒返回 None）	scripts/spread_tilted_arm.py
+    "code": pd.Series(codes).astype(str).to_numpy(),
+=== 变异体 ===
+    "code": pd.Series(sc.index).astype(str).to_numpy(),
+
+S17 A2/G4 去掉长度一致性检查（行数与分数数不符时按错位配对）	scripts/spread_tilted_arm.py
+if len(codes) != len(sc):
+            continue                      # 长度对不上 ⇒ 不猜，宁可不判
+=== 变异体 ===
+if False:
+            continue
+
+S18 结果表的 code 未归一就 merge（靠「碰巧两边都是 str」对齐）	scripts/spread_tilted_arm.py
+    up = up.assign(code=up["code"].astype(str))   # 两边必须同一口径，不靠碰巧
+=== 变异体 ===
+    pass
+
+S19 重算的合成分仍叫 score（★merge 撞同名列 ⇒ pandas 改名 ⇒ KeyError 崩掉）	scripts/spread_tilted_arm.py
+                                  "_arm_score": sc.to_numpy(dtype=float)}))
+=== 变异体 ===
+                                  "score": sc.to_numpy(dtype=float)}))
+
+S20 对账闸门整个摘掉（打分用的权重 ≠ 配权用的权重也照判四分位）	scripts/spread_tilted_arm.py
+if not (dev <= SCORE_RECONCILE_TOL):
+            return None
+=== 变异体 ===
+if dev > 1e9:
+            return None
+
+S21 对账容差放宽到 0.5（口径已经换了但数值差不多也放行）	scripts/spread_tilted_arm.py
+SCORE_RECONCILE_TOL = 1e-9
+=== 变异体 ===
+SCORE_RECONCILE_TOL = 0.5

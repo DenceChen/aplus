@@ -706,6 +706,61 @@ def test_a_window_before_2021_is_refused_rather_than_silently_measured():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  ⑤ 窗口末端（2026-10-15，实测出来的崩溃）
+# ═══════════════════════════════════════════════════════════════
+#  起因：`--end` 的默认是 `""`，而调用点写 `args.end or None`
+#  ⇒ **不带参数直接跑就崩**：
+#      ValueError: build_panel 的 end 必须是 'YYYY-MM-DD' 字符串，收到 None
+#  在面板加载 274s 之后才炸。而产物里**没有任何字段**写着窗口有多长，
+#  所以「昨天跑的和今天跑的差了一天」这件事在 json 里不可见。
+#
+#  ⚠️ 这不是「补个默认值」那么轻：留空 = 用到今天 = **一只票定全池窗口**。
+#  与形状 23 是同一条，故默认值与 `cap_weighted_benchmark` 共用同一个常量。
+
+
+def test_the_window_end_is_pinned_and_never_reaches_the_panel_as_none(monkeypatch, tmp_path):
+    """★ 默认调用必须把**钉死的字符串**交给面板，而不是 `None`。
+
+    ⚠️ 这里**不**断言 rc：面板为空时 `main` 无论末端怎么传都返回 2 ——
+      也就是说 **rc 分不开这两种情况**。所以钉的是**实参**：
+      把 `build_cross_sections` 换成记录器，只看它收到了什么。
+    ⚠️ `--data-root` 用 `tmp_path` 而不是 `/nonexistent-路径`：
+      `LocalStore.__init__` 会 `mkdir`，在根目录上直接 `OSError`。
+      （旁边那条起点守卫返回得比建 store 更早，才敢用那个路径。）
+    """
+    seen = {}
+
+    def _recorder(store, start, end, *a, **kw):
+        seen["start"], seen["end"] = start, end
+        return {"_daily_map": {}, "_market": {}, "_dates": []}
+
+    monkeypatch.setattr(bw, "build_cross_sections", _recorder)
+
+    bw.main(["--data-root", str(tmp_path)])
+
+    assert isinstance(seen["end"], str) and seen["end"] == bw.WINDOW_END_PINNED, (
+        f"默认窗口末端不是钉死的字符串，而是 {seen['end']!r} —— "
+        f"这会让同一天重跑出一个不可比的窗口，而产物里没有字段能说明它变了"
+    )
+
+
+def test_a_blank_window_end_is_refused_with_a_diagnosable_message(capsys, tmp_path):
+    """末端留空必须**拒**且**说清为什么**。
+
+    ⚠️ 断言锚在「末端」这个**判据专属**的字上，而不是 `end` ——
+      否则 `build_panel` 自己的报错也含 `end`，守卫会守成「响」
+      而不是「响得可诊断」（第 121 层入口二的同族）。
+    """
+    rc = bw.main(["--data-root", str(tmp_path), "--end", "   "])
+
+    err = capsys.readouterr().err
+    assert rc == 2, f"末端留空被放行了（rc={rc}）"
+    assert "末端" in err, (
+        f"拒了但没说为什么，读者只能自己去猜是哪一条纪律：{err[-300:]!r}"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
 #  ④ 输入契约（2026-10-15，真实崩溃逼出来的）
 # ═══════════════════════════════════════════════════════════════
 #  起因：`scripts/basket_weighting.py::_weighted_daily` 读了
@@ -854,3 +909,63 @@ def test_the_function_never_reads_a_column_outside_the_declared_contract():
         f"\n⇒ 要么把它加进契约（并说清它是什么量），要么删掉。"
         f"**不许**靠加一个 `if 列存在` 让它变成可选 —— 那是形状 6。"
     )
+
+
+def test_a_daily_frame_without_a_date_column_is_a_contract_break_not_a_fallback():
+    """🚨 缺 `date` 列 ⇒ **报错**，绝不回落成 `df.index`。
+
+    ★ 原写作 `df["date"] if "date" in df.columns else df.index`。
+      实测全量 5460 份 daily parquet **全部有 `date`** ⇒ else 分支今天是死的，
+      **但它是一条潜伏的前视泄露，不是死代码**。
+
+      实测漏多少（60 个交易日、upto = 第 14 个、window=20）：
+
+      | 口径 | 过滤后行数 | 未来行 |
+      |---|---|---|
+      | 日期正常 | **14**/60 | 46 行**被挡住** |
+      | 回落 `df.index` | **60**/60 | 46 行**全被留下** |
+
+      机制：整数索引 → `to_datetime` 得 1970 年 ⇒ `date <= upto` **恒为真**
+      ⇒ 泄露闸门形同虚设 ⇒ 而 `tail(window+1)` 取的正是**末尾**
+      ⇒ sd 全部来自未来。全程不报错、exit 0、报告照出。
+    """
+    import numpy as np
+    import pandas as pd
+
+    from basket_weighting import trailing_sigma
+
+    n = 60
+    good = pd.DataFrame({"date": pd.bdate_range("2026-01-01", periods=n),
+                         "close": np.linspace(10, 11, n)})
+    # 正控：契约完好时正常出数
+    s = trailing_sigma({"X": good}, "X", pd.Timestamp("2026-01-20"), window=20)
+    assert isinstance(s, float) and np.isfinite(s), f"契约完好时应当出数，拿到 {s!r}"
+
+    bad = good.drop(columns=["date"])
+    # ⚠️ `match="契约断裂"` 而**不是** `match="date"`（2026-10-15 加固）：
+    #   `match="date"` 会被 **pandas 自己的裸 `KeyError: 'date'`** 满足 ——
+    #   实测把那个 `if` 短路成 `if False and …` 之后，`pd.to_datetime(df["date"])`
+    #   照样抛 `KeyError`，守卫**照样绿**。
+    #   ⇒ 它当时守的是「**响**」，而这里要守的是「**响得可诊断**」：
+    #     契约断裂必须说清「这是契约断裂、不是数据缺失」。
+    with pytest.raises(KeyError, match="契约断裂"):
+        trailing_sigma({"X": bad}, "X", pd.Timestamp("2026-01-20"), window=20)
+
+
+def test_the_date_contract_break_must_not_be_answered_with_nan():
+    """契约断裂**不许**返回 NaN —— 那会把整只票**静默剔出篮子**。
+
+    ⚠️ 两种「静默」各有各的症状，但同样不可见：
+       回落 `df.index` ⇒ **sd 带前视**（数字照出，方向错）；
+       返回 `NaN`      ⇒ **这只票从篮子里消失**（某些票莫名不见了）。
+    ⇒ 契约断裂必须**炸出来**。
+    """
+    import numpy as np
+    import pandas as pd
+
+    from basket_weighting import trailing_sigma
+
+    n = 60
+    bad = pd.DataFrame({"close": np.linspace(10, 11, n)})       # 无 date 列
+    with pytest.raises(KeyError):
+        trailing_sigma({"X": bad}, "X", pd.Timestamp("2026-01-20"), window=20)

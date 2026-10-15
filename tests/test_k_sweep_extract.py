@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import ast
 import json
 import math
 import sys
@@ -54,10 +55,155 @@ def test_the_hurdle_costs_a_year_of_trading_at_the_real_rate():
     assert KSE.hurdle_gross(21) == pytest.approx(0.2639047619047619)
 
 
-def test_the_module_imports_nothing_from_the_repo():
-    """第二台测量仪必须与被测对象无关 —— 借一个 import 就退化成自证。"""
+def _repo_imports() -> set[str]:
+    """本模块 import 到的**仓内**模块名（AST，不是字符串）。
+
+    ⚠️ 第一版是 `"from aplus" not in src` —— **全文字符串匹配**，
+    那是形状 13（断言能被注释满足）＋形状 123（字面量命中 ≠ 结构事实）两族：
+    ① docstring 里写一句「本模块不 import aplus」就会把守卫判红；
+    ② 真写一行 `from aplus import provenance` 它确实红 ——
+       **但它红的理由是「import 了」，不是「借到了数」**，
+       而这两件事在这里不等价。
+    """
+    tree = ast.parse(Path(KSE.__file__).read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(a.name for a in node.names if a.name.split(".")[0] == "aplus")
+        elif isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "aplus":
+            out.add(node.module)
+            # 🚨🚨 第一版漏了 `names` —— 于是 `from aplus import hurdle`
+            #   （最该抓的形态：模块名藏在 names 里，node.module 只是父包 `aplus`）
+            #   被判成「只 import 了 aplus」，**逐位放过**。
+            #   实测：变异 `from aplus import provenance` → `..., hurdle`，
+            #   28 条守卫全绿。同形的 `from aplus.hurdle import rate` 才抓得住。
+            #   ⇒ 这正是「守卫测的是它写的那个形态」：两种写法在 AST 里不是同一个节点。
+            out.update(f"{node.module}.{a.name}" for a in node.names)
+    return out
+
+
+# 🚫 借这些就真的自证了：它们**算得出门槛/成本/年化乘数**，
+#   而「第二台测量仪」的全部价值就是这些数必须从外部锚**自己**推。
+#   加新名字之前先问：它有没有算术？（`provenance` 只做 sha256/git，答案是没有。）
+_SELF_CERTIFYING = {
+    "aplus.hurdle", "aplus.costs", "aplus.factor", "aplus.composite",
+    "aplus.ic_to_return", "aplus.backtest",
+}
+
+
+def test_the_import_detector_sees_both_spellings_of_the_same_import():
+    """**检测器是一个判决，判决要被测。**
+
+    🚨 不加这一条，下面两条成对守卫可以悄悄退化，而 pytest 把退化显示得
+    和「一切正常」一模一样（28 passed）—— 这就是「守卫失效时外观完全正常」。
+
+    实证：第一版检测器只读 `ImportFrom.node.module`，漏读 `names`，
+    于是 `from aplus import hurdle` 被当成「只 import 了父包 `aplus`」而放过，
+    **而 `from aplus.hurdle import rate` 抓得住** ——
+    两种写法语义完全相同，在 AST 里却不是同一个节点。
+    """
     src = Path(KSE.__file__).read_text(encoding="utf-8")
-    assert "import aplus" not in src and "from aplus" not in src
+
+    def names_of(source: str) -> set[str]:
+        tree = ast.parse(source)
+        out: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                out.update(a.name for a in node.names
+                           if a.name.split(".")[0] == "aplus")
+            elif isinstance(node, ast.ImportFrom) and \
+                    (node.module or "").split(".")[0] == "aplus":
+                out.add(node.module)
+                out.update(f"{node.module}.{a.name}" for a in node.names)
+        return out
+
+    from_import = names_of("from aplus import hurdle\n")
+    dotted = names_of("from aplus.hurdle import hurdle_rate\n")
+    assert "aplus.hurdle" in from_import, "从父包 import 子模块必须看得见子模块名"
+    assert "aplus.hurdle" in dotted, "点号形态必须看得见"
+    # 纯 sidecar 那个合法 import 本身也要认得出来，否则白名单是空的
+    assert "aplus.provenance" in names_of("from aplus import provenance\n")
+
+
+def test_the_module_borrows_no_computation_from_the_repo():
+    """第二台测量仪必须与被测对象无关 —— **借一个算术模块就退化成自证**。"""
+    got = _repo_imports() & _SELF_CERTIFYING
+    assert not got, (
+        f"k_sweep_extract import 了会算出本模块自己要重算的量的模块：{sorted(got)}\n"
+        "   ⇒ 它不再是第二台测量仪，而是拿被测对象验被测对象。"
+    )
+
+
+def test_the_only_repo_import_allowed_is_the_sidecar_stamper():
+    """`aplus.provenance` 是唯一允许的仓内 import，理由是它**不含算术**。
+
+    ★ 2026-10-15：给它盖章把这份产物从「不可引用」变成可引用，
+      而旧守卫判的是「一个 import 都不许有」⇒ **过严的守卫和恒真的一样有害**，
+      它会把人推向「为了变绿而把盖章摘掉」，也就是让产物重新退回不可引用。
+
+    这条把例外**显式钉住**：以后谁想把别的模块加进来，会在这里红，
+    而不是靠「都禁了」这种一刀切的形态被动发现。
+    """
+    got = _repo_imports() - {"aplus"}
+    assert got <= {"aplus.provenance"}, (
+        f"k_sweep_extract 多 import 了 {sorted(got - {'aplus.provenance'})}。"
+        "加之前先答：这个模块有没有算术？没有的话在这里显式登记并写清理由。"
+    )
+
+
+def test_the_three_anchors_are_still_literals_not_imported():
+    """把「不许借算术」落到**它真正要保的那三个数**上。
+
+    这是本条的**正控**：前两条守的是 import 列表，
+    而这一条守的是「万一有人把常量从别处搬来，那也是借」。
+    """
+    tree = ast.parse(Path(KSE.__file__).read_text(encoding="utf-8"))
+    assigned: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            assigned.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    assert {"TARGET_NET", "COST_REAL_50K", "DAYS_PER_YEAR"} <= assigned, (
+        "三个外部锚必须是本模块的字面量常量 —— 这正是「不借本仓任何数」的落点"
+    )
+    # ⚠️ 这里**不能**断言「三个都是 float」—— `DAYS_PER_YEAR = 244` 本来就是 int，
+    #   而我第一版写 `isinstance(..., float)` 当场红。
+    #   那是我先臆想了「长什么样才对」再去让代码确认（第 98 层）。
+    #   真正要守的是「它们是**数值字面量**，不是从别处算出来的」，
+    #   所以按**赋值处的 AST 常量节点**判，而不是按运行期类型。
+    #
+    # 🚨 第二版用 `for…else` + `break`（找到一个就停）⇒ **只要求「有一个锚是字面量」**。
+    #   变异实测：`DAYS_PER_YEAR = 244` 后面接一句
+    #   `DAYS_PER_YEAR = DAYS_PER_YEAR + 0 * len(TARGET_NET)`
+    #   （合法、可运行、数值不变）⇒ **29 条全绿**。
+    #   ⇒ 数值没变、行为完全一样，而守卫放行了 —— 这是「恒真守卫」的教科书形态：
+    #   它守的是「至少有一个」，而意图是「**每一个**」。
+    # 🚨🚨 第三版仍存活：判据是「**出现过**一次字面量赋值就算过」，
+    #   而变异是在字面量**后面**再补一句非字面量赋值 —— 于是它照样绿。
+    #   ⇒ 判据必须是「**每一次**赋值都是字面量」，不是「至少有一次」。
+    #   形态上就是 `all(赋值都是常量)`，而不是 `any(有常量)`：
+    #   后者永远为真（模块总得有一处定义），所以它是恒真的。
+    anchors = {"TARGET_NET", "COST_REAL_50K", "DAYS_PER_YEAR"}
+    non_literal: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        names = {t.id for t in node.targets if isinstance(t, ast.Name)} & anchors
+        if not names:
+            continue
+        is_literal = (isinstance(node.value, ast.Constant)
+                      and isinstance(node.value.value, (int, float))
+                      and not isinstance(node.value.value, bool))
+        if is_literal:
+            continue
+        rendered = ast.unparse(node.value)[:70]
+        for n in names:
+            non_literal.setdefault(n, []).append(rendered)
+
+    assert not non_literal, (
+        f"外部锚 {sorted(non_literal)} 存在**非字面量**赋值：{non_literal} —— "
+        "「不借本仓任何数」的落点就是这三个常量本身。"
+        "哪怕算出来的数值一模一样，也说明**这份门槛的来源不再是外部锚**。"
+    )
 
 
 # ── 摘要 ────────────────────────────────────────────────────────

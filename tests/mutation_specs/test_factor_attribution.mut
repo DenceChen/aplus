@@ -1,0 +1,16 @@
+F1 天数外推的判据从 isfinite 退回 !=0（NaN 会穿过 ⇒ int(ceil(NaN)) 抛异常）	scripts/factor_attribution.py
+            int(np.ceil(n * (t_power / t_obs) ** 2)) if np.isfinite(t_obs) and t_obs != 0
+=== 变异体 ===
+            int(np.ceil(n * (t_power / t_obs) ** 2)) if t_obs != 0
+
+F2 天数外推把平方去掉（线性外推 ⇒ 与闭式差 √ 倍且方向错）	scripts/factor_attribution.py
+            int(np.ceil(n * (t_power / t_obs) ** 2)) if np.isfinite(t_obs) and t_obs != 0
+=== 变异体 ===
+            int(np.ceil(n * (t_power / t_obs))) if np.isfinite(t_obs) and t_obs != 0
+
+F3 不可测时给一个假装算得出来的天数（None ⇒ 一个巨大整数）	scripts/factor_attribution.py
+int(np.ceil(n * (t_power / t_obs) ** 2)) if np.isfinite(t_obs) and t_obs != 0
+            else None),
+=== 变异体 ===
+int(np.ceil(n * (t_power / t_obs) ** 2)) if np.isfinite(t_obs) and t_obs != 0
+            else 999999),

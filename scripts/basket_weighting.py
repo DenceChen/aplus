@@ -53,6 +53,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from aplus import provenance                               # noqa: E402
 from aplus import verify as verify_mod                     # noqa: E402
 from aplus.backtest import (                                 # noqa: E402
     RESULT_COLUMNS, build_cross_sections, evaluate_weights)
@@ -68,6 +69,7 @@ from backtest_walk_forward_weights import (                # noqa: E402
 
 # ── 预注册 §4：写死，不许事后调 ────────────────────────────────
 WINDOW = 60                 # σ 的交易日窗口（K=21 的 3 倍）
+WINDOW_END_PINNED = "2026-10-12"   # 形状 23：末端钉死，与 cap_weighted_benchmark 同值
 MIN_SIGMA = 1e-4            # 防 1/σ 爆炸
 MAX_DROP = 0.20             # σ 不可用的票超过 20% ⇒ 该臂作废（这是**剔除比例**，不是降幅门槛）
 MAIN_K = 21                 # 实盘换仓周期
@@ -128,7 +130,28 @@ def trailing_sigma(daily_map: dict, code: str, upto, window: int = WINDOW,
     df = daily_map.get(code)
     if df is None or df.empty or "close" not in df.columns:
         return float("nan")
-    dates = pd.to_datetime(df["date"] if "date" in df.columns else df.index)
+    # 🚨🚨 2026-10-15：原写作 `df["date"] if "date" in df.columns else df.index`。
+    #   实测 `/tmp/aplus_snap_1015` 全量 **5460 份 daily parquet 全部有 `date` 列**
+    #   ⇒ else 分支今天是**死的**。但它是一条**潜伏的前视泄露**，不是死代码。
+    #
+    #   实测漏多少（60 个交易日、upto = 第 14 个交易日、window=20）：
+    #       日期正常        → 过滤后 14/60 行，**46 行未来数据被挡住**
+    #       回落到 df.index → 过滤后 60/60 行，**46 行未来数据全被留下**
+    #   机制：`df.index` 是整数 → `to_datetime` 得到 1970 年 →
+    #   `tmp["date"] <= upto` **恒为真** ⇒ 闸门形同虚设 ⇒
+    #   而 `tail(window+1)` 取的正是**末尾** ⇒ sd 全部来自未来。
+    #   全程不报错、exit 0、报告照出。
+    #
+    #   ⇒ 缺档必须报错，绝不回落。这里**不许**返回 NaN：
+    #      返回 NaN 会让这只票被**静默剔出篮子**（症状：某些票莫名其妙不见了），
+    #      那是另一种失效，同样不可见。**契约断裂要炸出来。**
+    if "date" not in df.columns:
+        raise KeyError(
+            f"{code} 的日线缺 `date` 列（实有 {list(df.columns)[:8]}）—— "
+            "契约断裂，不是数据缺失。**绝不可回落成 `df.index`**："
+            "整数索引会变成 1970 年，于是 `date <= upto` 恒真、"
+            "未来行全被留下，sd 直接带前视且全程无报错。")
+    dates = pd.to_datetime(df["date"])
     tmp = pd.DataFrame({"date": dates,
                         "close": pd.to_numeric(df["close"],
                                                errors="coerce").to_numpy()})
@@ -398,7 +421,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--start", default=JUDGED_FROM)
-    ap.add_argument("--end", default="")
+    # ★ 形状 23：窗口末端**钉死**，不留空。与 `cap_weighted_benchmark` 同一个常量。
+    #   原来这里是 `default=""` + `args.end or None`，而 `build_panel` 拒收 None
+    #   ⇒ **默认调用直接 ValueError 崩掉**（2026-10-15 实测）。
+    #   「留空 = 用到今天」这条看似方便，实则是**让一件票决定全池窗口**：
+    #   同一天重跑，末端多一天，sd 跟着动，而产物里没有任何字段说明它动了。
+    ap.add_argument("--end", default=WINDOW_END_PINNED)
     ap.add_argument("--n", type=int, default=MAIN_N)
     ap.add_argument("--k", type=int, default=MAIN_K)
     ap.add_argument("--out", type=Path,
@@ -408,6 +436,11 @@ def main(argv=None) -> int:
     if not args.start.startswith("2021"):
         print(f"🚨 判决窗口必须从 2021 起（得到 {args.start}）——"
               f"与 `factor_width_mde` 的口径必须一致，否则臂间不可比。", file=sys.stderr)
+        return 2
+
+    if not args.end.strip():
+        print(f"🚨 `--end` 不许留空：末端必须显式钉死（形状 23：一只票定全池窗口）。"
+              f"当前默认 {WINDOW_END_PINNED}。", file=sys.stderr)
         return 2
 
     # ★ 原来这里写的是 `from aplus.snapshot import Snapshot` —— 实测
@@ -420,7 +453,7 @@ def main(argv=None) -> int:
 
     t0 = time.time()
     store = LocalStore(args.data_root)
-    xs = build_cross_sections(store, args.start, args.end or None)
+    xs = build_cross_sections(store, args.start, args.end)
     daily_map = xs.get("_daily_map") or {}
     market_map = xs.get("_market") or {}
     print(f"面板 {len(daily_map)} 只（{time.time()-t0:.0f}s）", flush=True)
@@ -492,7 +525,11 @@ def main(argv=None) -> int:
     out = {
         "verdict": verdict, "verdict_why": why,
         "config": {"n": args.n, "k": args.k, "window": WINDOW,
-                   "start": args.start, "min_sigma": MIN_SIGMA,
+                   "start": args.start, "end": args.end,
+                   # ⚠️ `end` 是**钉死的请求末端**，`window_end_actual` 才是**真的量到的那一天**
+                   #   （末段可能因停牌/缺档少几天）。两个都写，读者才知道窗口有多长。
+                   "window_end_actual": dates[-1] if dates else None,
+                   "min_sigma": MIN_SIGMA,
                    "max_drop": MAX_DROP, "capital": CAPITAL_50K,
                    "friction_annual_pct": float(
                        100 * annual_friction(CAPITAL_50K, 1.0, args.n,
@@ -502,6 +539,14 @@ def main(argv=None) -> int:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    # ⚠️ 盖章必须在写完之后，且**只能靠真跑**拿 ——
+    #   手写 sidecar 是形状 16（捏造一个与真章无法区分的文件），比红着更糟。
+    #   `verdict` 是这份产物的**承重字段**（`SD_NEUTRAL` / …），
+    #   没有章 ⇒ 按本仓规矩它整份不可引用。
+    provenance.stamp(args.out, "scripts/basket_weighting.py", root=ROOT,
+                     extra={"verdict": verdict, "n": args.n, "k": args.k,
+                            "window": WINDOW, "capital": CAPITAL_50K,
+                            "friction_annual_pct": out["config"]["friction_annual_pct"]})
 
     print(f"\n{'臂':<14}{'sd/年':>9}{'降幅':>9}{'均值代价/sd':>14}{'天数':>7}")
     for name in ARMS:

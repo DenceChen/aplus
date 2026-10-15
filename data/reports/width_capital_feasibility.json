@@ -1,0 +1,61 @@
+{
+  "generated_from": "data/reports/factor_width_mde.json",
+  "k_rebalance_every": 21,
+  "rounds_per_year": 11.619047619047619,
+  "capital": 50000.0,
+  "target_net": 0.2,
+  "hurdle_gross_from_hurdle_rate": 0.2639047619047619,
+  "any_width_reaches_target": false,
+  "widths": [
+    {
+      "n": 10,
+      "gross_annual": 0.048107559200486205,
+      "friction_at_capital": 0.06413714285714285,
+      "net_at_capital": -0.016029583656656646,
+      "friction_floor": 0.047870476190476186,
+      "capital_for_breakeven": 161185.1141221143,
+      "capital_for_target_net": null,
+      "target_reachable": false
+    },
+    {
+      "n": 30,
+      "gross_annual": 0.05546419982190264,
+      "friction_at_capital": 0.11061333333333333,
+      "net_at_capital": -0.055149133511430685,
+      "friction_floor": 0.047870476190476186,
+      "capital_for_breakeven": 239318.7683291785,
+      "capital_for_target_net": null,
+      "target_reachable": false
+    },
+    {
+      "n": 100,
+      "gross_annual": 0.061731916738626345,
+      "friction_at_capital": 0.27328,
+      "net_at_capital": -0.21154808326137367,
+      "friction_floor": 0.047870476190476186,
+      "capital_for_breakeven": 557726.7131260397,
+      "capital_for_target_net": null,
+      "target_reachable": false
+    },
+    {
+      "n": 200,
+      "gross_annual": 0.0694654436628111,
+      "friction_at_capital": 0.5056609523809523,
+      "net_at_capital": -0.4361955087181412,
+      "friction_floor": 0.047870476190476186,
+      "capital_for_breakeven": 813476.6178587828,
+      "capital_for_target_net": null,
+      "target_reachable": false
+    },
+    {
+      "n": 546,
+      "gross_annual": 0.07568490729039987,
+      "friction_at_capital": 1.3096990476190475,
+      "net_at_capital": -1.2340141403286478,
+      "friction_floor": 0.047870476190476186,
+      "capital_for_breakeven": 1823729.5441125957,
+      "capital_for_target_net": null,
+      "target_reachable": false
+    }
+  ]
+}

@@ -67,3 +67,15 @@ W14 每窗口 cond2 也退回 any()	scripts/weight_vs_spread.py
     cond2 = all(x["cond2_weight_not_following"] for x in per_window.values())
 === 变异体 ===
     cond2 = any(x["cond2_weight_not_following"] for x in per_window.values())
+
+W15 判决退回用 |IC|（形状 119：一行改动把符号整个翻转）	scripts/weight_vs_spread.py
+                       "cond1_ic_antispread": v["rho_signedIC_vs_spread"] <= -crit,
+=== 变异体 ===
+                       "cond1_ic_antispread": v["rho_absIC_vs_spread"] <= -crit,
+
+W16 corr_negative 被写死成 True（同向也落进「反向」那个标签）	scripts/weight_vs_spread.py
+corr_negative = (out["rho_sign_consistent_across_all_windows"]
+                     and all(v["rho_signedIC_vs_spread"] < 0
+                             for v in out["windows"].values()))
+=== 变异体 ===
+corr_negative = True

@@ -1,0 +1,13 @@
+{
+  "code_sha": "f420d167bdea4791c50375a4950198bd3ddb1fda",
+  "code_dirty": true,
+  "code_file_sha256": "91212770e8a976a2b40161d8895a2300ff67232a6aeffbbb68243d421110e90d",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/k_sweep_extract.py",
+  "stamped_at": "2026-10-15T02:21:16+00:00",
+  "n_rows": 5,
+  "DAYS_PER_YEAR": 244,
+  "COST_REAL_50K": 0.0055,
+  "TARGET_NET": 0.2
+}

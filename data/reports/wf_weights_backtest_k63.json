@@ -70,6 +70,7 @@
         "_codes": 14
       },
       "unadjusted_touch": {},
+      "cap_fallback_days": 0,
       "year": 2021,
       "composite_ic": 0.06146644572480219,
       "weights": {
@@ -128,6 +129,7 @@
         "_codes": 5
       },
       "unadjusted_touch": {},
+      "cap_fallback_days": 0,
       "year": 2022,
       "composite_ic": 0.07795611889311331,
       "weights": {
@@ -186,6 +188,7 @@
         "_codes": 6
       },
       "unadjusted_touch": {},
+      "cap_fallback_days": 0,
       "year": 2023,
       "composite_ic": 0.076542840957536,
       "weights": {
@@ -244,6 +247,7 @@
         "_codes": 11
       },
       "unadjusted_touch": {},
+      "cap_fallback_days": 0,
       "year": 2024,
       "composite_ic": 0.06772237165118267,
       "weights": {
@@ -302,6 +306,7 @@
         "_codes": 6
       },
       "unadjusted_touch": {},
+      "cap_fallback_days": 0,
       "year": 2025,
       "composite_ic": 0.08023148765188692,
       "weights": {
@@ -360,6 +365,7 @@
         "_codes": 10
       },
       "unadjusted_touch": {},
+      "cap_fallback_days": 0,
       "year": 2026,
       "composite_ic": 0.06142449606696501,
       "weights": {
@@ -374,5 +380,12 @@
       },
       "weights_source": "walk_forward"
     }
-  ]
+  ],
+  "window": {
+    "start": "2021-01-01",
+    "end": "2026-10-12",
+    "start_actual": "2021-01-04",
+    "end_actual": "2026-10-09",
+    "n_days": 1395
+  }
 }
