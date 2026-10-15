@@ -355,7 +355,10 @@ G3-bis 要算 `基准 + 毛超额 − 摩擦`。**而「毛超额」在仓里有
 价格分位 p10 = 4.00 / p50 = 14.71 / p90 = 52.70 元。
 
 **代码事实**：`aplus/backtest.py` 与 `aplus/costs.py` **都不含任何整手建模**
-（实测 `grep -rn '整手' aplus/ scripts/` **零命中**），而
+（实测 `grep -rn '整手' aplus/ scripts/` **零命中**），
+⇒ **整手建模仓内为零**（债登记，双向钉于
+`tests/test_lot_affordability_gap.py::test_the_lot_modelling_gap_still_exists_and_is_registered_on_both_sides`）。
+而
 `scripts/factor_width_mde.py:103` 是 `EQUITY_WEIGHT = 1.0`（满仓、无现金缓冲）。
 `aplus/verify.py::MIN_BASKET` 是**最少可评分数**的过滤器，**不是**价格/整手过滤器。
 
