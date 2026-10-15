@@ -339,62 +339,6 @@ def test_ensure_is_a_no_op_once_today_is_registered(tmp_path, daily, monkeypatch
     代价是同一天可能被触发两次。若第二次还要跑 45 分钟，
     两个点就把机器占满了，而真正的日更反而排不进来。
     """
-    import aplus.vintage as V
-    calls: list = []
-    _fake_source(monkeypatch, calls)
-    root = tmp_path / "v"
-    write_snapshot(root, "2026-10-13", pd.DataFrame({
-        "SECURITY_CODE": ["000001"], "REPORT_DATE": ["2021-12-31"]}))
-
-    monkeypatch.setattr(sys, "argv",
-                        ["collect_financial_vintage.py", "--ensure",
-                         "--root", str(root), "--date", "2026-10-13"])
-    assert m.main() == 0
-    assert calls == [], "已登记却仍然发起了抓取——补跑闸没生效"
-
-
-def test_ensure_still_collects_when_today_is_missing(tmp_path, daily,
-                                                     monkeypatch):
-    """闸只拦「已完成」，不能把**该跑的那一次**也拦掉。"""
-    calls: list = []
-    _fake_source(monkeypatch, calls)
-    root = tmp_path / "v"
-    monkeypatch.setattr(m, "MIN_FREE_GB", 0)
-    monkeypatch.setattr(sys, "argv",
-                        ["collect_financial_vintage.py", "--ensure",
-                         "--root", str(root), "--date", "2026-10-13",
-                         "--sample"])
-    assert m.main() == 0
-    # `daily` 夹具只有 4 个 stem，`--sample` 取前 5 也只有 4
-    assert len(calls) == 4, "闸把没跑的那次也拦掉了"
-
-
-def test_a_full_disk_stops_collection_without_deleting_anything(
-        tmp_path, daily, monkeypatch):
-    """**采集的失败必须可见但无害。**
-
-    写满磁盘会连累 `run_daily` 和整个仓库；缺一天 vintage 的损失
-    远小于这一条。所以水位不足时**停止采集，不删任何已有数据**。
-    """
-    calls: list = []
-    _fake_source(monkeypatch, calls)
-    monkeypatch.setattr(m, "MIN_FREE_GB", 10 ** 9)      # 假装盘满了
-    monkeypatch.setattr(sys, "argv",
-                        ["collect_financial_vintage.py", "--root",
-                         str(tmp_path / "v"), "--date", "2026-10-13"])
-    assert m.main() == 4
-    assert calls == [], "磁盘不足却仍然发起了抓取"
-
-
-# ── 6. 幂等闸：补跑作业必须零成本 ────────────────────────────────────
-
-def test_ensure_is_a_no_op_once_today_is_registered(tmp_path, daily, monkeypatch):
-    """**补跑是这个模块唯一能补救的动作，所以它必须是免费的。**
-
-    日历触发不会补跑——机器睡着就永久错过一天。所以挂了两个触发点，
-    代价是同一天可能被触发两次。若第二次还要跑 45 分钟，
-    两个点就把机器占满了，而真正的日更反而排不进来。
-    """
     calls: list = []
     _fake_source(monkeypatch, calls)
     root = tmp_path / "v"

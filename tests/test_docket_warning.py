@@ -266,29 +266,21 @@ def test_warn_container_has_a_dom_node():
 
 
 # ---------- 回落权重的警示也必须上概览页 ----------
-
-def test_fallback_caveat_is_fed_into_the_docket():
-    """概览页的判决板必须能拿到 `/api/weights` 的 `caveat` 并显示。
-
-    ## 为什么这条不能省
-
-    `load_weights` 早就写好了这段警告——
-
-        回落默认权重：……这是**已知的坏配置**，不是「中性起点」。
-        日频执行它的年成本量级 351%。
-
-    但它此前只在**进化页**、且经由一个被路由丢掉了 caveat 的接口。
-    于是概览页（用户第一屏）显示「未经赛马验收的默认值」——
-    这句话在字面上没错，但它把「**测过、是坏的**」说成了「没测过」。
-
-    判决板本来就是讲结论的地方，而「现在跑的是已知坏配置」是本平台
-    最该被讲出来的结论之一。
-    """
-    html = Path("aplus/web/index.html").read_text(encoding="utf-8")
-    body = html.split("async function loadChrome(")[1].split("\n}")[0]
-    assert "/api/weights" in body, (
-        "loadChrome 没取 /api/weights —— 概览页不知道当前跑的是回落配置")
-    assert "caveat" in body, "取到了 /api/weights 却没有读 caveat"
+#
+# 🚨 这里曾有**两份同名** `test_fallback_caveat_is_fed_into_the_docket`
+#    （2026-10-15 清理，守卫 `tests/test_no_duplicate_test_names.py`）：
+#    后定义的那份**静默覆盖**了前一份，而 pytest 收集条数**一格不变**。
+#    活的那份在本文件下方，覆盖 `loadChrome` + `loadOverview` 两个函数。
+#
+# ⚠️⚠️ **不要把死掉那条的 `assert "caveat" in body` 合并回活块。**
+#    实测（2026-10-15）：`loadChrome` 体内两处 `caveat` **全部写在
+#    `/* … */` 注释里**，而 `loadOverview` 体内出现 **0 次**
+#    ⇒ 那条断言挪到活块上会**因散文而绿**（第 13 种形状），
+#    而它看起来比现在**更像**一条正经守卫。
+#    ⇒ 守卫从「死的且误绿」升级成「活的且误绿」：判别力零、迷惑性翻倍。
+#    真正的接线在 `renderDocket(stats, evo, weights, predictions)` 的**实参**上
+#    —— 两个函数都调它并传了 `weights`。
+#    ⇒ **断言要锚在语法位置（实参），不是锚在「这个词出现过」上。**
 
 # ---------- 回落配置：比证伪更根本 ----------
 

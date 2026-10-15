@@ -1,0 +1,26 @@
+N1 分组键从「按文件」改成「全树计数」（跨文件同名的活样本会被判成模块内重名）	tests/test_no_duplicate_test_names.py
+bad = []
+    for p in _all_test_files():
+        counts = _top_level_test_names(p)
+        for name, c in sorted(counts.items()):
+=== 变异体 ===
+bad = []
+    _merged = Counter()
+    for p in _all_test_files():
+        _merged.update(_top_level_test_names(p))
+    for p, counts in ((_all_test_files()[0], _merged),):
+        for name, c in sorted(counts.items()):
+
+N2 前缀过滤被摘掉（同名 helper 被报成模块内 test 重名 ⇒ 过严守卫）	tests/test_no_duplicate_test_names.py
+if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name.startswith("test_")]
+=== 变异体 ===
+if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and n.name.startswith("")]
+
+N3 不限模块顶层（内层局部 def 的重名被算成模块级违规 ⇒ 过严）	tests/test_no_duplicate_test_names.py
+return [n.name for n in tree.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+=== 变异体 ===
+return [n.name for n in ast.walk(tree)
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
