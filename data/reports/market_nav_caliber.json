@@ -1,0 +1,54 @@
+{
+  "prereg": "docs/TODO_nav_vs_excess_caliber_2026-10-15.md",
+  "window_arg": [
+    "2021-01-01",
+    "2026-10-12"
+  ],
+  "window_actual": [
+    "2021-01-04",
+    "2026-10-09"
+  ],
+  "n_days": 1395,
+  "sample": {
+    "size": 150,
+    "pool": 5460,
+    "seed": 42,
+    "sampler": "random.Random(42).sample"
+  },
+  "entry_lag": 1,
+  "factors_adjusted": true,
+  "equal_weight": {
+    "caliber": "equal_weight_benchmark",
+    "n_days": 1395,
+    "n_days_missing": 0,
+    "missing_dates": [],
+    "arithmetic_daily_mean_pct": 0.051036321975998895,
+    "compounded_final_multiple": 1.7197151585397816,
+    "geometric_annual_pct": 9.94710351459831,
+    "daily_sd_pct": 1.5551683029739962,
+    "annualized_sd_pct_by_sqrt_time": 24.29250546856591
+  },
+  "cap_weight": {
+    "caliber": "cap_weight_benchmark",
+    "n_days": 1395,
+    "n_days_missing": 0,
+    "missing_dates": [],
+    "arithmetic_daily_mean_pct": 0.018079841407147735,
+    "compounded_final_multiple": 1.1079164227722862,
+    "geometric_annual_pct": 1.808663656249898,
+    "daily_sd_pct": 1.4645758273496314,
+    "annualized_sd_pct_by_sqrt_time": 22.877405761796357
+  },
+  "gates": {
+    "no_missing_trading_day": true,
+    "two_independent_calls_agree_bitwise": true,
+    "cap_fallback_days_counted": 1395
+  },
+  "cross_check_rel_diff": 0.0,
+  "full_pool_daily_mean_pct": 0.04713171747749073,
+  "what_this_cannot_prove": [
+    "本产物只给**基准自身**的净值，不含任何组合 ⇒ 答不了「策略能不能达标」",
+    "等权基准不是任何被动资金能拿到的（见 cap_weighted_benchmark 预注册）；要答「相对被动投资」，用 cap_weight 那一支",
+    "geometry 与 arithmetic 是两个量，本产物报几何；与 annual_mean_pct 那类字段不可混引（第 4 次口径事故）"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "code_sha": "32cfe825ea84e0de7b9b113ae4137a6fbdf751ef",
+  "code_dirty": true,
+  "code_file_sha256": "7601f6419679367a9fce760d6096b67fe98477411d7449a2df4f14cd60bd8b64",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "/Users/airboom/opencode/aplus/scripts/market_nav_caliber.py",
+  "stamped_at": "2026-10-15T06:29:32+00:00",
+  "window": [
+    "2021-01-01",
+    "2026-10-12"
+  ]
+}

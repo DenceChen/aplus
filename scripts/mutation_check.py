@@ -954,6 +954,71 @@ MUTATIONS: list[tuple[str, str, str, str, str, list[str]]] = [
      "判据的**报错可读性**也是它的一部分：报一条没人看得懂的路径，"
      "等于让人学会无视这条消息",
      ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    # ── nav_caliber：G1 判决（R 档）的守卫 ──────────────────────────────
+    #
+    # 🚨 这一组全部打在**断言与换算的用点**上，不打定义点 ——
+    #   第 137 层：「多定义一个没人用的东西」是空操作，会同时虚增存活率、
+    #   伪造「守卫有洞」的证据。
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     '    return _nav()["equal_weight"]["geometric_annual_pct"]',
+     '    return _nav()["cap_weight"]["geometric_annual_pct"]',
+     "🚨 **换了被诊断的对象**（第 119 层）：市值加权基准 1.8087% 替等权基准 9.9471%。"
+     "第一轮它**存活**：两条路都在 22.46% 之下 ⇒ 判决类别一模一样 ⇒ "
+     "「判决没变」把「换了被诊断的对象」完全藏住了。"
+     "修法是补一条**钉对象而不是钉判决**的守卫（口径标签守卫）",
+     ["tests/test_nav_caliber_judgment.py"]),
+
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     '    return pct_value / 100.0',
+     '    return pct_value * 1.0',
+     "🚨 **量纲错 100 倍**（把百分数当分数）⇒ 基准 9.9471% 被读成 995%。"
+     "实测第一次写判决脚本时正是这个错，而 **R 档方向恰好不变** ⇒ "
+     "「错了但结论没变」是最彻底的一种静默（见 §7 那个新坑）。"
+     "⚠️ 第一版这条锚在**调用点**上（`bench = _bench_geometric_pct() / 100.0`）"
+     "而实际文件里换算发生在别处 ⇒ 台子报「源串未命中」。"
+     "**「无法安放」是规格写错，不是守卫有洞**（第 14 层的第一个入口）——"
+     "修法是把换算收进**唯一入口** `_as_fraction`，让变异有唯一落点",
+     ["tests/test_nav_caliber_judgment.py"]),
+
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     '    assert bench < P_GRADE_BENCH_PCT, (',
+     '    assert bench < -1e9, (',
+     "P/R 分档变成**恒真** ⇒ 即便基准真的翻过 22.46%（P 档）也永远绿。"
+     "守卫此刻守的是「没翻面」，而这个变异让它守的是「我写了行断言」",
+     ["tests/test_nav_caliber_judgment.py"]),
+
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     'P_GRADE_BENCH_PCT = 22.46',
+     'P_GRADE_BENCH_PCT = 5.00',
+     "🚨 **把预注册门槛改小到刚好落在实测之下** ⇒ 判决从 R 读成 P。"
+     "这正是第 91 层「先有码后补文档」的机械形态："
+     "门槛是可改的字面量 ⇒ 守卫必须**双向**钉住它",
+     ["tests/test_nav_caliber_judgment.py"]),
+
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     '        assert gross < new_hurdle, (',
+     '        assert gross < new_hurdle * 0.05, (',
+     "五档重判的门槛被压到 1/20 ⇒ 任一档毛超额（≥4.81%）都能翻成「够线」"
+     "⇒ 「判决类别被翻转的档：无」这句变成假话，而 **R 档的定义就是它**",
+     ["tests/test_nav_caliber_judgment.py"]),
+
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     '    return bias_pp < gap_pp / slack',
+     '    return True',
+     "🚨 **这条守卫在真实数据上恒绿** —— 第一版锚在 `gap_pp / 5.0` 上，"
+     "把 5 放宽成 0.05 或 50 变异都**存活**（实测偏差 0.95pp/年 vs 间隙 12.51pp，"
+     "余量 13 倍 ⇒ 倍数怎么改都绿）。"
+     "⇒ 「实测通过」这条证据对容差类判据**零信息量**，"
+     "判别力只能由**能力守卫**给（合成数据：偏差吃掉一半间隙 / 远超间隙 / slack 放到无穷）",
+     ["tests/test_nav_caliber_judgment.py"]),
+
+    ("nav_caliber", "tests/test_nav_caliber_judgment.py",
+     '    assert nav["gates"]["no_missing_trading_day"] is True, \\',
+     '    assert nav["gates"]["no_missing_trading_day"] is not True, \\',
+     "G1 的**唯一数据闸门**被取反 ⇒ 缺交易日反而放行。"
+     "方向与「恒真」相反：它会让缺日**照出数**",
+     ["tests/test_nav_caliber_judgment.py"]),
 ]
 def _clear_pycache(rel_path: str) -> None:
     d = (ROOT / rel_path).parent / "__pycache__"
