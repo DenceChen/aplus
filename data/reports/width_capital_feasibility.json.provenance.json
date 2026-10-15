@@ -1,13 +1,14 @@
 {
-  "code_sha": "2d55d9e9fe2b34b2d940cdee6659e7c5375a03cf",
+  "code_sha": "76e953f89ba4f95010ad9c45eafdcb1d199db982",
   "code_dirty": true,
-  "code_file_sha256": "d6d848f6e2608bdb764cc26e67944b9c14dbab74652740b432650e6a0652ca80",
+  "code_file_sha256": "34dad445e6a478056e6218ff7b603c3f4cdeea87852996afe8df8e229bf6ce25",
   "data_fp": "5460:1792002326.672246",
   "data_dir": "data/master/daily",
   "generator": "scripts/width_capital_feasibility.py",
-  "stamped_at": "2026-10-15T03:51:47+00:00",
+  "stamped_at": "2026-10-15T08:00:11+00:00",
   "any_width_reaches_target": false,
   "target_net": 0.2,
   "source_artifact": "data/reports/factor_width_mde.json",
+  "source_artifact_sha256": "9efe87e280f0d46f4b2cece03e1ab0b886257946442ed352146d097c9f1238b0",
   "capital": 50000.0
 }

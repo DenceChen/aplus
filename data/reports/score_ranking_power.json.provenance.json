@@ -1,0 +1,13 @@
+{
+  "code_sha": "14fcb3a043b30d670f56c5efd8b7a7d159abf6f9",
+  "code_dirty": true,
+  "code_file_sha256": "065dae9004605c5b345007b53923d7355ee731f3d4dbdba52c9d5ca65a3f1630",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/score_ranking_power.py",
+  "stamped_at": "2026-10-15T08:15:53+00:00",
+  "verdict": "NOT_PASSED_POWERLESS",
+  "publish_allowed": false,
+  "source_parquet": "data/reports/verification.parquet",
+  "source_parquet_sha256": "1a2d3fad3d5481a8f906e08329aed0dc7eeb45cb47d16bdcf23635fd9d7800cb"
+}

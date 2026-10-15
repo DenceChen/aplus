@@ -5,7 +5,9 @@
     "2021-01-01",
     "2026-10-12"
   ],
-  "window_note": "★ 与判决窗口一致；`basket_width_sweep.json` 的 2019–2023 不是同一个量",
+  "window_end_pinned": "2026-10-12",
+  "window_end_actual": "2026-10-09",
+  "window_note": "★ 与判决窗口一致；`basket_width_sweep.json` 的 2019–2023 不是同一个量。`window_end_pinned` 是判据（钉死），`window_end_actual` 是实测量，两者可不同",
   "k_rebalance_every": 21,
   "alpha_two_sided": 0.05,
   "t_crit": 1.9599639845400532,

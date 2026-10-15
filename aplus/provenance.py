@@ -271,6 +271,18 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "factor_width_mde.json": "scripts/factor_width_mde.py",
     "factor_attribution.json": "scripts/factor_attribution.py",
     "cap_weighted_benchmark.json": "scripts/cap_weighted_benchmark.py",
+    # 2026-10-15 登记：S3/G4 —— **`score` 四分位有没有排序力**。
+    # 这不是一份研究报告，是**发布闸门**：`docs/TODO_reverse_scoring_2026-10-15.md`
+    # §3 原文「过不了这一关就不许发布」。
+    # 🚨 登记它的理由和上面几份不同：**它的判决是「不许发布」**，
+    #   而「不许发布」这种结论一旦没有产物，就只活在终端里 ⇒
+    #   下一个人会以为闸门还没测，于是照发。
+    # ⇒ 它的 `verdict` 是**三态**而不是布尔：
+    #   `NOT_PASSED_POWERLESS`（不单调且检出力不足）与
+    #   `NOT_PASSED_MEASURED`（不单调且检出力足够）**都意味着不许发布**，
+    #   但下一步动作相反（攒前瞻期 vs 换结构）。
+    #   把两者合并成「不通过」会丢掉唯一有用的那部分信息。
+    "score_ranking_power.json": "scripts/score_ranking_power.py",
     # 2026-10-15 登记：整手（A 股 100 股）可行性 ——
     # **¥50,000 到底能买进几个名字**。它不重跑回测，只报一个事实：
     # 在 `EQUITY_WEIGHT = 1.0` 的满仓假设下，单笔 = 50000/N，

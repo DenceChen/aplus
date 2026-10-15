@@ -1,0 +1,46 @@
+G1 闸门臂从 up 换成 down（S2 已停用 down，于是发布闸门看的是一个没人发布的臂）	scripts/score_ranking_power.py
+GATE_ARM = "up"
+=== 变异体 ===
+GATE_ARM = "down"
+
+G2 PASS 分支被焊死（无论四分位单不单调都判通过）	scripts/score_ranking_power.py
+    if st["monotone_nondecreasing"]:
+=== 变异体 ===
+    if True:
+
+G3 三态塌回两态（POWERLESS 与 MEASURED 合并，丢掉「下一步该做什么」）	scripts/score_ranking_power.py
+kind = ("NOT_PASSED_POWERLESS" if not st["detectable_at_alpha05"]
+            else "NOT_PASSED_MEASURED")
+=== 变异体 ===
+    kind = "NOT_PASSED"
+
+G4 publish_allowed 从「由判决算出」变成写死的 true（闸门形同虚设）	scripts/score_ranking_power.py
+        "publish_allowed": kind == "PASS",
+=== 变异体 ===
+        "publish_allowed": True,
+
+G5 置换 p 退回 b/B（零假设下会报 p=0，而 p=0 不是概率）	scripts/score_ranking_power.py
+    p = float((int((null >= obs).sum()) + 1) / (n_perm + 1))
+=== 变异体 ===
+    p = float(int((null >= obs).sum()) / n_perm)
+
+G6 可判定集漏掉 miss（分母缩到只剩命中，分母是判据的一部分）	scripts/score_ranking_power.py
+JUDGEABLE = ("hit", "miss")
+=== 变异体 ===
+JUDGEABLE = ("hit",)
+
+G7 缺分数的行被静默归零（分母从 69 悄悄变成 64，而报告仍说 69）	scripts/score_ranking_power.py
+        "n_rows_score_missing": n_missing_score,
+=== 变异体 ===
+        "n_rows_score_missing": 0,
+
+G8 四分位从组内切成全局（把「哪天」混进「分数高」，第 22 层）	scripts/score_ranking_power.py
+q = a.groupby("pred_date", group_keys=False)[score_col].apply(
+            _within_group_quartile)
+=== 变异体 ===
+        q = a[score_col].apply(_within_group_quartile)
+
+G9 独立事件数用条目数冒充（80 条读成 80 个独立观测，第 80 层）	scripts/score_ranking_power.py
+        "n_independent_pred_dates": int(df["pred_date"].nunique()),
+=== 变异体 ===
+        "n_independent_pred_dates": int(len(df)),
