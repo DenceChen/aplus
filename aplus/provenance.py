@@ -114,6 +114,13 @@ SELF_PATH = "aplus/provenance.py"
 #: 表外的报告一律 `unknown` —— **漏登记比登记错更安全**，
 #: 因为登记错只是漏报，漏登记会让人以为没人管。
 DEFAULT_GENERATORS: dict[str, str] = {
+    # 2026-10-15 登记：**PIT 链的唯一真相源**（27 GB/年）。
+    # 键是**分区文件名**而不是日期 —— 每一天的快照都叫 `financial.parquet`，
+    # 靠 `PATTERN_GENERATORS` 那样的模式表登记反而更啰嗦，而基名足够唯一
+    # （与既有的 `ic_matrices.parquet` / `financial_annual_cache.parquet` 同款）。
+    # 🚨 不登记的后果：`resolve_generator()` 返 `None` ⇒ `freshness()` 判
+    #   `unknown`（= 不许引用），而 `unknown` 与「数据坏了」长得一模一样。
+    "financial.parquet": "scripts/collect_financial_vintage.py",
     # 2026-10-15 登记：基准年化项（`benchmark_annual`）对 20% 判决的影响。
     # 判据逐字在 docs/PREREG_BENCHMARK_ANNUAL_TERM_2026-10-15.md（看数据前写死）。
     # 🚨 这条登记是**被守卫逼出来的**，不是想起来的：

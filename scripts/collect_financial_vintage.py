@@ -41,10 +41,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd  # noqa: E402
 
+from aplus import provenance  # noqa: E402
 from aplus.vintage import (  # noqa: E402
     VINTAGE_ROOT, available_days, read_manifest, snapshot_path, span,
     verify_integrity, write_snapshot,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
+
+#: 溯源章上的生成器名。**必须与 `aplus/provenance.py::DEFAULT_GENERATORS`
+#: 里那把键指向同一个字符串** —— 两边不一致时 `freshness()` 解析不出生成器
+#: ⇒ 判 `unknown`（= 不许引用），而 `unknown` 与「数据坏了」长得一模一样。
+GENERATOR = "scripts/collect_financial_vintage.py"
 
 #: 东财源礼貌限速，禁高并发。`diag_financial_lookahead.py` 实测同一量级。
 SLEEP_BETWEEN_CALLS = 0.15
@@ -306,6 +314,11 @@ def collect(pool: dict[str, str], root: Path, day: str,
 
 
 def main() -> int:
+    # 生成器字节冻结（第 125 层）——🚨 取样点必须在**跑之前的第一条可执行语句**：
+    # 本轮单跑 68.3 分钟（`data/vintage.log` 自报），「跑的过程中改生成器」
+    # 在这个量级不是假设。放在盖章前一行 = 拿开跑的字节盖开跑的章 ⇒ 恒真（第 131 层）。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+
     free_gb = shutil.disk_usage(Path.cwd()).free / 1024 ** 3
     if free_gb < MIN_FREE_GB:
         print(f"❌ 磁盘余量 {free_gb:.1f} GB < {MIN_FREE_GB} GB —— "
@@ -428,7 +441,24 @@ def main() -> int:
 
     # 只有整轮抓完才登记 manifest。中途失败的那几只也要记进去，
     # 否则将来没人知道那天缺了谁。
-    write_snapshot(args.root, day, df)
+    snap = write_snapshot(args.root, day, df)
+    # 溯源章（第 19 层在 PIT 链上的实例）：产物一落盘，代码与产物的关系就断了。
+    # ⚠️ `data_root=args.root` + `daily_subdir=""` = 「目录本身就是数据」：
+    #   不传就走默认的 `data/master/daily`，而**本脚本一次都没读过它**
+    #   ⇒ 指纹描述的是另一份数据，而 `freshness()` 照样给绿（第 19 层原型）。
+    # ⚠️ 历史快照（2026-10-14/15）**永久无章** —— 那两天 `code_file_sha256`
+    #   还不存在。⇒ 判新鲜度时 `unknown` 是正确结果，不是故障。
+    provenance.stamp(
+        snap, GENERATOR, root=ROOT, data_root=Path(args.root),
+        daily_subdir="", expect_bytes=expect_bytes,
+        extra={
+            "day": day,
+            "n_rows": int(len(df)),
+            "n_codes": int(df["SECURITY_CODE"].nunique()),
+            "data_fp_caliber": "本脚本没有本地输入数据（输入是抓取当时的东财源站）；"
+                               "章里的 `data_fp` 描述的是**它写入的 vintage 存储**，"
+                               "不是它读进来的东西。",
+        })
     print(f"\n  {day}: {len(df)} 行 / {df['SECURITY_CODE'].nunique()} 只 / "
           f"{df.shape[1]} 列")
     print(f"  耗时 {res['seconds']/60:.1f} 分钟，失败 {len(res['failed'])} 只")

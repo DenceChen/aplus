@@ -1,0 +1,35 @@
+V1 摘掉 expect_bytes 实参	scripts/collect_financial_vintage.py
+provenance.stamp(
+        snap, GENERATOR, root=ROOT, data_root=Path(args.root),
+        daily_subdir="", expect_bytes=expect_bytes,
+=== 变异体 ===
+provenance.stamp(
+        snap, GENERATOR, root=ROOT, data_root=Path(args.root),
+        daily_subdir="",
+
+V2 摘掉 data_root 实参（回落默认 master/daily）	scripts/collect_financial_vintage.py
+provenance.stamp(
+        snap, GENERATOR, root=ROOT, data_root=Path(args.root),
+=== 变异体 ===
+provenance.stamp(
+        snap, GENERATOR, root=ROOT,
+
+V3 GENERATOR 指向别的脚本	scripts/collect_financial_vintage.py
+GENERATOR = "scripts/collect_financial_vintage.py"
+=== 变异体 ===
+GENERATOR = "scripts/diagnose_hit_rate.py"
+
+V4 盖章点改指一个不存在的方法	scripts/collect_financial_vintage.py
+    provenance.stamp(
+=== 变异体 ===
+    provenance.no_such_stamp(
+
+V5 取样点从 main() 首行挪走	scripts/collect_financial_vintage.py
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+=== 变异体 ===
+    _ = provenance.code_file_sha256  # 变异：取样点不在 main() 首行
+
+V6 登记表里删掉 financial.parquet 那把键	aplus/provenance.py
+    "financial.parquet": "scripts/collect_financial_vintage.py",
+=== 变异体 ===
+    # 变异：删掉 financial.parquet 的登记键
