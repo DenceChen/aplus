@@ -1,0 +1,9 @@
+{
+  "code_sha": "e903f2916fc74947b7cd8740dd1dc2bdc52a07d4",
+  "code_dirty": true,
+  "code_file_sha256": "89362c422a91ee295a4759da9afff0ede9f1abf12fe69c88dbd1e746c6853ef0",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/diagnose_hit_rate.py",
+  "stamped_at": "2026-10-14T23:57:24+00:00"
+}

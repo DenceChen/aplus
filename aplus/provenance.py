@@ -136,6 +136,13 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # σ_r 的**读面板口径**在脚本，纯函数在 aplus/xsec_sigma.py——
     # 公式不该跟着口径变（换池子/缩尾比例时只改脚本）。
     "xsec_sigma_r.json": "scripts/measure_xsec_sigma.py",
+    # 2026-10-15 登记：两个诊断脚本的产物此前**从未登记**，
+    # 新鲜度只能靠 commit 走查判断。
+    # ① 命中率分层诊断（顺/逆大盘、扣 beta 后超额、打分排序力）
+    "hit_rate_diagnosis.json": "scripts/diagnose_hit_rate.py",
+    # ② 权重目标函数错配诊断：判「权重跟的是 IC，策略吃的是尾部价差」
+    #    三态判决；守卫在 tests/test_weight_vs_spread.py + tests/mutation_specs/
+    "weight_vs_spread.json": "scripts/weight_vs_spread.py",
     # 组合 IC 的**充分统计量**（每日 R 8×8 与 Σ_f 8），1882 天 340s。
     # 存下来之后所有权重方案秒级迭代，不再读面板。
     #

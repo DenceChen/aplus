@@ -1,0 +1,9 @@
+{
+  "code_sha": "e903f2916fc74947b7cd8740dd1dc2bdc52a07d4",
+  "code_dirty": true,
+  "code_file_sha256": "fb0a57fa875bd3d83f077381cfc9f2ab3bc2bc9a4527cbb8593d79c9e46e601c",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/weight_vs_spread.py",
+  "stamped_at": "2026-10-14T23:57:24+00:00"
+}

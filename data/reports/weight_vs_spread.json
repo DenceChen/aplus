@@ -1,0 +1,352 @@
+{
+  "spearman_crit_used": 0.7386,
+  "spearman_crit_exact_table": 0.7386,
+  "spearman_crit_t_approx": 0.7065,
+  "crit_paths_agree": false,
+  "crit_why_max": "精确置换表（真值）0.7386 vs t 近似 0.7067 —— t 近似在 df=6 上把门槛抬到 t=2.684（真值 2.4469）⇒ **反保守**（更容易判显著）⇒ 取 max，保守方向。与第 116 层同一个错误方向：「凭空发放显著性」比「漏掉显著性」贵。",
+  "weights_year": 2021,
+  "windows": {
+    "lag1_real": {
+      "n_days": 1821,
+      "fwd_window": [
+        0,
+        1
+      ],
+      "lookahead": false,
+      "effective_independent_obs": 1821.0,
+      "overlap_factor": 1.0,
+      "rho_absIC_vs_spread": -0.9286,
+      "rho_absW_vs_spread": 0.119,
+      "per_factor": {
+        "mom20": {
+          "IC": -0.03587,
+          "t": -9.431,
+          "tail_high_hit": 0.33,
+          "tail_low_hit": 0.5535,
+          "tail_spread": 0.2235,
+          "abs_w": 0.1936
+        },
+        "rev5": {
+          "IC": 0.02622,
+          "t": 7.231,
+          "tail_high_hit": 0.3795,
+          "tail_low_hit": 0.7166,
+          "tail_spread": 0.3371,
+          "abs_w": 0.4126
+        },
+        "vol20": {
+          "IC": -0.05142,
+          "t": -11.275,
+          "tail_high_hit": 0.374,
+          "tail_low_hit": 0.4981,
+          "tail_spread": 0.1241,
+          "abs_w": 0.3228
+        },
+        "vsur": {
+          "IC": -0.02899,
+          "t": -12.57,
+          "tail_high_hit": 0.2279,
+          "tail_low_hit": 0.5283,
+          "tail_spread": 0.3004,
+          "abs_w": 0.4004
+        },
+        "turn20": {
+          "IC": -0.04281,
+          "t": -9.294,
+          "tail_high_hit": 0.3405,
+          "tail_low_hit": 0.4871,
+          "tail_spread": 0.1466,
+          "abs_w": 0.2339
+        },
+        "turnratio": {
+          "IC": -0.03734,
+          "t": -12.815,
+          "tail_high_hit": 0.365,
+          "tail_low_hit": 0.4695,
+          "tail_spread": 0.1045,
+          "abs_w": 0.1035
+        },
+        "ivol": {
+          "IC": -0.05899,
+          "t": -16.731,
+          "tail_high_hit": 0.3734,
+          "tail_low_hit": 0.441,
+          "tail_spread": 0.0676,
+          "abs_w": 0.9304
+        },
+        "rsi": {
+          "IC": -0.03664,
+          "t": -9.869,
+          "tail_high_hit": 0.369,
+          "tail_low_hit": 0.5513,
+          "tail_spread": 0.1823,
+          "abs_w": 0.3157
+        }
+      }
+    },
+    "lag0_leaky": {
+      "n_days": 1822,
+      "fwd_window": [
+        -1,
+        0
+      ],
+      "lookahead": true,
+      "effective_independent_obs": 1822.0,
+      "overlap_factor": 1.0,
+      "rho_absIC_vs_spread": -0.5238,
+      "rho_absW_vs_spread": 0.119,
+      "per_factor": {
+        "mom20": {
+          "IC": -0.0453,
+          "t": -11.713,
+          "tail_high_hit": 0.2964,
+          "tail_low_hit": 0.5752,
+          "tail_spread": 0.2788,
+          "abs_w": 0.1936
+        },
+        "rev5": {
+          "IC": 0.04137,
+          "t": 10.938,
+          "tail_high_hit": 0.3546,
+          "tail_low_hit": 0.7689,
+          "tail_spread": 0.4143,
+          "abs_w": 0.4126
+        },
+        "vol20": {
+          "IC": -0.05926,
+          "t": -12.961,
+          "tail_high_hit": 0.3447,
+          "tail_low_hit": 0.4874,
+          "tail_spread": 0.1427,
+          "abs_w": 0.3228
+        },
+        "vsur": {
+          "IC": -0.0488,
+          "t": -19.967,
+          "tail_high_hit": 0.1537,
+          "tail_low_hit": 0.5027,
+          "tail_spread": 0.349,
+          "abs_w": 0.4004
+        },
+        "turn20": {
+          "IC": -0.04832,
+          "t": -10.488,
+          "tail_high_hit": 0.3244,
+          "tail_low_hit": 0.4885,
+          "tail_spread": 0.1641,
+          "abs_w": 0.2339
+        },
+        "turnratio": {
+          "IC": -0.04443,
+          "t": -15.161,
+          "tail_high_hit": 0.34,
+          "tail_low_hit": 0.465,
+          "tail_spread": 0.125,
+          "abs_w": 0.1035
+        },
+        "ivol": {
+          "IC": -0.069,
+          "t": -19.634,
+          "tail_high_hit": 0.3447,
+          "tail_low_hit": 0.4144,
+          "tail_spread": 0.0697,
+          "abs_w": 0.9304
+        },
+        "rsi": {
+          "IC": -0.05131,
+          "t": -13.646,
+          "tail_high_hit": 0.3052,
+          "tail_low_hit": 0.545,
+          "tail_spread": 0.2398,
+          "abs_w": 0.3157
+        }
+      }
+    },
+    "hold4": {
+      "n_days": 1818,
+      "fwd_window": [
+        0,
+        4
+      ],
+      "lookahead": false,
+      "effective_independent_obs": 454.5,
+      "overlap_factor": 4.0,
+      "rho_absIC_vs_spread": -0.8333,
+      "rho_absW_vs_spread": 0.0952,
+      "per_factor": {
+        "mom20": {
+          "IC": -0.0463,
+          "t": -8.198,
+          "tail_high_hit": 0.2635,
+          "tail_low_hit": 0.5875,
+          "tail_spread": 0.324,
+          "abs_w": 0.1936
+        },
+        "rev5": {
+          "IC": 0.02684,
+          "t": 5.53,
+          "tail_high_hit": 0.3245,
+          "tail_low_hit": 0.7866,
+          "tail_spread": 0.4621,
+          "abs_w": 0.4126
+        },
+        "vol20": {
+          "IC": -0.06628,
+          "t": -9.206,
+          "tail_high_hit": 0.2794,
+          "tail_low_hit": 0.4906,
+          "tail_spread": 0.2112,
+          "abs_w": 0.3228
+        },
+        "vsur": {
+          "IC": -0.02818,
+          "t": -8.752,
+          "tail_high_hit": 0.1832,
+          "tail_low_hit": 0.5578,
+          "tail_spread": 0.3746,
+          "abs_w": 0.4004
+        },
+        "turn20": {
+          "IC": -0.05762,
+          "t": -7.952,
+          "tail_high_hit": 0.2519,
+          "tail_low_hit": 0.4967,
+          "tail_spread": 0.2448,
+          "abs_w": 0.2339
+        },
+        "turnratio": {
+          "IC": -0.05245,
+          "t": -11.3,
+          "tail_high_hit": 0.2978,
+          "tail_low_hit": 0.4649,
+          "tail_spread": 0.1671,
+          "abs_w": 0.1035
+        },
+        "ivol": {
+          "IC": -0.07781,
+          "t": -13.909,
+          "tail_high_hit": 0.2816,
+          "tail_low_hit": 0.4268,
+          "tail_spread": 0.1452,
+          "abs_w": 0.9304
+        },
+        "rsi": {
+          "IC": -0.04353,
+          "t": -7.924,
+          "tail_high_hit": 0.3152,
+          "tail_low_hit": 0.5363,
+          "tail_spread": 0.2211,
+          "abs_w": 0.3157
+        }
+      }
+    },
+    "hold21": {
+      "n_days": 1801,
+      "fwd_window": [
+        0,
+        21
+      ],
+      "lookahead": false,
+      "effective_independent_obs": 85.8,
+      "overlap_factor": 21.0,
+      "rho_absIC_vs_spread": -0.6429,
+      "rho_absW_vs_spread": 0.0238,
+      "per_factor": {
+        "mom20": {
+          "IC": -0.07194,
+          "t": -6.75,
+          "tail_high_hit": 0.1738,
+          "tail_low_hit": 0.6441,
+          "tail_spread": 0.4703,
+          "abs_w": 0.1936
+        },
+        "rev5": {
+          "IC": 0.03284,
+          "t": 5.565,
+          "tail_high_hit": 0.2365,
+          "tail_low_hit": 0.8551,
+          "tail_spread": 0.6186,
+          "abs_w": 0.4126
+        },
+        "vol20": {
+          "IC": -0.10098,
+          "t": -6.099,
+          "tail_high_hit": 0.1644,
+          "tail_low_hit": 0.4814,
+          "tail_spread": 0.317,
+          "abs_w": 0.3228
+        },
+        "vsur": {
+          "IC": -0.0266,
+          "t": -5.748,
+          "tail_high_hit": 0.1666,
+          "tail_low_hit": 0.5675,
+          "tail_spread": 0.4009,
+          "abs_w": 0.4004
+        },
+        "turn20": {
+          "IC": -0.09701,
+          "t": -5.834,
+          "tail_high_hit": 0.1105,
+          "tail_low_hit": 0.4942,
+          "tail_spread": 0.3837,
+          "abs_w": 0.2339
+        },
+        "turnratio": {
+          "IC": -0.08478,
+          "t": -8.316,
+          "tail_high_hit": 0.1749,
+          "tail_low_hit": 0.4385,
+          "tail_spread": 0.2636,
+          "abs_w": 0.1035
+        },
+        "ivol": {
+          "IC": -0.1197,
+          "t": -9.299,
+          "tail_high_hit": 0.1699,
+          "tail_low_hit": 0.4159,
+          "tail_spread": 0.246,
+          "abs_w": 0.9304
+        },
+        "rsi": {
+          "IC": -0.06344,
+          "t": -5.883,
+          "tail_high_hit": 0.2632,
+          "tail_low_hit": 0.5408,
+          "tail_spread": 0.2776,
+          "abs_w": 0.3157
+        }
+      }
+    }
+  },
+  "usable_windows": [
+    "hold21",
+    "hold4",
+    "lag1_real"
+  ],
+  "per_window_verdict": {
+    "lag1_real": {
+      "overlap_factor": 1.0,
+      "effective_independent_obs": 1821.0,
+      "cond1_ic_antispread": true,
+      "cond2_weight_not_following": true
+    },
+    "hold4": {
+      "overlap_factor": 4.0,
+      "effective_independent_obs": 454.5,
+      "cond1_ic_antispread": true,
+      "cond2_weight_not_following": true
+    },
+    "hold21": {
+      "overlap_factor": 21.0,
+      "effective_independent_obs": 85.8,
+      "cond1_ic_antispread": false,
+      "cond2_weight_not_following": true
+    }
+  },
+  "rho_sign_consistent_across_all_windows": true,
+  "cond_ic_antispread": false,
+  "cond_weight_not_following_spread": true,
+  "verdict": "DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE",
+  "读法": "IC 是全截面**平均**相关（被中段主导），策略只吃**两端**。若两者负相关而权重跟着 IC 走，权重就系统性地投给了尾部最弱的因子 ⇒ **改权重幅度没用，要改权重学习的目标函数**。本判决只覆盖「权重投给了谁」，不覆盖「策略赚不赚钱」——后者由预注册的 G1~G6 判。\n判决三态怎么读：\n  · WEIGHT_TARGET_MISMATCH：结构主张在**每个**不含前视的窗口上都越过了门槛。\n  · DIRECTION_CONSISTENT_BUT_BAR_NOT_CLEARED_EVERYWHERE：**方向**在所有窗口一致，\n    但有窗口没过显著性门槛 —— 通常是那个窗口重叠高、独立观测少。\n    ⚠️ **这不是「显著」，不要当显著引用**；它是「一致但未处处站住」。\n    它比「只报最干净那个窗口」弱，而那个弱是真实的。\n  · NO_MISMATCH_AT_MEASURED_WIDTH：在 8 个因子的秩相关宽度上，没有证据。"
+}
