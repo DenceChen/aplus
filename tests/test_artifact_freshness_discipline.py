@@ -31,9 +31,22 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "scripts" / "measure_portfolio_nav.py"
-NAV = ROOT / "data/reports/portfolio_nav.json"
-NAV_SIDE = ROOT / "data/reports/portfolio_nav.json.provenance.json"
+
+#: 章的 `code_file_sha256` vs 盘上脚本字节 —— **同一个量**，所以由同一处守卫。
+#: ⚠️ 2026-10-16 加第二个条目的原因：第一版只有 portfolio_nav 一条，于是
+#:   `portfolio_exec.json` **没有任何守卫**覆盖这件事
+#:   （它自己的 G9 只查 `source_parquet_sha256` = **底稿**指纹，对源码变更失明）。
+#:   实测症状：改了 `measure_portfolio_exec.py` 之后 G9 照样绿。
+#:   ⇒ 这正是「强制重跑要配参数守卫」那条：守卫逼你重跑，
+#:     却不管你重跑对了没有；派生产物也不提示自己过期。
+FINGERPRINTED = (
+    ("portfolio_nav", ROOT / "scripts" / "measure_portfolio_nav.py",
+     ROOT / "data/reports/portfolio_nav.json",
+     ROOT / "data/reports/portfolio_nav.json.provenance.json"),
+    ("portfolio_exec", ROOT / "scripts" / "measure_portfolio_exec.py",
+     ROOT / "data/reports/portfolio_exec.json",
+     ROOT / "data/reports/portfolio_exec.json.provenance.json"),
+)
 
 
 def _same(a: str | None, b: str) -> bool:
@@ -45,19 +58,22 @@ def _same(a: str | None, b: str) -> bool:
     return a == b
 
 
-def test_g12_stamp_records_the_scripts_bytes_at_generation_time():
+@pytest.mark.parametrize("name,script,report,side", FINGERPRINTED,
+                         ids=[f[0] for f in FINGERPRINTED])
+def test_g12_stamp_records_the_scripts_bytes_at_generation_time(
+        name, script, report, side):
     """G12：章里的 `code_file_sha256` == 脚本**当前字节**。"""
-    if not (NAV.is_file() and NAV_SIDE.is_file()):
-        pytest.skip("产物未生成")
-    sc = json.loads(NAV_SIDE.read_text(encoding="utf-8"))
+    if not (report.is_file() and side.is_file()):
+        pytest.skip(f"{name} 产物未生成")
+    sc = json.loads(side.read_text(encoding="utf-8"))
     got = sc.get("code_file_sha256")
-    assert got is not None, f"章里没有 code_file_sha256：{sc}"
-    want = hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+    assert got is not None, f"{name} 的章里没有 code_file_sha256：{sc}"
+    want = hashlib.sha256(script.read_bytes()).hexdigest()
     if not _same(got, want):
         assert False, (
-            "章记录的脚本字节与盘上脚本当前字节不相等 ⇒ "
+            f"{name}：章记录的脚本字节与盘上脚本当前字节不相等 ⇒ "
             f"源码改过但产物没重跑（章={got[:12]}… 盘上={want[:12]}…）。"
-            f"修法：.venv/bin/python scripts/measure_portfolio_nav.py")
+            f"修法：.venv/bin/python {script.relative_to(ROOT)}")
 
 
 def test_g13_positive_control_this_guard_can_go_red():

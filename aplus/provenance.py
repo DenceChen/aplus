@@ -138,6 +138,12 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   而「盖一个**解析不出生成器**的章比不盖更坏」（形状 16）：
     #   读者无从判断它出自哪份代码。
     "portfolio_nav.json": "scripts/measure_portfolio_nav.py",
+    # 2026-10-16 登记：组合**资金可执行性**（¥50,000 开不写得出来）。
+    # 🚨 同样是**被这条守卫逼出来的**（第 3 次）：全量门禁点名
+    #   `portfolio_exec.json.provenance.json` 解析不出生成器。
+    #   修法照旧 —— 在 `provenance.py` 里补一行，而不是删掉那份 sidecar
+    #   或给守卫加白名单。**盖一个解析不出生成器的章比不盖更坏**（形状 16）。
+    "portfolio_exec.json": "scripts/measure_portfolio_exec.py",
     # 2026-10-15 登记（第 127 层）：三臂判决（最优定权 / 朴素翻号 / 原样等权）。
     # 🚨 登记**卡在 K 链跑完之后才做** —— `aplus/provenance.py` 正在被链的
     #   `backtest_walk_forward_weights.py` 调用（`provenance.stamp()`），

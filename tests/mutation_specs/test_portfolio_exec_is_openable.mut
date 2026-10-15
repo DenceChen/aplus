@@ -1,0 +1,64 @@
+M1_Capital_60000	scripts/measure_portfolio_exec.py
+CAPITAL = 50_000.0
+=== 变异体 ===
+CAPITAL = 60_000.0
+
+M2_Lot_10	scripts/measure_portfolio_exec.py
+LOT = 100
+=== 变异体 ===
+LOT = 10
+
+M3_spend_cap_removed	scripts/measure_portfolio_exec.py
+    return max(0, min(need, int(per_leg // one_lot_cost)))
+=== 变异体 ===
+    return max(0, int(per_leg // one_lot_cost))
+
+M4_k_eq_zero_to_lt	scripts/measure_portfolio_exec.py
+        if k == 0:
+=== 变异体 ===
+        if k < 0:
+
+M5_per_divided_by_ten	scripts/measure_portfolio_exec.py
+    per = capital / n_rows if n_rows else 0.0
+=== 变异体 ===
+    per = capital / (n_rows * 10) if n_rows else 0.0
+
+M6_fixed_point_one_round	scripts/measure_portfolio_exec.py
+        if len(keep) == len(alive):
+=== 变异体 ===
+        if len(keep) >= 0:
+
+M7_sha_falls_back_to_mtime	scripts/measure_portfolio_exec.py
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+=== 变异体 ===
+    return hashlib.sha256(str(path.stat().st_mtime).encode()).hexdigest()
+
+M8_generator_points_at_bak	scripts/measure_portfolio_exec.py
+GENERATOR = "scripts/measure_portfolio_exec.py"
+=== 变异体 ===
+GENERATOR = "scripts/measure_portfolio_exec.py.bak"
+
+M9_worst_min_to_max	scripts/measure_portfolio_exec.py
+    worst = min(w["A_hold_cash"]["投入率"] for w in ok)
+=== 变异体 ===
+    worst = max(w["A_hold_cash"]["投入率"] for w in ok)
+
+M10_g8_banned_name_smuggled	scripts/measure_portfolio_exec.py
+    n_rows = len(legs)
+=== 变异体 ===
+    n_rows = len({"total_return": legs}["total_return"])
+
+M11_idle_limit_99	scripts/measure_portfolio_exec.py
+IDLE_CASH_LIMIT = 0.20
+=== 变异体 ===
+IDLE_CASH_LIMIT = 0.99
+
+M12_expect_bytes_none	scripts/measure_portfolio_exec.py
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+=== 变异体 ===
+    expect_bytes = None
+
+M13_px_positive_filter_dropped	scripts/measure_portfolio_exec.py
+    return px if px > 0 else None            # 与 lot_affordability 的 `px > 0` 一致
+=== 变异体 ===
+    return px            # 与 lot_affordability 的 `px > 0` 一致
