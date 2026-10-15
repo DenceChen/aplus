@@ -91,6 +91,15 @@ from aplus import provenance  # noqa: E402
 
 DEFAULT_ARTIFACT = Path("data/reports/factor_width_mde.json")
 TARGET_NET = 0.20
+# 🚨 第 137 层：`--out` 的默认值**必须是**真实产物路径。
+#   它曾是 `None`，而 `if args.out:` 是唯一的写盘闸门
+#   ⇒ **裸跑会打印一份漂亮的判决、却一个字节都不落盘**。
+#   ⇒ 于是「我重跑过了」这句话可以完全为真而产物逐位未变，
+#   而产物层守卫守的是**上游** `factor_width_mde.json` 的 `code_sha`，
+#   它**不会**因为这次空操作而变红 ⇒ 「重跑」变成了一个
+#   **看起来做过、实则什么都没做**的动作，而没有任何东西会报。
+#   （我为此把一次门禁红判成了「产物过期」，正路重跑却是空的。）
+DEFAULT_OUT = Path("data/reports/width_capital_feasibility.json")
 CAPITAL_5W = 50_000.0
 EQUITY_WEIGHT = 1.0
 
@@ -159,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--artifact", type=Path, default=DEFAULT_ARTIFACT)
     p.add_argument("--capital", type=float, default=CAPITAL_5W)
     p.add_argument("--target", type=float, default=TARGET_NET)
-    p.add_argument("--out", type=Path, default=None)
+    p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = p.parse_args(argv)
 
     rep = json.loads(args.artifact.read_text(encoding="utf-8"))

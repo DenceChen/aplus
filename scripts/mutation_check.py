@@ -820,9 +820,59 @@ MUTATIONS: list[tuple[str, str, str, str, str, list[str]]] = [
      "而这一改动完全不碰判据、只碰接线，最容易蒙混过关（跨过代码与产物之间那道缝）",
      ["tests/test_interrupted_mutation_self_heals.py::"
       "test_the_owner_file_actually_carries_the_start_token"]),
+
+    # ── 第 137 层：CLAUDE.md 判决表的手抄件必须逐格对账 ──────────────
+    # 🚨 这一组每个变异体都必须被**控制组**杀掉，而不是被主守卫杀掉：
+    #   主守卫在正常态是绿的，「判据被抽掉」与「表被改坏」是两个独立的失效面。
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '    out: list[str] = []',
+     '    return []\n' + '    out: list[str] = []',
+     "判据恒假（永远说「一致」）⇒ 主守卫与正控全绿；"
+     "只有那三条**用真实抄错的数做夹具**的反控能杀掉它",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '    out: list[str] = []',
+     '    return ["恒红"]\n' + '    out: list[str] = []',
+     "判据恒真（永远报不一致）⇒ 正控立刻红；与上一条方向相反",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        want_gross = f"{w[\'gross_annual\'] * 100:.2f}%"\n        if row[i_gross].replace(" ", "") != want_gross:\n            out.append(f"N={n} 毛超额 {row[i_gross]} ≠ 产物 {want_gross}")',
+     "        pass",
+     "删掉**毛超额**那一列的比较 ⇒ 主守卫与三条反控**照样全绿**"
+     "（它们改的全是「万」那一列）⇒ 只测一列的判据只是守着半个命题",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        tgt = w["capital_for_target_net"]\n        want_tgt = "不存在" if tgt is None else f"{tgt / 1e4:.1f} 万"\n        if row[i_tgt].replace(" ", "") != want_tgt:\n            out.append(f"N={n} 到目标本金 {row[i_tgt]} ≠ 产物 {want_tgt}")',
+     "        pass",
+     "删掉「到 20% 净所需本金」那一列的比较 ⇒ 那一列可以整列写错而无人发现",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '    missing = sorted(set(widths) - seen)\n    if missing:\n        out.append(f"产物里的 N 没有出现在表中：{missing}")',
+     "    pass",
+     "删掉「产物里的 N 没有出现在表中」⇒ 产物新增一档时表格可以静默漏掉它，"
+     "而逐行对照只看**表里有的** N",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        m = re.fullmatch(r"([0-9.]+)\\s*万", row[i_cap])\n        want_cap = round(w["capital_for_breakeven"] / 1e4, 1)\n        if not m or float(m.group(1)) != want_cap:\n            got = m.group(1) if m else repr(row[i_cap])\n            out.append(f"N={n} 回本本金 {got} 万 ≠ 产物 {want_cap} 万")',
+     "        pass",
+     "删掉**回本本金**那一列的比较（这条守卫的全部存在理由）",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("wcf_out", "scripts/width_capital_feasibility.py",
+     '    p.add_argument("--out", type=Path, default=DEFAULT_OUT)\n',
+     '    p.add_argument("--out", type=Path, default=None)\n',
+     "`--out` 退回 `default=None` ⇒ **裸跑只打印判决、不落盘**，"
+     "而产物层守卫守的是**上游** `factor_width_mde.json` 的 `code_sha`，"
+     "**不会**因此变红 ⇒ 「按正路重跑」变成一个看起来做过、"
+     "实则什么都没做的动作，而没有任何东西会报（第 137 层）",
+     ["tests/test_width_capital_feasibility.py::test_a_bare_run_actually_writes_the_report_not_just_prints_it"]),
 ]
-
-
 def _clear_pycache(rel_path: str) -> None:
     d = (ROOT / rel_path).parent / "__pycache__"
     if d.exists():

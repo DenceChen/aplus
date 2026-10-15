@@ -376,3 +376,50 @@ def test_the_artifact_is_not_older_than_every_consumer_of_it():
         print(f"\n  ℹ️  mtime 比产物新但内容与 code_sha={code_sha[:8]} 逐位相同："
               f"{mtime_lied}\n     ⇒ 判为**未改动**（mtime 是还原/拷贝留下的假象），"
               "按 mtime 判会误报")
+
+
+def test_a_bare_run_actually_writes_the_report_not_just_prints_it():
+    """★ 第 137 层：**「我重跑过了」可以完全为真而产物一个字节没变。**
+
+    `scripts/width_capital_feasibility.py` 的 `--out` 曾默认 `None`，
+    而 `if args.out:` 是唯一的写盘闸门 ⇒ **裸跑打印一份漂亮的判决、
+    却什么都不落盘**。
+
+    ⇒ 危险的地方在于**没有任何东西会报**：
+      产物层守卫（`test_the_artifact_is_not_older_than_every_consumer_of_it`）
+      守的是**上游** `factor_width_mde.json` 的 `code_sha`，
+      它**不会**因为这次空操作而变红 ⇒ 「按正路重跑」这一步
+      悄悄变成了一个看起来做过、实则什么都没做的动作。
+
+    实测代价：我据此把一次门禁红判成「产物过期」，
+    而真正的正路（重跑上游）从头到尾没被执行过。
+
+    ⚠️ 这里只钉**接线**（默认指向真实产物），不在测试里真跑一遍 ——
+    真跑会把 sidecar 重新盖章，而 sidecar 的 `code_sha`
+    正被上面那条守卫当**真值源**读，中途改它会让那条守卫求值于半途。
+    """
+    import ast  # noqa: PLC0415
+
+    src_path = _ROOT / "scripts" / "width_capital_feasibility.py"
+    tree = ast.parse(src_path.read_text(encoding="utf-8"))
+    default_out = None
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and getattr(node.func, "attr", "") == "add_argument"
+                and node.args and node.args[0].value == "--out"):
+            for kw in node.keywords:
+                if kw.arg == "default":
+                    default_out = ast.unparse(kw.value)
+    assert default_out == "DEFAULT_OUT", (
+        f"`--out` 的默认值变成了 {default_out!r} —— 裸跑将只打印、不落盘。"
+        "⇒ 把它改回 DEFAULT_OUT；**不要**改成 None（那正是本条要防的回归）"
+    )
+    mod_out = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+                getattr(t, "id", "") == "DEFAULT_OUT" for t in node.targets):
+            mod_out = ast.unparse(node.value)
+    # ⚠️ `ast.unparse` 把 `Path("x")` 渲染成 `Path('x')` —— 比的是渲染结果，
+    #   所以这里比**单引号**形态；写成双引号会当场红，而红的原因看起来像「值不对」。
+    assert mod_out == "Path('data/reports/width_capital_feasibility.json')", mod_out
+    assert (_ROOT / "data" / "reports" / "width_capital_feasibility.json").is_file(), \
+        "默认路径指向的产物不存在 —— 默认值与真实产物脱钩了"
