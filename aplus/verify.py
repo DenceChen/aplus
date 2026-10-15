@@ -18,6 +18,72 @@ from .adjust import hfq_close
 # 取 3：低于此值时那一天衡量的根本不是「一个篮子」，而是个别标的的运气。
 MIN_BASKET = 3
 
+# 一条 `no_data` 判定被标成「永久不可判定」时写进产物的标记值。
+# 见 `classify_no_data`。
+UNJUDGEABLE_HALT = "halt"
+# 该标记在判定档里的**列名**。
+UNJUDGEABLE_REASON = "unjudgeable_reason"
+
+
+def classify_no_data(stock_max: str | None, store_max: str | None,
+                     required_entry: str, required_exit: str) -> str | None:
+    """一条 `no_data` 是**永久**不可判定，还是**暂时**拿不到 bar？
+
+    🚨 预注册 `docs/PREREG_NO_DATA_REJUDGE_2026-10-16.md` §3 的 C4/C5。
+    两者是一对**反向**判据，缺一不可：只实现「永久」会让暂时性的那些被一次性丢掉，
+    只实现「暂时」会让停牌日**每天重判一次、永不停歇**。
+
+    ## 判据只看**日期**，不看文件 mtime（C7）
+
+    mtime 不是真相：拷贝、备份、重写但内容不变都会改它。
+    用它当锚是过严守卫的头号成因——症状与「守对了」一模一样（第 112 层）。
+
+    ## 为什么 `store_max` 是必需入参
+
+    「这只票没有 bar」有两种完全不同的原因，**后果相反**：
+
+    | 形状 | `stock_max` | `store_max` | 判决 |
+    |---|---|---|---|
+    | 库还没更新（暂时） | < `required_entry` | **< `required_exit`** | `None` ⇒ 下轮重判 |
+    | 这只票停牌（永久） | < `required_entry` | **>= `required_exit`** | `"halt"` ⇒ 不再阻塞该日 |
+
+    实测 600825.SH：daily 末日期 2026-10-12，而同日两只对照票（600241.SH /
+    601398.SH）末日期 2026-10-15，daily 抽样 40 只中 32 只 = 2026-10-15
+    ⇒ **库是当前的，是这只票没有** ⇒ 永久。
+
+    ⚠️ `stock_max >= required_entry` 时该行本就判得出（会有 `exit_date`），
+    这里仍返回 `None` 而不是 `UNJUDGEABLE_HALT` —— 有窗口就是可判定，不是「永久」。
+    """
+    if not stock_max or not store_max:
+        return None
+    if str(stock_max) >= str(required_entry):
+        return None                      # 有买价 ⇒ 该行判得出，不存在「永久」
+    if str(store_max) < str(required_exit):
+        return None                      # 库还没到退出日 ⇒ 暂时，不是停牌
+    return UNJUDGEABLE_HALT
+
+
+def mark_unjudgeable(results: pd.DataFrame, stock_max: dict,
+                     store_max: str | None, required_entry: str,
+                     required_exit: str) -> pd.Series:
+    """给判定结果打上「永久不可判定」标记（预注册 §3 的 C4/C5）。
+
+    纯函数：日期与结果都在入参里，**不碰库**。这样它能被双向夹具直接夹住，
+    而不必起一个 5460 份 parquet 的库（面板载入是 GB 级 / 10 分钟量级）。
+
+    ⚠️ **只有 `no_data` 行可能被标记**：`hit` / `miss` / `flat` 一律 `None`。
+    一个 `hit` 行带上「永久不可判定」会让下游把它当成「没量到」，
+    而它明明量到了 —— 这是比漏标记更坏的方向（第 10 层：错在乐观方向）。
+    """
+    out = []
+    for code, res in zip(results["code"], results["result"]):
+        if res != "no_data":
+            out.append(None)
+            continue
+        out.append(classify_no_data(stock_max.get(code), store_max,
+                                    required_entry, required_exit))
+    return pd.Series(out, index=results.index, dtype="object")
+
 
 def judge(prediction, actual_pct) -> str:
     """单条判定：方向对且非平 = hit，反向 = miss，恰好 0 = flat，无行情 = no_data。"""

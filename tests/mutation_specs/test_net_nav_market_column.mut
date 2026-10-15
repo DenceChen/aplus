@@ -1,0 +1,65 @@
+M1 去掉 reindex ⇒ market 落到未经 MIN_BASKET 过滤的全部日子上（两列行数不同）	aplus/evolve_race.py
+return daily, market.reindex(daily.index)
+=== 变异体 ===
+return daily, market
+
+M2 reindex 换成按位置对齐（等长但错位的那一种）	aplus/evolve_race.py
+return daily, market.reindex(daily.index)
+=== 变异体 ===
+return daily, market.iloc[:len(daily)]
+
+M3 return_parts 的默认从 False 翻成 True（8 个现存调用点静默拿到 tuple）	aplus/evolve_race.py
+                  weights_col: str | None = None, return_parts: bool = False):
+=== 变异体 ===
+                  weights_col: str | None = None, return_parts: bool = True):
+
+M4 开关打开时也不真的返回两列（签名收了参数而调用不传）	aplus/evolve_race.py
+    if return_parts:
+=== 变异体 ===
+    if False:
+
+M5 基准减错倍数（换成 basket−2·market ⇒ 两项不再同源）	aplus/evolve_race.py
+    market = leg.groupby(days)["market_pct"].mean()
+=== 变异体 ===
+    market = leg.groupby(days)["market_pct"].mean() * 2.0
+
+M6 摘掉 MIN_BASKET 过滤（幸存日集合变大 ⇒ G4 的日期清单与 G3 的两天真值同时错）	aplus/evolve_race.py
+daily = daily.where(count >= MIN_BASKET).dropna()
+=== 变异体 ===
+daily = daily.dropna()
+
+M7 包装层不转发 return_parts（签名收了而调用不传 ⇒ 上游拿到 Series）	scripts/backtest_walk_forward_weights.py
+return _daily_series(results, direction, weights_col=weights_col,
+                         return_parts=return_parts)
+=== 变异体 ===
+return _daily_series(results, direction, weights_col=weights_col)
+
+M8 落盘列名改掉（market_return 消失 ⇒ 口径无标签）	scripts/backtest_walk_forward_weights.py
+                  ("market_return", c.get("market"))]
+=== 变异体 ===
+                  ("mkt_ret", c.get("market"))]
+
+M9 落盘取值换成字面 None（整列 NaN 而不报任何错）	scripts/backtest_walk_forward_weights.py
+                  ("market_return", c.get("market"))]
+=== 变异体 ===
+                  ("market_return", None)]
+
+M10 口径块只剩「它是什么」、删掉「它不是什么」（最可能的误读无人挡）	scripts/backtest_walk_forward_weights.py
+                "what_it_is_not": "不是中证全指；不是市值加权（那是 cap_weighted_benchmark.json 的口径）",
+=== 变异体 ===
+                "unused_not_declared": "n/a",
+
+M11 口径块从产物里消失（键改名 ⇒ 口径退回只活在注释里）	scripts/backtest_walk_forward_weights.py
+"caliber": {
+            "market_return": {
+                "what_it_is": "抽样面板等权日收益（_market_by_day）",
+=== 变异体 ===
+"caliber_disabled": {
+            "market_return": {
+                "what_it_is": "抽样面板等权日收益（_market_by_day）",
+
+M12 净值路径偷偷引回被证伪的桥（V3 被从语法位置上解除）	aplus/evolve_race.py
+from .evolve import DEFAULT_REBALANCE_EVERY, candidate_key, split_weights
+=== 变异体 ===
+from .evolve import DEFAULT_REBALANCE_EVERY, candidate_key, split_weights
+from .ic_to_return import implied_spread

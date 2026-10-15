@@ -227,7 +227,7 @@ def excess_tstat(results, rebalance_every: int = 1) -> tuple[float | None, int]:
 
 
 def _daily_series(results, direction: str, negate: bool = False,
-                  weights_col: str | None = None):
+                  weights_col: str | None = None, return_parts: bool = False):
     """逐日的单腿超额序列（t 检验的输入单位）。
 
     **必须逐日先聚合再检验**：逐笔样本的 t 值会把同一天 10 只股票当成 10 个
@@ -282,7 +282,22 @@ def _daily_series(results, direction: str, negate: bool = False,
     daily = daily.where(count >= MIN_BASKET).dropna()
     if negate:
         daily = -daily
-    return daily if len(daily) else None
+    if not len(daily):
+        return None
+    if return_parts:
+        # 🚨 2026-10-16（预注册 `PREREG_7Y_NET_NAV` §8.1）：为了让**绝对净值**
+        #   可算，必须把**被减掉的那一项**（`market`）一起交出去。
+        #   本函数此前只返回**差** ⇒ 「账户年化 20%」从来没被算过，
+        #   不是因为算不出，而是因为没人把这一列写出来。
+        #
+        # ⚠️ `market` **必须落在与 `daily` 完全相同的那批日子上**：
+        #   上面 `daily.where(count >= MIN_BASKET).dropna()` 剔掉的是
+        #   **成分不足**的日子，而掩码是由 `count`（篮子里的行数）定的，
+        #   与 `market` 无关 ⇒ 若直接返回未过滤的 `market`，
+        #   两列**行数不同**，下游按位置对齐就会把不同日子配成一对。
+        #   ⇒ 用 `reindex(daily.index)`：索引本身就是**幸存日集合**的证明。
+        return daily, market.reindex(daily.index)
+    return daily
 
 
 def _block_means(daily, block: int):

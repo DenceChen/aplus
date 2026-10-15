@@ -1,0 +1,39 @@
+K1 pending 退回 any（部分覆盖的日子不再回 pending ⇒ 那 7 条永远不补）	aplus/reports.py
+per_day = done.groupby(done["pred_date"].astype(str))["_settled"].all()
+=== 变异体 ===
+per_day = done.groupby(done["pred_date"].astype(str))["_settled"].any()
+
+K2 永久标记被无视（结清只看 exit_date ⇒ 停牌日被无限重判）	aplus/reports.py
+settled = reason.notna() & (reason.astype(str) != "")
+=== 变异体 ===
+settled = pd.Series(False, index=ver.index)
+
+K3 判别器的「库落后」分支被摘掉（暂时性 no_data 会被误标成停牌）	aplus/verify.py
+if str(store_max) < str(required_exit):
+=== 变异体 ===
+if False:
+
+K4 判别器的「永久」分支被摘掉（停牌与暂时不分 ⇒ 停牌日无限重判）	aplus/verify.py
+return UNJUDGEABLE_HALT
+=== 变异体 ===
+return None
+
+K5 写入端给 hit/miss/flat 也打永久标记（量到了被读成没量到）	aplus/verify.py
+if res != "no_data":
+=== 变异体 ===
+if False:
+
+K6 判别器的库进度比较方向写反	aplus/verify.py
+if str(store_max) < str(required_exit):
+=== 变异体 ===
+if str(store_max) >= str(required_exit):
+
+K7 永久标记列名改掉（写入与读取错位 ⇒ 标记静默失效）	aplus/verify.py
+UNJUDGEABLE_REASON = "unjudgeable_reason"
+=== 变异体 ===
+UNJUDGEABLE_REASON = "unjudgeable_why"
+
+K8 写入端取不到该行的末日期（错位 ⇒ 有 bar 的票被误标成永久）	aplus/verify.py
+out.append(classify_no_data(stock_max.get(code), store_max,
+=== 变异体 ===
+out.append(classify_no_data(None, store_max,

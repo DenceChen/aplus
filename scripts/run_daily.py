@@ -32,10 +32,18 @@ from aplus.backtest import STOCK_COST_DEFAULT
 from aplus.snapshot import build_cross_section
 from aplus.sources import default_sources
 from aplus.store import LocalStore
-from aplus.verify import last_two_bars, rolling_stats, verify_predictions
+from aplus.verify import (
+    UNJUDGEABLE_REASON,
+    last_two_bars,
+    mark_unjudgeable,
+    rolling_stats,
+    verify_predictions,
+)
 from aplus.write_lock import LockBusy, WriteLock
 
 MARKET_SAMPLE = 300  # 市场平均收益的抽样规模（全量读盘太重，抽样足够稳定）
+MARKET_MAX_DATE_SAMPLE = 300  # 市场级末日期的抽样规模（与上者同量级，单列避免被误改）
+
 
 
 def _load_names(data_root: Path) -> dict:
@@ -247,6 +255,46 @@ def _market_pct(store, after_date, sample_size=MARKET_SAMPLE):
     return None if w is None else w["pct"]
 
 
+def _store_max_date(store, sample_size=MARKET_MAX_DATE_SAMPLE) -> str | None:
+    """库的市场级末日期（**抽样取最大**，不取均值、不看 mtime）。
+
+    ## 为什么必须是「市场级」而不能取单只
+
+    实测 600825.SH 的 daily 末日期停在 2026-10-12，而同日两只对照票是
+    2026-10-15，抽样 300 只里绝大多数是 2026-10-15 ⇒ **库是当前的，
+    是这只票停牌**。若用 `run_daily` 原本那条「取第 0 行探针」的路，
+    一只停牌票就会被读成「整个库没更新」—— 两种形状的后果正好相反。
+
+    ## 为什么取最大而不是均值
+
+    判据问的是「库里有没有越过某一天」。均值会被少数刚停牌/刚退市的票
+    拉回来，把「已经有数据了」误报成「还没到」。
+
+    🚨 锚是 parquet 里的**日期**，不是文件 mtime（预注册 §3 的 C7）：
+    mtime 会被拷贝、备份、重写但内容不变改掉，用它当锚是过严守卫的头号成因。
+
+    ⚠️ 抽样而非全量：全量 5460 个 parquet 太重。300 只的**最大**值
+    足以回答「库里有没有越过某一天」—— 只要有一只更新到就返回它。
+    """
+    codes = sorted((store.root / "master" / "daily").glob("*.parquet"))
+    if not codes:
+        return None
+    # 种子固定：这是一个**不随日期变化**的事实（同一天重跑必得同值）。
+    # 与 `_market_window` 的日期派生种子不同——那一条要的是跨日换样本，
+    # 这一条要的是「同一天看的是同一批票」，否则「库里更新了没有」
+    # 会在抽样噪声上抖动，而它是要写进产物当判据的。
+    rng = random.Random("aplus-store-max")
+    best = None
+    for code in [p.stem for p in rng.sample(codes, min(sample_size, len(codes)))]:
+        df = store.read_daily(code)
+        if df is None or getattr(df, "empty", True) or "date" not in df.columns:
+            continue
+        d = str(df["date"].astype(str).max())
+        if best is None or d > best:
+            best = d
+    return best
+
+
 def _judge_one_day(store, reports_dir, pred_date, today):
     """判定单个预测日；数据未就绪返回 False（留给下一轮补判）。"""
     loaded = load_predictions(reports_dir, pred_date)
@@ -293,6 +341,27 @@ def _judge_one_day(store, reports_dir, pred_date, today):
     # 实测把 +0.67% 的真实日收益报成 −78.06% 的年化。
     results["entry_date"] = bars.set_index("code")["entry_date"].reindex(results["code"]).to_numpy()
     results["exit_date"] = bars.set_index("code")["exit_date"].reindex(results["code"]).to_numpy()
+
+    # 🚨 永久不可判定的行必须**落一个标记**，否则停牌日会被无限重判
+    #   （预注册 `PREREG_NO_DATA_REJUDGE_2026-10-16.md` §3 的 C4/C5）。
+    #   `required_entry/required_exit` 取**本日实际用到的**成交窗口上界：
+    #   它们是这一天的口径常量，不是某一只票的属性。
+    required_entry = str(bars["entry_date"].max())
+    required_exit = str(bars["exit_date"].max())
+    store_max = _store_max_date(store)
+    # 只对 `no_data` 行读库（命中/未命中行不需要），IO 与命中数无关。
+    stock_max = {}
+    for code in results.loc[results["result"] == "no_data", "code"]:
+        df = store.read_daily(code)
+        if df is not None and not getattr(df, "empty", True) and "date" in df.columns:
+            stock_max[code] = str(df["date"].astype(str).max())
+    results[UNJUDGEABLE_REASON] = mark_unjudgeable(
+        results, stock_max, store_max, required_entry, required_exit)
+    n_halt = int(results[UNJUDGEABLE_REASON].notna().sum())
+    if n_halt:
+        print(f"[verify] {pred_date} 有 {n_halt} 条**永久**不可判定（库已到 "
+              f"{store_max} 而这些票停在窗口之前，按停牌处理、不再阻塞该日补判）")
+
     append_verification(reports_dir, results)
     hit = (results["result"] == "hit").sum()
     gross = results["actual_pct"].mean()

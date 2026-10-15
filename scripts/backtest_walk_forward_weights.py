@@ -180,7 +180,7 @@ def at_cost(results: pd.DataFrame, cost: float) -> pd.DataFrame:
 
 
 def _daily(results: pd.DataFrame, direction: str = "up",
-           weights_col: str | None = None):
+           weights_col: str | None = None, return_parts: bool = False):
     """逐日单腿净超额序列 —— **复用 `evolve_race` 的那一份**，不自己写。
 
     它已经处理了三件容易错的事：逐日先聚合再检验、
@@ -189,9 +189,15 @@ def _daily(results: pd.DataFrame, direction: str = "up",
 
     `weights_col` 是市值加权实验（预注册 `TODO_cap_weighted_benchmark`）的入口 ——
     基准相减就发生在 `_daily_series` 里，所以端点只能在那里加。
+
+    `return_parts=True` 时额外交出**被减掉的那一项** `(超额, 基准)`，
+    供**绝对净值**用（预注册 `PREREG_7Y_NET_NAV` §8.1）。
+    ⚠️ 默认 `False` ⇒ 下面 8 个调用点**逐位不变**；
+    打开它必须同时验「两列行数相同、索引相同」。
     """
     from aplus.evolve_race import _daily_series
-    return _daily_series(results, direction, weights_col=weights_col)
+    return _daily_series(results, direction, weights_col=weights_col,
+                         return_parts=return_parts)
 
 
 def _t(daily, block: int):
@@ -434,7 +440,8 @@ def _daily_frame(chunks: list, factors) -> "pd.DataFrame":
     cols: dict = {}
     for c in chunks:
         labels = [_label(d) for d in c["dates"]]
-        wanted = [("gross_excess", c["excess"])]
+        wanted = [("gross_excess", c["excess"]),
+                  ("market_return", c.get("market"))]
         wanted += [(f"expo_{f}", c.get("exposure", {}).get(f)) for f in factors]
         for name, vals in wanted:
             if vals is None:
@@ -504,7 +511,10 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
         return {"n_rows": 0, "n_days": 0}
 
     wcol = "cap" if portfolio_cap else None
-    gross = _daily(res.assign(cost=0.0), weights_col=wcol)
+    parts = _daily(res.assign(cost=0.0), weights_col=wcol, return_parts=True)
+    # ⚠️ `_daily` 在**没有可判定日子**时返回 `None`，**不是** `(None, None)`
+    #   ⇒ 直接解包会在最不该崩的那种输入上崩，而崩点离原因很远。
+    gross, market = parts if parts is not None else (None, None)
     out = {"n_rows": int(len(res)), "n_days": int(len(dates))}
     for tag, c in (("bt003", STOCK_COST_DEFAULT),
                    ("real", real_cost_for(top_n, rebalance_every))):
@@ -540,6 +550,13 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
         daily_out.append({
             "dates": days,
             "excess": [float(v) for v in np.asarray(gross, float)],
+            # ★ 2026-10-16 新增（预注册 `PREREG_7Y_NET_NAV` §8.1）：
+            #   **被减掉的那一项**。没有它，「账户年化 20%」只能被算成超额，
+            #   而超额不是用户的钱。
+            # ⚠️ 口径随数字一起落盘（§8.4）：它是**抽样面板等权收益**，
+            #   不是中证全指、也不是市值加权 ⇒ 不写清楚就会被读成指数（第 7 层）。
+            "market": ([float(v) for v in np.asarray(market.reindex(gross.index), float)]
+                       if market is not None else None),
             # ★ 10 列（`EXPO_COLS`）：8 因子 + 市值主列 + 市值对照列。
             #   `cap_table is None` 时那**两列**都**整列 NaN**
             #   （不是 0、不是缺列）——
@@ -735,6 +752,26 @@ def main(argv=None) -> int:
         "note": ("净超额 = 涨篮子 − 市场，日频序列按调仓周期分块后求 t；"
                  "观测单位是「一次调仓决策」。可成交性闸门已开。"
                  "两个成本口径都报：回测默认低估真实现况 1.84 倍。"),
+        # ★ 口径必须**跟着数字离开脚本**（预注册 `PREREG_7Y_NET_NAV` §8.4 决策三）。
+        #   写进 `note` 不够 —— `note` 是散文，读的人不必读它；
+        #   而 `market_return` 那一列（`.daily.parquet`）的**读者**会以为
+        #   它是指数。`_market_by_day`（`aplus/backtest.py`）给的是
+        #   **抽样面板等权收益**，既不是中证全指，也不是市值加权
+        #   （后者是 `cap_weighted_benchmark.json` 的口径，两个不可混 —— 第 7 层）。
+        # ⇒ 「绝对净值 = market_return + gross_excess」这个加法**依赖**这段口径：
+        #   换成市值加权口径，同样的加法给出的是另一个净值。
+        "caliber": {
+            "market_return": {
+                "what_it_is": "抽样面板等权日收益（_market_by_day）",
+                "what_it_is_not": "不是中证全指；不是市值加权（那是 cap_weighted_benchmark.json 的口径）",
+                "source": "aplus/backtest.py::_market_by_day",
+                "used_for": "组合净值 = market_return + gross_excess（预注册 §8.1）",
+            },
+            "gross_excess": {
+                "what_it_is": "涨篮子等权 − market_return",
+                "note": "落盘的是**毛**的那一遍（cost=0）；net 那遍只用于算实测成本",
+            },
+        },
         "years": rows,
         # ★ 窗口长度必须**写进产物**。原来这份 json 里没有任何日期字段 ——
         #   于是「昨天那份比今天这份少两天」这件事**在产物里不可见**，

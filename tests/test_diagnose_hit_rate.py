@@ -27,10 +27,16 @@ def _frame(rows):
 
 
 def _one(direction="up", result="hit", actual=0.01, market=0.0,
-         score=None, date="2026-10-09", code="000001.SZ"):
-    return {"code": code, "direction": direction, "result": result,
-            "actual_pct": actual, "market_pct": market,
-            "adjusted_score": score, "pred_date": date}
+         score=None, date="2026-10-09", code="000001.SZ", exit_=None):
+    row = {"code": code, "direction": direction, "result": result,
+           "actual_pct": actual, "market_pct": market,
+           "adjusted_score": score, "pred_date": date}
+    # ⚠️ `exit_date` 缺席时实现会退回 `pred_date` 分组（`legacy:` 前缀单独成组），
+    #   所以**默认不造这一列**：造一个全是同一天的 `exit_date` 会让
+    #   「多行同窗」这件事在每一条夹具里默认成立，而那些夹具根本没在测它。
+    if exit_ is not None:
+        row["exit_date"] = exit_
+    return row
 
 
 # ══════════════ 口径：排除项必须被计数，不能无声消失 ═══════════════
@@ -147,16 +153,50 @@ def test_a_monotonic_score_is_reported_as_ranked_not_as_proof():
 # ══════════════ 证据强度必须分级（不能一律叫「可作方向性证据」）══════════════
 
 def test_a_tiny_sample_is_labelled_thin_rather_than_directional():
-    """n<30 时 CI 宽到不能当结论用，措辞必须降级。
+    """独立**成交窗口**少时区间宽到不能当结论用，措辞必须降级。
 
     这与本仓「依据：字节证据 / ⚠️ 仅 commit 走查」是同一条纪律：
     两个数量级的证据不许长得一样。
+
+    🚨 **判据量的是窗口数，不是行数**（`PREREG_HIT_RATE_CLUSTER_2026-10-16.md` C1）：
+    10 行同落一个 `pred_date` 只算**一个**独立观测 ⇒ 窗口间方差估不出来
+      ⇒ 实现会拒绝出区间（本测试的旧写法依赖的是「10 行 = 10 个观测」，
+      那个前提已被本次预注册推翻）。⇒ 夹具必须给 5 个**不同的**观测日。
     """
-    out = dhr.diagnose_verdicts(_frame([_one("up", "hit")] * 5
-                                       + [_one("up", "miss", code=f"f{i}.SZ") for i in range(5)]))
+    rows = [_one("up", "hit", date=f"2026-10-{9 + i}", code=f"h{i}.SZ")
+            for i in range(5)]
+    rows += [_one("up", "miss", date=f"2026-10-{9 + i}", code=f"f{i}.SZ")
+             for i in range(5)]
+    out = dhr.diagnose_verdicts(_frame(rows))
+    assert out["overall"]["n_windows"] == 5, out["overall"]["n_windows"]
     assert out["overall"]["evidence"].startswith("薄")
     assert out["overall"]["ci95"][0] < 0.5 < out["overall"]["ci95"][1], \
         "小样本的 CI 必然跨过 0.5，这就是为什么它薄"
+
+
+def test_rows_sharing_one_window_are_not_counted_as_independent_observations():
+    """🚨 反向的那一半：同一个 `exit_date` 的多行**只算一个**观测。
+
+    与上面那条成对：只钉「少窗口 ⇒ 降级」的话，实现把窗口数写成行数也能过
+    （行数 10 ≥ 5，一样是「薄」）⇒ 那是恒真的一半。
+    """
+    rows = [_one("up", "hit", date="2026-10-09", exit_="2026-10-13",
+                 code=f"g{i}.SZ") for i in range(9)]
+    rows += [_one("up", "miss", date="2026-10-14", exit_="2026-10-15",
+                  code=f"h{i}.SZ") for i in range(1)]
+    out = dhr.diagnose_verdicts(_frame(rows))
+    b = out["overall"]
+    assert b["n"] == 10
+    assert b["n_windows"] == 2, \
+        "10 行落在 2 个成交窗口上 ⇒ 独立观测数是 2，不是 10"
+    # 🚨 判别式：行级口径会把 0.9 这个命中率判成「显著高于 50%」，
+    #   聚类口径判不出方向。这两个结论方向相反，守卫钉的是**哪一个**，
+    #   而不是「有个区间」。
+    assert b["ci95_row_level"][0] > 0.5, \
+        f"行级口径本该给出「显著」的区间，实得 {b['ci95_row_level']}"
+    assert b["ci95"][0] < 0.5 < b["ci95"][1], \
+        f"聚类口径判不出方向，实得 {b['ci95']}"
+    assert b["half_width"] > b["half_width_row_level"]
 
 
 def test_the_real_artifact_is_read_and_stays_consistent_with_itself():

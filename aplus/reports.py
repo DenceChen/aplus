@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from .verify import UNJUDGEABLE_REASON
+
 # 预测文件里那一列的名字：它记的是「本文件是用哪组权重排出来的」。
 WEIGHTS_HASH_COLUMN = "weights_hash"
 
@@ -214,8 +216,21 @@ def pending_prediction_dates(reports_dir):
             ver = pd.read_parquet(vpath)
             # 锚定口径判定的日子：有 exit_date 且非空
             if "exit_date" in ver.columns:
-                anchored = ver[ver["exit_date"].notna() & (ver["exit_date"].astype(str) != "")]
-                judged = set(anchored["pred_date"].dropna().astype(str))
+                anchored = ver["exit_date"].notna() & (ver["exit_date"].astype(str) != "")
+                # 🚨 行级结清（2026-10-16）：一天**全部**行都结清才算判过。
+                #   旧实现用「至少一行」，而 `no_data` 天是**部分覆盖**——
+                #   实测 2026-10-12 共 20 行、13 行有 exit_date、7 行 no_data，
+                #   于是那 7 行**永远不会被重判**。
+                #   「或永久不可判定」这一支是为停牌票准备的：它们永远补不上，
+                #   若不结清那一天会被**每天重判一次、永不停歇**。
+                if UNJUDGEABLE_REASON in ver.columns:
+                    reason = ver[UNJUDGEABLE_REASON]
+                    settled = reason.notna() & (reason.astype(str) != "")
+                else:
+                    settled = pd.Series(False, index=ver.index)
+                done = ver.assign(_settled=anchored | settled)
+                per_day = done.groupby(done["pred_date"].astype(str))["_settled"].all()
+                judged = set(per_day[per_day].index.astype(str))
             # 无 exit_date 列 → 整档都是旧口径，一律重判
         except Exception:  # noqa: BLE001 — 判定档损坏时宁可全部补判，不可跳过
             judged = set()
