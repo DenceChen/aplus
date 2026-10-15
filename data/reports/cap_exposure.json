@@ -1,0 +1,322 @@
+{
+  "kind": "cap_exposure",
+  "prereg": "docs/TODO_cap_exposure_2026-10-15.md",
+  "primary": {
+    "cap_col": "expo_logcap",
+    "role": "primary",
+    "verdict": "SIZE_EXPOSURE_POWERLESS",
+    "verdict_why": "0/5 档过线，且**每**一档的零分布 95 分位都 ≥ 实测 |β| ⇒ 这份样本分不出这个量级的暴露",
+    "n_arms": 5,
+    "n_arms_passing": 0,
+    "sign_consistency": {
+      "signs": [
+        -1,
+        -1,
+        1,
+        -1,
+        1
+      ],
+      "consistent": false,
+      "sign": null
+    },
+    "p_bonferroni": 0.005555555555555556,
+    "n_factors": 9,
+    "alpha_two_sided": 0.05,
+    "bootstrap": {
+      "method": "wild (Rademacher)",
+      "B": 2000,
+      "seed": 20261015
+    },
+    "y_col": "gross_excess",
+    "standardization": {
+      "expo_logcap": "aplus.factor.robust_z（q01/q99 缩尾后的 mean/std）",
+      "expo_logcap_raw": "裸 z（不缩尾）—— 对照臂，不判"
+    },
+    "arms": [
+      {
+        "k": 5,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": -0.0005029063543494821,
+        "t": -0.9317812127465802,
+        "se": 0.0005397257934264223,
+        "boot_p": 0.417,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.001203277102685445,
+        "joint_p": 0.601,
+        "joint_F": 1.1194702547600057,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 10,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": -0.00016947768121746754,
+        "t": -0.32271955327602714,
+        "se": 0.0005251546722132161,
+        "boot_p": 0.7815,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.0012271729328960893,
+        "joint_p": 0.7545,
+        "joint_F": 0.9637013573262007,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 21,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": 0.00045773618086733016,
+        "t": 0.8769091416605059,
+        "se": 0.0005219881503351257,
+        "boot_p": 0.5105,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.0013457800090840308,
+        "joint_p": 0.5315,
+        "joint_F": 1.3777151611821021,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 42,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": -0.00034574956852182116,
+        "t": -0.7216453293731719,
+        "se": 0.0004791128750492192,
+        "boot_p": 0.589,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.0011746701626056072,
+        "joint_p": 0.3375,
+        "joint_F": 1.4631089829882646,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 63,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": 0.0005075306396633743,
+        "t": 0.9774249547897191,
+        "se": 0.0005192527949857422,
+        "boot_p": 0.438,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.0013323615495576865,
+        "joint_p": 0.6765,
+        "joint_F": 1.045943690108476,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      }
+    ],
+    "what_this_cannot_prove": [
+      "POWERLESS ≠ 没有市值暴露：它是检出力不足，与 score_ranking_power 的 NOT_PASSED_POWERLESS 同一个坑（第 122 层三态语义）。",
+      "不许用本实验的数字替换头条毛超额 —— 本实验只测暴露，「剔除市值后还剩多少」需要市值中性化的池子重跑，是另一个实验。",
+      "β 的正负只说方向，不说「大小是否被定价」；后者要对基准池的市值溢价单独测量。",
+      "本实验不复核 wf_weights_backtest.json 的年化毛超额 —— 那个口径已被 docs/TODO_cap_weighted_benchmark_2026-10-15.md 降级（第 143 层）。",
+      "对照臂 `expo_logcap_raw` 是裸 z（不缩尾），只报不判；若它与主列方向相反，处置写死在预注册里：记进本字段，不改主判据。"
+    ]
+  },
+  "control_arm": {
+    "cap_col": "expo_logcap_raw",
+    "role": "control_only",
+    "verdict": "SIZE_EXPOSURE_POWERLESS",
+    "verdict_why": "0/5 档过线，且**每**一档的零分布 95 分位都 ≥ 实测 |β| ⇒ 这份样本分不出这个量级的暴露",
+    "n_arms": 5,
+    "n_arms_passing": 0,
+    "sign_consistency": {
+      "signs": [
+        -1,
+        -1,
+        1,
+        -1,
+        1
+      ],
+      "consistent": false,
+      "sign": null
+    },
+    "p_bonferroni": 0.005555555555555556,
+    "n_factors": 9,
+    "alpha_two_sided": 0.05,
+    "bootstrap": {
+      "method": "wild (Rademacher)",
+      "B": 2000,
+      "seed": 20261015
+    },
+    "y_col": "gross_excess",
+    "standardization": {
+      "expo_logcap": "aplus.factor.robust_z（q01/q99 缩尾后的 mean/std）",
+      "expo_logcap_raw": "裸 z（不缩尾）—— 对照臂，不判"
+    },
+    "arms": [
+      {
+        "k": 5,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": -0.0005135284276361486,
+        "t": -0.9293084373067176,
+        "se": 0.0005525920211425551,
+        "boot_p": 0.4185,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.001230190592808866,
+        "joint_p": 0.6015,
+        "joint_F": 1.118955518032873,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 10,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": -0.00017379526774882878,
+        "t": -0.3231772025579722,
+        "se": 0.0005377708154326047,
+        "boot_p": 0.7805,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.0012560557764183958,
+        "joint_p": 0.7545,
+        "joint_F": 0.9637344043180116,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 21,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": 0.00047020840930177363,
+        "t": 0.8799840491651874,
+        "se": 0.00053433742321562,
+        "boot_p": 0.51,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.001379617164081622,
+        "joint_p": 0.5315,
+        "joint_F": 1.3783204527697144,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 42,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": -0.00035292073983100614,
+        "t": -0.7201085356240632,
+        "se": 0.0004900938155456755,
+        "boot_p": 0.5905,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.001202035775492652,
+        "joint_p": 0.338,
+        "joint_F": 1.4628605492860822,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      },
+      {
+        "k": 63,
+        "n": 1395,
+        "period": [
+          "2021-01-04",
+          "2026-10-09"
+        ],
+        "n_dropped": 0,
+        "beta": 0.0005243563105913488,
+        "t": 0.9887618892398282,
+        "se": 0.0005303160612252967,
+        "boot_p": 0.4355,
+        "passes_bonferroni": false,
+        "p_bonferroni": 0.005555555555555556,
+        "n_factors": 9,
+        "beta_star_abs_q95": 0.0013611271303999649,
+        "joint_p": 0.675,
+        "joint_F": 1.0484355306440678,
+        "collinear": false,
+        "collinear_note": "",
+        "powerless_on_this_arm": true
+      }
+    ],
+    "what_this_cannot_prove": [
+      "POWERLESS ≠ 没有市值暴露：它是检出力不足，与 score_ranking_power 的 NOT_PASSED_POWERLESS 同一个坑（第 122 层三态语义）。",
+      "不许用本实验的数字替换头条毛超额 —— 本实验只测暴露，「剔除市值后还剩多少」需要市值中性化的池子重跑，是另一个实验。",
+      "β 的正负只说方向，不说「大小是否被定价」；后者要对基准池的市值溢价单独测量。",
+      "本实验不复核 wf_weights_backtest.json 的年化毛超额 —— 那个口径已被 docs/TODO_cap_weighted_benchmark_2026-10-15.md 降级（第 143 层）。",
+      "对照臂 `expo_logcap_raw` 是裸 z（不缩尾），只报不判；若它与主列方向相反，处置写死在预注册里：记进本字段，不改主判据。"
+    ]
+  },
+  "control_arm_note": "两臂的逐档符号向量**逐位相同**（[-1, -1, 1, -1, 1]） ⇒ 缩尾与否没有改变任何一个档位的方向。\n⚠️ 但**两臂各自跨 K 都不同号**（robust_z [-1, -1, 1, -1, 1] / 裸 z [-1, -1, 1, -1, 1]） ⇒「组合偏大盘还是偏小盘」在这份样本上**没有单一方向可答**；预注册补记 1 的「相反方向」检验**无法评估**（不是「相反」，是「无方向」）。",
+  "arms_k": [
+    5,
+    10,
+    21,
+    42,
+    63
+  ],
+  "what_this_cannot_prove": [
+    "POWERLESS ≠ 没有市值暴露：它是检出力不足，与 score_ranking_power 的 NOT_PASSED_POWERLESS 同一个坑（第 122 层三态语义）。",
+    "不许用本实验的数字替换头条毛超额 —— 本实验只测暴露，「剔除市值后还剩多少」需要市值中性化的池子重跑，是另一个实验。",
+    "β 的正负只说方向，不说「大小是否被定价」；后者要对基准池的市值溢价单独测量。",
+    "本实验不复核 wf_weights_backtest.json 的年化毛超额 —— 那个口径已被 docs/TODO_cap_weighted_benchmark_2026-10-15.md 降级（第 143 层）。",
+    "对照臂 `expo_logcap_raw` 是裸 z（不缩尾），只报不判；若它与主列方向相反，处置写死在预注册里：记进本字段，不改主判据。",
+    "两臂的逐档符号向量**逐位相同**（[-1, -1, 1, -1, 1]） ⇒ 缩尾与否没有改变任何一个档位的方向。\n⚠️ 但**两臂各自跨 K 都不同号**（robust_z [-1, -1, 1, -1, 1] / 裸 z [-1, -1, 1, -1, 1]） ⇒「组合偏大盘还是偏小盘」在这份样本上**没有单一方向可答**；预注册补记 1 的「相反方向」检验**无法评估**（不是「相反」，是「无方向」）。"
+  ]
+}

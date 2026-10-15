@@ -82,6 +82,14 @@ BOOTSTRAP_SEED = 20261015
 ALPHA_TWO_SIDED = 0.05               # 提到这里：THRESHOLDS 与 bonferroni() 都要用
 THRESHOLD_JOINT_P = ALPHA_TWO_SIDED
 # 没有任何 THRESHOLD_FACTOR_P，而且**不许再加回来**。
+
+#: 零分布的**分位水平**（预注册 `TODO_cap_exposure_2026-10-15.md` §3 与补记 3：
+#: `q95_null(|β*|) ≥ |β̂_obs|` ⇒ POWERLESS）。
+#: ⚠️ 它**不是**查表来的临界值，恰恰相反：它是**野自助零分布自己的**分位数，
+#:   所以「不许查表」那条纪律管不到它 —— 混进 `banned` 是**过严**（第 112 条目：
+#:   过严的守卫和恒真的一样有害，它会把人推向「为了变绿而把判据算错」）。
+#:   但它同样**不许是匿名字面量** —— 所以提到这里单点持有，与 `ALPHA_TWO_SIDED` 同族。
+NULL_QUANTILE = 0.95
 #    单因子门槛必须由 `len(factor_cols)` 在 `analyze()` 内推导 —— 候选列是从
 #    parquet **自动探测**的（`expo_*`），写死分母会在加第 9 个因子
 #    （`expo_logcap`，见 docs/TODO_cap_exposure_2026-10-15.md）时让
@@ -110,6 +118,22 @@ FACTOR_COLS = ("expo_ivol", "expo_mom20", "expo_rev5", "expo_rsi",
                "expo_turn20", "expo_turnratio", "expo_vol20", "expo_vsur")
 
 
+def unregistered_expo_cols(df) -> list[str]:
+    """parquet 里**未登记**的 `expo_*` 列 —— 这个语义的**唯一主人**。
+
+    🚨 2026-10-15（第 149 层同族：第二个主人）：原来有**两处**各算一遍 ——
+      `select_factor_cols` 里的 `c.startswith("expo_") and c not in cols`
+      与 loader 里的 `{c for c in df.columns if c.startswith("expo_")} - set(FACTOR_COLS)`。
+    两份实现**今天同值** —— 而**同值本身就是缺陷**：
+    改一处仍会漂，且没有任何一列缺失能暴露它。
+    ⇒ 顺带修掉了当天的第二条真红：那条守卫在比**两个不同的量**
+      （声明的 8 列 vs 文件里碰巧有的 10 列），
+      而两处各自的实现正是它长成那个样子的土壤。
+    """
+    return [c for c in df.columns
+            if c.startswith("expo_") and c not in FACTOR_COLS]
+
+
 def select_factor_cols(df, where: str) -> list[str]:
     """按 `FACTOR_COLS` 取列，三条纪律一次做完（第 145 层）。
 
@@ -127,8 +151,7 @@ def select_factor_cols(df, where: str) -> list[str]:
             f"{where}：声明的因子列缺 {missing} —— "
             f"**拒绝回落**。少一列会让因子数变小、Bonferroni 门槛变松，"
             f"而报告仍按声明的 {len(cols)} 个算分母。")
-    extra = [c for c in df.columns
-             if c.startswith("expo_") and c not in cols]
+    extra = unregistered_expo_cols(df)
     if extra:
         print(f"⚠️ {where}：parquet 里有**未登记**的 {extra} —— "
               f"按声明它们**不进判决**（见 FACTOR_COLS）。"
@@ -270,7 +293,12 @@ def wild_bootstrap(X: np.ndarray, y: np.ndarray, B: int, seed: int) -> dict:
     F_star = np.where(legit & np.isfinite(F_star) & (F_star >= 0), F_star, np.nan)
     F_star = np.where(exact_fit, np.inf, F_star)
 
-    return {"t_star": t_star, "F_star": F_star, "B": B}
+    # ★ `beta_star`（纯加法）：预注册 `POWERLESS` 判据要拿「零分布 95 分位」
+    #   与「实测 |β|」**同单位**比，而 `t_star × se_obs` 反推是**错的**
+    #   （每次重抽的 se 都不同）。它第 239 行就已经算出来了，只是没交出去。
+    #   形状 (B, p)，与 `t_star` 同行序。
+    return {"t_star": t_star, "F_star": F_star, "beta_star": beta_star.T,
+            "B": B}
 
 
 def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
@@ -332,11 +360,38 @@ def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
         f"但**结论不成立**（F 的渐近性在残差退化时不适用）。"
         f"\n   该看的是上游共线性诊断，不是这个 p 值。" if collinear else "")
 
+    # ★ 纯加法（预注册 `POWERLESS` 要它）：逐列的 |β*| 零分布 95 分位。
+    #   在**这里**算而不是让调用方重跑一遍 `wild_bootstrap` ——
+    #   那等于造第二台测量仪（第 22 层），两份 X 一旦漂移，β 与 q95 就是两个量。
+    #
+    # 🚨🚨 `X = np.column_stack([np.ones(len(df))] + [因子...])`（见 `wild_bootstrap`）
+    #   ⇒ **索引 0 是截距**，因子从 **1** 开始。
+    #   第一版这里写成 `enumerate(factor_cols)`（从 0 起）⇒ **每个 q95 都左移一列**：
+    #   标着 `expo_ivol` 的值其实是**截距**的零分布分位数，而最后一个因子的
+    #   分位数被整列丢掉。**一列都不缺、每个数都长得合理，所以不报错。**
+    #   而 `cap_exposure.py` 只取 `beta_star_abs_q95[cap_col]` 去比 |β̂|
+    #   ⇒ 那个判决当时是拿**市值因子的 β** 跟**别的因子的零分布**在比。
+    #   形态与台账第 4 条同族（标签按位置存、按顺序读）。
+    # ⇒ 修法不是把 `start=1` 补上（补上了，下次改一处仍会漂）：
+    #   **两个字典共用同一张下标表**，偏移量只有一个主人。
+    coef_idx = {c: i for i, c in enumerate(factor_cols, start=1)}
+    q95_abs_beta = {}
+    if "beta_star" in boot:
+        q95_abs_beta = {
+            c: float(np.quantile(
+                np.abs(boot["beta_star"][:, coef_idx[c]]), NULL_QUANTILE))
+            for c in factor_cols}
+
     factors = {}
     # 门槛的**分母来自真正被检验的这几列**，不是模块常量（第 144 层）。
     n_factors = len(factor_cols)
     thr_bonf = bonferroni(n_factors)
-    for i, c in enumerate(factor_cols, start=1):
+    # 🚨 `i` 也走 `coef_idx`：这一段读的是**同一个**系数向量（`fit["beta"][i]`
+    #   与下面 `"_beta"` 那份逐位相同），所以「索引 0 是截距」这个约定
+    #   在这里也**不许有第二个主人**。内联 `enumerate(..., start=1)` 看着
+    #   与 `coef_idx` 等价，但它是一份**独立副本** —— 改一处仍会漂。
+    for c in factor_cols:
+        i = coef_idx[c]
         p_i = float(np.mean(np.abs(boot["t_star"][:, i]) >= abs(fit["t"][i])))
         factors[c] = {
             "beta": float(fit["beta"][i]),
@@ -368,7 +423,9 @@ def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
         "collinear": bool(collinear),
         "collinear_note": collinear_note,
         "factors": factors,
-        "_beta": {c: float(fit["beta"][i]) for i, c in enumerate(factor_cols, start=1)},
+        "_beta": {c: float(fit["beta"][coef_idx[c]]) for c in factor_cols},
+        # ★ 与 `_beta` 同族：**判决量与它的对照量都必须落在产物里**。
+        "_beta_star_abs_q95": q95_abs_beta,
     }
 
 
@@ -610,8 +667,7 @@ def _run(args) -> int:
             missing.append(f"k{k}（缺 {Y_COL} 列）")
             continue
         cols = select_factor_cols(df, f"k{k}")
-        unregistered |= ({c for c in df.columns
-                          if c.startswith("expo_")} - set(FACTOR_COLS))
+        unregistered |= set(unregistered_expo_cols(df))
         df = df.sort_index()
         loaded[k] = (df, cols)
 

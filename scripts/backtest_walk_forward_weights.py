@@ -71,6 +71,7 @@ import pandas as pd
 from aplus.backtest import (ENTRY_LAG, STOCK_COST_DEFAULT, build_cross_sections,
                             cost_drag, evaluate_weights)
 from aplus.composite import unpack, walk_forward
+from aplus.capweight import CapTable
 from aplus.factor import FACTOR_NAMES, robust_z
 from aplus.hurdle import COST_REAL_50K, DAYS_PER_YEAR, hurdle_rate, rounds_per_year
 from aplus.snapshot import load_factors_map
@@ -214,7 +215,72 @@ def _rescale_check() -> dict:
             "linear": bool(abs(ratio - COST_REAL_50K / STOCK_COST_DEFAULT) < 1e-12)}
 
 
-def _up_exposure(res, xs, days, factors) -> dict:
+# ★ 第 9 个暴露（`docs/TODO_cap_exposure_2026-10-15.md` 预注册）。
+#   它**不进** `factor_attribution.FACTOR_COLS` —— 那 8 列是它自己
+#   预注册过的判决口径（第 145 层），往里加 = 换判据后重跑 = 撤回已提交结论。
+#   本常量只喂**产出**：多写一列进 parquet，而 `factor_attribution`
+#   现在按声明只取那 8 列、并把多出来的 `expo_*` 报出来留痕。
+LOGCAP_COL = "logcap"
+
+# ★ 对照臂列：**裸 z（不缩尾）**。判决一律读 `LOGCAP_COL`（`robust_z`），
+#   本列**只作对照**，它存在的意义是让「缩尾与否会不会改变结论」
+#   成为一个可读的事实 —— 单列 t/p 对缩放不变，所以缩尾与否常常**看不出来**，
+#   而联合 F / R² 会分家。⚠️ 永远不许拿本列去判。
+LOGCAP_RAW_COL = "logcap_raw"
+
+#: 逐日产物里**因子暴露列的权威清单** —— 8 个既有因子 + 市值主列 + 市值对照列
+#: = **10 列**（外加 `date` 与 `excess` 两列 ⇒ 整表 12 列）。
+#:
+#: ★ 为什么必须**单点持有**，而不能在三处各拼一次：
+#:   第一版写的是 `FACTOR_NAMES + [LOGCAP_COL]`（`FACTOR_NAMES` 是 tuple）
+#:   ⇒ `TypeError: can only concatenate tuple (not "list") to tuple`，
+#:   **崩在 408 秒之后、面板加载完、逐年结果全算完之后** ——
+#:   而 `tests/` 只调 `run_year`，**从不走 `main()` 的这一句**。
+#:   随后那份 7 分钟的补丁把同样的写法抄了第二遍，
+#:   于是**同一个 TypeError 会原样再犯一次**，只是换个行号。
+#:   ⇒ 这不是「漏了一次类型检查」，是**同一份清单有 3 个副本**
+#:     （第 17 条目：凡「同一语义在同一函数里被特判 N 次」的代码，
+#:     第 N+1 处几乎必然是漏的 —— 而这里是 3 处里**两处**已经是错的）。
+#:   ⇒ 修法是让它**没法写错**：清单只有这一处，
+#:     拼接发生在模块级，任何调用点都拿不到 tuple 与 list 相加的机会。
+EXPO_COLS = list(FACTOR_NAMES) + [LOGCAP_COL, LOGCAP_RAW_COL]
+
+
+def _raw_z(s: pd.Series) -> pd.Series:
+    """裸 z：`(x − mean) / sd`，**不缩尾**。只用 pandas 口径（ddof=1）。
+
+    ⚠️ 与 `robust_z` 的差别只有一处：分母/中心的取数样本上缩了 q01/q99，
+      而缩尾范围本身**不施加在返回值上**（`robust_z` 里 clip 只改 ref，
+      返回的仍是 `values − ref.mean()`）⇒ 肥尾的极值照样拽动整列。
+      所以两列的差别是**真实且有限**的，不是「一个稳一个不稳」。
+    """
+    v = s.astype(float)
+    sd = v.std()
+    if not np.isfinite(sd) or sd == 0.0:
+        return pd.Series(np.nan, index=s.index, dtype=float)
+    return (v - v.mean()) / sd
+
+
+def _logcap_series(uni, day: str, table: CapTable):
+    """当日全池的 `log(流通市值)`，与 `uni` **逐行对齐**（index 原样保留）。
+
+    🚨 口径（预注册 §0 冻结）：流通市值 = `close × a_shares`，
+       **不是** `float_shares`（含 B/H 股，系统性高估）。
+       `CapTable.cap_on` 已经是这个口径，这里不再二次加工。
+
+    🚨 返回 NaN 的行**不许填 0**：`robust_z` 会被这些 0 拽住均值与标准差，
+       而市值是肥尾分布 ⇒ 少一票就可能改变整列的尺度（第 9 层）。
+    """
+    import numpy as _np
+    vals = []
+    for c in uni["code"]:
+        v = table.cap_on(c, day)
+        vals.append(float("nan") if not _np.isfinite(v) or v <= 0
+                    else float(_np.log(v)))
+    return pd.Series(vals, index=uni.index, dtype=float)
+
+
+def _up_exposure(res, xs, days, factors, cap_table: CapTable | None = None) -> dict:
     """涨腿逐日对每个因子的暴露 = **持仓票**的稳健 z 在横截面上的均值。
 
     ## 三个必须说清的选择
@@ -259,7 +325,13 @@ def _up_exposure(res, xs, days, factors) -> dict:
         # （`factor_rows[list(weights)].apply(robust_z, axis=0)`）。
         # 对整张表 apply 也能跑通——字符串列会被 `robust_z` 变成全 NaN——
         # 但那是**靠它的宽容度兜着**，哪天它改成对字符串抛错就整条线断。
-        cols = [f for f in factors if f in uni.columns]
+        # 市值列**不进 `uni`**（`xs` 是因子表，市值要在有 `CapTable` 时现算），
+        # 所以这里分两拨：因子列读表，市值列现算，**之后合成同一张 `z`**。
+        cap_cols = [c for c in (LOGCAP_COL, LOGCAP_RAW_COL)
+                    if cap_table is not None and c in factors]
+        cols = [f for f in factors
+                if f not in (LOGCAP_COL, LOGCAP_RAW_COL) and f in uni.columns]
+        cols = cols + cap_cols
         if not cols:
             for f in factors:
                 out[f].append(float("nan"))
@@ -268,7 +340,14 @@ def _up_exposure(res, xs, days, factors) -> dict:
         # **单列时 `apply(axis=0)` 会退化成 Series**（不是 DataFrame），
         # 于是后面的 `z[mask]` 与 `.columns` 全部失效 —— 8 因子时正常、
         # 只留 1 个因子就崩，而「只留 1 个因子」正是最常做的诊断跑法。
-        z = pd.DataFrame({f: robust_z(uni[f]) for f in cols})
+        lc = (_logcap_series(uni, day, cap_table)
+              if cap_cols else None)
+        z = pd.DataFrame({
+            **{f: robust_z(uni[f])
+               for f in cols if f not in (LOGCAP_COL, LOGCAP_RAW_COL)},
+            **({LOGCAP_COL: robust_z(lc)} if LOGCAP_COL in cols else {}),
+            **({LOGCAP_RAW_COL: _raw_z(lc)} if LOGCAP_RAW_COL in cols else {}),
+        })
         sel = z[uni["code"].isin(codes)]
         for f in factors:
             out[f].append(float(sel[f].mean())
@@ -381,7 +460,7 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
              rebalance_every: int, daily_out: list | None = None,
              score_transform=None,
              benchmark_cap: bool = False, portfolio_cap: bool = False,
-             cap_ctx=None) -> dict:
+             cap_ctx=None, cap_table: CapTable | None = None) -> dict:
     """跑一个年份，返回三个口径的逐年数字。
 
     `daily_out` 非空时，把**毛超额逐日序列 + 逐日因子暴露**追加进去。
@@ -407,6 +486,14 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
     三臂只许在这里分叉，分叉点之后不许有第二段逻辑。
     全关时逐位等于 2026-10-15 之前的行为（守卫：
     `test_market_by_day_with_cap_table_off_is_bitwise_unchanged` 等）。
+
+    ## `cap_table`（**只读测量**，与上面三个开关无关）
+
+    只给 `_up_exposure` 算 `expo_logcap` 用。**刻意不与 `cap_ctx` 合并**：
+    `cap_ctx` 是加权开关的载体（被 `portfolio_cap` 门控后才转发），
+    而市值暴露是一次**测量**。两者合成一个参数，
+    「要不要量市值暴露」就会变成「要不要按市值加权」的副作用 ——
+    那正是本仓反复吃亏的「一个开关两种含义」（形状 6「看起来像开关，实际焊死」）。
     """
     res = evaluate_weights(xs, weights=weights, top_n=top_n, bottom_n=bottom_n,
                            dates=dates, rebalance_every=rebalance_every,
@@ -453,7 +540,12 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
         daily_out.append({
             "dates": days,
             "excess": [float(v) for v in np.asarray(gross, float)],
-            "exposure": _up_exposure(res, xs, days, list(FACTOR_NAMES)),
+            # ★ 10 列（`EXPO_COLS`）：8 因子 + 市值主列 + 市值对照列。
+            #   `cap_table is None` 时那**两列**都**整列 NaN**
+            #   （不是 0、不是缺列）——
+            #   缺列会让下游按位置对齐，而 NaN 会让回归自己把它剔掉。
+            "exposure": _up_exposure(res, xs, days, EXPO_COLS,
+                                     cap_table=cap_table),
         })
     out["unfillable_execution"] = {
         k[len("unfillable_execution"):]: v
@@ -549,12 +641,17 @@ def main(argv=None) -> int:
           f"{'净@0.3%/年':>13}{'净@0.55%/年':>13}{'t(分块)':>9}{'独立观测':>9}{'够线':>7}")
     print("─" * 95)
 
+    # ★ 只读测量用的市值表（第 9 个暴露）。`CapTable` 懒建每票索引、
+    #   复用已在手上的 `daily_map` ⇒ 零额外内存；
+    #   ⚠️ 它**不是** `cap_ctx`：不参与加权、不记 `CapContext.stats`。
+    cap_table = CapTable(daily_map)
+
     rows = []
     daily_chunks: list = []
     for y in judged:
         r = run_year(xs, wmap[y]["weights"], by_year[y],
                      args.top_n, args.bottom_n, args.rebalance_every,
-                     daily_out=daily_chunks)
+                     daily_out=daily_chunks, cap_table=cap_table)
         if r.get("n_rows", 0) == 0:
             print(f"{y:<6}空")
             continue
@@ -584,7 +681,7 @@ def main(argv=None) -> int:
         #
         # 暴露与超额**同一张表**：分开放两个文件就得靠日期对齐拼回来，
         # 而「对齐错了」肉眼完全看不出来。
-        dg = _daily_frame(daily_chunks, FACTOR_NAMES)
+        dg = _daily_frame(daily_chunks, EXPO_COLS)
         if dg.empty:
             raise SystemExit("逐日产物为空 —— 后续任何引用都不可信")
         dg.to_parquet(args.out.with_suffix(".daily.parquet"))
@@ -600,7 +697,7 @@ def main(argv=None) -> int:
         # 现在崩点与写盘点都受同一条路径保护（见 `bad_drift` 拒绝落盘）。
         dropped = sum(int(r["n_days"]) for r in rows) - len(dg)
         print(f"→ {args.out.with_suffix('.daily.parquet')}（{len(dg)} 行逐日序列 × "
-              f"1 毛超额 + {len(FACTOR_NAMES)} 因子暴露；"
+              f"1 毛超额 + {len(EXPO_COLS)} 因子暴露；"
               f"比横截面少 {dropped} 行，差额 = `_daily_series` 丢掉的日子）")
 
     if rows:

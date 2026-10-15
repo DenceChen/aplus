@@ -1,0 +1,49 @@
+CE1	scripts/cap_exposure.py
+    MAIN_COL = f"expo_{PRODUCER.LOGCAP_COL}"
+    === 变异体 ===
+    MAIN_COL = f"expo_{PRODUCER.LOGCAP_RAW_COL}"
+
+CE2	 scripts/cap_exposure.py
+    CTRL_COL = f"expo_{PRODUCER.LOGCAP_RAW_COL}"
+    === 变异体 ===
+    CTRL_COL = "expo_logcap_rawz"
+
+CE3	 scripts/cap_exposure.py
+        if not arms:
+    === 变异体 ===
+        if False and not arms:
+
+CE4	 scripts/cap_exposure.py
+            or not np.isfinite(a["beta_star_abs_q95"])     # 算了但数值崩了
+    === 变异体 ===
+            or False     # 算了但数值崩了
+
+CE5	 scripts/cap_exposure.py
+            if a.get("beta_star_abs_q95") is None          # 仪器没交出
+    === 变异体 ===
+            if False and a.get("beta_star_abs_q95") is None   # 仪器没交出
+
+CE6	 scripts/cap_exposure.py
+        if not isinstance(q95_by_col, dict) or cap_col not in q95_by_col:
+    === 变异体 ===
+        if not isinstance(q95_by_col, dict):
+
+CE7	 scripts/cap_exposure.py
+    if ps == cs:
+    === 变异体 ===
+    if False and ps == cs:
+
+CE8	 scripts/cap_exposure.py
+        if not (pv["consistent"] and cv["consistent"]):
+    === 变异体 ===
+        if False and not (pv["consistent"] and cv["consistent"]):
+
+CE9	 scripts/cap_exposure.py
+        control_note = control_arm_note(primary, control)
+    === 变异体 ===
+        control_note = "两臂方向一致。"
+
+CE10	 scripts/cap_exposure.py
+        "what_this_cannot_prove": [*WHAT_THIS_CANNOT_PROVE, control_note],
+    === 变异体 ===
+        "what_this_cannot_prove": list(WHAT_THIS_CANNOT_PROVE),

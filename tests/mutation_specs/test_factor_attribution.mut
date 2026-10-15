@@ -36,3 +36,59 @@ F7 analyze 少报一个因子（报告的因子数与真正被检验的那批不
         "n_factors": int(n_factors),
 === 变异体 ===
         "n_factors": int(n_factors) - 1,
+
+NQ1 分位水平被调低 0.95→0.90（结构守卫「字面量恰好 1 处且在定义行」对它完全免疫 ⇒ 这是「有守卫」与「守卫在守」必须分别取证的那一例）	scripts/factor_attribution.py
+NULL_QUANTILE = 0.95
+=== 变异体 ===
+NULL_QUANTILE = 0.90
+
+NQ2 用点退回匿名字面量 0.95（第二处 0.95 散落 ⇒ 同一语义被处理 N 次，形状 17）	scripts/factor_attribution.py
+                np.abs(boot["beta_star"][:, coef_idx[c]]), NULL_QUANTILE))
+=== 变异体 ===
+                np.abs(boot["beta_star"][:, coef_idx[c]]), 0.95))
+
+NQ3 分位水平变成 int 95（裸查表百分位）	scripts/factor_attribution.py
+NULL_QUANTILE = 0.95
+=== 变异体 ===
+NULL_QUANTILE = 95
+
+NQ6 窄化 banned 集合后仍须抓住真正的表查值 1.96（否则窄化把它放跑了）	scripts/factor_attribution.py
+NULL_QUANTILE = 0.95
+=== 变异体 ===
+NULL_QUANTILE = 0.95
+_UNUSED_LEGACY_CRIT = 1.96
+
+NQ8 下标离位一列（coef_idx 从 1 起 → index() 从 0 起：**当天真的存在的那个 bug**，台账第 4 条「标签按位置存、按顺序读」）	scripts/factor_attribution.py
+                np.abs(boot["beta_star"][:, coef_idx[c]]), NULL_QUANTILE))
+=== 变异体 ===
+                np.abs(boot["beta_star"][:, factor_cols.index(c)]), NULL_QUANTILE))
+
+NQ4 beta_star 的转置被摘掉（形状从 (B,p) 变 (p,B) ⇒ 列序与自助口径脱钩）	scripts/factor_attribution.py
+"beta_star": beta_star.T,
+=== 变异体 ===
+"beta_star": beta_star,
+
+NQ5 字段被掏空成 {}（POWERLESS 的输入消失而报告照出数）	scripts/factor_attribution.py
+"_beta_star_abs_q95": q95_abs_beta,
+=== 变异体 ===
+"_beta_star_abs_q95": {},
+
+NQ7 接线闸门整个摘掉（零分布分位数从不计算）	scripts/factor_attribution.py
+if "beta_star" in boot:
+=== 变异体 ===
+if False and "beta_star" in boot:
+
+NQ9 主系数向量的下标在 factors 那一族左移一列（`_beta_star_abs_q95` 已归因钉死，而 `factors[*].beta/se/t` 是**另一族**输出 ⇒ 若无守卫，这条会存活）	scripts/factor_attribution.py
+        i = coef_idx[c]
+=== 变异体 ===
+        i = coef_idx[c] - 1
+
+NQB	 scripts/factor_attribution.py
+            unregistered |= set(unregistered_expo_cols(df))
+    === 变异体 ===
+            unregistered |= set()
+
+NQC	 scripts/factor_attribution.py
+FACTOR_COLS = ("expo_ivol", "expo_mom20", "expo_rev5", "expo_rsi",
+=== 变异体 ===
+FACTOR_COLS = ("expo_ivol", "expo_mom20", "expo_rev5", "expo_rsi_typo",

@@ -522,7 +522,7 @@ def test_no_hardcoded_critical_values_in_the_source():
     #   第一版用 `"0.8114" not in 源码文本`，而那个数正好出现在模块 docstring 里
     #   （那里正是在讲「我手打的表错了一格」这件事）⇒ 守卫误报。
     #   教训与台账第 84 条同源：**文本匹配会被注释与文档骗过，语义匹配不会。**
-    banned = {1.96, 2.7764, 0.8114, 1.945, 2.306, 0.878, 0.950}
+    banned = {1.96, 2.7764, 0.8114, 1.945, 2.306, 0.878}
     for node in ast.walk(ast.parse(src)):
         if isinstance(node, ast.Constant) and isinstance(node.value, float):
             assert node.value not in banned, (
@@ -531,6 +531,163 @@ def test_no_hardcoded_critical_values_in_the_source():
         if isinstance(node, ast.Constant) and isinstance(node.value, int) \
                 and not isinstance(node.value, bool) and node.value in (95, 99):
             raise AssertionError(f"第 {node.lineno} 行疑似查表用的百分位整数 {node.value}")
+
+
+def test_the_null_quantile_level_is_a_single_named_owner_not_a_bare_literal():
+    """★ 这条守卫**曾经把 `0.95` 放进 `banned`**，而那是**过严**（第 112 条目）。
+
+    它的 rationale 是「出现即意味着有人绕过野自助去查表了」——
+    而 `q95_null(|β*|)` 是**野自助零分布自己的**分位数，
+    恰恰是「不查表」的产物。预注册 §3/补记 3 把「95 分位」写死在纸上，
+    它不是表查出来的临界值。
+
+    🚨 而**放宽不是把它放回匿名** —— 判据必须**单点持有**：
+      `NULL_QUANTILE` 与 `ALPHA_TWO_SIDED` 同族，
+      且源码里 `0.95` 这个字面量**只许出现一次**（它的定义处）。
+      散落的 `0.95` 正是第 17 条目（「同一语义被处理 N 次」）。
+
+    ⚠️ 正控：断言**真的扫到了字面量**。若解析器改坏而返回空，
+      「恰好 1 处」会变成假通过 —— 那是恒真守卫的解药（第 13 条目同族）。
+    """
+    import ast
+    src = (ROOT / "scripts" / "factor_attribution.py").read_text(encoding="utf-8")
+    lits = [n.lineno for n in ast.walk(ast.parse(src))
+            if isinstance(n, ast.Constant) and isinstance(n.value, float)
+            and n.value == fa.NULL_QUANTILE]
+    assert lits, (
+        "没扫到任何 0.95 字面量 ⇒ 探测器坏了（或常数被改名），"
+        "此刻这条断言会**假通过**")
+    assert len(lits) == 1, (
+        f"0.95 字面量出现在 {len(lits)} 行（{lits}）—— 必须只有定义处一处，"
+        "其余一律读 `NULL_QUANTILE`")
+    owners = [n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.Assign)
+              and any(isinstance(t, ast.Name)
+                      and t.id == "NULL_QUANTILE" for t in n.targets)]
+    assert len(owners) == 1 and owners[0].lineno == lits[0], (
+        f"字面量在第 {lits[0]} 行，而 NULL_QUANTILE 的定义在 "
+        f"{[o.lineno for o in owners]}")
+
+
+def test_the_null_quantile_level_is_95_and_the_registration_still_names_it():
+    """★ 这条补的是**上一条看不见的那一半**。
+
+    `..._single_named_owner_not_a_bare_literal` 钉的是**结构**：
+    `0.95` 只出现一次、且那处就是 `NULL_QUANTILE` 的定义。
+    ⇒ 它对**「这个数是多少」完全免疫**：把定义改成 `0.90`，
+    它照样绿 —— 扫到的字面量仍然恰好 1 处，仍然落在定义行。
+
+    🚨 而失效方向是**松判据**，不是紧判据：
+    q95 调低 ⇒ `q95_null < |β̂_obs|` 更容易成立 ⇒ `POWERLESS` 更难拿到
+    ⇒ **「这份样本分得出市值暴露」这个结论更容易被宣称**。
+    这是第 91 条目（跑过数据后不可辨）要防的那件事，
+    而上面那条守卫对它**一点牙都没有**。
+
+    ⇒ 锚点是**登记**，不是我的记忆：
+      预注册 §3 与补记 3 用 `q95_null` 命名这个量、多处写「零分布 95 分位」。
+      先确认锚点还在纸上（文档改口径 ⇒ 这条红 ⇒ 逼人同时动代码与登记），
+      再钉住值。
+
+    ⚠️ **残余局限，明说**：这是子串判据，**能被注释满足**（第 13 条目）。
+    它挡得住「改名」「删段」，挡不住「文档里 `q95_null` 还在、
+    但旁边那句已从 95 改成 90」。那半边要靠人读登记 —— 记在这里，
+    免得后人以为这条比它实际的范围更宽。
+    """
+    prereg = (ROOT / "docs" / "TODO_cap_exposure_2026-10-15.md").read_text(
+        encoding="utf-8")
+    # 正控：锚点必须**真的**在纸上，且两半都在（`q95_null` 命名 + 「95 分位」取值）。
+    assert "q95_null" in prereg, (
+        "预注册里找不到 `q95_null` —— 登记改了或被删了。"
+        "此刻下面那条断言会**假通过**")
+    assert "95 分位" in prereg, (
+        "预注册里找不到「95 分位」—— 登记里的取值口径变了。"
+        "**改判据必须先改登记**，不许只改代码（第 91 条目）")
+    assert fa.NULL_QUANTILE == 0.95, (
+        f"零分布分位被改成 {fa.NULL_QUANTILE} —— 预注册 §3/补记 3 写死的是 95 分位。"
+        "把它调低会让 POWERLESS 更难拿到，也就是**更容易宣称「分得出市值暴露」**")
+
+
+# ── 6b. `beta_star` 这一族：变异台 NQ-4/5/7 **存活**逼出来的 ──────────
+#
+# 🚨 这三条在写它们之前**零覆盖**：`analyze()` 被二十几条测试调过，
+#   但**没有一条**断言过 `_beta_star_abs_q95` ——
+#   而 `tests/test_cap_exposure.py` 里的 `beta_star_abs_q95`
+#   全是**合成 arm 字典**，测的是**消费端**。
+#   ⇒ 生产端（本文件改的那个字段）没有任何守卫，
+#   当天是靠「跑完手工 diff 两份 JSON」验收的（第 96 层：产物层零覆盖）。
+#   变异台一上来就抓出三个存活者，其中一个正是**下面这条**要杀的离位 bug。
+
+
+def test_the_bootstrap_matrix_has_one_row_per_replicate_and_the_same_shape_as_t():
+    """`beta_star` 内部是 `(p, B)`，**必须转置**才能对外当 `(B, p)` 用。
+
+    转置摘掉 ⇒ `beta_star[:, i]` 取到的是**第 i 个复制样本的整行**，
+    于是 `np.quantile` 拿到一个长度 p 的向量而不是 B 个复制样本。
+    **它不报错**（只是算了个别的量），所以形状是唯一能抓住它的判据。
+    """
+    df = _frame(n=300, seed=31)
+    X = np.column_stack([np.ones(len(df))]
+                        + [df[c].to_numpy(float) for c in FACTORS])
+    b = fa.wild_bootstrap(X, df["gross_excess"].to_numpy(float), 400, 20261015)
+    p = len(FACTORS) + 1                      # +1 = 截距
+    assert b["beta_star"].shape == (400, p), (
+        f"beta_star 形状 {b['beta_star'].shape} ≠ (400, {p}) —— "
+        "转置被摘掉了，于是 `beta_star[:, i]` 取的不是第 i 个复制样本")
+    assert b["t_star"].shape == b["beta_star"].shape, (
+        "t_star 与 beta_star 形状不同 ⇒ 两者不再逐行对齐同一个复制样本，"
+        "拿它们做的任何比对都是拿两个不同的量在比")
+
+
+def test_every_factor_gets_exactly_one_finite_null_quantile():
+    """字段必须在、必须**每列一个**、必须有限。
+
+    变异 NQ-5（字段掏空成 `{}`）与 NQ-7（接线闸门摘掉 ⇒ 压根不算）
+    产出的是**同一个可观测后果**：报告里没有分位数，而报告照出数。
+    ⚠️ 这正是「缺档必须报错，绝不回落」要防的：空字典会让下游
+    `.get(cap_col)` 拿到 `None`，而 `None` 与「测不出」**同形**。
+    """
+    r = fa.analyze(_frame(seed=7, noise=0.01), FACTORS, "完整性")
+    q = r["_beta_star_abs_q95"]
+    assert set(q) == set(FACTORS), (
+        f"零分布分位缺列/多列：拿到 {sorted(set(q) ^ set(FACTORS))}"
+        " —— 空字典会让下游读成 None，而 None 与「测不出」同形")
+    bad = {c: v for c, v in q.items() if not np.isfinite(v)}
+    assert not bad, f"分位数非有限：{bad}"
+    assert min(q.values()) > 0.0, (
+        f"分位数出现 0/负：{q} —— 零分布的 |β| 分位数不可能非正")
+
+
+def test_each_null_quantile_is_attributed_to_the_column_whose_scale_it_measures():
+    """★ 这条杀的是**当天真的存在的离位 bug**（台账第 4 条同族）。
+
+    `X = np.column_stack([ones] + [因子…])` ⇒ **索引 0 是截距**。
+    第一版 `q95_abs_beta` 用 `enumerate(factor_cols)`（从 0 起），
+    而 `_beta` 用 `start=1` ⇒ **每个 q95 左移一列**：
+    标着第一个因子的其实是**截距**的分位数，最后一个因子被整列丢掉。
+    **一列都不缺、每个数都长得合理 ⇒ 不报错。**
+    而 `cap_exposure.py` 只取 `[cap_col]` 去比 |β̂|，
+    于是那个判决在拿**市值因子的 β** 跟**别的因子的零分布**比。
+
+    ★ 判别力怎么来的：把**首尾两列**的量纲放大 1000 倍。
+      ⚠️ 方向容易搞反 —— 实测是 **q95 变小约 1000 倍**，不是变大：
+      回归元 X₁→1000·X₁ 时拟合不变的元是 β₁/1000。
+      （第一版我写成「放大 ⇒ 分位数放大」，实测反了；先量再写。）
+      首尾**都**放大是关键：只放大一列时，离位一格仍可能勉强混过，
+      而离位一格必然把一个**正常量级**的值塞进最后一列。
+    """
+    df = _frame(n=600, seed=41)
+    df[FACTORS[0]] = df[FACTORS[0]] * 1000.0
+    df[FACTORS[-1]] = df[FACTORS[-1]] * 1000.0
+    scaled = {FACTORS[0], FACTORS[-1]}
+    q = fa.analyze(df, FACTORS, "归因")["_beta_star_abs_q95"]
+
+    normal_min = min(v for c, v in q.items() if c not in scaled)
+    for c in sorted(scaled):
+        assert q[c] * 50.0 < normal_min, (
+            f"{c} 被放大 1000 倍，它的零分布分位数理应**小**约 1000 倍，"
+            f"实测 {q[c]:.4g} 而正常列最小 {normal_min:.4g}"
+            "（差不到 50 倍）⇒ **分位数被归给了别的列**："
+            "多半是截距占了索引 0（台账第 4 条：标签按位置存、按顺序读）")
 
 
 # ── 7. 自助参数必须钉死（这条是被变异 D 逼出来的）────────────────────
@@ -1056,8 +1213,30 @@ def test_without_the_flag_the_data_root_is_still_the_one_from_before(tmp_path):
     assert payload.get("n_obs") == len(real), (
         f"默认根读到的样本量 {payload.get('n_obs')} ≠ 真文件 {len(real)} ⇒ "
         "默认路径被换过了")
-    assert payload.get("n_factors") == len(
-        [c for c in real.columns if c.startswith("expo_")])
+    assert payload.get("n_factors") == len(fa.FACTOR_COLS), (
+        f"判决口径 = **声明的** {len(fa.FACTOR_COLS)} 列，拿到 {payload.get('n_factors')}")
+    # 🚨 2026-10-15 改判：原来这一条写的是
+    #   `payload["n_factors"] == len([c for c in real.columns if c.startswith("expo_")])`
+    #   —— 那是在比**两个不同的量**：左边是**声明的判决口径**（`FACTOR_COLS`，8 列），
+    #   右边是**文件里碰巧有什么**。两者今天相等纯属历史巧合。
+    #   当天 17:55 链重写 K=21、parquet 从 8 个 `expo_*` 长到 10 个
+    #   （合法的：生产者新增了市值主列 + 对照列），守卫当场红。
+    #
+    #   ⚠️ **它的失效方向比「假红」严重得多**：红在这里会诱导人把
+    #      `expo_logcap` / `expo_logcap_raw` 加进 `FACTOR_COLS`「让两边重新相等」——
+    #      而 `backtest_walk_forward_weights.py:220` 的注释明写着那 8 列是
+    #      **已预注册的判决口径**，加第 9 个 = 换判据后重跑 = 撤回已提交结论。
+    #      **过严的守卫会主动把正确的东西改坏**（第 112 层通则）。
+    #
+    #   ⇒ 改钉**同一个量**：声明的列必须**逐个都在** parquet 里；
+    #     多出来的 `expo_*` 必须被**点名报出**，不许静默吞掉。
+    absent = [c for c in fa.FACTOR_COLS if c not in real.columns]
+    assert not absent, f"声明要判的列在默认根的 parquet 里不存在：{absent}"
+    extra = sorted(c for c in real.columns
+                   if c.startswith("expo_") and c not in fa.FACTOR_COLS)
+    assert extra == payload.get("unregistered_expo_cols"), (
+        f"parquet 里未登记的 expo_* 列必须**被点名报出**而不是静默吞掉："
+        f"文件有 {extra}，产物说 {payload.get('unregistered_expo_cols')}")
     assert rc in (0, 3), f"默认路径下跑出了意外的退出码 {rc}"
 
 

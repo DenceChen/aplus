@@ -1,0 +1,9 @@
+{
+  "code_sha": "e63a6f0d6c6cdd24b173b28224373ee9fa91c92b",
+  "code_dirty": true,
+  "code_file_sha256": "2879ac8eb7b3b10393464e77886486a626ab58ce8889867bbc410fcd862b2efa",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/cap_exposure.py",
+  "stamped_at": "2026-10-15T10:17:04+00:00"
+}

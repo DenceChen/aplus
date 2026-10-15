@@ -650,12 +650,64 @@ def test_run_year_signature_carries_the_cap_switches_only():
 
     它是 P0/安慰剂/榜宽三处的共享入口；在这里长出别的开关，
     三条臂之间的差就分不清来自信号还是这段代码。
+
+    🚨 2026-10-15 白名单**加**了一个参数：`cap_table`。
+      加之前先判了它的**意图**而不是「红了所以放宽」——
+      守卫要防的是**开关**，而 `cap_table: CapTable | None = None` 是
+      **带默认值的输入数据**：不传它，`run_year` 行为逐位不变。
+      它必须在这里，是因为预注册硬要求第 9 个暴露
+      （`expo_logcap` / `expo_logcap_raw`）**在 `xs` 还在手上时算完** ——
+      落盘后重算要再加载 GB 级面板（那正是本项目 OOM 的唯一来源）。
+      ⇒ 它是 cap 相关，**且不是开关** ⇒ 符合这条守卫的原意。
+
+    ⚠️ 白名单是「往后每加一项都必须重新论证一次」的地方，
+      所以「它凭什么被允许」由下面那条**单独**钉住：
+      `cap_table` 必须保持**带默认值的非布尔数据**，
+      一旦它变成 `flag: bool = False` 就又是一个开关 ⇒ 必须红。
+      （放宽白名单的方向只能**同时**加更强的判据，第 112 层通则。）
     """
     from backtest_walk_forward_weights import run_year
     params = set(inspect.signature(run_year).parameters)
     assert params == {"xs", "weights", "dates", "top_n", "bottom_n",
                       "rebalance_every", "daily_out", "score_transform",
-                      "benchmark_cap", "portfolio_cap", "cap_ctx"}, params
+                      "benchmark_cap", "portfolio_cap", "cap_ctx",
+                      "cap_table"}, params
+
+
+def test_cap_table_stays_data_and_never_becomes_a_switch():
+    """`cap_table` 被放进白名单的**资格**：是输入数据，不是开关。
+
+    白名单只回答「允不允许有这个参数」，而这条回答
+    「**它凭什么被允许**」—— 两者不可互换（第 150 层的值守卫/接线守卫同族）。
+    """
+    from backtest_walk_forward_weights import run_year
+    p = inspect.signature(run_year).parameters["cap_table"]
+
+    assert p.default is None, (
+        f"`cap_table` 现在有默认值 {p.default!r} —— "
+        f"默认 None 才保证「不传它 ⇒ 行为逐位不变」")
+
+    # ⚠️ 注解必须从 **AST** 读，不能读 `inspect` 的 `p.annotation`：
+    #   脚本有 `from __future__ import annotations`（PEP 563）
+    #   ⇒ 运行期注解**根本不求值**，拿到的是字符串 `'CapTable | None'`。
+    #   第一版按真类型对象写（`__args__`）⇒ 当场红在
+    #   `{'CapTable | None'}` 上（第 141 层：断言的对象不对）。
+    import ast as _ast
+    import pathlib as _pl
+    tree = _ast.parse((_pl.Path(__file__).parent.parent / "scripts"
+                       / "backtest_walk_forward_weights.py")
+                      .read_text(encoding="utf-8"))
+    fn = next(n for n in tree.body
+              if isinstance(n, _ast.FunctionDef) and n.name == "run_year")
+    args = list(fn.args.args) + list(fn.args.kwonlyargs)
+    node = next(a for a in args if a.arg == "cap_table")
+    assert node.annotation is not None, "`cap_table` 没有类型注解"
+    ann = _ast.unparse(node.annotation)
+    assert ann.split("|")[0].strip() == "CapTable", (
+        f"`cap_table` 的注解是 `{ann}`，主类型不是 CapTable ⇒ "
+        f"它已经不再是一张市值表，改名/改型却沿用同一个白名单条目")
+    assert "bool" not in ann, (
+        f"`cap_table` 的注解是 `{ann}` ⇒ 它已经被改成布尔开关")
 
 
 # ── 判决三档：照抄预注册表格，一个字都不许改 ─────────────────────────

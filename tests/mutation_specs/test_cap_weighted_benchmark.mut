@@ -26,3 +26,13 @@ provenance.stamp(args.out, "scripts/cap_weighted_benchmark.py", root=ROOT,
 === 变异体 ===
 provenance.stamp(args.out, "scripts/cap_weighted_benchmark.py", root=ROOT,
                      data_root=args.data_root)
+
+C6 cap_table 从「一张市值表」被改成一个布尔开关（三条臂的差就分不清来自信号还是这段代码 ⇒ 白名单那条守卫只管「有没有」，不管「它是什么」）	scripts/backtest_walk_forward_weights.py
+             cap_ctx=None, cap_table: CapTable | None = None) -> dict:
+=== 变异体 ===
+             cap_ctx=None, cap_table: bool = False) -> dict:
+
+C7 cap_table 拿到一个真默认值（有了默认值，不传它时行为就不再是「显式关掉测量」，而调用点可以悄悄忘传）	scripts/backtest_walk_forward_weights.py
+             cap_ctx=None, cap_table: CapTable | None = None) -> dict:
+=== 变异体 ===
+             cap_ctx=None, cap_table: CapTable | None = CapTable({})) -> dict:
