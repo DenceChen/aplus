@@ -17,7 +17,8 @@ import pandas as pd
 import pytest
 
 import scripts.collect_financial_vintage as m
-from aplus.vintage import write_snapshot
+from aplus.vintage import (SRC_DUP_CODES_FIELD, SRC_DUP_ROWS_FIELD,
+                           read_manifest, write_snapshot)
 
 
 # ── 假源 ────────────────────────────────────────────────────────────
@@ -219,12 +220,145 @@ def test_a_clean_source_reports_no_source_duplication(tmp_path, daily,
     assert res["source_dup"] == {}
 
 
-def test_main_refuses_to_register_a_manifest_when_the_source_duplicates():
-    """`main()` 的闸门路径必须在源码里，且真的以 `return 2` 退出。"""
-    import inspect
-    src = inspect.getsource(m.main)
-    assert 'res["source_dup"]' in src
-    assert "return 2" in src
+def _dup_source(monkeypatch):
+    """源站对**同一报告期**给多行——`source_dup` 唯一的产生条件。"""
+    def fake(secucode):
+        code = secucode.split(".")[0]
+        return pd.DataFrame({
+            "SECURITY_CODE": [code, code],
+            "REPORT_DATE": ["2021-12-31", "2021-12-31"],   # 源站自己重了
+            "BPS": [1.0, 2.0],
+        })
+    monkeypatch.setattr(m, "_fetch", fake)
+    monkeypatch.setattr(m, "SLEEP_BETWEEN_CALLS", 0)
+
+
+def _run_main(root, day, monkeypatch):
+    """按 `main()` 的**真实契约**跑一次：不带任何试跑开关。"""
+    monkeypatch.setattr(sys, "argv",
+                        ["collect_financial_vintage.py",
+                         "--root", str(root), "--date", day])
+    return m.main()
+
+
+def test_main_registers_nothing_when_the_source_duplicates(tmp_path, daily,
+                                                           monkeypatch):
+    """**行为层**：源站重复 ⇒ `rc == 2` **且一条 manifest 都不许追加**。
+
+    ⚠️ **这一条取代了旧版的源码子串断言**
+    （`assert 'res["source_dup"]' in src` + `assert "return 2" in src`）。
+    子串能证明「main 的源码里有这两个串」，而**这两个串都能被抄进注释**——
+    第 13 种形状。而旧版那条**名字承诺「refuses to register a manifest」，
+    身体却从不检查 manifest 有没有被写**：它给的是一份**假信用**。
+    ⇒ 整条替换掉，不留副本：判据必须收敛成单点（第 131 层同源纪律）。
+
+    🚨 **失效方向是「删字段」**：有人看到「这两个数永远是 0」而清掉它，
+    理由听着完全合理，而后果是盘上「那天还没量」与「量了、确实是 0」
+    这两件事**重新合并**——正是 `write_snapshot` docstring 花一整段去防的，
+    **且没有任何东西会红**。
+
+    ⚠️ 判据用 `rc == 2` 是合法的，因为**全文件只有一处 `return 2`**
+    （`main()` 的 source_dup 闸），其余闸门是 1/3/4 ⇒ 「rc 是 2」与
+    「源站重复」构成双射。若将来那个闸门改了 rc，本条会红——
+    那时该改的是它，而不是把它改成子串断言。
+    """
+    root = tmp_path / "v"
+    day = "2026-10-13"
+    # 先造一条**已有的**登记：G1 要证明的是「逐条不变」，
+    # 而「从 0 变成 0」在采集器压根没跑时同样成立（第 130 层空输出）。
+    write_snapshot(root, "2026-10-12", pd.DataFrame({
+        "SECURITY_CODE": ["000001"], "REPORT_DATE": ["2021-12-31"]}))
+    before = read_manifest(root)
+    assert len(before) == 1, "夹具前提失败：预置登记没落盘"
+
+    monkeypatch.setattr(m, "MIN_FREE_GB", 0)
+    _dup_source(monkeypatch)
+    rc = _run_main(root, day, monkeypatch)
+    after = read_manifest(root)
+
+    assert rc == 2, f"源站重复时 main() 返回 {rc}，闸门没拦住"
+    # ⚠️ 断的是**逐条相等**，不是行数：删一条补一条也能让行数不变。
+    assert after == before, (
+        f"rc==2 却动了 manifest：{len(before)} 条 → {len(after)} 条\n"
+        f"  ⇒ 登记一份源站重复的快照，这一份就**成了伪证据**"
+        f"（行数、IC 权重、截面分位数全都会被污染，且**永久**——"
+        f"vintage 不能重抓那一天）")
+    assert not [e for e in after if e.get("snapshot_date") == day], (
+        f"{day} 的条目被登记了，尽管源站当天重复：{after}")
+
+
+def test_a_clean_source_does_register_exactly_one_entry(tmp_path, daily,
+                                                        monkeypatch):
+    """**反控（防恒真）**：源站干净 ⇒ 确实追加一条，且两个字段**逐位等于 0**。
+
+    没有这一条，G1 的「一条都不许追加」在**采集器压根不写 manifest** 时
+    同样成立——那是**空输出**，不是判决（第 130 层）。
+    ⚠️ 并且必须钉住字段**在**（`0`），而**不是键缺席**：
+    `write_snapshot` 的 docstring 要求这两端可区分，
+    「量过、确实是 0」正是那个 `0` 唯一合法的时候。
+    """
+    root = tmp_path / "v"
+    day = "2026-10-13"
+    monkeypatch.setattr(m, "MIN_FREE_GB", 0)
+    _fake_source(monkeypatch, [])
+
+    rc = _run_main(root, day, monkeypatch)
+    entries = read_manifest(root)
+
+    assert rc == 0, f"干净源下 main() 返回 {rc}"
+    assert len(entries) == 1, (
+        f"干净源下登记了 {len(entries)} 条（期望恰好 1 条）：{entries}")
+    e = entries[0]
+    assert e.get("snapshot_date") == day
+    assert e.get(SRC_DUP_CODES_FIELD) == 0, (
+        f"干净源的 `{SRC_DUP_CODES_FIELD}` 应逐位为 0，实得 {e.get(SRC_DUP_CODES_FIELD)!r}"
+        f"（键缺席 = 「没量过」，与「量过是 0」必须可区分）")
+    assert e.get(SRC_DUP_ROWS_FIELD) == 0, (
+        f"干净源的 `{SRC_DUP_ROWS_FIELD}` 应逐位为 0，实得 {e.get(SRC_DUP_ROWS_FIELD)!r}")
+
+
+def _source_dup_violations(entries):
+    """manifest 里**凡**带这两个键的条目，值必须为 0。返回违规清单。"""
+    bad = []
+    for e in entries:
+        for field in (SRC_DUP_CODES_FIELD, SRC_DUP_ROWS_FIELD):
+            if field in e and e[field] != 0:
+                bad.append(f"{e.get('snapshot_date')}: {field}={e[field]!r}")
+    return bad
+
+
+def test_the_registered_source_dup_counts_are_never_nonzero():
+    """**不变量的正面表述**：盘上任何一条带这两个键的条目，值必须为 0。
+
+    这条把「**登记成功 ⇒ 源站干净**」从**散文**
+    （`collect_financial_vintage.py` 闸门上方那段注释）
+    变成**逐条检查**——形状 22：代码里那句话说了，代码本身不会验证。
+    ⚠️ 若哪天闸门被挪到 `write_snapshot` **下游**，登记里就会开始出现非零，
+    而那时这个字段的意义整个变了。
+    """
+    violations = _source_dup_violations(read_manifest(m.VINTAGE_ROOT))
+    assert not violations, (
+        f"这些登记条目声称源站那天重复过，而闸门本该拦住它们："
+        f"{violations}\n"
+        f"  ⇒ 「登记成功 ⇒ 源站干净」这条不变量破了 ⇒ "
+        f"字段的含义已经变了，而**没有任何东西会红**。")
+
+
+def test_the_source_dup_probe_can_recognize_a_nonzero_value():
+    """**正控**：上面那条探测器必须认得出非零值，否则它是装饰。
+
+    ⚠️ 这是**恒真守卫的解药**：今天盘上 3 条登记**全是键缺席**
+    （那两天还没量），于是主判据哪怕探测器坏了也会绿——
+    「找不到违规」与「探测器坏了」在输出上**逐位同形**（第 16 种形状）。
+    """
+    synthetic = [{"snapshot_date": "2099-01-01",
+                 SRC_DUP_CODES_FIELD: 3, SRC_DUP_ROWS_FIELD: 50}]
+    assert _source_dup_violations(synthetic) == [
+        "2099-01-01: n_source_dup_codes=3",
+        "2099-01-01: n_source_dup_rows=50",
+    ], "正控失败：合成出来的非零都认不出 ⇒ 主判据恒绿"
+    # 反控：键缺席**不是**违规（那是「没量过」，由 docstring 单独管）
+    assert _source_dup_violations([{"snapshot_date": "2099-01-02"}]) == []
 
 
 # ── 4. 契约 ──────────────────────────────────────────────────────────

@@ -84,6 +84,11 @@ DUP_FIELD = "n_dup_dropped"
 SRC_CODES_FIELD = "n_source_dup_codes"
 SRC_ROWS_FIELD = "n_source_dup_rows"
 
+#: ⑤ 扫的三个键，**从上面三个常量派生**而不是重打三个字面量 ——
+#: 否则有人改常量名时，判据会静默扫起一个**再也不会出现**的旧串，
+#: 于是守卫恒绿而看起来完全正常（形状 6「假装能调」的读侧版本）。
+DUP_FIELDS = frozenset({DUP_FIELD, SRC_CODES_FIELD, SRC_ROWS_FIELD})
+
 
 # ── 造夹具 ─────────────────────────────────────────────────────────
 
@@ -274,6 +279,10 @@ def test_no_reader_defaults_a_missing_dup_count_to_zero():
     ⇒ `.get(key, 0)` 是那条纪律在**读侧**的镜像 ——
     它让「那天没量过」变成「那天量过是 0」，而这条守卫存在的**全部理由**
     就是让这两件事可区分。
+
+    ⚠️ 三个键走**同一个探测器**：第一版只扫 `n_dup_dropped`，
+    而两个 `n_source_dup_*` 同样带这个形态 ——
+    判据必须**收敛成单点**，否则它有三个可以各自漂移的副本。
     """
     hits = []
     for base in ("aplus", "scripts"):
@@ -286,20 +295,27 @@ def test_no_reader_defaults_a_missing_dup_count_to_zero():
                         and n.func.attr == "get" and len(n.args) == 2):
                     continue
                 key = n.args[0]
-                if isinstance(key, ast.Constant) and key.value == DUP_FIELD:
-                    hits.append(f"{p.relative_to(ROOT)}:{n.lineno}")
+                if isinstance(key, ast.Constant) and key.value in DUP_FIELDS:
+                    hits.append(f"{p.relative_to(ROOT)}:{n.lineno} "
+                                f"({key.value})")
     assert not hits, (
-        f"这些地方把 `{DUP_FIELD}` 缺档回落成默认值：{', '.join(hits)}\n"
-        f"  ⇒ 「没量过」与「量过是 0」被合并 ⇒ 本文件其余守卫全部白写。")
+        f"这些地方把重复计数缺档回落成默认值：{', '.join(hits)}\n"
+        f"  ⇒ 「没量过」与「量过是 0」被合并 ⇒ 本文件其余守卫全部白写。\n"
+        f"  ⇒ 扫的三个键：{sorted(DUP_FIELDS)}")
 
 
 def test_the_missing_key_probe_can_recognize_a_fallback_on_synthetic_source():
-    """**正控**：⑤ 的探测器必须认得出人写的回落，否则它是装饰。"""
-    src = "e = entry.get('n_dup_dropped', 0)\n"
-    tree = ast.parse(src)
-    found = [n for n in ast.walk(tree)
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-             and n.func.attr == "get" and len(n.args) == 2
-             and isinstance(n.args[0], ast.Constant)
-             and n.args[0].value == DUP_FIELD]
-    assert found, "正控失败：合成的回落写法都认不出 ⇒ ⑤ 恒绿"
+    """**正控**：⑤ 的探测器必须认得出人写的回落，否则它是装饰。
+
+    ⚠️ 三个键**各来一份**合成源码：只测一个键时，
+    「另外两个键那条分支从没执行过」与「分支正确」在输出上**逐位同形**。
+    """
+    for field in sorted(DUP_FIELDS):
+        src = f"e = entry.get({field!r}, 0)\n"
+        tree = ast.parse(src)
+        found = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == "get" and len(n.args) == 2
+                 and isinstance(n.args[0], ast.Constant)
+                 and n.args[0].value in DUP_FIELDS]
+        assert found, f"正控失败：{field} 的合成回落写法认不出 ⇒ ⑤ 恒绿"

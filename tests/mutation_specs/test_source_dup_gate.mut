@@ -1,0 +1,22 @@
+M1 摘掉整块 source_dup 闸（源站重复也继续登记）	scripts/collect_financial_vintage.py
+if res["source_dup"]:
+        n = sum(res["source_dup"].values())
+        print(f"❌ 源站返回了 {n} 行重复的 (SECURITY_CODE, REPORT_DATE)，"
+              f"涉及 {len(res['source_dup'])} 只。不登记 manifest："
+              f"**这一份一旦记进去就成了伪证据。**")
+        for code, k in list(res["source_dup"].items())[:5]:
+            print(f"     {code}  重复 {k} 行")
+        print(f"     …共 {len(res['source_dup'])} 只")
+        return 2=== 变异体 ===
+if False and res["source_dup"]:
+        pass
+
+M2 return 2 改成 return 0（闸门仍在，只改退出码）	scripts/collect_financial_vintage.py
+print(f"     …共 {len(res['source_dup'])} 只")
+        return 2=== 变异体 ===
+print(f"     …共 {len(res['source_dup'])} 只")
+        return 0
+
+M3 write_snapshot 的 source_dup= 实参摘掉	scripts/collect_financial_vintage.py
+source_dup=res["source_dup"])=== 变异体 ===
+)
