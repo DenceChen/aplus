@@ -38,8 +38,8 @@ from aplus import provenance as provenance_mod  # noqa: E402
 from aplus.costs import annual_friction  # noqa: E402
 from aplus.hurdle import COST_REAL_50K, hurdle_rate, rounds_per_year  # noqa: E402
 from scripts.width_capital_feasibility import (  # noqa: E402
-    CAPITAL_5W, EQUITY_WEIGHT, TARGET_NET, feasibility, friction_floor,
-    solve_capital,
+    CAPITAL_5W, EQUITY_WEIGHT, TARGET_NET, _sha256_of, feasibility,
+    friction_floor, gross_se_annual, solve_capital,
 )
 
 ART = _ROOT / "data" / "reports" / "factor_width_mde.json"
@@ -489,3 +489,265 @@ def test_a_bare_run_actually_writes_the_report_not_just_prints_it():
     assert mod_out == "Path('data/reports/width_capital_feasibility.json')", mod_out
     assert (_ROOT / "data" / "reports" / "width_capital_feasibility.json").is_file(), \
         "默认路径指向的产物不存在 —— 默认值与真实产物脱钩了"
+
+
+# ══ CLAUDE.md 的五档表必须与产物逐位一致，且必须带判决强度 ══════════════
+#
+# 🚨 **它已经漂过一次，而没有任何东西报警**（2026-10-15 自查）：
+#   同一份 CLAUDE.md 里，表格写 N=546 = **182.4 万**，
+#   而上面 20 行的散文写「N=546 真实 **111.5 万**，近似 66.9 万」，
+#   守卫表又写「五档一律低估 **52.6%~60.3%**」—— **三方不一致**。
+#   根因：那三个数是**不同时刻的毛超额**算出来的，而散文不在消费者清单里。
+#
+# ⚠️ **这条守卫只守「表与产物脱钩」这一层，不守接线。**
+#   接线（`DEFAULT_ARTIFACT` 指着 `factor_width_mde.json`）由
+#   `test_the_default_output_is_the_real_artifact` 守。
+#   读落盘 json 再比文档（第 118 层）守不到「谁生成、谁消费」，
+#   它守的是「**人抄进 CLAUDE.md 的那份数**还对不对」——
+#   而这正是会腐烂、且腐烂过一次的形态。
+
+_CLAUDE_MD = _ROOT / "CLAUDE.md"
+# 🚨 锚点必须是**整行表头**，不能是前缀：第一版用 `"| N | 毛超额/年 |"`，
+#   而 CLAUDE.md 里有**两张**表都以此开头（另一张是摩擦标定表，
+#   列含「真实净/年」「标定档」）⇒ 抽取器抓到了**错的那张**，
+#   守卫随后**自信地**报出「表里写着 … 1.0×（标定档）」这种胡说。
+#   ⇒ 「找到了」不等于「找对了」：这比「找不到」更坏，因为**它不崩**。
+# 🚨 因此表头**不再有字面量副本**：`_TABLE_HDR` 已删除。
+#   它与改表脚本发出的表头是两份互不知情的副本，我给表加了一列 `se/年`
+#   它就不匹配了（第 137/140 层：靠字符串相等维持的关系 = 手抄件）。
+#   ⇒ 现在按语义定位 + 要求**唯一命中** + 命中后验列，见 `_claude_md_width_rows`。
+
+# 🚨 **必须用派生产物，不能用 `ART`**（`ART` 指向上游 `factor_width_mde.json`）。
+#   我第一版直接用了 `ART` ⇒ `x["n"]` 在**字符串**上报 TypeError
+#   —— 侥幸是崩，不是静默恒绿；但同样的错若发生在字段上，就是恒绿。
+#   ⇒ 所以下面每条断言都先验「我读的这份产物**真的有**这个字段」。
+_ART_DERIVED = _ROOT / "data" / "reports" / "width_capital_feasibility.json"
+
+
+def _derived_rows():
+    """读**派生**产物，并确认它确实是那一份。"""
+    rows = json.loads(_ART_DERIVED.read_text(encoding="utf-8"))["widths"]
+    assert isinstance(rows, list) and rows and isinstance(rows[0], dict), (
+        f"{_ART_DERIVED.name} 的 widths 形状变了（{type(rows).__name__}）")
+    for field in ("capital_for_breakeven", "breakeven_margin_sigma"):
+        assert field in rows[0], (
+            f"{_ART_DERIVED.name} 里没有 {field} —— "
+            "**你读的可能是上游产物**。读错产物的守卫要么崩、要么恒绿，"
+            "两者都不许默默发生。")
+    return rows
+
+
+def _claude_md_width_rows():
+    """抽出 CLAUDE.md 五档表的行。**抽不到 / 抽到多个都抛**，绝不返回空列表蒙过去。
+
+    ⚠️ 「找不到表 ⇒ 通过」是恒真守卫的经典形态：守卫会一直绿，
+      而它声称守的东西已经不在了。
+
+    🚨🚨 **这里不能拿「表头那一整行字面量」当锚点**（第 140 层实测）：
+    我原本写死 `_TABLE_HDR`，而改表脚本往表里加了一列 `se/年`
+    ⇒ 锚点不再匹配 ⇒ 抽取器**找不到**表。
+    两个互不知情的字面量靠「相等」维持关系 = 一份手抄件（第 137 层）。
+
+    ⇒ 改成按**语义**定位，并在命中后**验它真的是那一类**：
+      | 步骤 | 判据 | 治的是什么 |
+      |---|---|---|
+      | 1 定位 | 表头同时含「毛超额/年」**和**「回本」 | 不依赖列数/列序 |
+      | 2 唯一 | 命中数**必须为 1** | 「找到了错的」不崩（第 140 层） |
+      | 3 验列 | 表头里必须有**判决强度**列 | 只印金额不印 σ |
+      | 4 验形 | 每行**列数 == 表头列数** | 抓到了半张表/错位表 |
+    """
+    lines = _CLAUDE_MD.read_text(encoding="utf-8").splitlines()
+    heads = [i for i, ln in enumerate(lines)
+             if ln.startswith("| N |") and "毛超额/年" in ln and "回本" in ln]
+    assert len(heads) >= 1, (
+        "CLAUDE.md 里找不到同时含「毛超额/年」与「回本」的表头 —— "
+        "要么表被改名/挪走（请同步改本守卫），要么它已经被删了；"
+        "**两者都不许悄悄发生**")
+    assert len(heads) == 1, (
+        f"匹配到 {len(heads)} 张候选表（行号 {heads}）⇒ 锚点**太宽，抓到了不止一张**。\n"
+        "★ 抓错表**不会崩**，只会给出一句自信的胡说 —— 比找不到更坏。\n"
+        + "\n".join(f"  {i}: {lines[i]}" for i in heads))
+    start = heads[0]
+    header = [c.strip() for c in lines[start].strip().strip("|").split("|")]
+    assert any(("σ" in c) or ("距摩擦下界" in c) for c in header), (
+        f"这张表**没有判决强度列** ⇒ 只印金额不印 σ，等于把一个 0.004σ 的判决"
+        f"和 0.8σ 的判决画上等号。实际表头：{lines[start]!r}")
+    rows = {}
+    for ln in lines[start + 2:]:                 # 跳过表头与分隔行
+        if not ln.startswith("|"):
+            break
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) < 3 or not cells[0].isdigit():
+            break
+        assert len(cells) == len(header), (
+            f"数据行 {cells[0]} 有 {len(cells)} 列，表头有 {len(header)} 列"
+            f" ⇒ 抓到的不是这张表：{ln!r}")
+        rows[int(cells[0])] = cells
+    assert rows, "表头在、却没有数据行 —— 抽取逻辑坏了，本守卫会恒绿"
+    return rows
+
+
+def test_every_capital_in_claude_mds_width_table_comes_from_the_artifact():
+    """★ CLAUDE.md 那张表里的回本本金，必须**逐位**等于产物里的值。"""
+    rows = _claude_md_width_rows()
+    artifact = {int(w["n"]): w for w in _derived_rows()}
+    assert set(rows) == set(artifact), (
+        f"CLAUDE.md 的表有 N={sorted(rows)}，产物有 N={sorted(artifact)} ⇒ "
+        "档位对不上（要么表少了一档，要么多了一档）")
+    bad = []
+    for n, cells in sorted(rows.items()):
+        be = artifact[n]["capital_for_breakeven"]
+        if be is None:
+            if "无解" not in " ".join(cells):
+                bad.append(f"N={n}：产物说无解，表里却写着 {' | '.join(cells)}")
+            continue
+        want = f"{be / 1e4:.1f} 万"
+        if want not in " ".join(cells):
+            bad.append(f"N={n}：表里没有 {want}（产物值 {be:,.0f} 元）")
+    assert not bad, (
+        "CLAUDE.md 五档表的回本本金与产物脱钩：\n  " + "\n  ".join(bad)
+        + "\n⇒ 表是**唯一**把金额结论交给人的出口，它腐烂了没人会知道"
+          "（CLAUDE.md 不在陈旧性守卫的消费者清单里）")
+
+
+def test_claude_mds_width_table_carries_the_verdict_strength():
+    """★ 光有金额不够 —— 必须同排印出**这个金额有多可信**。
+
+    🚨 N=10 的 16.1 万是 **+0.004σ**：
+    它与摩擦下界差 **0.024 个百分点** ⇒ 主库每多一个交易日就换一个值。
+    ⇒ 只印「16.1 万」的表，读起来与印「182.4 万」一样确定，
+       而两者的可信度差了 200 倍。
+    ⚠️ 1σ 是**报告口径**、没有外部锚（Harvey 的 t>3.0 管的是**因子**有效性，
+      管不到「派生金额结论」的稳定性）⇒ 所以这里只钉「**σ 被印出来了**」，
+      **不钉**「σ 大于某个数」—— 后者是字面量判据（第 17 种形状）。
+    """
+    rows = _claude_md_width_rows()
+    missing = [n for n, w in ((int(x["n"]), x) for x in _derived_rows())
+               if f"{w['breakeven_margin_sigma']:+.3f}σ" not in " ".join(rows[n])]
+    assert not missing, (
+        f"这些档位在 CLAUDE.md 表里**没有印判决强度**：{missing}\n"
+        "⇒ 只印金额不印 σ，等于把一个 0.004σ 的判决和 0.8σ 的判决画上等号")
+
+
+def test_that_table_extractor_would_notice_a_vanished_table(monkeypatch, tmp_path):
+    """★ 探测器的正反控（第 131 层）：抽不到表必须**报出来**，不许蒙过去。"""
+    fake = tmp_path / "CLAUDE.md"
+    fake.write_text("# 标题\n\n没有这张表。\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "_CLAUDE_MD", fake)
+    try:
+        _claude_md_width_rows()
+    except AssertionError as e:
+        assert "找不到" in str(e), e
+    else:
+        raise AssertionError("表没了却抽取成功 ⇒ 主守卫会恒绿")
+
+
+_HDR6 = ("| N | 毛超额/年 | se/年 | **回本所需本金**（数值解） | 距摩擦下界 "
+         "| 到 20% 净所需本金 |")
+
+
+def test_the_extractor_refuses_to_guess_between_two_candidate_tables(monkeypatch, tmp_path):
+    """★ 正反控（第 140 层）：**抓错了不会崩**，所以「抓到一张」不够，要「只抓到一张」。
+
+    这条是本文件里最贵的 8 行：没有它，上面四步定位里最要命的
+    「候选表不止一张」这一档**没有任何测试**，
+    于是哪天 CLAUDE.md 里多出一张同样含「回本」的表，
+    抽取器会默默抓第一张、并对着第二张的内容**自信地胡说**。
+    """
+    fake = tmp_path / "CLAUDE.md"
+    fake.write_text(
+        "# 标题\n\n第一张：\n\n" + _HDR6 + "\n|---|---|---|---|---|---|\n"
+        "| 10 | 4.81% | 5.46% | 16.1 万 | +0.004σ | 无解 |\n\n"
+        "第二张（同名同列）：\n\n" + _HDR6 + "\n|---|---|---|---|---|---|\n"
+        "| 10 | 6.52% | 5.40% | 8.0 万 | +0.320σ | 无解 |\n",
+        encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "_CLAUDE_MD", fake)
+    try:
+        _claude_md_width_rows()
+    except AssertionError as e:
+        assert "不止一张" in str(e), e
+    else:
+        raise AssertionError(
+            "两张候选表却抽取成功 ⇒ 它抓了第一张；"
+            "而第二张的数不同，主守卫会拿第一张的数去判第二张的表"
+        )
+
+
+def test_the_extractor_rejects_a_table_without_the_strength_column(monkeypatch, tmp_path):
+    """★ 第三步「验列」的反向控制：只有金额、没有 σ 的表必须被拒。"""
+    fake = tmp_path / "CLAUDE.md"
+    fake.write_text(
+        "# 标题\n\n" + "| N | 毛超额/年 | 回本所需本金 | 到 20% 净所需本金 |\n"
+        "|---|---|---|---|\n| 10 | 4.81% | 16.1 万 | 不存在 |\n",
+        encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "_CLAUDE_MD", fake)
+    try:
+        _claude_md_width_rows()
+    except AssertionError as e:
+        assert "判决强度列" in str(e), e
+    else:
+        raise AssertionError("没有 σ 列的表却抽取成功 ⇒ 判决强度守卫会恒绿")
+
+
+def test_the_extractor_rejects_a_row_whose_cell_count_drifted(monkeypatch, tmp_path):
+    """★ 第四步「验形」的反向控制：某行少一列 ⇒ 抓到的不是这张表。"""
+    fake = tmp_path / "CLAUDE.md"
+    fake.write_text(
+        "# 标题\n\n" + _HDR6 + "\n|---|---|---|---|---|---|\n"
+        "| 10 | 4.81% | 5.46% | 16.1 万 | +0.004σ |\n",   # ← 少一列
+        encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "_CLAUDE_MD", fake)
+    try:
+        _claude_md_width_rows()
+    except AssertionError as e:
+        assert "列" in str(e), e
+    else:
+        raise AssertionError("错位的行却抽取成功 ⇒ 逐位比对会对错列下判断")
+
+
+def test_the_derived_artifact_was_built_from_the_current_upstream_bytes():
+    """★ 债 4：**上游产物重跑之后，派生产物必须跟着重跑**。
+
+    ## 这条链咬过我，而且是我自己重跑的
+
+    现有守卫只管「产物不得比**消费者源码**旧」。
+    它**完全不管**「派生产物是否对应**当前那份上游产物**」——
+    而这两件事之间没有任何东西：
+
+    | | 谁变了 | 谁会提示 |
+    |---|---|---|
+    | 源码改了 | 生成器 | ✅ 陈旧性守卫生效（逼我重跑） |
+    | **上游产物重跑了** | `factor_width_mde.json` | ❌ **没有任何东西提示** |
+
+    ⇒ 于是我重跑上游两次、派生产物安安静静地留着上一次的数。
+
+    ## 为什么不能用路径，也不能用 mtime
+
+    `generated_from` 记的是路径 —— 上游重跑一百次它也不变。
+    mtime 是代理不是证据（本仓第 13 层的老教训）。
+    ⇒ 解法是**在上游产物自己的字节上盖章**：
+      `source_artifact_sha256`。路径只回答「从哪来」，
+      指纹才回答「**是哪些字节**」。
+
+    ⚠️ **缺这一项必须报错，绝不回落成「跳过」** ——
+      回落会让老章在守卫上线后**继续绿**，而它绿得毫无意义
+      （本仓规矩：`unknown` = 不许引用）。
+    """
+    sha = _sha256_of(_ROOT / "data" / "reports" / "factor_width_mde.json")
+    sidecar = _ART_DERIVED.with_name(
+        _ART_DERIVED.name + provenance_mod.SIDECAR_SUFFIX)
+    assert sidecar.exists(), (
+        f"{sidecar.name} 不存在 ⇒ 这份派生产物**不可引用**（本仓规矩 unknown = 不许引用）")
+    sc = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert "source_artifact_sha256" in sc, (
+        f"{sidecar.name} 里没有 source_artifact_sha256 ⇒ "
+        "无法知道它是**从哪些上游字节**算出来的。\n"
+        "⚠️ 不许把它当成「通过」——那正是回落，而回落会让一条"
+        "**什么都没守**的守卫一直绿。\n"
+        "⇒ 重跑 scripts/width_capital_feasibility.py 即可补上。")
+    assert sc["source_artifact_sha256"] == sha, (
+        f"派生产物是从**另一份**上游产物算出来的：\n"
+        f"  它的章记 {sc['source_artifact_sha256'][:16]}…\n"
+        f"  当前上游是 {sha[:16]}…\n"
+        "⇒ 上游重跑过而派生产物没跟 ⇒ 重跑 "
+        "scripts/width_capital_feasibility.py，**旧数字不可引用**")

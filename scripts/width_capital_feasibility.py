@@ -36,8 +36,23 @@ A 股最低佣金 `COMMISSION_MIN = ¥5/笔` 是每笔**固定额**：
 
 ## ★ 第一版把换算写错了，而且守卫没抓住
 
-第一版用 `friction_5W × 5万 / gross` 解回本本金，**低估最多 40%**
-（N=546 真实 **111.5 万**，近似 66.9 万）。
+第一版用 `friction_5W × 5万 / gross` 解回本本金。
+
+⚠️ **本 docstring 的这组数字自己过期过一次**（2026-10-15 自查）：
+  它原写「低估最多 40%，N=546 真实 111.5 万、近似 66.9 万」，而
+  守卫 `tests/test_width_capital_feasibility.py:254` 早已改成
+  「五档一律落在解左边，低估 52.6%~60.3%」—— **两处不一致，而我一直读着旧的**。
+  ⇒ 真实的低估值随毛超额一起变，而毛超额是**会被重跑改掉的**：
+    把一个会变的数字写进解释性文字，就等于让它静默过期。
+  ⇒ 现行（钉死窗口 2021-01-01→2026-10-12，n_days=1395）：
+
+  | N | 精确解 | 1/C 近似 | 偏差 |
+  |---|---|---|---|
+  | 10 | 16.1 万 | 6.7 万 | −58.6% |
+  | 30 | 23.9 万 | 10.0 万 | −58.3% |
+  | 100 | 55.8 万 | 22.1 万 | −60.3% |
+  | 200 | 81.3 万 | 36.4 万 | −55.3% |
+  | 546 | 182.4 万 | 86.5 万 | −52.6% |
 
 🚨 守卫没抓住，是因为守卫用**同一个公式**回代：
 `gross − friction == 0` 在错公式里也成立。
@@ -45,8 +60,13 @@ A 股最低佣金 `COMMISSION_MIN = ¥5/笔` 是每笔**固定额**：
 ⇒ 正解不是把断言写严，是**给断言换独立真值源**：
 ① 回代改调底层 `annual_friction`
 ② 再加一条**代数推导的闭式**做第三方复核（相对差 1e-9）
-③ 钉住 1/C 近似的**误差方向会翻转**（N=10 高估 2.9%，N≥30 低估 40%）
-   —— 方向翻转比单向偏差更危险：单向的可以修正，翻转的连修正都不成
+③ 钉住 1/C 近似**五档一律低估**（实测 52.6%~60.3%）
+   —— 🚨 **原文这里写的是「误差方向会翻转」（N=10 高估 2.9%，N≥30 低估 40%）**，
+     而那条性质**早已不复存在**：翻转是**旧产物毛超额虚高**的症状
+     （毛超额虚高 ⇒ 逼近摩擦下界 ⇒ 小 N 也显得「有解」⇒ N=10 翻到另一边）。
+     毛超额被重跑修回真实值之后，五档**一致落在精确解左边**。
+     ⇒ 保留一条描述**已消失性质**的断言，等于让读者去找一条不存在的守卫；
+       而它是**代码旁边的散文**，不是判据，判据在守卫里（守卫已是对的那份）。
 
 ⇒ 现在 `feasibility()` 对 `annual_friction` **数值二分**。
 
@@ -121,7 +141,8 @@ def solve_capital(n: int, rpy: float, need: float) -> float | None:
 
     ★ **必须数值求解**，不许用 `friction_5W × 5万 / need` 那种 1/C 换算 ——
       那是第 5 种形状：公式错了，而**用同一个公式回代验的守卫也跟着错**。
-    实测那种换算把回本本金低估最多 **40%**。
+    实测那种换算**五档一律低估 52.6%~60.3%**（本 docstring 上方的表）。
+    ⚠️ 原文写「最多 40%」—— 那是旧毛超额下的值，随重跑失效。
 
     `need` 必须 **大于摩擦下界**，否则无解（摩擦降不下去）。
     """
@@ -225,6 +246,12 @@ def feasibility(width_row: dict, capital: float = CAPITAL_5W,
     return out
 
 
+def _sha256_of(path: Path) -> str:
+    """产物字节指纹。**读文件本身**，不用 mtime —— mtime 是代理不是证据。"""
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="榜宽实验 → 金额可行性")
     p.add_argument("--artifact", type=Path, default=DEFAULT_ARTIFACT)
@@ -301,12 +328,22 @@ def main(argv: list[str] | None = None) -> int:
                             encoding="utf-8")
         # ⚠️ 盖章必须在写完之后，且**只能靠真跑**拿 ——
         #   手写 sidecar 是形状 16（捏造一个与真章无法区分的文件），比红着更糟。
+        # ★ 记下**上游产物的字节指纹**，不只是路径（第 137 层）。
+        #   路径永远不变 —— `generated_from: factor_width_mde.json` 在
+        #   上游被重跑一百次之后仍然一模一样 ⇒ **读它的人无法知道
+        #   自己手里的数是不是上一次上游的**。
+        #   ⇒ 而这正是本脚本咬过我的形态：上游 fwm 重跑两次，
+        #     派生产物**一个字都不提示自己过期**，直到我手工去比。
         provenance.stamp(args.out, "scripts/width_capital_feasibility.py",
                          root=Path(__file__).resolve().parents[1],
                          extra={"any_width_reaches_target":
                                 payload["any_width_reaches_target"],
                                 "target_net": payload["target_net"],
                                 "source_artifact": str(args.artifact),
+                                # 🚨 缺这一项时守卫会红，而不是回落成「跳过」
+                                #   —— 「缺档必须报错，绝不回落」。
+                                "source_artifact_sha256":
+                                    _sha256_of(args.artifact),
                                 "capital": payload["capital"]})
         print(f"→ {args.out}")
     return 0

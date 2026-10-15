@@ -1,0 +1,20 @@
+K1 参照实现的输出少一列（列集合不齐而每列数值都没变）	aplus/snapshot.py
+    return pd.DataFrame(rows, columns=COLUMNS)
+=== 变异体 ===
+    return pd.DataFrame(rows, columns=COLUMNS[:-1])
+
+K2 as_of 端点差一天（窗口右端少一根 K 线，因子值全错但列集合照齐）	aplus/snapshot.py
+        sliced = daily if as_of is None else daily[daily["date"] <= as_of]
+=== 变异体 ===
+        sliced = daily if as_of is None else daily[daily["date"] < as_of]
+
+K3 行序被打乱（每个 code 配上了别人的因子值）	aplus/snapshot.py
+    return pd.DataFrame(rows, columns=COLUMNS)
+=== 变异体 ===
+    return pd.DataFrame(rows[::-1], columns=COLUMNS)
+
+K0 夹具补上 turn 列（退化集从 2 个缩到 1 个，「6/8 可测」的分母静默过期）	tests/test_backtest.py
+        "tradestatus": [1] * n, "isST": [st] * n,
+=== 变异体 ===
+        "tradestatus": [1] * n, "isST": [st] * n,
+        "turn": [0.01 + 0.001 * (i % 7) for i in range(n)],

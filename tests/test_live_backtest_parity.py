@@ -335,12 +335,23 @@ def _split_measurable(live, legacy):
 def test_the_fixture_degenerates_on_exactly_two_factors_and_they_are_named(tmp_path):
     """★ 「哪几个因子不可测」必须是**显式名单**，且钉住。
 
-    `_noisy_stock` 的 `volume` 是确定性递增（无随机）⇒ 20 日滚动 std 恰为 0
-    ⇒ `turnratio` 是 0/0 = NaN，`turn20` 的差分随之全 NaN。
+    ## 退化的**真实成因**（2026-10-15 实测，之前这里写错了）
+
+    ⚠️ 我原先写的是「`volume` 确定性递增 ⇒ 20 日滚动 std 恰为 0 ⇒ 0/0 = NaN」。
+    **那是想象出来的机制。** 实测：`factor.py:184` 的 `has_turn = "turn" in daily.columns`
+    —— 夹具根本没有 `turn` 列，所以两个 turn 因子**无条件** NaN。
+    我把 volume 改成带随机之后实测：`turnratio`/`turn20` 仍然 0/8 非 NaN。
+    ⇒ 「一个正确的守卫 + 一段错误的成因」= 人被指向**改本来正确的夹具**
+      （第 112 层：过严/恒真二选一之外，还有第三种 —— **断言对、解释错**）。
+
+    ⚠️ 而 `turnratio` 即使给了 `turn` 列**也仍然 NaN**：`TURN_RATIO_LONG = 252`
+    天滚动均值，而夹具只有 80 天 ⇒ 补列只能让 `turn20` 变可测，退化集 2→1。
+    （`tests/mutation_specs/test_live_backtest_parity.mut` 的 K0 变异打的就是这根杠杆。）
+
     ⇒ 8 个因子里**只有 6 个真被测过**。
 
-    为什么这条要钉：文档里写着「夹具层 6/8 可测」。哪天有人把夹具的 volume
-    改成带随机的，**退化集缩小**、「6/8」变「8/8」⇒ 文档的分母静默过期，
+    为什么这条要钉：文档里写着「夹具层 6/8 可测」。哪天有人给夹具补上 `turn` 列，
+    **退化集缩小**、「6/8」变「7/8」⇒ 文档的分母静默过期，
     而所有断言**照样全绿**（因为更多因子可测只会让 K2 更严，不会更松）。
     ⇒ 判据的对象是**文档的口径**，不是数值。
     """
@@ -348,8 +359,11 @@ def test_the_fixture_degenerates_on_exactly_two_factors_and_they_are_named(tmp_p
     measurable, degenerate = _split_measurable(live, legacy)
     assert set(degenerate) == {"turn20", "turnratio"}, (
         f"退化因子集合变成 {sorted(degenerate)}（可测 {sorted(measurable)}）——\n"
-        "  ⚠️ 先分清两件事：**夹具变了**（volume 不再是确定性递增）"
-        " vs **判据坏了**。\n"
+        "  ⚠️ 先分清两件事：**夹具变了** vs **判据坏了**。\n"
+        "  已实测的两条杠杆（都不是 volume）：\n"
+        "    ① 给夹具补 `turn` 列 ⇒ `turn20` 变可测（退化 2→1），"
+        "`turnratio` 仍 NaN（252 日窗口 > 夹具 80 天）；\n"
+        "    ② 夹具加长到 ≥252 天 ⇒ 两个都变可测（退化 2→0）。\n"
         "  如果是夹具变了，`docs/TODO_live_legacy_parity_2026-10-15.md` §1/§5 里的\n"
         "  「6/8 可测」**必须同步改**——它是被本条钉着的口径，不是可以留 stale 的散文。\n"
         "  🚨 不许把这条断言改小来消红。"
