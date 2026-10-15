@@ -248,6 +248,31 @@ def verdict(res: dict) -> tuple[str, str]:
         + ("；" + "；".join(others) if others else ""))
 
 
+def _cannot_prove_lines(kind: str, n_dates: int, n_rows: int) -> list[str]:
+    """产物里那段「本产物**不能**证明什么」。
+
+    🚨 里面的数**必须**由本次运行算出来（第 73 层：同一事实被复制到多处）。
+    写死的那一版在底稿补判之后已经与真值脱节（写着 4 日 / 80 条，
+    真值已走到 5 日 / 100 行），而**产物是唯一证据** ——
+    stdout 里那句算出来的数读者根本看不到。
+
+    ⚠️ `10` 是**产品定义**（每日推荐 10 涨 / 10 跌），不是测量值，
+    因此允许写死 —— 它不会随输入漂移。把「臂数 × 每臂只数」当测量量算
+    是另一种错：那个分解在 `adjusted_score` 口径下根本不是 10。
+
+    ⚠️ `kind` 一并参数化（预注册 §7.2 的延伸点 E1）：
+    判决名与那三个数是同一段散文里的同一个量，写死它等于留下一个漂移源。
+    """
+    return [
+        f"**不能**把 {kind} 读成「打分没有排序力」——"
+        f"n={n_dates} 个独立预测日，任何形状都极易出现，包括真的单调的那种；"
+        "「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
+        f"**不能**用条目数 {n_rows} 当独立观测数 —— 它是 {n_dates} 日 × 每臂 10 只",
+        "本脚本只测 G4 一个判据；G1/G2/G3/G5/G6 未测 ⇒ "
+        "即使 G4 通过也**不许**据此发布",
+    ]
+
+
 def main(argv=None) -> int:
     # 生成器字节冻结（第 125 层）——🚨 取样点必须在**跑之前的第一条可执行语句**：
     # 放在盖章前一行就等于「拿开跑的字节盖开跑的章」⇒ 恒真（第 131 层）。
@@ -281,14 +306,8 @@ def main(argv=None) -> int:
         "verdict": kind,
         "verdict_reason": why,
         "publish_allowed": kind == "PASS",
-        "what_this_cannot_prove": [
-            "**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——"
-            "n=4 个独立预测日，任何形状都极易出现，包括真的单调的那种；"
-            "「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
-            "**不能**用条目数 80 当独立观测数 —— 它是 4 日 × 2 臂 × 10 只",
-            "本脚本只测 G4 一个判据；G1/G2/G3/G5/G6 未测 ⇒ "
-            "即使 G4 通过也**不许**据此发布",
-        ],
+        "what_this_cannot_prove": _cannot_prove_lines(
+            kind, primary["n_independent_pred_dates"], primary["n_rows_total"]),
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

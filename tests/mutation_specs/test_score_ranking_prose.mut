@@ -1,0 +1,19 @@
+K1 散文的日数被写死（喂 7 仍印 5 ⇒ 第 73 层复发）	scripts/score_ranking_power.py
+        f"n={n_dates} 个独立预测日，任何形状都极易出现，包括真的单调的那种；"
+=== 变异体 ===
+        f"n=5 个独立预测日，任何形状都极易出现，包括真的单调的那种；"
+
+K2 散文的条目数被写死（喂 140 仍印 100）	scripts/score_ranking_power.py
+        f"**不能**用条目数 {n_rows} 当独立观测数 —— 它是 {n_dates} 日 × 每臂 10 只",
+=== 变异体 ===
+        f"**不能**用条目数 100 当独立观测数 —— 它是 {n_dates} 日 × 每臂 10 只",
+
+K3 散文的判决名被写死（判决翻转后仍说 NOT_PASSED_POWERLESS）	scripts/score_ranking_power.py
+        f"**不能**把 {kind} 读成「打分没有排序力」——"
+=== 变异体 ===
+        f"**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——"
+
+K4 调用点传字面量（五条守卫直接调函数 ⇒ 没人看这里）	scripts/score_ranking_power.py
+            kind, primary["n_independent_pred_dates"], primary["n_rows_total"]),
+=== 变异体 ===
+            kind, 5, 100),
