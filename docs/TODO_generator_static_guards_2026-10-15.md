@@ -95,6 +95,78 @@ def sidecar_path(report_path):
 ⚠️ 本条**未修**：`aplus/provenance.py` 在链的盖章路径上（第 125 层冻结），
 等 `placebo_control` / `spread_tilted_arm` 落盘后再动。
 
+### §1.2 🚨 最糟的一种：**在仓外调用，21/21 份产物一律塌成 `unknown`**（2026-10-15 12:4x 实测）
+
+§1/§1.1 都是「**传错参数**」。今天量到的是第三类：**参数完全正确，判决却随 cwd 变**。
+
+```python
+freshness(Path("<abs>/data/reports/placebo_control.json"))
+# cwd = 仓库根 → fresh   「生成器字节与盖章时完全一致；…」
+# cwd = /tmp     → unknown 「生成器路径 `scripts/placebo_control.py` 在仓里**不存在**
+#                          ⇒ 判据本身没跑」
+```
+
+**实测波及面：21 份 sidecar，从 `/tmp` 调用时 21/21 判 `unknown`。**
+
+| | 真相 | `unknown` 的含义被读成 | 后果 |
+|---|---|---|---|
+| 仓外调用 `freshness()` | 产物**fresh**，生成器字节**逐位一致** | 「判据本身没跑」 | 去重跑一个 45 分钟的活，**白跑**；或弃用一份完好产物 |
+
+★ 这比 §1.1 更糟，因为**误报指向「我根本没验」**——
+安全判据谎报「没跑」，比谎报「跑过」更危险。
+
+**机制**：sidecar 里存的是**仓库相对**的 `generator`（`scripts/placebo_control.py`），
+而 `freshness()` 用它拼路径时按 **cwd** 解析 ⇒ 换目录就等于换了一条判据。
+
+⚠️ 与**形状 24** 同源但更隐蔽：形状 24 是「按路径导入比按脚本运行多给了它一样东西」，
+这里是「同一个函数、同一组参数，**只有 cwd 不同**」。
+⇒ 我写 `audit_placebo_rerun.py` 时明确要求它**换个 cwd 也能跑**，
+  而这条设计恰好撞出了这个缺陷——**这正是那条设计该起的作用**。
+
+⇒ 修法：`freshness()` 内部一律以**仓库根**为基准解析 `generator`
+  （`DEFAULT_ROOT` 或从报告绝对路径回推），**永远不看 cwd**。
+  ⇒ ⚠️ 但本条**未修**：`aplus/provenance.py` 在链的盖章路径上（第 125 层冻结）。
+  ⇒ 已做的规避：`scripts/audit_placebo_rerun.py` 在问字节证据前**自己 chdir 回仓库根**，
+    并把 cwd 打印出来——⚠️ 这是**规避不是修复**，真修要动 `provenance.py`。
+
+### §1.3 🚨 盖章顺序让 `code_dirty` **必然**为 True ⇒「完整字节证据」结构上不可满足（2026-10-15 12:4x 实测）
+
+`placebo_control` 跑完那刻量到的：sidecar `code_dirty = True`，而依据句是
+
+```
+「生成器字节与盖章时完全一致；但盖章时工作区有未提交改动
+  ⇒ 只能证明生成器本身，不能证明整个依赖闭包」
+```
+
+**这不是偶发**——是流程锁死的。三行代码决定了它：
+
+| 位置 | 做什么 |
+|---|---|
+| `scripts/placebo_control.py:679` | `args.out.write_text(...)` **先落盘**产物 |
+| `scripts/placebo_control.py:684` | 之后才 `provenance.stamp(...)` |
+| `aplus/provenance.py:292` | `is_dirty` = `git status --porcelain`（**整个仓库**，含 `data/reports/`） |
+
+⇒ 产物自己那次未提交的写入，**必然**出现在 `git status` 里
+⇒ `code_dirty` **必然**为 True ⇒ `freshness()` 的依据**必然**带上那句限定。
+
+⚠️ **唯一例外**：重跑产物与 HEAD **逐字节相同**（`git status` 才干净）——
+  而那正好是「这次重跑毫无意义」的情形。
+
+⇒ 所以 `TODO_placebo_control` §0.1 那条「将是第一份带字节证据的 placebo 产物」
+  在当前盖章顺序下**结构上无法兑现**，不是「这次没跑好」。
+
+**三条可能的修法，各有代价，都不许顺手做**：
+
+| 修法 | 代价 / 陷阱 |
+|---|---|
+| 改成**先盖章后落盘** | 盖章时产物还不存在 ⇒ 章记的哈希与字节无关，`code_file_sha256` 失去意义 |
+| 把 `is_dirty` **收窄到代码目录** | ⚠️ **看起来像修语义 bug，效果却是让一条红变绿** —— 这正是第 129 层的定义域 |
+| 落盘后**先提交再补盖章** | 需要在流程里插一次提交，且章的 `code_sha` 会指向提交之后的那棵树 |
+
+⇒ 🚨 **本条不修，只登记**：`aplus/provenance.py` 在链的盖章路径上（第 125 层冻结）。
+⇒ ⚠️ 特别提醒第二条路：它最像「显然的正确修复」，
+  **正因为如此**它最危险——**改判据让它变绿，是本仓最常见的自欺形态**。
+
 ## 2. `lowfreq_plausibility.json` 没有 sidecar ⇒ 按本仓规矩**不可引用**
 
 实测：文件在（10-14 13:50，2089 字节），`data/reports/lowfreq_plausibility.json.provenance.json`

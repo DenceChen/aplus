@@ -1,11 +1,11 @@
 {
-  "code_sha": "f420d167bdea4791c50375a4950198bd3ddb1fda",
+  "code_sha": "2d55d9e9fe2b34b2d940cdee6659e7c5375a03cf",
   "code_dirty": true,
   "code_file_sha256": "d6d848f6e2608bdb764cc26e67944b9c14dbab74652740b432650e6a0652ca80",
   "data_fp": "5460:1792002326.672246",
   "data_dir": "data/master/daily",
   "generator": "scripts/width_capital_feasibility.py",
-  "stamped_at": "2026-10-15T02:46:23+00:00",
+  "stamped_at": "2026-10-15T03:51:47+00:00",
   "any_width_reaches_target": false,
   "target_net": 0.2,
   "source_artifact": "data/reports/factor_width_mde.json",

@@ -30,6 +30,7 @@
 ⇒ 判决量是 `float.hex()`，它比的是**位模式**，与 `==` 的语义无关。
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -254,6 +255,7 @@ def main() -> int:
         art["width_report_cross_check"]["t_blocked"].hex() == got["t_blocked"].hex())
 
     # 章：产物必须可引用，且依据是**字节证据**（预注册：它是第一份带字节证据的 placebo 产物）
+    dirty_at_stamp = False
     if not (_ROOT / SIDECAR).exists():
         chk("sidecar 存在", False, f"{SIDECAR} 不存在 ⇒ 按本仓规矩是 unknown，**不可引用**")
     else:
@@ -263,17 +265,43 @@ def main() -> int:
         #   `placebo_control**.json**.provenance.json`
         #   ⇒ 静默返回 `unknown`「没有 sidecar」——对着一个其实盖过章的产物
         #   说它没盖过章（`TODO_generator_static_guards` §1）。
-        basis = str(freshness(_ROOT / REPORT))
-        byte_ok = "字节" in basis and "仅 commit" not in basis
-        chk("freshness 依据是字节证据", byte_ok, basis[:120])
+        #
+        # ⚠️⚠️ 必须**在仓库根**调用（2026-10-15 实测，§1.2）：
+        #   `freshness()` 把 sidecar 里的**仓库相对** `generator` 路径按 **cwd** 解析，
+        #   从仓外调用会对 21/21 份产物一律返回 `unknown`
+        #   「生成器路径不存在 ⇒ 判据本身没跑」。
+        #   ⇒ 那是个**独立缺陷**，不该冒充「字节证据没兑现」。
+        #   本脚本声明可换 cwd 运行，所以这里必须自己 chdir 回规范位置再问。
+        _cwd = os.getcwd()
+        try:
+            os.chdir(_ROOT)
+            f = freshness(_ROOT / REPORT)
+        finally:
+            os.chdir(_cwd)
+        verdict, reason = f["verdict"], f["reason"]
+        dirty_at_stamp = "未提交改动" in reason
+        print(f"章（cwd={_ROOT}）：{verdict}")
+        print(f"  依据：{reason}")
+        byte_ok = verdict == "fresh" and "字节" in reason and "仅 commit" not in reason
+        chk("freshness 依据是字节证据", byte_ok, f"verdict={verdict}")
         if not byte_ok:
             print("   ⇒ 预注册的「第一份带字节证据的 placebo 产物」这条**没兑现**")
+            if verdict == "fresh" and "未提交改动" in reason:
+                print("   ⇒ 真因是**盖章时工作区有未提交改动**（sidecar `code_dirty=True`）"
+                      "⇒ 字节证据只覆盖生成器本身，不覆盖依赖闭包。"
+                      "⇒ 要兑现它必须在**干净工作区**重跑盖章，不能改判据（第 129 层）。")
 
     ok = all(checks)
     print()
     if ok:
         print("✅ 三条预测全部兑现 ⇒ §0 那句「两个窗口的 t_blocked 必然逐位相同」"
               "**从推理升级为实测**。")
+        if dirty_at_stamp:
+            print("⚠️ **但字节证据有范围限定**，不许读成「整个依赖闭包都被钉住」：")
+            print("   盖章时工作区有未提交改动（`code_dirty=True`）"
+                  "⇒ 证明的是**生成器本身**，不是闭包。")
+            print("   ⇒ 「第一份带完整字节证据的 placebo 产物」这条**尚未兑现**，"
+                  "要兑现必须在干净工作区重跑盖章——**不是改判据**（第 129 层）。")
     else:
         print("🚨 有预测未兑现。**逐条处理，不许整体判过**：")
         if not blocks_same or got["t_blocked"].hex() != a["t_blocked"].hex():

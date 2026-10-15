@@ -1,0 +1,19 @@
+{
+  "code_sha": "e733ce38987b308558091154ca4b95b644994c68",
+  "code_dirty": true,
+  "code_file_sha256": "e9b4ae124ed9d4d8df42202377303e6a3479e768478f41f55db8d00a59ccef85",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/placebo_control.py",
+  "stamped_at": "2026-10-15T04:39:57+00:00",
+  "verdict": "PLACEBO_NULL",
+  "verdict_branch": "P1 全部 < 1.96（max 1.14）且 max < t(P0)=1.73 ⇒ 干净的阴性对照；且 t(P0) 高于全部 20 个 placebo rep。⚠️ 这只等于「随机臂在**能测的量级上**测不出超额」，**不等于「因子无效」**；P0 的 1.73 值得往下走，但「P1 跑赢 P0」与「P1 能赚钱」是两件事。",
+  "n_reps": 20,
+  "p0_t_blocked": 1.7272132346592737,
+  "test_window": [
+    "2021-01-01",
+    "2026-10-12"
+  ],
+  "k_rebalance_every": 21,
+  "expect_bytes_checked": true
+}
