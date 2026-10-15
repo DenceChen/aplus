@@ -1,0 +1,79 @@
+{
+  "generated": "2026-10-15",
+  "prereg": "docs/PREREG_BENCHMARK_ANNUAL_TERM_2026-10-15.md",
+  "window_arg": [
+    "2021-01-01",
+    "2026-10-12"
+  ],
+  "k_rebalance_every": 21,
+  "entry_lag": 1,
+  "rounds_per_year": 11.619047619047619,
+  "cost_per_round": 0.0055,
+  "target_net": 0.2,
+  "hurdle_gross_annual_bench0": 0.2639047619047619,
+  "hurdle_source": "aplus.hurdle.hurdle_rate（import）—— 本脚本不重写成本链、不出现 0.20 / 26.39% 之类的字面量",
+  "width_source": "data/reports/factor_width_mde.json",
+  "benchmark": {
+    "n_trading_days": 1395,
+    "arithmetic_mean_x_days_per_year": 0.12452862562143731,
+    "compounded_nav": 0.0994710351459831,
+    "daily_sd_x_days_per_year": 3.7946106592565507,
+    "zero_days": 0
+  },
+  "benchmark_caliber": {
+    "arithmetic_mean_x_days_per_year": "★ 判决口径 —— 与 `annual_gross_pct = mean(daily_excess) × DAYS_PER_YEAR`（backtest_walk_forward_weights.py:512）逐字同口径",
+    "compounded_nav": "对照口径 —— 账户**真的**赚到的那份；算术口径会**高估**它（波动拖累）"
+  },
+  "widths": [
+    {
+      "n": 10,
+      "gross_annual_pct": 0.048107559200486205,
+      "hurdle_if_bench_zero": 0.2639047619047619,
+      "required_benchmark_annual": 0.21579720270427571,
+      "reachable_under_arithmetic": false,
+      "reachable_under_compounded": false
+    },
+    {
+      "n": 30,
+      "gross_annual_pct": 0.05546419982190264,
+      "hurdle_if_bench_zero": 0.2639047619047619,
+      "required_benchmark_annual": 0.20844056208285927,
+      "reachable_under_arithmetic": false,
+      "reachable_under_compounded": false
+    },
+    {
+      "n": 100,
+      "gross_annual_pct": 0.061731916738626345,
+      "hurdle_if_bench_zero": 0.2639047619047619,
+      "required_benchmark_annual": 0.20217284516613557,
+      "reachable_under_arithmetic": false,
+      "reachable_under_compounded": false
+    },
+    {
+      "n": 200,
+      "gross_annual_pct": 0.0694654436628111,
+      "hurdle_if_bench_zero": 0.2639047619047619,
+      "required_benchmark_annual": 0.19443931824195082,
+      "reachable_under_arithmetic": false,
+      "reachable_under_compounded": false
+    },
+    {
+      "n": 546,
+      "gross_annual_pct": 0.07568490729039987,
+      "hurdle_if_bench_zero": 0.2639047619047619,
+      "required_benchmark_annual": 0.18821985461436205,
+      "reachable_under_arithmetic": false,
+      "reachable_under_compounded": false
+    }
+  ],
+  "verdict": "SEALED_BENCHMARK_TERM_IMMATERIAL",
+  "verdict_branch": "实测基准年化 12.4529% < N=10 所需的 21.5797% ⇒ **判决不变**；但 `benchmark_annual=0.0` 这个默认值仍必须逐字报告",
+  "caliber_assumptions_unchanged": "预注册 §4：交易日历取 `panel.window_dates`、基准取 `backtest._market_by_day`、成本/K/目标全部从 `aplus.hurdle` import —— 本脚本不重定义其中的任何一个，也不自算日历、不自抽样基准",
+  "what_this_cannot_prove": [
+    "本产物量的是**仓库自己减的那个基准**（`MARKET_SAMPLE=150` 等权随机抽样，种子 42）—— **不是**沪深300 / 中证全指，换基准是另一次实验",
+    "**不能证明前瞻有效性**；毛超额是样本内测的",
+    "**不能证明基准抽样本身无偏**（150 只、种子固定）",
+    "🚨 R2 下「判决不变」**不等于「基准无关紧要」** —— 结论相同但**理由不同**：「隐含基准=0」是一个没写出来的前提，即使不影响本轮判决也必须写出来",
+    "⚠️ 本产物**不能**推翻 `docs/GOAL_20PCT_VERDICT_2026-10-15.md` §三 那句话的**方向**（「升 K 最多把门槛压到 20%」）—— 它只补上那句话**没写出来的前提**"
+  ]
+}

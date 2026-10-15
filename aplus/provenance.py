@@ -114,6 +114,14 @@ SELF_PATH = "aplus/provenance.py"
 #: 表外的报告一律 `unknown` —— **漏登记比登记错更安全**，
 #: 因为登记错只是漏报，漏登记会让人以为没人管。
 DEFAULT_GENERATORS: dict[str, str] = {
+    # 2026-10-15 登记：基准年化项（`benchmark_annual`）对 20% 判决的影响。
+    # 判据逐字在 docs/PREREG_BENCHMARK_ANNUAL_TERM_2026-10-15.md（看数据前写死）。
+    # 🚨 这条登记是**被守卫逼出来的**，不是想起来的：
+    #   `test_every_stamped_report_resolves_back_to_a_registered_generator`
+    #   在全量门禁里点名 `benchmark_annual_term_2026-10-15.json.provenance.json` ——
+    #   我盖了章却没登记，而「盖了假章比不盖更坏」（形状 16）。
+    "benchmark_annual_term_2026-10-15.json":
+        "scripts/benchmark_annual_term.py",
     # 2026-10-15 登记（第 127 层）：三臂判决（最优定权 / 朴素翻号 / 原样等权）。
     # 🚨 登记**卡在 K 链跑完之后才做** —— `aplus/provenance.py` 正在被链的
     #   `backtest_walk_forward_weights.py` 调用（`provenance.stamp()`），
