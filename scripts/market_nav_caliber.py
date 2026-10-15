@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 import sys
 import time
 from pathlib import Path
@@ -133,10 +132,15 @@ def main(argv=None) -> int:
         return 2
 
     t0 = time.time()
-    # ★ 只读抽样池 + 面板轴，绝不建面板。
-    rng = random.Random(42)
+    # ★ 只读日线 + 因子表，绝不建面板。
+    # 🚨 2026-10-15 删掉了这里的 `rng` / `sample`（`docs/TODO_nav_vs_excess_caliber_2026-10-15.md`
+    #   §7.1 的债条）。它们算出来后**一次都没被读**：真正的抽样在
+    #   `aplus/backtest.py::_market_by_day` 内部（`rng.sample(all_codes, …)`），
+    #   本脚本传进去的是**全池** `daily_map`。
+    # ⚠️ 而本脚本里 `_sample_equity_weighted_daily`（**全池对照臂**，不过抽样）
+    #   的函数名里那个 "sample" 指的是**不抽样** —— 主臂与对照臂的差别在
+    #   `_market_by_day` 里，不在这里。**别照着函数名去推算池的大小。**
     pool = [p.stem for p in files]
-    sample = set(rng.sample(pool, min(MARKET_SAMPLE, len(pool))))
 
     # ★ `cap_weighted_benchmark.py` 的池是**全池**（5460 只），不是抽样池 ——
     #   市值加权要用全池的 `a_shares`，抽样池会让权重分母变小。
