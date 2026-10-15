@@ -121,6 +121,11 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 为什么非登记不可：这份产物落盘前，三臂数字**只活在终端里** ⇒
     #   「原样等权 6/6 全败」无人可查 ⇒ 「等权够不够」被当成未回答的问题
     #   **带着一个错的基线重新预注册了一遍**。
+    # 2026-10-15 登记：市值暴露判决（第 147 层批次）。
+    # 预注册 docs/TODO_cap_exposure_2026-10-15.md —— 与 factor_attribution **不同**：
+    #   那份判的是「因子能不能解释超额」，这份判的是「组合有没有市值倾斜」。
+    # ⚠️ 它的判决**不能**替换头条毛超额，也不许进 FACTOR_COLS。
+    "cap_exposure.json": "scripts/cap_exposure.py",
     "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
