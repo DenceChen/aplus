@@ -58,6 +58,20 @@ P2 打乱名单：  min −1.16｜中位数 −0.25｜max +0.55｜≥P0 0/20
 守卫 `tests/test_provenance.py::the_cli_prints_the_basis_of_every_fresh_verdict`
 会钉住这一栏不许消失。
 
+<!-- ANCHOR:placebo_baseline
+⚠️ 这是**机器可读的外部锚**，写于重跑之前（2026-10-15 12:2x），
+   数据还没落盘。它是 §0.1 那三条预测的**唯一**数值来源：
+   `scripts/audit_placebo_rerun.py` 从 **git HEAD 版**的本文档里读它，
+   读磁盘上的会变成「自己判自己」。
+   ★ 因此**本块在重跑落盘后不许再挪**——
+     `tests/test_placebo_rerun.py` 会拿 git HEAD 的字节对账，挪了就红。
+t_blocked = 1.7272132346592737
+p0_t_blocked = 1.7272132346592737
+n_days = 1396
+window_end = 2026-10-14
+block = 21
+-->
+
 ### ⚠️ 本文件的 6.89% 与下面的 6.95% **不是同一个量**，不许互相替换
 
 两处来自**两份产物、两个窗口**：
