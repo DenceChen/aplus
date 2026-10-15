@@ -14,3 +14,15 @@ C3 「t ≥ t_crit」退回「t > t_crit」（等号丢失 ⇒ 恰好显著时�
 if t_blocked is not None and t_blocked >= T_CRIT_5PCT:
 === 变异体 ===
 if t_blocked is not None and t_blocked > T_CRIT_5PCT:
+
+C4 方向标签退回「手打的一串字」—— 复现第 142 层的**原始缺陷**（散文与算式方向相反）	scripts/cap_weighted_benchmark.py
+            "cap_exposure_size_tilt": _size_tilt_label(ratio),
+=== 变异体 ===
+            "cap_exposure_size_tilt": "组合偏小盘",
+
+C5 生成期间改生成器不再被发现（去掉 expect_bytes ⇒ 第 125 层的章反证能力归零）	scripts/cap_weighted_benchmark.py
+provenance.stamp(args.out, "scripts/cap_weighted_benchmark.py", root=ROOT,
+                     data_root=args.data_root, expect_bytes=expect_bytes)
+=== 变异体 ===
+provenance.stamp(args.out, "scripts/cap_weighted_benchmark.py", root=ROOT,
+                     data_root=args.data_root)

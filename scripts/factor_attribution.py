@@ -79,13 +79,61 @@ DATA_ROOT = DEFAULT_DATA_ROOT
 Y_COL = "gross_excess"
 BOOTSTRAP_B = 2000
 BOOTSTRAP_SEED = 20261015
-THRESHOLD_JOINT_P = 0.05
-THRESHOLD_FACTOR_P = 0.05 / 8          # Bonferroni，8 个因子
+ALPHA_TWO_SIDED = 0.05               # 提到这里：THRESHOLDS 与 bonferroni() 都要用
+THRESHOLD_JOINT_P = ALPHA_TWO_SIDED
+# 没有任何 THRESHOLD_FACTOR_P，而且**不许再加回来**。
+#    单因子门槛必须由 `len(factor_cols)` 在 `analyze()` 内推导 —— 候选列是从
+#    parquet **自动探测**的（`expo_*`），写死分母会在加第 9 个因子
+#    （`expo_logcap`，见 docs/TODO_cap_exposure_2026-10-15.md）时让
+#    **9 次检验跑在 8 次的门槛上**（宽 11% ⇒ 假阳性方向），而产物仍自称 Bonferroni。
+#    第 144 层：旧守卫 `test_bonferroni_threshold_is_derived_not_typed`
+#    写的是 `assert THRESHOLD_FACTOR_P == approx(0.05/8)` —— **自己和自己比**，
+#    第二行 `len(FACTORS) == 8` 钉的还是**合成夹具** `expo_f0..expo_f7`，
+#    与判决用的真列 `expo_mom20 / expo_rev5 / …` **无交集** ⇒ 两条都是恒真。
 SUBPERIOD_SPLIT = "2024-01-01"         # 2021–2023 / 2024–2026
 REQUIRED_ARMS = [5, 10, 21, 42, 63]
 PRIMARY_ARM = 21
 
 ARMS = ["k21", "k5", "k10", "k42", "k63"]
+
+# ★ 因子集是**声明**，不是探测（第 145 层）。
+#   预注册 `docs/TODO_factor_attribution_2026-10-15.md` §0 五处钉死「8 列」，
+#   而代码原来写的是 `[c for c in df.columns if c.startswith("expo_")]` ——
+#   **「有几个就用几个」**。两者当前碰巧相等，而没有任何机制让它们保持相等。
+#   ⇒ parquet 里多一列 `expo_logcap`（见 docs/TODO_cap_exposure_2026-10-15.md）
+#   就会静默把 8 因子判决变成 9 因子判决，而产物压根不报因子数 ⇒
+#   **事后无法区分这两个判决**（第 91 层）。
+#
+# 🚨 **这里只声明、不新增。** 加第 9 列属于**换一个实验**，必须另走预注册：
+#   `NO_LEVER` 是在这 8 列下产生的，换判据后重跑就是撤回一条已提交结论（第 25 层）。
+FACTOR_COLS = ("expo_ivol", "expo_mom20", "expo_rev5", "expo_rsi",
+               "expo_turn20", "expo_turnratio", "expo_vol20", "expo_vsur")
+
+
+def select_factor_cols(df, where: str) -> list[str]:
+    """按 `FACTOR_COLS` 取列，三条纪律一次做完（第 145 层）。
+
+    ① 只取**声明过**的列 —— parquet 里多出来的 `expo_*` 一律不进判决；
+    ② 声明的列**缺一列就报错**，绝不回落（少一列会让因子数变小、门槛变松）；
+    ③ parquet 里存在**未登记**的 `expo_*` ⇒ **报出来留痕**，
+       但**不因此拒跑** —— ① 已经保证它没进判决，
+       而拒跑会把「多一列无害」与「多一列改变判决」混成同一个红，
+       **红 ≠ 失效**（第 112 层通则：过严的守卫和恒真的同样有害）。
+    """
+    cols = list(FACTOR_COLS)
+    missing = [c for c in cols if c not in df.columns]
+    if missing:
+        raise KeyError(
+            f"{where}：声明的因子列缺 {missing} —— "
+            f"**拒绝回落**。少一列会让因子数变小、Bonferroni 门槛变松，"
+            f"而报告仍按声明的 {len(cols)} 个算分母。")
+    extra = [c for c in df.columns
+             if c.startswith("expo_") and c not in cols]
+    if extra:
+        print(f"⚠️ {where}：parquet 里有**未登记**的 {extra} —— "
+              f"按声明它们**不进判决**（见 FACTOR_COLS）。"
+              f"若要纳入，另走预注册（docs/TODO_cap_exposure_2026-10-15.md）。")
+    return cols
 
 # ★ 把「不许当成验收标准的东西」提成模块级常量。
 #   写成 `main()` 里的字面量字典时，它就只是**输出里的一个字段**，
@@ -105,7 +153,7 @@ THRESHOLDS_FORBIDDEN = ("r2", "alpha", "ic", "hit_rate", "r_squared")
 # 「R² 高不算证据」只有在这两个集合不相交时才是一件可执行的事。
 THRESHOLDS = {
     "joint_p": THRESHOLD_JOINT_P,
-    "factor_p_bonferroni": THRESHOLD_FACTOR_P,
+    "factor_p_bonferroni": "alpha_two_sided / len(本次实际检验的因子列)（运行时推导）",
     "require": "跨 5 档同号 + 跨子期同号",
 }
 
@@ -285,6 +333,9 @@ def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
         f"\n   该看的是上游共线性诊断，不是这个 p 值。" if collinear else "")
 
     factors = {}
+    # 门槛的**分母来自真正被检验的这几列**，不是模块常量（第 144 层）。
+    n_factors = len(factor_cols)
+    thr_bonf = bonferroni(n_factors)
     for i, c in enumerate(factor_cols, start=1):
         p_i = float(np.mean(np.abs(boot["t_star"][:, i]) >= abs(fit["t"][i])))
         factors[c] = {
@@ -292,11 +343,16 @@ def analyze(df: pd.DataFrame, factor_cols: list[str], label: str) -> dict:
             "se": float(fit["se"][i]),
             "t": float(fit["t"][i]),
             "boot_p": p_i,
-            "passes_bonferroni": bool(p_i < THRESHOLD_FACTOR_P),
+            # 判定与报告用**同一个**门槛变量 —— 抄成两份就会有一份过期。
+            "passes_bonferroni": bool(p_i < thr_bonf),
         }
 
     return {
         "label": label, "n": n, "period": [str(df.index[0]), str(df.index[-1])],
+        # 第 144 层：门槛与它的分母**必须落在产物里**。
+        # 「用了哪个门槛」若只能靠读源码知道，它就会在因子数变化时静默过期。
+        "n_factors": int(n_factors),
+        "p_bonferroni": float(thr_bonf),
         "alpha": {
             "value": float(fit["beta"][0]),
             "t": float(fit["t"][0]),
@@ -350,11 +406,26 @@ def _norm_ppf(p: float, lo: float = -12.0, hi: float = 12.0) -> float:
 
 
 # 显著性水平与检出力是**设计选择**（可以谈），临界**数值**是推导结果（不能手打）。
-ALPHA_TWO_SIDED = 0.05
 POWER_TARGET = 0.80
 T_CRIT_5PCT = _norm_ppf(1.0 - ALPHA_TWO_SIDED / 2.0)          # ≈1.95996
 # 80% 检出力 ⇒ δ = t_crit − Φ⁻¹(1−power)；两者都由 erf 反解，无字面量。
 T_POWER_TARGET = T_CRIT_5PCT - _norm_ppf(1.0 - POWER_TARGET)  # ≈2.80158
+
+
+def bonferroni(n_factors: int) -> float:
+    """单因子显著性门槛 = 族错误率 ÷ **本次实际检验的因子数**。
+
+    🚨 **分母不许写字面量。** 候选列是 `_run()` 从 parquet 自动探测的
+    （`[c for c in df.columns if c.startswith("expo_")]`），
+    所以「有几个因子」**不是常量，是这次运行的性质**。
+    写死成 `0.05/8` ⇒ 第 144 层那个假绿，且方向是假阳性。
+
+    参数化之后 `analyze()` 必须把 `n_factors` 与 `p_bonferroni` **一起报告** ——
+    否则「用了哪个门槛」又变成一个只能靠读源码知道的量（第 137 层）。
+    """
+    if n_factors < 1:
+        raise ValueError(f"因子数 {n_factors} < 1，本次不做任何检验")
+    return ALPHA_TWO_SIDED / n_factors
 
 
 def power_floor(daily: np.ndarray, days_per_year: int = 244,
@@ -528,6 +599,7 @@ def _run(args) -> int:
     arms = REQUIRED_ARMS if not args.arms else [int(x) for x in args.arms.split(",")]
 
     loaded, missing = {}, []
+    unregistered: set[str] = set()
     for k in arms:
         p = parquet_path(k)
         if not p.is_file():
@@ -537,10 +609,9 @@ def _run(args) -> int:
         if Y_COL not in df.columns:
             missing.append(f"k{k}（缺 {Y_COL} 列）")
             continue
-        cols = [c for c in df.columns if c.startswith("expo_")]
-        if not cols:
-            missing.append(f"k{k}（没有 expo_* 列）")
-            continue
+        cols = select_factor_cols(df, f"k{k}")
+        unregistered |= ({c for c in df.columns
+                          if c.startswith("expo_")} - set(FACTOR_COLS))
         df = df.sort_index()
         loaded[k] = (df, cols)
 
@@ -560,14 +631,21 @@ def _run(args) -> int:
             cols = pd.read_parquet(p).columns
         except Exception:
             return False
-        return Y_COL in cols and any(c.startswith("expo_") for c in cols)
+        return Y_COL in cols and all(c in cols for c in FACTOR_COLS)
 
     missing_required = [f"k{k}（{parquet_path(k).name} 不可用）"
                         for k in REQUIRED_ARMS if not _available(k)]
 
     print(f"因子归因 · 预注册 docs/TODO_factor_attribution_2026-10-15.md")
+    _nf = len({c for k, (_, cs) in loaded.items() for c in cs})
+    # 🚨 零档可读时**不许**问门槛：`_nf == 0` 走 `bonferroni(0)` 会抛
+    #   ValueError（门槛的分母不能是 0），而这里的正确行为是**继续往下走**，
+    #   由「拒绝出判决」那条路接管。第一版直接 `bonferroni(_nf)` ⇒
+    #   一个「读不到数据」的场景被打印语句炸成 ValueError，退出码与理由全丢。
+    _thr = f"{bonferroni(_nf):.6f}（分母 = 实际检验的 {_nf} 列，**不是写死的 8**）" \
+        if _nf else "（零档可读，**本次不做任何检验**）"
     print(f"野自助 B={BOOTSTRAP_B} 种子={BOOTSTRAP_SEED}｜"
-          f"联合 p<{THRESHOLD_JOINT_P}｜单因子 p<{THRESHOLD_FACTOR_P:.6f}（Bonferroni）")
+          f"联合 p<{THRESHOLD_JOINT_P}｜单因子 p<{_thr}")
     print("─" * 96)
 
     if not loaded:
@@ -681,6 +759,14 @@ def _run(args) -> int:
         "power_floor": {f"k{k}": power_floor(loaded[k][0][Y_COL].to_numpy(float))
                         for k in sorted(loaded)},
         "arms_run": sorted(loaded),
+        # 第 145 层：因子集必须**在产物里看得见**，否则「这是几因子的判决」
+        #   只能靠读源码猜 —— 而源码写的是「有几个 expo_* 用几个」。
+        "factor_cols_declared": list(FACTOR_COLS),
+        "n_factors": len(FACTOR_COLS),
+        "unregistered_expo_cols": sorted(unregistered),
+        "unregistered_expo_cols_note": (
+            "parquet 里存在但**按声明不进判决**的 expo_* 列。"
+            "纳入它们属于换一个实验，必须另走预注册（第 145 层）。"),
         "arms_missing": missing,
         "arms_missing_required": missing_required,
         "cross_consistency": cross,

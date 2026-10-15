@@ -249,6 +249,10 @@ def verdict(res: dict) -> tuple[str, str]:
 
 
 def main(argv=None) -> int:
+    # 生成器字节冻结（第 125 层）——🚨 取样点必须在**跑之前的第一条可执行语句**：
+    # 放在盖章前一行就等于「拿开跑的字节盖开跑的章」⇒ 恒真（第 131 层）。
+    expect_bytes = provenance.code_file_sha256(
+        ROOT, "scripts/score_ranking_power.py")
     ap = argparse.ArgumentParser(description="S3/G4：score 四分位是否单调递增")
     ap.add_argument("--verification",
                     default="data/reports/verification.parquet")
@@ -291,6 +295,7 @@ def main(argv=None) -> int:
     out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
                    encoding="utf-8")
     provenance.stamp(out, "scripts/score_ranking_power.py", root=ROOT,
+                     expect_bytes=expect_bytes,
                      extra={"verdict": kind,
                             "publish_allowed": payload["publish_allowed"],
                             "source_parquet": str(src),

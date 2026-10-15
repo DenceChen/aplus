@@ -1083,3 +1083,104 @@ def test_a_missing_artifact_is_not_reported_as_a_report_that_lacks_a_stamp():
     assert "没有溯源 sidecar" in present["reason"], (
         f"文件明明在，却报「产物不存在」：{present['reason']}\n"
         "  ⇒ C2 变成了「一律改口」，方向与旧缺陷同构。")
+
+
+# ── 142 层副产物一：全仓 stamp 调用点的 expect_bytes 覆盖守卫 ──────────
+
+# 「某层已修」≠「全仓已修」。
+# 第 125 层把 `expect_bytes` 做进了 provenance，但它是**逐脚本 opt-in** 的，
+# 于是每接一个脚本就是一个可漏的口子，而漏掉的恰好是**跑得最久**的那几个
+# （cap_weighted_benchmark.py 单跑 779s ≈ 13 分钟，正是发现这个缺口的那一次）。
+#
+# ⇒ 逐脚本加守卫治不了「漏没漏」这件事，**缺的是一条说「谁还没接」的守卫**。
+# 这条守卫读的是 AST，不是产物 ⇒ 它对「代码改了」有反应（不是读快照）。
+
+_DEBT = {
+    "scripts/basket_weighting.py": "待接 expect_bytes（骨架同 factor_attribution）",
+    "scripts/backtest_walk_forward_weights.py": "待接 expect_bytes",
+    "scripts/factor_attribution.py": "待接 expect_bytes",
+    "scripts/k_sweep_extract.py": "待接 expect_bytes",
+    "scripts/lot_affordability.py": "待接 expect_bytes",
+    "scripts/market_nav_caliber.py": "待接 expect_bytes；sidecar code_sha 已相对 5e6bab4 陈旧",
+    "scripts/verdict_composite.py": "待接 expect_bytes",
+    "scripts/width_capital_feasibility.py": "待接 expect_bytes",
+}
+
+
+def _stamp_sites():
+    """扫 scripts/*.py 的 AST ⇒ [(相对路径, [调用 AST 节点])]。"""
+    import ast
+
+    root = Path(__file__).resolve().parents[1] / "scripts"
+    out = {}
+    for f in sorted(root.glob("*.py")):
+        tree = ast.parse(f.read_text(encoding="utf-8"), filename=str(f))
+        calls = [
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "stamp"
+            and isinstance(n.func.value, ast.Name)
+            and n.func.value.id == "provenance"
+        ]
+        if calls:
+            out[f"scripts/{f.name}"] = calls
+    return out
+
+
+def test_the_scanner_finds_the_stamp_sites_so_the_next_guards_are_not_vacuous():
+    """阳性对照：**先证明扫描器看得见东西**，否则下面两条都是空转。
+
+    第 112 层：恒真的守卫比红的守卫更危险 —— 它永远绿，看起来在守东西。
+    """
+    sites = _stamp_sites()
+    assert len(sites) >= 10, f"只扫到 {len(sites)} 个盖章脚本，扫描器本身坏了"
+    n_calls = sum(len(v) for v in sites.values())
+    assert n_calls >= 12, f"只扫到 {n_calls} 处 stamp 调用，扫描器本身坏了"
+    # 已接的那几个必须真的被扫出来（不是「扫不到就算过」）。
+    assert "scripts/cap_weighted_benchmark.py" in sites, sites.keys()
+
+
+def test_every_stamp_site_either_freezes_its_generator_or_is_listed_as_debt():
+    """每个盖章点必须二选一：**接了 `expect_bytes`**，或**在 `_DEBT` 里带理由**。
+
+    🚨 **不许把新脚本默认放进去。** 判据的方向是「新盖章脚本不接 `expect_bytes` ⇒ 红」，
+    那正是 142 层副产物一要治的漏。`_DEBT` 是**已知的欠账**，不是白名单。
+    """
+    sites = _stamp_sites()
+    missing = {}
+    for rel, calls in sites.items():
+        if rel in _DEBT:
+            continue
+        for i, c in enumerate(calls):
+            if not any(k.arg == "expect_bytes" for k in c.keywords):
+                missing.setdefault(rel, []).append(f"第 {i+1} 处")
+    assert not missing, (
+        "这些盖章点没接 `expect_bytes`（第 125 层的生成器字节冻结对它无效），"
+        "而它们也不在 `_DEBT` 里：\n"
+        + "\n".join(f"  - {r}：{', '.join(v)}" for r, v in sorted(missing.items()))
+        + "\n  ⇒ 要么接上（`_run()` 第一行取样 → `stamp(expect_bytes=…)`），"
+        "要么写进 `_DEBT` 并说明欠账理由。"
+    )
+
+
+def test_the_debt_list_does_not_hide_a_script_that_no_longer_stamps():
+    """还债必须是**两步可见的动作**：接上 `expect_bytes` + 从 `_DEBT` 删行。
+
+    只删 `_DEBT` 行（代码没改）⇒ 这里红；
+    只改代码（`_DEBT` 行留着）⇒ 上一条红。
+    ⇒ **欠账不能被一次编辑悄悄抹掉。**
+    """
+    sites = _stamp_sites()
+    phantom = sorted(set(_DEBT) - set(sites))
+    assert not phantom, (
+        f"`_DEBT` 里的 {phantom} 根本不盖章了 —— 欠账行成了摆设。\n"
+        "  ⇒ 真的把 stamp 删掉了的话，请把对应 `_DEBT` 行一并删掉。"
+    )
+
+
+def test_every_debt_entry_states_a_reason():
+    """理由不许是空串 —— 「待接」三个字不算理由。"""
+    for rel, why in _DEBT.items():
+        assert why.strip(), f"{rel} 的欠账理由是空的"
+        assert len(why.strip()) >= 8, f"{rel} 的欠账理由太短，读不出欠的是什么：{why!r}"

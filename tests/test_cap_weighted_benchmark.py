@@ -780,6 +780,126 @@ def test_artifact_reports_the_mandatory_diagnostics_and_the_decomposition():
         "CAP_FACTOR_WORKS", "CAP_POSITIVE_NOT_SIG", "CAP_ZERO_OR_NEGATIVE")
 
 
+# ── 市值暴露的方向：🚨 第一版把它写反了（第 142 层） ────────────────
+
+def test_the_size_tilt_label_follows_the_ratio_instead_of_being_hand_typed():
+    """`ratio = 组合中位市值 ÷ 基准池中位市值` ⇒ **`> 1` 是偏大盘**。
+
+    🚨 第一版把方向**手打成散文**「> 1 ⇒ 组合偏小盘」，与算式方向相反。
+    实测 `ratio = 1.0173` 于是被读成「组合偏小盘」，
+    而它的真实含义是「组合几乎没有市值偏离，且方向还是偏大」。
+
+    ★ **为什么这条不是吹毛求疵**：这个诊断是
+    「C 臂的 12.49% 是不是伪装成因子 alpha 的市值押注」这条结论的**唯一依据**。
+    读反了会把一条**已得的结论**（不是因子、不是市值、只是不显著）
+    推翻成待查项，要求再加一臂剥离 —— 而剥离**已经做过了**（B 臂）。
+
+    ⇒ 修法不是改句子，是让句子成为**计算的输出**（形状 4）：
+    标签由 `_size_tilt_label` 算，CLI 与产物共用 ⇒ 不再有第二份手打副本。
+    """
+    from cap_weighted_benchmark import _size_tilt_label as label
+    # 三个输入都必须给出**不同**的标签 —— 判别力来自「它能说出偏大盘」，
+    # 若这条函数恒返「偏小盘」，下面两个断言当场红（第一版正是这个形态）。
+    assert label(1.0173472831653279) == "组合偏大盘"
+    assert label(0.98) == "组合偏小盘"
+    assert label(1.0).startswith("组合与基准池市值中位数完全相同")
+    # 测不出不许回落成某个方向 —— 缺数据与「方向确定」是两件事
+    assert "测不出" in label(None)
+
+
+def test_the_ratio_itself_orders_provably_larger_and_smaller_portfolios():
+    """比值的**方向**由合成数据钉，不由文字钉。
+
+    外部锚是算术本身：分子是组合、分母是基准，所以组合更大 ⇒ 比值 > 1。
+    这里的夹具是**唯一知道真值的地方**（合成、无随机）——
+    真实产物那个 1.0173 只说明「几乎持平」，它**分不出**方向。
+    """
+    from cap_weighted_benchmark import (_size_tilt_label as label,
+                                       median_ratio_by_day)
+    days = ["2021-01-04", "2021-01-05"]
+    bench = {d: 100.0 for d in days}          # 基准池中位市值恒 100
+    big = {d: 130.0 for d in days}            # 组合中位市值更高 ⇒ 偏大盘
+    small = {d: 70.0 for d in days}           # 组合中位市值更低 ⇒ 偏小盘
+    r_big, dropped_big = median_ratio_by_day(big, bench)
+    r_small, _ = median_ratio_by_day(small, bench)
+    assert dropped_big == 0, f"成对日被丢掉 {dropped_big} 天"
+    assert r_big == pytest.approx(1.3) and label(r_big) == "组合偏大盘"
+    assert r_small == pytest.approx(0.7) and label(r_small) == "组合偏小盘"
+
+
+def test_the_generator_bytes_are_frozen_across_this_thirteen_minute_run():
+    """🚨 第 125 层：`stamp()` 必须收到 `expect_bytes`，且它取自 `_run()` **第一行**。
+
+    本脚本单跑 ~13 分钟。`stamp()` 算的是**盖章那一刻盘上**的字节，
+    所以「一边跑一边改生成器」会让章说的不是「这份产物是这些字节造的」
+    （第 123 层的 cousin）。实测：**全仓只有 `factor_width_mde` 与
+    `placebo_control` 两个脚本接了这层保护**，本脚本此前没接 ——
+    而它恰恰是耗时最长的那一档。
+
+    ⚠️ **位置本身就是判据**：放在 `main()` 是 `NameError`（第 131 层实测），
+    放在盖章**前**一行更坏 ——「开跑的字节」变成「盖章的字节」⇒ 检查恒真，
+    是一条**装饰性守卫**。⇒ 所以这条同时钉「传了」与「在第一行取」。
+    """
+    from cap_weighted_benchmark import _run
+    src = (ROOT / "scripts" / "cap_weighted_benchmark.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+
+    # ① stamp(...) 必须传 expect_bytes（用 AST 认实参，不认子串 —— 第 13 种形状）
+    stamps = [c for c in ast.walk(tree)
+              if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+              and c.func.attr == "stamp"]
+    assert stamps, "脚本没有 provenance.stamp(...)"
+    for c in stamps:
+        assert any(k.arg == "expect_bytes" for k in c.keywords), (
+            f"provenance.stamp(...) 在第 {c.lineno} 行没传 expect_bytes ⇒ "
+            "生成期间改生成器不会被发现（第 125 层）")
+
+    # ② 抓取点必须是 _run 的**第一条语句**（AST 收在函数体，不全文 grep）
+    fn = next(f for f in ast.walk(tree)
+              if isinstance(f, ast.FunctionDef) and f.name == "_run")
+    first = fn.body[0]
+    assigned = [t.id for n in ast.walk(first) if isinstance(n, ast.Assign)
+                for t in n.targets if isinstance(t, ast.Name)]
+    assert "expect_bytes" in assigned, (
+        f"_run() 的第一条语句是 `{ast.unparse(first)[:60]}` 而不是取 expect_bytes ⇒ "
+        "要么 NameError，要么取样点太晚（盖章前取 = 恒真）")
+
+    # 正控：_run 真的能跑（守卫本身不是死代码）
+    assert callable(_run)
+
+
+def test_the_artifacts_size_tilt_is_computed_from_its_own_ratio_not_retyped():
+    """产物字段 `cap_exposure_size_tilt` 必须**就是**它自己那个比值算出来的标签。
+
+    ⚠️ 这条守的是**接线**：把手打的字符串放回产物字段，而 `_size_tilt_label`
+    依然正确 ⇒ 前两条守卫全绿而读者拿到相反的解释（第 141 层的 AST 接线守卫同源）。
+    ⇒ 用 AST 钉「值节点里**出现**该函数调用」，不用子串
+    （子串会被 docstring 与注释满足 —— 第 13 种形状）。
+    """
+    from cap_weighted_benchmark import _size_tilt_label as label
+    src = (ROOT / "scripts" / "cap_weighted_benchmark.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "_size_tilt_label"]
+    assert len(calls) == 2, (
+        f"期望恰好两处调用（CLI 打印 + 产物字段），实测 {len(calls)} —— "
+        "多出来的那份就是「手打的第二副本」")
+    # 两处实参都必须是 ratio 本身，不得是字面量
+    for c in calls:
+        assert not isinstance(c.args[0], ast.Constant), (
+            f"方向标签的输入是字面量 {ast.unparse(c)} ⇒ 手打的，不是算出来的")
+
+    out_path = ROOT / "data" / "reports" / "cap_weighted_benchmark.json"
+    if not out_path.is_file():
+        pytest.skip("实验尚未运行")
+    d = json.loads(out_path.read_text(encoding="utf-8"))["diagnostics"]
+    assert d.get("cap_exposure_size_tilt") == label(
+        d["cap_exposure_ratio"]), (
+        f"产物里的方向标签 {d.get('cap_exposure_size_tilt')!r} 与比值 "
+        f"{d['cap_exposure_ratio']!r} 不一致")
+
+
 def test_the_artifacts_verdict_is_the_one_decide_gives_for_arm_c():
     """🚨 产物里的 `verdict` 必须**就是** `decide(C 臂)` 算出来的那一个（2026-10-15 审查补）。
 

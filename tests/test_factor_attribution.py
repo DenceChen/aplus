@@ -26,7 +26,19 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import factor_attribution as fa  # noqa: E402
 
 
-FACTORS = [f"expo_f{i}" for i in range(8)]
+# 🚨🚨 这里原来写的是 `FACTORS = [f"expo_f{i}" for i in range(8)]` —— 合成占位名
+# `expo_f0..expo_f7`，与真产物的 `expo_mom20 / expo_rev5 / …` **毫无关系**。
+# 而旧守卫 `assert len(FACTORS) == 8` 钉的正是**这个列表的长度**，
+# 判决用的却是 `_run()` 从 parquet 探测出来的列 ⇒ **守卫钉的不是判决用的那个变量**
+# （第 144 层通则：同一个文件不够，同一个变量才及格）。
+#
+# ⇒ 现在夹具**直接取声明**：夹具名与真列名一致 ⇒ 「夹具长度」不再是一个
+# 看起来在守判决的假代理，而**任何**引用 FACTORS 的断言都自动钉在真口径上。
+FACTORS = list(fa.FACTOR_COLS)
+assert len(FACTORS) == 8, (
+    f"声明的因子数变成 {len(FACTORS)} 了 —— 那是**换实验**，"
+    f"必须另走预注册（docs/TODO_cap_exposure_2026-10-15.md），"
+    f"不许在夹具里悄悄改（预注册 §0 写的是 8 列）。")
 
 
 def _frame(n=1394, beta=None, seed=0, noise=0.008):
@@ -59,11 +71,13 @@ def test_pipeline_detects_a_planted_relationship():
         f" 各因子 p：{ {c: round(v['boot_p'], 4) for c, v in r['factors'].items()} }")
 
     # 植入的那几个必须是显著的那些，且 β 符号为正
-    assert set(hit) == {"expo_f0", "expo_f3", "expo_f6"}
-    for c in ("expo_f0", "expo_f3", "expo_f6"):
+    # ★ 按**位置**取声明的列名，不写死假名（夹具名与真列名一致，第 144 层）。
+    planted = {FACTORS[0], FACTORS[3], FACTORS[6]}
+    assert set(hit) == planted, f"植入的是 {planted}，实得 {set(hit)}"
+    for c in planted:
         assert r["factors"][c]["beta"] > 0
     # 噪声因子不该被误报为显著（假阳性率检查）
-    false_pos = [c for c in ("expo_f1", "expo_f4", "expo_f7")
+    false_pos = [c for c in (FACTORS[1], FACTORS[4], FACTORS[7])
                  if r["factors"][c]["passes_bonferroni"]]
     assert not false_pos, f"把噪声因子报成显著了：{false_pos}"
 
@@ -286,9 +300,140 @@ def test_the_new_formula_equals_the_old_one_wherever_the_old_one_was_stable():
 
 
 def test_bonferroni_threshold_is_derived_not_typed():
-    """阈值必须是 `0.05 / n_factors` 算出来的，且因子数变了它就变。"""
-    assert fa.THRESHOLD_FACTOR_P == pytest.approx(0.05 / 8)
-    assert len(FACTORS) == 8, "改因子数就必须同步改预注册里的 Bonferroni 分母"
+    """阈值必须是 `alpha / 真正被检验的列数` 算出来的，且**列数变了它就变**。
+
+    🚨 **2026-10-15 修正：这一版原来是恒真的。** 原文是
+
+        assert fa.THRESHOLD_FACTOR_P == pytest.approx(0.05 / 8)
+        assert len(FACTORS) == 8
+
+    —— 第一行把字面量 `8` 和 `0.05/8` 比了一遍（**拿自己和自己比**），
+    第二行钉的是**本文件的合成夹具 `expo_f0..expo_f7`**，而判决真正用的是
+    `_run()` 从 parquet 里**自动探测**的 `expo_*` 列。
+    ⇒ **两条都是恒真**：给一个分母写死的门槛发了永久信用。
+
+    现在改成**行为测试**：喂 9 列进去，门槛必须变成 `alpha/9`。
+    门槛若还写死 8，这里立刻红 —— 这才是 docstring 承诺的那句话。
+    """
+    assert not hasattr(fa, "THRESHOLD_FACTOR_P"), (
+        "`THRESHOLD_FACTOR_P` 是**写死分母**的模块常量（0.05/8），"
+        "而候选列是从 parquet 自动探测的 ⇒ 加第 9 个因子时 9 次检验会跑在 "
+        "8 次的门槛上（假阳性方向），且产物仍自称 Bonferroni。"
+        " ⇒ 门槛必须由 `len(factor_cols)` 在 `analyze()` 内推导。")
+
+    def _n_frame(n_cols: int, n=600, seed=7):
+        rng = np.random.default_rng(seed)
+        X = rng.normal(size=(n, n_cols))
+        y = X @ np.full(n_cols, 0.001) + rng.normal(0, 0.01, size=n)
+        cols = [f"expo_g{i}" for i in range(n_cols)]
+        idx = pd.date_range("2021-01-04", periods=n, freq="B").strftime("%Y-%m-%d")
+        return pd.DataFrame(X, columns=cols, index=idx).assign(gross_excess=y)
+
+    for n_cols in (5, 8, 9):
+        r = fa.analyze(_n_frame(n_cols), [f"expo_g{i}" for i in range(n_cols)],
+                       f"{n_cols}列")
+        assert r["n_factors"] == n_cols, (
+            f"喂了 {n_cols} 列却报 {r['n_factors']} 个因子 —— "
+            "报告的因子数不是**真正被检验的那一批**")
+        assert r["p_bonferroni"] == pytest.approx(fa.ALPHA_TWO_SIDED / n_cols), (
+            f"喂了 {n_cols} 列，门槛却是 {r['p_bonferroni']:.6g}，"
+            f"应为 {fa.ALPHA_TWO_SIDED}/{n_cols} = "
+            f"{fa.ALPHA_TWO_SIDED / n_cols:.6g}"
+            " ⇒ 门槛的分母**没有跟着真正被检验的列数走**")
+
+
+def test_the_verdict_and_the_report_cannot_hold_two_different_thresholds(monkeypatch):
+    """🚨 这条是**变异 F6 逼出来的**：第一版靠随机数据把 F6 杀了，**没杀掉**。
+
+    变异 F6 = 判定改用写死的 `ALPHA_TWO_SIDED / 8`，而**报告的门槛仍然是对的**。
+    第一版守卫写的是
+        `passes_bonferroni == (boot_p < r["p_bonferroni"])`
+    —— 在随机数据上：
+      · **8 列**时 `α/8` 与推导值**逐位相同** ⇒ 变异不可见；
+      · 5/9 列时只有 p 落进 [0.00556, 0.00625) 这道 **0.7pp 宽的缝**才可见，
+        而随机 p 几乎不进 ⇒ 37 条测试**全绿**，变异存活。
+
+    ⇒ 这是第 112 层的形状：「iPad 视口 ≠ iPad」——
+      **「门槛一致」不等于「随机 p 恰好落进缝里」**。
+      判据要钉**接线**，不能钉**数据的巧合**。
+
+    修法分两步，**两步都是确定性的**：
+
+    ① 把 `bonferroni` 换成一个**荒唐值 0.0**。
+       真代码 ⇒ 判定 `p_i < 0.0` **恒为 False**，与报告的 `0.0` 一致；
+       F6 变异 ⇒ 判定 `p_i < 0.00625`，只要**有一个** p 落在下面就是 True ⇒ 红。
+    ② 🚨 第一版**只做了①**，而①的判别力依赖「恰好没有 p 落进 0.00625 以下」
+       —— 那**还是数据巧合**（空数据下每个因子 p < 0.00625 的概率约 0.6%，
+       8 个因子全不落的概率约 95%）⇒ **变异照样存活，实测 38 条全绿**。
+       ⇒ 夹具必须用**极强植入信号**，让 p 压到 0，让判别不依赖运气；
+       并且把「至少有一个 p 在写死门槛以下」**写成断言** ——
+       哪天夹具失效了，这里**诚实报错**，不会静默退化成装饰性守卫。
+    """
+    monkeypatch.setattr(fa, "bonferroni", lambda n: 0.0)
+    tight = fa.ALPHA_TWO_SIDED / 8          # F6 变异体写死的那个门槛
+    # 极强植入 ⇒ p 压到 0（确定性，不靠运气）
+    r = fa.analyze(_frame(beta=[0.02] * len(FACTORS), seed=23), FACTORS, "接线")
+
+    assert r["p_bonferroni"] == 0.0, (
+        f"monkeypatch 没生效：门槛是 {r['p_bonferroni']} ⇒ 这条守卫会空转")
+    # ★ 判别力前提自己钉自己：没有 p 落进写死门槛以下 ⇒ 变异会存活。
+    assert any(v["boot_p"] < tight for v in r["factors"].values()), (
+        f"夹具里没有任何 p 落进 {tight:.6g} 以下 ⇒ 本守卫此刻**没有判别力**，"
+        f"F6 会存活。p：{ {c: round(v['boot_p'], 6) for c, v in r['factors'].items()} }"
+        " ⇒ 这是**夹具失效**，不是守卫失效，必须把植入信号加大而不是删断言。")
+    for c, v in r["factors"].items():
+        assert v["passes_bonferroni"] is False, (
+            f"{c} 在门槛 0.0 下竟然判过线（p={v['boot_p']:.4g}）⇒ "
+            "判定用的不是 `analyze` 报出来的那个门槛（变异 F6）")
+
+
+def test_the_fixture_factor_list_is_not_what_decides_the_threshold():
+    """**本文件最贵的一条**：parquet 里多出来的 `expo_*` **不许**进判决（第 145 层）。
+
+    这条守卫的上一版钉的是「夹具名与真列名无交集」——
+    那证明的是**无关**，而**不相关本身不是缺陷**（夹具用假名完全合法）。
+    真正的缺陷是：**代码从 `df.columns` 里捞列**，于是多一列就多一次检验。
+
+    所以现在钉**行为**：往 parquet 里塞一列未登记的 `expo_zzz`，
+    它必须①**不进** `analyze()`、②**进** `unregistered_expo_cols` 留痕。
+    ①防「静默换判据」，②防「静默换判据且无痕」。
+    """
+    df = _frame(seed=11)
+    df["expo_zzz"] = np.random.default_rng(3).normal(size=len(df))
+    assert "expo_zzz" in df.columns
+
+    cols = fa.select_factor_cols(df, "夹具")
+    assert "expo_zzz" not in cols, (
+        f"未登记的 expo_zzz 进了判决列：{cols}\n"
+        "  ⇒ parquet 多一列就会把判决从 8 因子变成 9 因子，"
+        "而预注册 §0 写死的是 8 列（第 91 层：跑过数据后不可辨）。")
+    assert len(cols) == len(fa.FACTOR_COLS)
+
+    # ② 留痕：产物的 `unregistered_expo_cols` 必须能看见它。
+    src = ROOT / "data" / "reports" / "factor_attribution.json"
+    if not src.is_file():
+        pytest.skip("真产物不在盘上")
+    payload = json.loads(src.read_text(encoding="utf-8"))
+    assert "unregistered_expo_cols" in payload, (
+        "产物里没有 `unregistered_expo_cols` ⇒ 「parquet 多了一列」这件事"
+        "只能靠读源码知道，而源码已经不再做自动探测（第 145 层）。")
+    assert payload["factor_cols_declared"] == list(fa.FACTOR_COLS)
+    assert payload["n_factors"] == len(fa.FACTOR_COLS)
+
+
+def test_a_missing_declared_column_refuses_rather_than_silently_shrinking():
+    """少一列 ⇒ **报错，绝不回落**（第 145 层纪律 ②）。
+
+    反向失效：掉一列会让因子数变小 ⇒ Bonferroni 分母变小 ⇒ **门槛变松**，
+    而报告仍按声明的 8 算 —— 比「多一列」更隐蔽，因为没有任何异常。
+    """
+    df = _frame(seed=13).drop(columns=[fa.FACTOR_COLS[0]])
+    with pytest.raises(KeyError) as ei:
+        fa.select_factor_cols(df, "缺一列")
+    msg = str(ei.value)
+    assert fa.FACTOR_COLS[0] in msg, msg
+    assert "拒绝回落" in msg, msg
+
 
 
 # ── 4. 纪律守卫：R² 与 α 都**不得**变成验收标准 ──────────────────────
@@ -761,10 +906,16 @@ def _plant_reports_dir(root: Path, n_rows: int, n_factors: int, seed: int) -> Pa
     root.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
     idx = pd.date_range("2021-01-04", periods=n_rows, freq="B").strftime("%Y-%m-%d")
-    cols = [f"expo_p{i}" for i in range(n_factors)]
-    X = rng.normal(size=(n_rows, n_factors))
+    # ★ 用**全部声明的列**（第 145 层：声明的列缺一列就报错，绝不回落）——
+    #   所以夹具**不能**靠「少写几列」来制造形状差异，那会被那条规则挡住。
+    #   可分辨量只剩行数与种子，而 `n_obs` 是硬信号。
+    cols = list(FACTORS)
+    X = rng.normal(size=(n_rows, len(cols)))
+    # 只让前 `n_factors` 列带信号 ⇒ 参数仍然有用，且不与「缺列」规则冲突。
+    beta = np.zeros(len(cols))
+    beta[:n_factors] = 0.002
     df = pd.DataFrame(X, columns=cols, index=idx).assign(
-        gross_excess=X[:, 0] * 0.002 + rng.normal(0, 0.008, size=n_rows))
+        gross_excess=X @ beta + rng.normal(0, 0.008, size=n_rows))
     df.to_parquet(root / "wf_weights_backtest_k21.daily.parquet")
     return root
 
@@ -787,13 +938,18 @@ def _assert_data_root_is_honoured(mod, tmp_path: Path) -> None:
     """
     a = _plant_reports_dir(tmp_path / "A", n_rows=200, n_factors=3, seed=41)
     b = _plant_reports_dir(tmp_path / "B", n_rows=137, n_factors=5, seed=42)
+    # ⚠️ 因子数**不能**再当「读到哪个根」的证据：第 145 层之后因子集是
+    #   **声明**，与数据根无关（两个根都是 8 个声明列，缺列就报错）。
+    #   剩下的可分辨量是 `n_obs`（200 vs 137）与行数本身。
 
     # 根 A ⇒ 只可能是 A 的形状
     pa = _run_against(mod, a, tmp_path / "a.json")
     assert pa.get("n_obs") == 200, (
         f"指定了 A 却在别的数据根上读的：n_obs={pa.get('n_obs')}，"
         f"A 里那份是 200 行 / 3 个因子 ⇒ --data-root 根本没进到构造点")
-    assert pa.get("n_factors") == 3, f"A 里只有 3 个因子，实得 {pa.get('n_factors')}"
+    assert pa.get("n_factors") == len(FACTORS), (
+        f"因子数应当恒等于声明的 {len(FACTORS)}（不管读到哪个根），"
+        f"实得 {pa.get('n_factors')} ⇒ 它仍然跟着数据走（第 145 层没修好）")
     assert pa.get("arms_run") == [21], f"A 里只有 k21，实得 {pa.get('arms_run')}"
 
     # 根 B ⇒ 换成 B 的形状。**两点才排得掉「读了某个固定的别处」**：
@@ -802,7 +958,8 @@ def _assert_data_root_is_honoured(mod, tmp_path: Path) -> None:
     assert pb.get("n_obs") == 137, (
         f"换了个 --data-root 读到的东西一模一样：n_obs={pb.get('n_obs')} ⇒ "
         "参数是摆设")
-    assert pb.get("n_factors") == 5, f"B 里只有 5 个因子，实得 {pb.get('n_factors')}"
+    assert pb.get("n_factors") == len(FACTORS), (
+        f"因子数应当恒等于声明的 {len(FACTORS)}，实得 {pb.get('n_factors')}")
 
     # 反混淆：`--out` 与 `--data-root` 指的是**两件事** ——
     # 产物落在 tmp，样本却来自 root。两者混了这条守卫就白跑了。
@@ -812,9 +969,11 @@ def _assert_data_root_is_honoured(mod, tmp_path: Path) -> None:
 def test_the_data_root_argument_decides_which_files_get_read(tmp_path):
     """★ 新参数必须**真的**被用到（argparse 接受了就丢掉 = 第 6 种形状）。
 
-    判定逻辑：种两份**形状不同**的逐日表，传 A 读到的必须是 A 的行数与因子数，
-    传 B 读到的必须是 B 的。默认那份（仓库 `data/reports`，n=1394 / 8 因子 / 5 档）
+    判定逻辑：种两份**行数不同**的逐日表，传 A 读到的必须是 A 的行数，
+    传 B 读到的必须是 B 的。默认那份（仓库 `data/reports`，n=1395 / 5 档齐全）
     两组都匹配不上 ⇒ 走默认路径会当场红。
+
+    ★ 因子数**不再**是证据：第 145 层之后它是声明量，与 `--data-root` 无关。
     """
     _assert_data_root_is_honoured(fa, tmp_path)
 

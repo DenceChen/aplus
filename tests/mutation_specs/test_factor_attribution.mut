@@ -14,3 +14,25 @@ int(np.ceil(n * (t_power / t_obs) ** 2)) if np.isfinite(t_obs) and t_obs != 0
 === 变异体 ===
 int(np.ceil(n * (t_power / t_obs) ** 2)) if np.isfinite(t_obs) and t_obs != 0
             else 999999),
+
+F4 门槛的分母退回写死的 8（第 144 层的原始缺陷：9 次检验跑在 8 次的门槛上）	scripts/factor_attribution.py
+n_factors = len(factor_cols)
+    thr_bonf = bonferroni(n_factors)
+=== 变异体 ===
+n_factors = len(factor_cols)
+    thr_bonf = ALPHA_TWO_SIDED / 8
+
+F5 分母用错对象（拿第一个列名的字符串长度冒充因子数——钉了另一个变量，第 144 层通则）	scripts/factor_attribution.py
+    thr_bonf = bonferroni(n_factors)
+=== 变异体 ===
+    thr_bonf = bonferroni(len(factor_cols[0]))
+
+F6 判定用另一份门槛（报告的门槛是对的，判定那份是旧的——同一个数抄成两份）	scripts/factor_attribution.py
+            "passes_bonferroni": bool(p_i < thr_bonf),
+=== 变异体 ===
+            "passes_bonferroni": bool(p_i < ALPHA_TWO_SIDED / 8),
+
+F7 analyze 少报一个因子（报告的因子数与真正被检验的那批不是同一个数）	scripts/factor_attribution.py
+        "n_factors": int(n_factors),
+=== 变异体 ===
+        "n_factors": int(n_factors) - 1,

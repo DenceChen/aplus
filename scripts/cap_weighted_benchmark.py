@@ -282,6 +282,29 @@ def median_ratio_by_day(num: dict, den: dict) -> tuple[float | None, int]:
     return float(np.median([a / b for a, b in pairs])), dropped
 
 
+def _size_tilt_label(ratio: float | None) -> str:
+    """比值 ⇒ 市值暴露方向的**算出来的**说法（预注册 §3.1）。
+
+    🚨 **方向不许手打。** 第一版把 `> 1 ⇒ 组合偏小盘` 直接写成散文，
+    而 `ratio = 组合中位市值 ÷ 基准池中位市值` ⇒ `> 1` 的含义是
+    **组合中位市值更高 = 偏大盘** ⇒ 散文与算式**方向相反**。
+    实测 `ratio = 1.0173` 被读成「组合偏小盘」，而它真的意味着
+    **组合几乎没有市值偏离（且方向还是偏大）** ——
+    这恰好是「C 那一臂不是伪装成因子 alpha 的市值押注」这条结论的**唯一依据**，
+    读反了会把一条已得的结论推翻成待查项。
+
+    ⇒ 修法不是改句子，是**让句子成为计算的输出**（形状 4 的「让错误表达不出来」）：
+    方向标签由本函数算，CLI 与产物字段**共用它**，散文不再有独立的手打副本。
+    """
+    if ratio is None or not np.isfinite(ratio):
+        return "**测不出**（成对日不足）"
+    if ratio > 1.0:
+        return "组合偏大盘"
+    if ratio < 1.0:
+        return "组合偏小盘"
+    return "组合与基准池市值中位数完全相同（无市值偏离）"
+
+
 def main(argv=None) -> int:
     args = _parse_args(argv)
     with begin_run("cap_weighted_benchmark", basket=BASKET, k=K, start=args.start):
@@ -303,6 +326,14 @@ def _parse_args(argv=None):
 
 
 def _run(args) -> int:
+    # ★ 第 125 层：**开跑的字节**必须与**盖章的字节**是同一份。
+    #   本脚本单跑 ~13 分钟，而 `stamp()` 算的是**盖章那一刻盘上**的字节 ——
+    #   一边跑一边改生成器，那枚章说的就不是「这份产物是这些字节造的」。
+    #   ⚠️ 必须落在 `_run()` **第一行**：放 `main()` 是 NameError（131 层），
+    #   放盖章**前**一行更坏 —— 「开跑的字节」变成「盖章的字节」⇒ 检查恒真，
+    #   正是本条要防的那种装饰性守卫。
+    expect_bytes = provenance.code_file_sha256(
+        ROOT, "scripts/cap_weighted_benchmark.py")
     if not args.start.startswith("2021"):
         print(f"🚨 窗口起点 {args.start} 与判决窗口（2021 起）**不是同一个量**。",
               file=sys.stderr)
@@ -457,7 +488,7 @@ def _run(args) -> int:
     print(f"\n分解：A − B = {a_minus_b:+.2%}/年（**基准**口径换市值加权的贡献）"
           f"\n      C − B = {c_minus_b:+.2%}/年（**持仓**口径换市值加权的贡献）")
     print(f"诊断：组合/基准 流通市值中位数比 = {ratio:.4f}"
-          f"（>1 ⇒ 组合偏小盘；成对后丢掉 {dropped} 天）")
+          f"（⇒ {_size_tilt_label(ratio)}；成对后丢掉 {dropped} 天）")
     print(f"诊断：a_shares 单因子 分块 t = {shares_eq['t_blocked']:.2f}"
           f"（等权基准）/ {shares_cap_b['t_blocked']:.2f}（市值基准）"
           f" —— 🚨 只作解释，**不是判据**")
@@ -498,9 +529,13 @@ def _run(args) -> int:
         "diagnostics": {
             "cap_exposure_ratio": ratio,
             "cap_exposure_ratio_note": ("组合持仓的流通市值中位数 ÷ 基准抽样池的中位数，"
-                                        "**逐日成对**后取中位数。> 1 ⇒ 组合偏小盘。"
+                                        "**逐日成对**后取中位数。**方向由 "
+                                        "`_size_tilt_label(ratio)` 算出，不许手打**"
+                                        "（第一版写成「> 1 ⇒ 组合偏小盘」，"
+                                        "与算式方向相反）。"
                                         "分子分母都由共享路径交出（CapContext.diag），"
                                         "不在这里第二次抽样"),
+            "cap_exposure_size_tilt": _size_tilt_label(ratio),
             "cap_exposure_ratio_days_dropped": dropped,
             "c_minus_b": c_minus_b,
             "c_minus_b_note": "C − B = 持仓端市值加权的贡献（预注册 §1 强制输出）",
@@ -530,7 +565,7 @@ def _run(args) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     provenance.stamp(args.out, "scripts/cap_weighted_benchmark.py", root=ROOT,
-                     data_root=args.data_root)
+                     data_root=args.data_root, expect_bytes=expect_bytes)
     print(f"\n→ {args.out}｜总耗时 {time.time() - t0:.0f}s")
     return 0
 

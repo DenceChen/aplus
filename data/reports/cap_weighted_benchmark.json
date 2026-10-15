@@ -102,7 +102,8 @@
   },
   "diagnostics": {
     "cap_exposure_ratio": 1.0173472831653279,
-    "cap_exposure_ratio_note": "组合持仓的流通市值中位数 ÷ 基准抽样池的中位数，**逐日成对**后取中位数。> 1 ⇒ 组合偏小盘。分子分母都由共享路径交出（CapContext.diag），不在这里第二次抽样",
+    "cap_exposure_ratio_note": "组合持仓的流通市值中位数 ÷ 基准抽样池的中位数，**逐日成对**后取中位数。**方向由 `_size_tilt_label(ratio)` 算出，不许手打**（第一版写成「> 1 ⇒ 组合偏小盘」，与算式方向相反）。分子分母都由共享路径交出（CapContext.diag），不在这里第二次抽样",
+    "cap_exposure_size_tilt": "组合偏大盘",
     "cap_exposure_ratio_days_dropped": 0,
     "c_minus_b": -0.024989395683218577,
     "c_minus_b_note": "C − B = 持仓端市值加权的贡献（预注册 §1 强制输出）",

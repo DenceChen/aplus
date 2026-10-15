@@ -87,6 +87,16 @@ _SAMPLE_N = 64
 #   ⇒ ★ 值得单独记的是**末端为什么没被发现**：池最晚 `2026-10-14` **就是
 #   `000001.SZ` 本人**，两端同时「恰好相等」。**只测末端会得到「没问题」**，
 #   而同一行的起点是活的。
+# 🚨🚨🚨 2026-10-15 当天第三次：`factor_width_mde.py` 也从名单里消失，
+#   **仍是修好才消失的**（commit `76e953f`「形状23第三个受害者——窗口末端钉死，
+#   判决强度重算」），但这次是**别人修的、名单忘了跟** ⇒ 带着一条红提交。
+#   逐行核对（不靠 commit message）：
+#     · `--end` 的 `default` 已是 `WINDOW_END_PINNED`，且代码里带一条
+#       「判决窗口是预注册判据的一部分，请显式传 --end」的前置检查；
+#     · `grep -n 'files\[0\]' scripts/factor_width_mde.py` 只剩 **331–332 两行注释**，
+#       那正是记录这个历史 bug 的说明（`⇒ 一只票定全池窗口末端`）。
+#   ⇒ 三次消失的答案都是同一个：**冻结名单的价值不在「冻住」，在每次追问
+#     「是被修好了，还是被改名躲过了扫描？」**。三次里两次的答案是「修好了」。
 _KNOWN_END_FROM_FILES0 = {
     "scripts/candidate_block_audit.py",
     "scripts/evolve_race_composite.py",
@@ -95,7 +105,6 @@ _KNOWN_END_FROM_FILES0 = {
     "scripts/execution_lag_ab.py",
     "scripts/extract_ic_matrices.py",
     "scripts/factor_ic_diagnostic.py",
-    "scripts/factor_width_mde.py",
     "scripts/forward_validate.py",
     "scripts/ic_guided_race.py",
     "scripts/measure_bridge_error.py",
