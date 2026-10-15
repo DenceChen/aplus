@@ -49,6 +49,30 @@ from pathlib import Path
 SIDECAR_SUFFIX = ".provenance.json"
 
 
+#: 仓库根 —— 从**本文件位置**推导，**永远不看 cwd**。
+#:
+#: ★ 这些函数的 `root` 默认值曾经是 `"."`，也就是 **cwd**。
+#:   而 sidecar 里的 `generator` 记的是**仓库相对**路径
+#:   （如 `scripts/placebo_control.py`）⇒ 在仓外调用 `freshness()` 时，
+#:   `Path(root) / generator` 指向仓外那个**不存在**的路径
+#:   ⇒ **21/21 份产物**塌成 `unknown`，而理由句说的是
+#:   「生成器路径在仓里不存在 ⇒ **判据本身没跑**」。
+#:
+#: ★ 那比「产物坏了」更糟：它**谎报我没验**，而我明明验了、而且逐位一致。
+#:   同样的默认值在 `stamp()` 上更险——`code_sha(root)` 会返回 `None`
+#:   ⇒ 章里写下 `code_sha: null`。**尚未实际发生**（现有 21 份 sidecar 全部显式
+#:   传了 `root=ROOT`），但那是接线运气，不是设计。
+#:
+#: ⚠️ 显式传 `root=` 的调用点**一律不受影响** ⇒ 这条改动只会把
+#:   「误报的红」变成「正确的绿」，不可能让一条真红变绿（第 129 层）。
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _root(root: Path | str | None) -> Path:
+    """`root=None` ⇒ 仓库根。**只有显式传入才用别的目录。**"""
+    return REPO_ROOT if root is None else Path(root)
+
+
 def report_jsons(reports_dir, *patterns: str) -> list[Path]:
     """列出报告 JSON，**排除 provenance 边车**。不给 patterns 时用 `*.json`。
 
@@ -278,22 +302,22 @@ def _git(root: Path, *args: str) -> str | None:
         return None
 
 
-def code_sha(root: Path = ".") -> str | None:
+def code_sha(root: Path | str | None = None) -> str | None:
     """当前代码的 sha。取不到就返回 None——**不做降级猜测**。"""
-    return _git(Path(root), "rev-parse", "HEAD")
+    return _git(_root(root), "rev-parse", "HEAD")
 
 
-def is_dirty(root: Path = ".") -> bool:
+def is_dirty(root: Path | str | None = None) -> bool:
     """工作区有未提交改动。
 
     有未提交改动时 sha 不足以标识代码状态——**所以这个标记要跟着
     sidecar 一起存**，否则「干净时是 A、脏时其实是 B」这种混淆无法事后分辨。
     """
-    out = _git(Path(root), "status", "--porcelain")
+    out = _git(_root(root), "status", "--porcelain")
     return bool(out)
 
 
-def code_file_sha256(root: Path | str = ".", generator: str | None = None) -> str | None:
+def code_file_sha256(root: Path | str | None = None, generator: str | None = None) -> str | None:
     """生成器**文件字节**的 sha256 —— dirty 时唯一还能标识「实际跑的是什么」的东西。
 
     ★ 为什么这个字段必须存在：`code_sha` 是 `git rev-parse HEAD`，标识的是
@@ -312,7 +336,7 @@ def code_file_sha256(root: Path | str = ".", generator: str | None = None) -> st
     """
     if not generator:
         return None
-    f = Path(root) / generator
+    f = _root(root) / generator
     if not f.is_file():
         return None
     return hashlib.sha256(f.read_bytes()).hexdigest()
@@ -322,7 +346,7 @@ def code_file_sha256(root: Path | str = ".", generator: str | None = None) -> st
 DATA_DIR = "data/master/daily"
 
 
-def data_fingerprint(root: Path | str = ".", data_dir: str = DATA_DIR) -> str | None:
+def data_fingerprint(root: Path | str | None = None, data_dir: str = DATA_DIR) -> str | None:
     """数据指纹 = `(文件数, 最大 mtime)`。目录不存在返回 `None`。
 
     ★ 为什么**只**盖章而不折进 `freshness()`：`freshness` 的语义是
@@ -341,7 +365,7 @@ def data_fingerprint(root: Path | str = ".", data_dir: str = DATA_DIR) -> str | 
 
     取不到就返回 `None`（同 `code_sha`）——**不做降级猜测**。
     """
-    d = Path(root) / data_dir
+    d = _root(root) / data_dir
     if not d.is_dir():
         return None
     n = 0
@@ -358,7 +382,7 @@ def data_fingerprint(root: Path | str = ".", data_dir: str = DATA_DIR) -> str | 
     return f"{n}:{newest:.6f}"
 
 
-def data_freshness(report_path: Path | str, root: Path | str = ".",
+def data_freshness(report_path: Path | str, root: Path | str | None = None,
                    data_dir: str | None = None) -> dict:
     """报告的数据新鲜度，与 `freshness()`（代码）**并列**。
 
@@ -393,7 +417,7 @@ def data_freshness(report_path: Path | str, root: Path | str = ".",
             "stamped_data_fp": got, "current_data_fp": now}
 
 
-def commits_touching(root: Path, path: str, since: str | None) -> list[str]:
+def commits_touching(root: Path | str, path: str, since: str | None) -> list[str]:
     """`since` 之后动过 `path` 的 commit（短 sha + 摘要）。
 
     `since` 为 None 时返回空列表——**没有基线就无从判断「之后」**，
@@ -401,7 +425,7 @@ def commits_touching(root: Path, path: str, since: str | None) -> list[str]:
     """
     if not since:
         return []
-    out = _git(Path(root), "log", f"{since}..HEAD", "--oneline", "--", path)
+    out = _git(_root(root), "log", f"{since}..HEAD", "--oneline", "--", path)
     return [ln for ln in (out or "").splitlines() if ln.strip()]
 
 
@@ -412,7 +436,7 @@ def sidecar_path(report_path: Path | str) -> Path:
     return p.with_name(p.name + SIDECAR_SUFFIX)
 
 
-def resolve_data_dir(root: Path | str = ".", data_root: Path | str | None = None,
+def resolve_data_dir(root: Path | str | None = None, data_root: Path | str | None = None,
                      daily_subdir: str = "master/daily") -> str:
     """算出**这次跑真正读的那份日线**的路径。
 
@@ -452,12 +476,12 @@ def resolve_data_dir(root: Path | str = ".", data_root: Path | str | None = None
     dr = Path(data_root)
     target = dr if not daily_subdir else dr / daily_subdir
     try:
-        return str(target.resolve().relative_to(Path(root).resolve()))
+        return str(target.resolve().relative_to(_root(root).resolve()))
     except ValueError:
         return str(target)
 
 
-def stamp(report_path: Path | str, generator: str, root: Path = ".",
+def stamp(report_path: Path | str, generator: str, root: Path | str | None = None,
           extra: dict | None = None,
           data_root: Path | str | None = None,
           daily_subdir: str = "master/daily",
@@ -540,7 +564,7 @@ def read_stamp(report_path: Path | str) -> dict | None:
 # ── 判定 ───────────────────────────────────────────────────────────
 
 def freshness(report_path: Path | str, generator: str | None = None,
-              root: Path = ".") -> dict:
+              root: Path | str | None = None) -> dict:
     """一份报告相对它的生成模块，是否还新鲜。
 
     返回 `verdict` ∈ {`fresh`, `stale`, `unknown`}：
@@ -556,10 +580,21 @@ def freshness(report_path: Path | str, generator: str | None = None,
     所以 `dirty=True` 时即使 verdict 是 fresh，也附 `trustworthy=False`。
     宁可多一次人工确认，也不要一个看起来干净实际不干净的结论。
     """
-    root = Path(root)
-    name = Path(report_path).name
+    root = _root(root)
+    rp = Path(report_path)
+    name = rp.name
     gen = generator or resolve_generator(name)
-    st = read_stamp(report_path)
+    st = read_stamp(rp)
+
+    # ── C1：裸名（`TODO_generator_static_guards` §1.5，判据先于实现写下）──
+    #   `sidecar_path` 把后缀拼在**完整文件名**后面，所以裸名 `verdict_composite`
+    #   去找的是 `verdict_composite.provenance.json`，真名是
+    #   `verdict_composite**.json**.provenance.json` ⇒ 静默返回「没有 sidecar」。
+    #   而 `DEFAULT_GENERATORS` 31 个键里 29 个带 `.json`
+    #   ⇒ `resolve_generator("verdict_composite")` 也是 `None`
+    #   ⇒ 两条理由**都是假的**。
+    bare = bool(name) and not rp.parent.name and not name.endswith(".json")
+    bare_gen = resolve_generator(name + ".json") if bare else None
 
     # **所有原因一次报全，不在第一个就 return。**
     #
@@ -568,11 +603,27 @@ def freshness(report_path: Path | str, generator: str | None = None,
     # 补一行）被吞掉了。只报第一个原因，等于把能修的那条藏起来：
     # 人去补了 sidecar，下次还是 unknown，而且这次连线索都没了。
     problems: list[str] = []
+    if bare:
+        problems.append(
+            f"传进来的是**裸名** `{name}`（既无目录也无 `.json` 后缀）⇒ "
+            f"`sidecar_path` 去找的是 `{name}.provenance.json`，"
+            f"而真名是 `{name}.json.provenance.json`"
+            + (f"；补上 `.json` 后能解析到生成器 `{bare_gen}`，"
+               f"请传 `data/reports/{name}.json`"
+               if bare_gen else "；且补上 `.json` 后仍不在登记表里"))
     if st is None:
-        problems.append("没有溯源 sidecar——生成它的 commit 无从得知")
+        # ── C2：产物缺失 与 产物在但没章，是**两件事**，不许用同一句话 ──
+        #   旧代码对着一份**从没生成过**的产物说「生成它的 commit 无从得知」，
+        #   那是在陈述一件不成立的事，而且是**方向相反**的静默失效：
+        #   不是把好产物丢掉，而是让人去找一个从不存在的东西（第 123 层的另一侧）。
+        if not bare and not rp.exists():
+            problems.append(f"产物路径 `{rp}` **不存在** ⇒ 这是**产物缺失**，"
+                            f"与「产物在、但没盖章」是两件事（分不清是哪一件就照实说）")
+        elif not bare:
+            problems.append("没有溯源 sidecar——生成它的 commit 无从得知")
     elif not st.get("code_sha"):
         problems.append("溯源章里没有 code_sha")
-    if not gen:
+    if not gen and not (bare and bare_gen):
         problems.append(f"不在 DEFAULT_GENERATORS 里，不登记来源就无法判定"
                         f"（在 {SELF_PATH} 的 DEFAULT_GENERATORS 补一行）")
     # 🚨🚨 第 123 层：**生成器路径不存在时，旧代码判 `fresh`。**
@@ -594,6 +645,19 @@ def freshness(report_path: Path | str, generator: str | None = None,
         return {"report": name, "verdict": "unknown", "generator": gen,
                 "reason": "；".join(problems),
                 "problems": problems, "trustworthy": False, "commits": []}
+
+    # ★ 不变量兜底：C1 抑制了「不在 DEFAULT_GENERATORS 里」那条之后，
+    #   「`problems` 为空 ⇒ `gen` 与 `st` 必然都有值」这条**旧有保证**就不再成立。
+    #   旧代码靠它保证下面不会拿 `gen=None` 去走查、也不会拿 `st=None` 去 `.get()`；
+    #   一旦破了，崩点落在 `None.get(...)` 上——**离病因很远**，
+    #   报错说的是「NoneType 没有 get」，而病因是上面那行 `and not (...)`（第 131 层）。
+    #   ⇒ 显式判一次。方向**保守**：只把「崩在半路」变成「报 unknown」。
+    if gen is None or st is None:
+        missing = "生成器" if gen is None else "溯源章"
+        return {"report": name, "verdict": "unknown", "generator": gen,
+                "reason": f"{missing}解析不到 ⇒ 无从判定（兜底，不是正常路径）",
+                "problems": [f"{missing}解析不到"], "trustworthy": False,
+                "commits": []}
 
     dirty = bool(st.get("code_dirty"))
     touched = commits_touching(root, gen, st["code_sha"])
@@ -646,14 +710,20 @@ def freshness(report_path: Path | str, generator: str | None = None,
             "dirty_at_stamp": dirty}
 
 
-def scan(reports_dir: Path | str = "data/reports",
-         root: Path = ".") -> list[dict]:
+def scan(reports_dir: Path | str | None = None,
+         root: Path | str | None = None) -> list[dict]:
     """扫全目录，按严重程度排序：**能判坏的排前面，不能判的排后面**。
 
     排序不是装饰——`stale` 是**已知的坏**，`unknown` 是**不知道**，
     前者必须先看。只按文件名排序会把这两类混在一起，
     然后人只看前几行，最要命的那条就永远没被看到。
     """
+    root = _root(root)
+    # ⚠️ `reports_dir` 曾经默认 `"data/reports"` —— 同样吃 cwd：
+    #   在仓外跑 `scan()` 会扫到**空目录**，返回 `[]`，
+    #   而 `[]` 在 `summary()` 里读成「零 stale、零 unknown、全 fresh」。
+    #   ⇒ 空与「全好」不可区分，和第 89 层同一族。
+    reports_dir = _root(root) / "data/reports" if reports_dir is None else reports_dir
     out = []
     # 边车排除逻辑已下沉到 report_jsons()（本模块），避免出现第二个实现
     for p in report_jsons(reports_dir):
@@ -663,8 +733,8 @@ def scan(reports_dir: Path | str = "data/reports",
     return out
 
 
-def summary(reports_dir: Path | str = "data/reports",
-            root: Path = ".") -> dict:
+def summary(reports_dir: Path | str | None = None,
+            root: Path | str | None = None) -> dict:
     rows = scan(reports_dir, root)
     return {"n": len(rows),
             "stale": [r["report"] for r in rows if r["verdict"] == "stale"],

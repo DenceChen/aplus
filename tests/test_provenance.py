@@ -91,15 +91,25 @@ def test_an_unrelated_change_does_not_invalidate_the_report(repo):
 
 # ── 未知 ≠ 新鲜 ─────────────────────────────────────────────────────
 
-def test_a_report_with_no_sidecar_is_unknown_not_fresh():
+def test_a_report_with_no_sidecar_is_unknown_not_fresh(repo, tmp_path):
     """**现存的老报告都没有 sidecar。**
 
     把它们报成 fresh 会让「不知道来源」看起来像「已确认没问题」——
     而那正是最容易让人直接引用一个坏数字的状态。
     `unknown` 的含义是**不许引用**。
     """
-    got = P.freshness(Path("/nonexistent/x.json"), generator="aplus/backtest.py",
-                      root=".")
+    # ⚠️ 原来这里传 `/nonexistent/x.json` —— 产物**根本不存在**，
+    #   于是测试**因为错误的原因通过**：它声称在测「产物在、但没盖章」，
+    #   实际测的是「文件找不到」，而那句 "sidecar in reason" 是从
+    #   「没有 sidecar——生成它的 commit 无从得知」里凑出来的。
+    #   ★ 与第 134/135 层同一个病：**测试因为错误的原因通过**，
+    #     而它长得和旁边那些真的测试一模一样。
+    #   ⇒ 修法不是改断言，是**让被测物名副其实**：文件建出来。
+    #     改完之后 `"sidecar" in reason` 才第一次为**真**地成立。
+    rep = tmp_path / "x.json"
+    rep.write_text("{}", encoding="utf-8")
+    got = P.freshness(rep, generator="aplus/backtest.py", root=repo["root"])
+    assert rep.is_file(), "前置：产物必须真的存在，否则测的是另一件事"
     assert got["verdict"] == "unknown"
     assert got["trustworthy"] is False
     assert "sidecar" in got["reason"]
@@ -127,7 +137,11 @@ def test_every_reason_is_reported_not_just_the_first_one():
     got = P.freshness(Path("/tmp/x/unmapped_report.json"), generator=None,
                       root=".")
     assert len(got["problems"]) == 2, got["problems"]
-    assert any("sidecar" in r for r in got["problems"])
+    # ⚠️ 门槛（两条）**一个字没放宽**，只换了其中一条的**内容**。
+    #   旧断言要求出现 "sidecar"，那等于把「产物缺失」钉成「产物在但没盖章」，
+    #   而 §1.1 指出那是**方向相反**的静默失效：
+    #   不是把好产物丢掉，而是**让人去找一个从不存在的东西**。
+    assert any("不存在" in r for r in got["problems"]), got["problems"]
     assert any("DEFAULT_GENERATORS" in r for r in got["problems"])
 
 
@@ -925,3 +939,147 @@ def test_the_comparison_is_exact_and_not_a_prefix_match(repo):
 
     with pytest.raises(RuntimeError):
         P.stamp(_report(repo), gen, root=root, expect_bytes=forged)
+
+
+# ── §1.2：判决不许随 cwd 变（2026-10-15）──────────────────────────────
+
+_REAL_ROOT = Path(P.__file__).resolve().parents[1]
+
+
+def test_the_root_default_never_looks_at_the_current_working_directory(monkeypatch, tmp_path):
+    """★ `root` 的默认值曾经是 `"."`（= cwd），而 sidecar 里的 `generator`
+    是**仓库相对**路径 ⇒ 在仓外调用 `freshness()` 时，
+    `Path(root) / generator` 指向仓外那个不存在的路径。
+
+    实测（修复前）：仓内 14 fresh / 7 stale，`/tmp` 下 **21 份全塌成 `unknown`**，
+    理由句写的是「生成器路径在仓里不存在 ⇒ **判据本身没跑**」——
+    **谎报我没验**，而我明明验了且逐位一致。那比「产物坏了」更危险：
+    安全判据谎报「没跑」会把人推去重跑一个 45 分钟的活。
+
+    ⚠️ 本条只钉**方向**：仓内与仓外判决必须相同。
+      钉「每个产物都是 fresh」会立刻过严——真有 stale 时它就红。
+    """
+    reports = sorted((_REAL_ROOT / "data" / "reports").glob("*.provenance.json"))
+    if not reports:
+        pytest.skip("本仓没有带章产物，测不了判决")
+
+    # 🚨🚨 **必须用绝对路径。** 第一版这里传的是裸文件名，于是
+    #   `freshness("placebo_control.json")` 在**两个** cwd 下都**找不到文件**
+    #   ⇒ 两边都是 `unknown` ⇒ `inside == outside` 恒成立
+    #   ⇒ 我写的那条守卫在变异下**没红**（第 136 层当场复发：
+    #   「守卫不变 ≠ 守卫没洞」，更糟的是它比较的是**两个同样错误**的答案）。
+    #
+    #   ⇒ 传绝对路径，让两个 cwd 差**唯一**的那个变量：`root` 的默认值。
+    paths = [q.with_name(q.name[: -len(".provenance.json")]) for q in reports][:6]
+
+    monkeypatch.chdir(_REAL_ROOT)
+    inside = {q.name: P.freshness(q)["verdict"] for q in paths}
+
+    monkeypatch.chdir(tmp_path)
+    outside = {q.name: P.freshness(q)["verdict"] for q in paths}
+
+    # 前置：两个 cwd 下都必须真的判出东西，而不是两边一起「找不到」
+    assert set(inside.values()) - {"unknown"}, (
+        f"仓内判决全是 unknown：{inside}\n"
+        "  ⇒ 守卫比较的是「找不到」，那不是判决，是空集合相等。")
+
+    assert inside == outside, (
+        f"判决随 cwd 变了（`TODO_generator_static_guards` §1.2）：\n"
+        f"  仓内 {inside}\n  仓外 {outside}\n"
+        "  ⇒ `root` 的默认值必须是仓库根，**不能**是 cwd")
+
+
+def test_scan_from_outside_the_repo_does_not_see_an_empty_directory(monkeypatch, tmp_path):
+    """★ `scan(reports_dir="data/reports")` 的默认值也吃 cwd。
+
+    在仓外跑它会扫到**空目录**并返回 `[]`，
+    而 `[]` 在 `summary()` 里读成「零 stale、零 unknown、**全 fresh**」。
+    ⇒ **空与全好不可区分**（第 89 层同族）。
+
+    ⚠️ 钉的是「看得到产物」，**不是**「全都 fresh」——后者会把真 stale 变成红灯。
+    """
+    monkeypatch.chdir(tmp_path)
+    s = P.summary()
+    assert s["n"] > 0, (
+        f"在 {tmp_path} 下 `summary()` 返回 n={s['n']} —— "
+        "它扫的是 cwd 下的 `data/reports`，那里当然空。\n"
+        f"  得到的是 {{'n': 0, 'stale': [], 'unknown': [], 'fresh': []}}，"
+        "**读起来与「零问题」一模一样**。")
+
+
+def test_stamping_from_outside_the_repo_does_not_write_a_null_code_sha(monkeypatch, tmp_path):
+    """★ 同一个默认值在 `stamp()` 上更险：`code_sha(root)` 在 cwd 不是仓库时
+    返回 `None` ⇒ 章里写下 `code_sha: null` ⇒ **事后无法分辨「没盖章」与「盖了个空章」**。
+
+    ⚠️ 这一条**从未实际发生**：现有 21 份 sidecar 的 `code_sha` 全部非空，
+    因为每个生成器都**显式**传了 `root=ROOT`。
+    ⇒ 它是**接线运气**，不是设计。本条把那份运气钉成不变量。
+    """
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "probe.json"
+    out.write_text("{}", encoding="utf-8")
+    P.stamp(out, "scripts/does_not_matter.py")
+    st = P.read_stamp(out)
+    assert st is not None and st.get("code_sha"), (
+        f"章里 code_sha={st and st.get('code_sha')!r} —— "
+        "盖章时 cwd 不在仓库里，于是记了个空 sha。\n"
+        "  ⇒ 事后拿到这份 sidecar 的人，分不清「生成它的 commit 无从得知」"
+        "（没盖章）和「commit 就是空的」（盖了个空章）。")
+
+
+# ── §1.5：三种输入不许塌成两句话（C1/C2）───────────────────────────────
+
+def test_a_bare_name_is_reported_as_a_bare_name_not_as_an_unstamped_report():
+    """🚨 C1：传裸名时，旧代码报的两条理由**都是假的**。
+
+    `freshness("verdict_composite")`：
+      - `sidecar_path` 找 `verdict_composite.provenance.json`，
+        真名是 `verdict_composite**.json**.provenance.json` ⇒ 「没有 sidecar」（假）；
+      - `DEFAULT_GENERATORS` 31 个键里 29 个带 `.json`
+        ⇒ `resolve_generator("verdict_composite")` 返回 None
+        ⇒ 「不在 DEFAULT_GENERATORS 里」（也假，它**登记着**）。
+
+    ⇒ 两条假理由会把人引到「去 DEFAULT_GENERATORS 补一行」——
+      而那里**已经有一行**，补进去就是**重复键**，会被静默覆盖。
+
+    ⚠️ 钉的是「**说法**」，不是 `verdict`：`unknown` 在这里是**对的**
+      （它确实没被正确地指到产物），本条不许去改判决方向。
+    """
+    got = P.freshness("verdict_composite")
+    assert got["verdict"] == "unknown"
+    assert "裸名" in got["reason"], got["reason"]
+    assert "没有溯源 sidecar" not in got["reason"], (
+        f"它对着一个**盖过章的**产物说「没有 sidecar」：{got['reason']}")
+    assert "不在 DEFAULT_GENERATORS" not in got["reason"], (
+        f"它说这份产物没登记，而它登记着（键是 `verdict_composite.json`）："
+        f"{got['reason']}\n  ⇒ 照这条假建议去补一行 = 制造重复键。")
+    # 可操作的那条必须给出来：补 `.json` 后能解析到谁
+    assert P.resolve_generator("verdict_composite.json"), (
+        "前置：`verdict_composite.json` 必须真的在登记表里，"
+        "否则本条钉的就是「补 .json 也救不了」那个分支")
+
+
+def test_a_missing_artifact_is_not_reported_as_a_report_that_lacks_a_stamp():
+    """🚨 C2：产物**根本不存在**时，旧代码说「没有溯源 sidecar——
+    生成它的 commit 无从得知」。
+
+    那是在**陈述一件不成立的事**（这份产物从没生成过，没有什么 commit 可知），
+    而且是**方向相反**的静默失效：
+    不是把好产物丢掉（保守），而是**让人去找一个从不存在的东西**。
+
+    对照组：文件**存在**但没盖章，必须仍然说「没有 sidecar」——
+      否则 C2 就变成了「一律改口」，那与旧缺陷同构。
+    """
+    missing = P.freshness(Path("/tmp/x/definitely_not_there.json"))
+    assert "不存在" in missing["reason"], missing["reason"]
+    assert "没有溯源 sidecar" not in missing["reason"], missing["reason"]
+
+    d = Path("/tmp/x")
+    d.mkdir(parents=True, exist_ok=True)
+    real = d / "exists_but_unstamped.json"
+    real.write_text("{}", encoding="utf-8")
+    present = P.freshness(real)
+    assert real.is_file()
+    assert "没有溯源 sidecar" in present["reason"], (
+        f"文件明明在，却报「产物不存在」：{present['reason']}\n"
+        "  ⇒ C2 变成了「一律改口」，方向与旧缺陷同构。")

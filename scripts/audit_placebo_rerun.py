@@ -266,21 +266,22 @@ def main() -> int:
         #   ⇒ 静默返回 `unknown`「没有 sidecar」——对着一个其实盖过章的产物
         #   说它没盖过章（`TODO_generator_static_guards` §1）。
         #
-        # ⚠️⚠️ 必须**在仓库根**调用（2026-10-15 实测，§1.2）：
-        #   `freshness()` 把 sidecar 里的**仓库相对** `generator` 路径按 **cwd** 解析，
-        #   从仓外调用会对 21/21 份产物一律返回 `unknown`
-        #   「生成器路径不存在 ⇒ 判据本身没跑」。
-        #   ⇒ 那是个**独立缺陷**，不该冒充「字节证据没兑现」。
-        #   本脚本声明可换 cwd 运行，所以这里必须自己 chdir 回规范位置再问。
-        _cwd = os.getcwd()
-        try:
-            os.chdir(_ROOT)
-            f = freshness(_ROOT / REPORT)
-        finally:
-            os.chdir(_cwd)
+        # ⚠️⚠️ 必须**直接**调用，**不许**先 chdir 回仓库根（2026-10-15 已修，§1.2）：
+        #   `freshness()` 的 `root` 默认值曾经是 `"."`（= cwd），
+        #   而 sidecar 里的 `generator` 是**仓库相对**路径
+        #   ⇒ 从仓外调用会对 21/21 份产物一律返回 `unknown`
+        #   「生成器路径不存在 ⇒ 判据本身没跑」——**谎报我没验**。
+        #
+        #   第一版这里是 `os.chdir(_ROOT)` 包一层，**那是规避不是修复**，
+        #   而且它让 `test_the_audit_script_runs_from_an_unrelated_working_directory`
+        #   在缺陷存在时**也能绿**（脚本自己把 cwd 掰回去了）。
+        #   ⇒ `aplus/provenance.py` 已加 `REPO_ROOT`，默认永不看 cwd。
+        #   ⇒ 这里保留 chdir 才是在**藏**真状态：真修之后 chdir 纯属多余，
+        #     而留着它等于把那条守卫变成装饰（第 136 层）。
+        f = freshness(_ROOT / REPORT)
         verdict, reason = f["verdict"], f["reason"]
         dirty_at_stamp = "未提交改动" in reason
-        print(f"章（cwd={_ROOT}）：{verdict}")
+        print(f"章（cwd={os.getcwd()}，传的是绝对路径）：{verdict}")
         print(f"  依据：{reason}")
         byte_ok = verdict == "fresh" and "字节" in reason and "仅 commit" not in reason
         chk("freshness 依据是字节证据", byte_ok, f"verdict={verdict}")
