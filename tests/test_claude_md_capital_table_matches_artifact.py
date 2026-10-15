@@ -341,26 +341,93 @@ def test_claude_mds_breakeven_table_matches_the_artifact_cell_by_cell():
 #     **字面量版本是纯冗余**（重复守同一件事，且守得更差）。
 
 
-# ══ ③ 债条：**这张表自己不自报口径**（与 `factor_width_mde` 同族）════
+# ══ ③ 口径标签：**已从债登记转为正向守卫**（2026-10-15）════════════
+#
+# ★ 为什么当初不直接断言「它有标签」，而现在可以了 ——
+#   那条禁令带着**两个具体前提**（不是「谨慎」）：
+#     ①「补字段要一次 GB 级重跑，而当前跑还在飞」（第 125 层）；
+#     ②「那份产物在判决链上」。
+#   ①已实测为假：本脚本是**纯算术**（读 `factor_width_mde.json`，不碰面板），
+#     实跑 **5s**，五档数字**逐位未变** ⇒ 加标签不构成任何判决变更。
+#   ⇒ 这是**第 133 层**的同款：**一条以「当时为真」写下的约束被当成「永远为真」**。
+#     判据的生命周期必须跟着**它自己的前提**走。
+#
+# ⚠️ 下面的判据**不是**「`caliber` 键存在」——
+#   那只守「有」，而删掉一半标签照样绿（形状 6：存在 ≠ 有性质）。
+#   真正承重的是**集合相等**：数值字段与标签**一一对应**，两头都不许有洞。
+
+
+def _numeric_width_keys() -> set[str]:
+    """`widths[0]` 里所有数值字段（`n` 也是数，也必须被标签覆盖）。"""
+    row = _widths_by_n()[10]
+    return {k for k, v in row.items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)}
+
+
+def test_the_artifact_labels_every_numeric_field_and_labels_nothing_else():
+    """★ 正向守卫：`caliber` 块与数值字段**集合相等**，两头都不许有洞。
+
+    删掉任何一个标签 ⇒ 红（读者会读到没口径的数）。
+    往 `widths` 里加一个没标签的字段 ⇒ 红（**新字段不许静默逃出标注**）。
+    """
+    payload = json.loads(
+        (ROOT / "data" / "reports" / "width_capital_feasibility.json")
+        .read_text(encoding="utf-8"))
+    caliber = payload.get("caliber")
+    assert isinstance(caliber, dict) and caliber, \
+        "产物没有 caliber 块 —— 口径标签必须**跟着数字离开脚本**（预注册 G2）"
+
+    numeric = _numeric_width_keys()
+    labeled = set(caliber)
+    assert not numeric - labeled, (
+        f"这些数值字段没有口径标签：{sorted(numeric - labeled)}\n"
+        "⇒ 读者无从知道它们是毛口径还是净口径。"
+        "⚠️ 加了字段就补标签，**别改判据、也别删字段让它变绿**。"
+    )
+    assert not labeled - numeric, (
+        f"caliber 里这些标签指向不存在的字段：{sorted(labeled - numeric)}\n"
+        "⇒ 这是**我正在修的那个病**（标签说一个数、产物里没这个数），"
+        "不是排版问题。逐条读源码核对字段名。"
+    )
+    empty = [k for k, v in caliber.items() if not str(v).strip()]
+    assert not empty, f"这些标签是空的：{sorted(empty)} ⇒ 等于没有标签"
+
+
+def test_the_claude_table_carries_its_caliber_outside_the_table():
+    """`CLAUDE.md` 那张表**表外**必须有口径注。
+
+    ⚠️ **表头一个字不许动** —— `_mismatched_cells` 按
+    `header.index("毛超额/年")` / `_HEADER_MARK` **按列名**定位，改字即破主守卫。
+    ⇒ 口径注只能加在表**外面**，而它恰恰是读者最会跳过的地方 ⇒ 必须由守卫守住。
+    """
+    md = _claude()
+    assert "**本表口径**" in md, (
+        "CLAUDE.md 那张表没有口径注 —— 读者无从知道「回本」是拿**毛超额**"
+        "去抵摩擦算的（预注册 G2：口径标签是必填）。"
+        "⚠️ 加在**表外**，表头不许动（守卫按列名定位）。"
+    )
+    for must in ("毛超额", "annual_friction", "下界"):
+        assert must in md, f"口径注缺「{must}」这一项"
+
+
+def test_the_caliber_labels_are_not_the_debt_registration_again():
+    """⚠️ **反向钉**：不许把债登记删了、正向守卫也不加。
+
+    「删掉债登记」与「没有守卫」这两件事在日志里长得一模一样。
+    """
+    log = (ROOT / "docs" / "MISTAKE_LOG_2026-10-14.md").read_text(encoding="utf-8")
+    assert "已偿" in log, "MISTAKE_LOG 里那条口径债必须保留「已偿」标记 —— 不得整段删掉"
+
 
 def test_the_claude_table_does_not_self_label_its_caliber_and_the_debt_is_registered():
-    """★ 债条，**双向**钉。
+    """★ 原债条（保留为**历史锚点**，不再承担判据）。
 
-    `width_capital_feasibility.json` 的 `widths[*]` **没有**口径标签，
-    `CLAUDE.md` 这张表也**没有** —— 而预注册 G2 写着「口径标签是必填」。
-    ⇒ 读这张表的人无从知道「回本」是拿**毛超额**去抵摩擦算的。
-
-    补上标签 ⇒ 本条红（要求删掉债登记）；
-    删掉债登记 ⇒ 本条红（要求补标签）。
-
-    ⚠️ 不许把它改成「断言它有标签」：那份产物在判决链上，
-    补字段要一次 GB 级重跑，而当前跑还在飞（第 125 层）。
-    ⚠️ 也不许守「加粗/排版」这类美学 —— 过严的守卫和恒真的一样有害
-    （第 112 层），且它与「读者会不会引用错数」无关。"""
-    log = (ROOT / "docs" / "MISTAKE_LOG_2026-10-14.md").read_text(encoding="utf-8")
-    assert "不自报口径" in log, "债登记被删了 —— 请给产物与这张表补上口径标签"
+    它当年是**双向**钉的：补标签 ⇒ 红，删登记 ⇒ 红。
+    标签落地后它的两半都失效 ⇒ 判据已由上面三条正向守卫接管。
+    留着它是为了让 git 历史里那次「以当时为真的前提写下禁令」可追溯。
+    """
     assert _mismatched_cells(_claude(), _widths_by_n()) == [], \
-        "债登记在，但主守卫已经红了 —— 先修表，别用这条挡住它"
+        "主守卫红了 —— 先修表，别用这条挡住它"
 
 
 # ── 删除线解析的能力守卫（第 131 层：新加的宽容必须先证明它不吞错）────

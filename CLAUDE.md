@@ -773,6 +773,20 @@ CLI 对 `fresh` 只印 `🟢 新鲜` 六个字，**判据依据一个字都不�
 | 200 | 6.95% | 3.70% | **81.3 万** | **+0.583σ** | **不存在** |
 | 546 | 7.57% | 3.33% | **182.4 万** | **+0.836σ** | **不存在** |
 
+> **本表口径**（逐字来自 `data/reports/width_capital_feasibility.json` 的 `caliber` 块，
+> 由 `scripts/width_capital_feasibility.py` 生成、不手打）：
+> - 「毛超额/年」= **毛超额，未扣摩擦**（上游 `factor_width_mde.json::gross_annual_pct`）；
+> - 「回本所需本金」解的是 **`gross == annual_friction(capital)`** ——
+>   **拿毛超额去抵摩擦**，口径是「回本（净=0）」，**不含**任何收益率目标；
+> - 「到 20% 净所需本金」解的是**另一个方程** `gross − 20% == annual_friction(capital)`，
+>   解不存在时为 `null`；
+> - 「距下界」= `(毛超额 − 摩擦下界) / se`，其中 **se = `annual_sd_pct × √(244/n_days)`**
+>   （`annual_sd_pct` 本身**已是年化 sd**）；
+> - 「摩擦下界 4.787%」= 本金无限大时的纯比例费率成本 ——
+>   **本金买不到零成本**（最低佣金 ¥5/笔是固定额）。
+> ⚠️ 本表**只覆盖多头单腿**；`portfolio_weighting` / `benchmark_weighting`
+> **不在产物里**（多空模式尚未建模，见待办 `scripts/width_capital_feasibility.py`）。
+
 > 🚨🚨 **整张表的结论都不成立** —— **不是「回本要 16.1 万」，是「测不出来」。**
 >
 > 「回本有无」取决于 `gross_annual` 与摩擦下界 4.787% 的距离，

@@ -323,6 +323,64 @@ def main(argv: list[str] | None = None) -> int:
             "hurdle_gross_from_hurdle_rate": hurdle_gross,
             "any_width_reaches_target": bool(reachable),
             "widths": rows,
+            # ★ 口径标签**随数字一起离开脚本**（D0 / 第 7 层）。
+            #   起因：这张表在 CLAUDE.md 里的复制件**不带口径**，
+            #   而预注册 G2 写着「口径标签是必填」⇒ 读者无从知道
+            #   「回本」是拿**毛超额**去抵摩擦算的、门槛也**不含**成本项。
+            # ⚠️ 标签文本**不许手打**（第 142 层：手打的判读散文会过期）——
+            #   口径由 `widths[0]` 的字段名与上游 artifact 的键**生成**。
+            "caliber": {
+                "gross_annual": (
+                    "毛超额，**未扣摩擦**。上游 "
+                    f"{args.artifact} 的 gross_annual_pct，"
+                    "标的为「涨腿 − 基准」的年超额"),
+                "net_at_capital": (
+                    f"净超额 = gross_annual − friction_at_capital，"
+                    f"摩擦按**本行 capital={args.capital:.0f}** 计。"
+                    "⚠️ 换个本金这一列就变，不是常量"),
+                "capital_for_breakeven": (
+                    "解 `gross == annual_friction(capital)` 的数值解 —— "
+                    "**拿毛超额去抵摩擦**，不是让净收益等于目标。"
+                    "⇒ 它的口径是「回本（净=0）」，**不含**任何收益率目标"),
+                "capital_for_target_net": (
+                    f"解 `gross − target({args.target:.0%}) == annual_friction(capital)`；"
+                    "解不存在时为 `null`。⚠️ 与 `capital_for_breakeven` "
+                    "**不是同一个方程**"),
+                "hurdle_gross_from_hurdle_rate": (
+                    "毛口径判决门槛，由 `aplus.hurdle.hurdle_rate` 实算，"
+                    "**不手打**。它 = 目标净 + 名义年成本，"
+                    "⇒ 与本表 `net_at_capital` 用的是**两种成本口径**"),
+                "friction_at_capital": (
+                    f"`annual_friction(capital, …)`，capital = "
+                    f"**{args.capital:,.0f} 元**（`--capital`，非产物字段）"),
+                "friction_floor": (
+                    "**摩擦的正下界** = `annual_friction(1e9, …)`，"
+                    "即本金无限大时的纯比例费率成本。"
+                    "⚠️ 本金**买不到**零成本（最低佣金 ¥5/笔是固定额）"),
+                "breakeven_margin_sigma": (
+                    "`(gross_annual − friction_floor) / gross_se_annual`。"
+                    "⚠️ 这是**报告口径不是判据**：|值| < 1 时判决会在噪声里翻面"),
+                "breakeven_flips_within_1se": (
+                    "±1σ 区间是否跨过摩擦下界。**跨过 ⇒ 「有无回本本金」"
+                    "这个结论不成立**（不是「没有」也不是「有」）"),
+                "gross_se_annual": (
+                    "毛超额年化值的抽样标准误 = "
+                    "`annual_sd_pct × √(244 / n_days)`，而 `annual_sd_pct` "
+                    "**本身已是年化 sd**（= 日 sd × √244）。"
+                    "⚠️ 写成 `annual_sd_pct / √n_days` 会把年化 sd 当日 sd 用，"
+                    "**低估 15.6 倍**（实测 5.4627%/年被写成 0.3497%/年）；"
+                    "三条年化乘数各不相同（均值 ×T、sd ×√T、SE ×T/√n），"
+                    "见第 93 层。两条路径互校：公式 vs 由产物自报 `t_naive` 反推，"
+                    "不一致即 `AssertionError`，不许带着分歧出判决"),
+                "gross_lo_1se": "毛超额 ±1σ 区间下界。⚠️ 1σ 是正态惯例，**无外部锚**",
+                "gross_hi_1se": "毛超额 ±1σ 区间上界。同上",
+                "breakeven_verdict": (
+                    "**把上面三个字段拼成一句话的散文**，由它们算出、"
+                    "不手打 ⇒ 不可能与字段脱钩（第 142 层）"),
+                "target_reachable": (
+                    "`capital_for_target_net is not None`。⚠️ 与 `detectable` "
+                    "**无关**：那是统计可测性，这是可交付性"),
+            },
         }
         args.out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
                             encoding="utf-8")
