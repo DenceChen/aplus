@@ -116,8 +116,6 @@ def test_live_path_is_not_the_legacy_reference_implementation(tmp_path):
 
     # ⚠️ 2026-10-15 实测：**「补一条列存在性断言」这条路是走不通的。**
     # 在本文件的夹具上逐列量过：`legacy` **不缺**任何面板因子（8/8 全有），
-    # 且两路逐因子最大偏差 `ivol` 0.0 / `rsi` 0.0 / `vsur` 0.0，
-    # `mom20` 4.44e-16、`rev5` 2.22e-16、`vol20` 6.94e-18。
     # ⇒ `assert "ivol" in legacy.columns` 会是**绿的**，而它为真的原因是
     #   「代码恰好同步了」，不是「有东西在守」——那就是另一条恒绿守卫。
     # ⇒ 并且这份夹具**结构性地跑不满因子**：`_noisy_stock` 的 `volume` 是
@@ -125,9 +123,20 @@ def test_live_path_is_not_the_legacy_reference_implementation(tmp_path):
     #   （0/0）⇒ **8 个因子里只有 6 个真被测过**。
     # ⚠️ 所以夹具上的 0.0 偏差**不能读成「2026-10-11 的漂移已消失」**——
     #   那是拿「合成夹具 / 6 个因子」回答「真实数据 / 8 个因子」（第 119 层）。
-    #
     # ⇒ 缺口的正解是 **K4**：守卫的对象是「**谁在生产路径上**」，
     #   不是「参照实现的因子齐不齐」。见下面那条。
+
+    # 🚨 2026-10-15（第 134 层）：这个 docstring 自己就写着**复现不出来的数**。
+    # 原文「逐因子最大偏差 `ivol` 0.0 / `rsi` 0.0 / `vsur` 0.0，
+    # `mom20` 4.44e-16、`rev5` 2.22e-16、`vol20` 6.94e-18」——
+    # `rsi 0.0` 与 `rev5 2.22e-16` 重跑后是 **1.42e-14 / 4.44e-16**，
+    # 且已逐一排除「夹具不确定 / factor.py 动过 / 日期轴改动 / 行序 / 过滤」
+    # 五种解释（见 `docs/TODO_live_legacy_parity_2026-10-15.md` §1 撤回小节）。
+    # ⇒ 错因不是算错，是**探针只跑过一次、没落盘**：它的输出是传闻，
+    #   而我把它提升成了文档表格 + 测试注释 + 「两路一致」的证据。
+    # ⇒ **1e-14 量级是最危险的一档**：结论只要符号，于是它免于被质疑，
+    #   却和真结论躺在同一张表里，没人能区分「核对过」与「没核对过」。
+    # ⇒ 处置不是改数字（那还是传闻），而是把探针**落成下方那三条测试**。
 
 
 # ── K4：守卫的对象是「谁在生产路径上」，不是「参照实现的因子齐不齐」─────
@@ -252,3 +261,143 @@ def test_the_substring_way_is_wrong_on_this_very_source():
     assert first_line.strip().startswith("def build_cross_section"), (
         f"行号定位失效，拿到的是 {first_line!r}"
     )
+
+
+# ── K1/K2/K3 的**夹具层先验** ────────────────────────────────────────
+#
+# 预注册见 `docs/TODO_live_legacy_parity_2026-10-15.md` §3 / §5。
+# 🚨 **判决数据（真数据 + 判决窗口）尚未跑**：那要 GB 级面板，
+#   与重跑链并发会 OOM ⇒ 本段只是**夹具层先验**，不是判决，
+#   更不是「live 与参照实现一致」的证据。
+#
+# ⚠️ 第一版这段是**一次性探针**（贴进文档的表格，没落盘）。
+#   2026-10-15 重跑发现表里 `rsi 0.0` / `rev5 2.22e-16` **复现不出来**
+#   （现测 1.42e-14 / 4.44e-16）：夹具确定性已核（`default_rng(seed)`），
+#   `factor.py` 今天未动，`a09fbdb` 只换了日期轴（本夹具上两种算法逐位相同），
+#   行序/对齐/`filter_universe` 三种口径差异逐一排除
+#   ⇒ 那两个数就是**错的**，不是「另一个量」。
+# ⇒ 教训：**只跑过一次、没落盘的探针，它的输出是传闻不是知识**；
+#   而 1e-14 量级的数最危险——结论只要符号，于是它**免于被质疑**。
+
+_EPS = np.finfo(np.float64).eps      # 机器常量，不是本仓的选择
+_K_OPS = 20                           # 滚动窗口长度（mom20/vol20/turn20 皆 20 日）
+_C = 8.0                              # 容许的浮点累加序数（显式常数，随结果一起报）
+
+
+def _fixture_pair(tmp_path):
+    """实盘横截面与参照实现横截面，**同一 `as_of`、同一夹具**。"""
+    store = _store(tmp_path)
+    day = store.read_daily("600001.SH")["date"].tolist()[70]
+    live = build_cross_section(store, as_of=day)
+    legacy = cross_rows_from_map(
+        {p.stem: store.read_daily(p.stem)
+         for p in sorted((store.root / "master" / "daily").glob("*.parquet"))},
+        as_of=day)
+    return day, live, legacy
+
+
+def _aligned(live, legacy):
+    """★ 两条路径的 DataFrame 必须**按 code 对齐**后才许比（第 129 层）。
+
+    行序恰好相同这件事本身是**运气**：参照实现按 `sorted()` 的文件序遍历，
+    实盘按面板给出的序遍历。哪天任一侧改了遍历序，未对齐的比较就变成
+    「拿 A 股票的因子减 B 股票的因子」——**看起来是个偏差，量纲其实错了**。
+    ⇒ 对齐是口径的一部分，不是保险。
+    """
+    a = live.set_index("code").sort_index()
+    b = legacy.set_index("code").sort_index()
+    assert set(a.index) == set(b.index), (
+        f"名单不同，仅实盘 {set(a.index) - set(b.index)}；"
+        f"仅参照 {set(b.index) - set(a.index)}")
+    return a, b.reindex(a.index)
+
+
+def _split_measurable(live, legacy):
+    """把 8 个因子分成**可测**与**因夹具退化而不可测**两组。
+
+    分组判据：两路在同一 `code` 上同时非 NaN 的行**一个都没有** ⇒ 不可测。
+    ⚠️ 不许把不可测的静默跳过（第 112 层的过严/恒真二选一）——
+      跳过后「6/8 可测」会变成「8/8 全部一致」，那是**另一个量**。
+    """
+    a, b = _aligned(live, legacy)
+    measurable, degenerate = {}, {}
+    for c in FACTOR_COLUMNS:
+        x = pd.to_numeric(a[c], errors="coerce")
+        y = pd.to_numeric(b[c], errors="coerce")
+        both = (x.notna() & y.notna())
+        if int(both.sum()) == 0:
+            degenerate[c] = "两路在该因子上无可比行"
+        else:
+            measurable[c] = float(np.abs(x[both] - y[both]).max())
+    return measurable, degenerate
+
+
+def test_the_fixture_degenerates_on_exactly_two_factors_and_they_are_named(tmp_path):
+    """★ 「哪几个因子不可测」必须是**显式名单**，且钉住。
+
+    `_noisy_stock` 的 `volume` 是确定性递增（无随机）⇒ 20 日滚动 std 恰为 0
+    ⇒ `turnratio` 是 0/0 = NaN，`turn20` 的差分随之全 NaN。
+    ⇒ 8 个因子里**只有 6 个真被测过**。
+
+    为什么这条要钉：文档里写着「夹具层 6/8 可测」。哪天有人把夹具的 volume
+    改成带随机的，**退化集缩小**、「6/8」变「8/8」⇒ 文档的分母静默过期，
+    而所有断言**照样全绿**（因为更多因子可测只会让 K2 更严，不会更松）。
+    ⇒ 判据的对象是**文档的口径**，不是数值。
+    """
+    _, live, legacy = _fixture_pair(tmp_path)
+    measurable, degenerate = _split_measurable(live, legacy)
+    assert set(degenerate) == {"turn20", "turnratio"}, (
+        f"退化因子集合变成 {sorted(degenerate)}（可测 {sorted(measurable)}）——\n"
+        "  ⚠️ 先分清两件事：**夹具变了**（volume 不再是确定性递增）"
+        " vs **判据坏了**。\n"
+        "  如果是夹具变了，`docs/TODO_live_legacy_parity_2026-10-15.md` §1/§5 里的\n"
+        "  「6/8 可测」**必须同步改**——它是被本条钉着的口径，不是可以留 stale 的散文。\n"
+        "  🚨 不许把这条断言改小来消红。"
+    )
+    assert set(measurable) | set(degenerate) == set(FACTOR_COLUMNS), "因子被漏掉了"
+
+
+def test_the_two_paths_agree_on_the_measurable_factors_within_a_derived_bound(tmp_path):
+    """K1 列集合 + K2 逐因子，**门槛由 `eps` 推导，不写字面量**。
+
+    允许偏差 = c · eps · max(|a|,|b|) · K_ops —— 两条路径算的是**同一个量**，
+    差别只允许是浮点累加次序；上界是累加误差，不是「差不多」。
+    ⚠️ 绝不写 `1e-12`：那是本仓反复出现过的字面量闸门。
+    ⚠️ **两个口径必须一起报**：K1 说「列齐不齐」，K2 说「同一列上的数差多少」，
+      只报一个会让人以为另一个也过了。
+    """
+    _, live, legacy = _fixture_pair(tmp_path)
+    assert set(live.columns) == set(legacy.columns), (
+        f"列集合不同：仅实盘 {sorted(set(live.columns) - set(legacy.columns))}；"
+        f"仅参照 {sorted(set(legacy.columns) - set(live.columns))}")
+
+    measurable, degenerate = _split_measurable(live, legacy)
+    a, b = _aligned(live, legacy)
+    for c in measurable:
+        x = pd.to_numeric(a[c], errors="coerce")
+        y = pd.to_numeric(b[c], errors="coerce")
+        both = x.notna() & y.notna()
+        av, bv = x[both].to_numpy(), y[both].to_numpy()
+        scale = float(max(np.abs(av).max(), np.abs(bv).max(), 1.0))
+        thr = _C * _EPS * scale * _K_OPS
+        assert measurable[c] <= thr, (
+            f"因子 {c}: 最大偏差 {measurable[c]:.3e} 超出推导上界 {thr:.3e} "
+            f"(c={_C} eps={_EPS:.3e} scale={scale:.4g} K_ops={_K_OPS})")
+
+
+def test_the_top_n_ranking_is_identical_on_the_measurable_factors(tmp_path):
+    """K3：**判决量落在排序上**，不是落在因子值上（第 7 层）。
+
+    ⚠️ 「因子值差 4%」与「选股名单变了」不是同一个量。
+      2026-10-11 记下的失效后果是「足以改变横截面排序」，
+      所以排序才是判决量；因子值那一列只作**并列报告**。
+    """
+    _, live, legacy = _fixture_pair(tmp_path)
+    measurable, degenerate = _split_measurable(live, legacy)
+    for c in measurable:
+        s_live = live.sort_values(c, ascending=False).code.tolist()
+        s_ref = legacy.sort_values(c, ascending=False).code.tolist()
+        assert s_live == s_ref, (
+            f"因子 {c} 的降序名单不同：\n  实盘 {s_live}\n  参照 {s_ref}")
+    assert degenerate, "退化集为空 ⇒ 这份夹具已经不再退化，判据的前提变了"
+
