@@ -494,6 +494,10 @@ def read_width_artifact_t(path: Path) -> float | None:
 
 
 def main(argv=None) -> int:
+    # ★ 第 125 层：开跑时抓一次本文件的字节，盖章时比对。
+    #   这一档要跑 ~46 分钟；期间若有人改了本文件，章会盖上**没跑过的字节**，
+    #   而那种章不是弱证据、是**反向的错误证据** ⇒ 不一致就拒绝盖章。
+    expect_bytes = provenance.code_file_sha256(ROOT, "scripts/placebo_control.py")
     """薄包装：把真正的活放进 `with begin_run(...)`。
 
     `begin_run` 是 `@contextmanager`；写成 `run = begin_run(...)` + `run.done()`
@@ -677,7 +681,9 @@ def _run(args) -> int:
                  "n_reps": out.get("conditions", {}).get("n_reps"),
                  "p0_t_blocked": out.get("p0_t_blocked"),
                  "test_window": out.get("window"),
-                 "k_rebalance_every": out.get("k_rebalance_every")})
+                 "k_rebalance_every": out.get("k_rebalance_every"),
+                 "expect_bytes_checked": True},
+                expect_bytes=expect_bytes)
     print(f"\n→ {args.out}｜总耗时 {time.time() - t0:.0f}s")
     return 0
 
