@@ -197,7 +197,13 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #    而它自己从不发出「我不可引用」的信号。
     "placebo_control.json": "scripts/placebo_control.py",
     # ④ 榜宽结果的**金额翻译**：把毛超额换算成「要多少本金才能回本 / 到 20% 净」。
-    #    CLAUDE.md「回本所需本金 16.1/23.9/55.9/81.2/182.3 万」那张表就是照它写的。
+    #    CLAUDE.md「回本所需本金 16.1/23.9/55.8/81.3/182.4 万」那张表就是照它写的。
+    # 🚨 2026-10-15 第 137 层补记：**同一组抄错的数在本文件里还有第二份**
+    #    （原文 55.9/81.2/182.3，五格错三格）。而那个对账守卫
+    #    `tests/test_claude_md_capital_table_matches_artifact.py`
+    #    **只扫 CLAUDE.md 一个文件** ⇒ 这份副本在守卫全绿时照样是错的
+    #    ⇒ **「已经加了对账守卫」不等于「对账做全了」，守卫自己也有覆盖面**
+    #    （第 131 层：守卫要验守卫）。
     #    不重跑回测、只读 `factor_width_mde.json` ⇒ 秒级。
     # 🚨 2026-10-15 补登记 + 补盖章：它此前**两者皆无**，而这张表是
     #    「本金只能吃掉损耗、不能创造收益」那条**结构性结论**的全部依据。
@@ -265,6 +271,18 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "factor_width_mde.json": "scripts/factor_width_mde.py",
     "factor_attribution.json": "scripts/factor_attribution.py",
     "cap_weighted_benchmark.json": "scripts/cap_weighted_benchmark.py",
+    # 2026-10-15 登记：整手（A 股 100 股）可行性 ——
+    # **¥50,000 到底能买进几个名字**。它不重跑回测，只报一个事实：
+    # 在 `EQUITY_WEIGHT = 1.0` 的满仓假设下，单笔 = 50000/N，
+    # 而 1 手要买得起，股价须 ≤ `50000/(100·N)`。
+    # 抽样 499 只的实测：**89.2% / 54.1% / 14.4% / 4.2% / 3.2%**
+    # （N = 10/30/100/200/546）。
+    # ⇒ 回测与 `aplus/costs.py` **都在小数股上跑**
+    #   （实测 `grep -rn '整手' aplus/ scripts/` 零命中），
+    #   而**榜宽越宽、单笔越小、越买不起** ⇒ 现有 `widths[*]` 里
+    #   N ≥ 30 的那些档是在**开不出来的账户**上测出来的。
+    # 登记它是为了让「宽榜更稳」这句话**带上它的前提**，不是为了让它可引用。
+    "lot_affordability.json": "scripts/lot_affordability.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；

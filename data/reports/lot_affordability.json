@@ -1,0 +1,65 @@
+{
+  "generated_by": "scripts/lot_affordability.py",
+  "window_actual": [
+    "2021-01-01",
+    "2026-10-13"
+  ],
+  "capital": 50000.0,
+  "lot_shares": 100,
+  "price_caliber": "不复权 close（判「能不能买」必须用真实成交价；收益口径才用后复权）",
+  "sample": {
+    "pool_size": 5460,
+    "sampled": 500,
+    "usable": 499,
+    "seed": 42,
+    "statistic": "判决窗口内最后一日收盘价"
+  },
+  "price_quantiles": {
+    "p10": 4.0,
+    "p50": 14.71,
+    "p90": 52.7
+  },
+  "widths": [
+    {
+      "n": 10,
+      "per_position_notional": 5000.0,
+      "max_price_for_one_lot": 50.0,
+      "affordable_count": 445,
+      "affordable_pct": 0.8917835671342685
+    },
+    {
+      "n": 30,
+      "per_position_notional": 1666.6666666666667,
+      "max_price_for_one_lot": 16.666666666666668,
+      "affordable_count": 270,
+      "affordable_pct": 0.5410821643286573
+    },
+    {
+      "n": 100,
+      "per_position_notional": 500.0,
+      "max_price_for_one_lot": 5.0,
+      "affordable_count": 72,
+      "affordable_pct": 0.14428857715430862
+    },
+    {
+      "n": 200,
+      "per_position_notional": 250.0,
+      "max_price_for_one_lot": 2.5,
+      "affordable_count": 21,
+      "affordable_pct": 0.04208416833667335
+    },
+    {
+      "n": 546,
+      "per_position_notional": 91.57509157509158,
+      "max_price_for_one_lot": 0.9157509157509157,
+      "affordable_count": 16,
+      "affordable_pct": 0.03206412825651302
+    }
+  ],
+  "verdict": "N=10 一档可行（绝大多数名字买得起 1 手）；**N ≥ 30 的档位在本金 ¥50,000 下大面积不可行**，而回测与摩擦**都没有整手建模** ⇒ 那些档的毛超额是在**开不出来的账户**上测的。",
+  "what_this_cannot_prove": [
+    "它**不重跑回测**，所以不能回答「加上整手约束后毛超额会变成多少」。",
+    "它只看**窗口末一天的截面**，不是「每天都能买进 N 个名字」的时序可行性。",
+    "它不知道策略实际会选哪 N 只 ⇒ 真实可行性取决于选股结果，不等于池子比例。"
+  ]
+}

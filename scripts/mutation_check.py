@@ -872,6 +872,88 @@ MUTATIONS: list[tuple[str, str, str, str, str, list[str]]] = [
      "**不会**因此变红 ⇒ 「按正路重跑」变成一个看起来做过、"
      "实则什么都没做的动作，而没有任何东西会报（第 137 层）",
      ["tests/test_width_capital_feasibility.py::test_a_bare_run_actually_writes_the_report_not_just_prints_it"]),
+
+    # ── 覆盖面那组（第 137 层的第二半：对账守卫自己也会有覆盖漏洞）──
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '_STALE_MARK = "下面这张表已作废"',
+     '_STALE_MARK = ""',
+     "作废标记被清空 ⇒ `docs/TODO_basket_width_2026-10-15.md` 里那张**旧口径**的表"
+     "变成「默默错着」，而这正是第 137 层本身要防的东西",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        if _declares_stale(text, pos):\n            continue',
+     '        if False:\n            continue',
+     "「就地声明作废」这一支被删掉 ⇒ 与上一条方向相反："
+     "那张**正确的** `CLAUDE.md` 表也会被判成「错」⇒ 守卫恒红，"
+     "而红了之后人只会去改判据（第 112 层：过严的守卫比恒真的更危险）",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '    return any(_STALE_RE.match(line)\n               for line in md.splitlines()[:header_line])',
+     '    return bool(_STALE_RE.search(md))',
+     "作废声明**不再要求写在表之前** ⇒ 一张现行表可以被**文末**挂一句声明赦免。"
+     "⚠️ 这条同时杀掉 `after.md` 反控",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '_STALE_RE = re.compile(r"^\\s*>\\s.*" + re.escape(_STALE_MARK), re.M)',
+     '_STALE_RE = re.compile(re.escape(_STALE_MARK))',
+     "作废声明不再要求是**引用行** ⇒ 散文里**提到**那六个字也算声明 ⇒ "
+     "`CLAUDE.md` 第 137 层自己（它正好引用了这六个字）会把所有文件赦免",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        found = (header, list(rows), pos)',
+     '        pass',
+     "★ 第三版真正缺的那一行：结果不再存进独立绑定 ⇒ 文档**末尾**的状态"
+     "（几乎总是 `header=None, rows=[]`）被当成结果 ⇒ 17 条测试同时红，"
+     "而红的原因是**循环变量当输出**（与第一版 `_find_table` 同一个错，"
+     "只是这次写在重构的路上）",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '            if _HEADER_MARK in "".join(cand) and nxt and _is_separator(_cells(nxt.group(1))):',
+     '            if _HEADER_MARK in "".join(cand):',
+     "「表头后面必须跟分隔行」这条结构判据被删掉 ⇒ `CLAUDE.md` 文档索引表里"
+     "任何**提到**「回本所需本金」的**数据行**都会被当成表头 ⇒ "
+     "判据转而去报告「表头缺列」（第 119 层：红在一个错误的对象上）",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '_STRIKE_RE = re.compile(r"~~.*?~~", re.S)',
+     '_STRIKE_RE = re.compile(r"~~", re.S)',
+     "删除线只删掉两个波浪号、不删中间内容 ⇒ "
+     "`docs/MISTAKE_LOG_2026-10-14.md` 那张「划掉旧值 + 补上新值」的表"
+     "（它**本来就改对了**）被误判成错 ⇒ 主守卫红在一个正确的东西上",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        c = _STRIKE_RE.sub("", c).replace("*", "").strip()',
+     '        c = re.sub(r"(?!x)x", "", c).replace("*", "").strip()',
+     "★ 反向对照：删除线解析被换成**恒不匹配**的正则 ⇒ `~~旧值~~ 新值` 原样留下。"
+     "🚨 第一版这条变异写成「多定义一个 `_DISABLED` 但不改用点」，"
+     "于是**它是个空操作** —— 而空操作会以「变异存活」的形式上报，"
+     "让人以为守卫有洞（第 137 层那个 `--out default=None` 的同族："
+     "看起来做过、实则什么都没做）。变异必须打在**用点**上。",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]',
+     '        dirnames[:] = list(dirnames)',
+     "剪枝被拆掉 ⇒ 扫描会走进 `.venv`/产物目录。"
+     "⚠️ 本条只证明剪枝**有牙**，不证明它**必要**——"
+     "仓里 `.venv` 下没有含该表头的 `.md`/`.py`，真拆了也不会红；"
+     "但那正是「看不见」与「没有」长得一模一样的地方（第 119 层）",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
+
+    ("claude_capital", "tests/test_claude_md_capital_table_matches_artifact.py",
+     '            label = Path(path.name)',
+     '            label = path',
+     "夹具路径（仓外）不再缩成文件名 ⇒ 反控拿到的是一条绝对路径 ⇒ 红。"
+     "判据的**报错可读性**也是它的一部分：报一条没人看得懂的路径，"
+     "等于让人学会无视这条消息",
+     ["tests/test_claude_md_capital_table_matches_artifact.py"]),
 ]
 def _clear_pycache(rel_path: str) -> None:
     d = (ROOT / rel_path).parent / "__pycache__"

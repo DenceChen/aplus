@@ -1,0 +1,11 @@
+{
+  "code_sha": "357f66745bb5392316820568029b225233dd69fa",
+  "code_dirty": true,
+  "code_file_sha256": "500a55b3724ca2dadd319a3fbe002f45511c34a7e0a8e73969fa6e9635ee02bc",
+  "data_fp": "5460:1792002326.672246",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/lot_affordability.py",
+  "stamped_at": "2026-10-15T05:43:35+00:00",
+  "capital": 50000.0,
+  "lot_shares": 100
+}
