@@ -1,0 +1,45 @@
+M1 stamp 调用整个撤掉（回到「只能手工盖章」的病根形态）	scripts/diagnose_hit_rate.py
+provenance.stamp(
+        a.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        extra={
+            "source_parquet": str(a.verification),
+            "source_parquet_sha256": _sha256_of(a.verification),
+            "verdicts_measured": res["verdicts"],
+            "trading_days_measured": res["trading_days"],
+        })
+=== 变异体 ===
+    _dropped = {
+        "source_parquet": str(a.verification),
+        "source_parquet_sha256": _sha256_of(a.verification),
+    }
+
+M2 generator 常量指向别的脚本（章上的 generator 字段说谎）	scripts/diagnose_hit_rate.py
+GENERATOR = "scripts/diagnose_hit_rate.py"
+=== 变异体 ===
+GENERATOR = "scripts/diagnose_hit_rate.py.bak"
+
+M3 章里写死一个 sha256 字面量（与底稿实际字节永远无关）	scripts/diagnose_hit_rate.py
+            "source_parquet_sha256": _sha256_of(a.verification),
+=== 变异体 ===
+            "source_parquet_sha256": "827c48f739e14f7495fcc5b0102cec44a65e633b1c3f3ef87bd16c5c35a84ae4",
+
+M4 把路径字符串放进叫 sha256 的字段（产物层守卫对它零覆盖）	scripts/diagnose_hit_rate.py
+            "source_parquet_sha256": _sha256_of(a.verification),
+=== 变异体 ===
+            "source_parquet_sha256": str(a.verification),
+
+M5 指纹原语退回 mtime 代理（改了又改回骗得过）	scripts/diagnose_hit_rate.py
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+=== 变异体 ===
+    return hashlib.sha256(str(path.stat().st_mtime).encode()).hexdigest()
+
+M6 --out 默认回到 None（裸跑只打印不落盘，而闸门看起来成功）	scripts/diagnose_hit_rate.py
+ap.add_argument("--out", type=Path,
+                    default=ROOT / "data/reports/hit_rate_diagnosis.json")
+=== 变异体 ===
+    ap.add_argument("--out", type=Path, default=None)
+
+M7 把抓取点赋值成 None（关键字仍在，字节检查被 stamp() 整项跳过）	scripts/diagnose_hit_rate.py
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+=== 变异体 ===
+    expect_bytes = None

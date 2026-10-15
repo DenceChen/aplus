@@ -129,6 +129,15 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   我盖了章却没登记，而「盖了假章比不盖更坏」（形状 16）。
     "benchmark_annual_term_2026-10-15.json":
         "scripts/benchmark_annual_term.py",
+    # 2026-10-16 登记：组合绝对净值年化（**年化 20% 目标第一次被对着交付物测量**）。
+    # 判据逐字在 docs/PREREG_PORTFOLIO_NAV_2026-10-16.md（看任何组合数据前写死），
+    # 其中 §7/§8 是补记（前者修掉一条把两个不同量绑死的错判据，
+    # 后者补上 MDE 里漏掉的 252 年化放大因子）。
+    # 🚨 同样是被守卫逼出来的：`test_every_stamped_report_resolves_back_to_a_registered_generator`
+    #   在全量门禁里点名了本文件 —— 我盖了章却没登记，
+    #   而「盖一个**解析不出生成器**的章比不盖更坏」（形状 16）：
+    #   读者无从判断它出自哪份代码。
+    "portfolio_nav.json": "scripts/measure_portfolio_nav.py",
     # 2026-10-15 登记（第 127 层）：三臂判决（最优定权 / 朴素翻号 / 原样等权）。
     # 🚨 登记**卡在 K 链跑完之后才做** —— `aplus/provenance.py` 正在被链的
     #   `backtest_walk_forward_weights.py` 调用（`provenance.stamp()`），

@@ -1,0 +1,9 @@
+M3 章里写死一个 sha256 字面量（与底稿实际字节永远无关）	scripts/measure_portfolio_nav.py
+            "source_parquet_sha256": _sha256_of(a.verification),
+=== 变异体 ===
+            "source_parquet_sha256": "827c48f739e14f7495fcc5b0102cec44a65e633b1c3f3ef87bd16c5c35a84ae4",
+
+M10 组合口径文案被撤掉（数字仍对，读的人会把组合理解成 20 只都持有）	scripts/measure_portfolio_nav.py
+        "组合口径": (
+=== 变异体 ===
+        "_dropped_caliber": (

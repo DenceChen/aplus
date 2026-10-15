@@ -45,7 +45,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sys
 from math import erfc, sqrt
 from pathlib import Path
 
@@ -53,6 +55,16 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# 🚨 形状 24：`python <脚本>` 的 sys.path[0] 是 `scripts/`，**不含仓库根** ⇒
+#    不插这一行，命令行直接跑必然 ModuleNotFoundError（而 tests/ 按路径导入
+#    自带仓库根，会替它把缺陷补上——守卫全绿而脚本跑不起来）。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from aplus import provenance  # noqa: E402
+
+GENERATOR = "scripts/diagnose_hit_rate.py"
 
 
 def _two_sided_p(hits: int, n: int) -> tuple[float, float, float, float]:
@@ -164,19 +176,54 @@ def diagnose(path: Path) -> dict:
     return diagnose_verdicts(pd.read_parquet(path))
 
 
+def _sha256_of(path: Path) -> str:
+    """产物输入的字节指纹。
+
+    ⚠️ **读文件本身，不用 mtime** —— mtime 是代理不是证据：
+    本仓的变异台会「改源码 → 跑测试 → 写回」，
+    内容回到逐位相同而 mtime 被顶到现在（第 112 层那条实测）。
+
+    这里**不复用** `scripts/score_ranking_power.py` 的同名私函数：
+    跨脚本 import 一个下划线私有名是把两个脚本焊在一条 import 链上，
+    而 sha256 本身就是标准库原语（第 163 层禁的是**重写**量具，
+    不是**调用**标准库）。
+    """
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--verification", type=Path,
                     default=ROOT / "data/reports/verification.parquet")
-    ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--out", type=Path,
+                    default=ROOT / "data/reports/hit_rate_diagnosis.json")
     a = ap.parse_args()
     if not a.verification.is_file():
         print(f"✗ 缺档：{a.verification} —— 没有它就不能报命中率（缺档必须报错）")
         return 1
+
+    # 🚨 第 125 层：盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节。
+    #   抓在**跑之前**，比对在**盖章时**；不一致就拒绝盖章（反向的错误证据）。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+
     res = diagnose(a.verification)
     txt = json.dumps(res, ensure_ascii=False, indent=2)
-    if a.out:
-        a.out.write_text(txt, encoding="utf-8")
+    a.out.parent.mkdir(parents=True, exist_ok=True)
+    a.out.write_text(txt, encoding="utf-8")
+
+    # 🚨 第 156 层：`stamp()` 默认把 `data_fp` 指向 `master/daily`（5460 个文件），
+    #   而本脚本读的是**单个文件** `verification.parquet` ⇒ 那样盖出来的章
+    #   指的是一个本脚本没读过的数据根，而真正要抓的输入漂移落在视野之外。
+    #   底稿是**追加式**的（实测 80 行/4 日 → 100 行/5 日），
+    #   所以必须由本脚本**自己声明**它读的那份字节。
+    provenance.stamp(
+        a.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        extra={
+            "source_parquet": str(a.verification),
+            "source_parquet_sha256": _sha256_of(a.verification),
+            "verdicts_measured": res["verdicts"],
+            "trading_days_measured": res["trading_days"],
+        })
     print(txt)
     return 0
 

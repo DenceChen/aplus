@@ -1,9 +1,13 @@
 {
-  "code_sha": "e903f2916fc74947b7cd8740dd1dc2bdc52a07d4",
+  "code_sha": "fe2cbc84dc934258705b6d07799472a1e554febb",
   "code_dirty": true,
-  "code_file_sha256": "89362c422a91ee295a4759da9afff0ede9f1abf12fe69c88dbd1e746c6853ef0",
-  "data_fp": "5460:1792002326.672246",
+  "code_file_sha256": "4043b3a6f1dc901e605504369bbd026d649ce06a81ead9d0f5fe38ed0f19ebf1",
+  "data_fp": "5460:1792062762.291641",
   "data_dir": "data/master/daily",
   "generator": "scripts/diagnose_hit_rate.py",
-  "stamped_at": "2026-10-14T23:57:24+00:00"
+  "stamped_at": "2026-10-15T16:31:17+00:00",
+  "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
+  "source_parquet_sha256": "827c48f739e14f7495fcc5b0102cec44a65e633b1c3f3ef87bd16c5c35a84ae4",
+  "verdicts_measured": 89,
+  "trading_days_measured": 5
 }

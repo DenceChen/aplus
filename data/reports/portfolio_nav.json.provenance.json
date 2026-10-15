@@ -1,0 +1,14 @@
+{
+  "code_sha": "fe2cbc84dc934258705b6d07799472a1e554febb",
+  "code_dirty": true,
+  "code_file_sha256": "79bb7e48133c45674dacd28c96654bedf0c99a68b3b100ad718e7001ea9e5cb7",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_portfolio_nav.py",
+  "stamped_at": "2026-10-15T17:14:02+00:00",
+  "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
+  "source_parquet_sha256": "827c48f739e14f7495fcc5b0102cec44a65e633b1c3f3ef87bd16c5c35a84ae4",
+  "diagnosis": "/Users/airboom/opencode/aplus/data/reports/hit_rate_diagnosis.json",
+  "diagnosis_sha256": "4101e9a5b8e7e804fc8b521b61ce16b4998acb41aa0d6989dcd458c6e40378ff",
+  "n_days_measured": 3
+}

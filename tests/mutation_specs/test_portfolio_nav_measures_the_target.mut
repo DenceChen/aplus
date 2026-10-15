@@ -1,0 +1,49 @@
+M1 stamp 调用整个撤掉（回到「只能手工盖章」的病根形态）	scripts/measure_portfolio_nav.py
+    provenance.stamp(
+=== 变异体 ===
+    _dropped_stamp = dict(
+
+M2 generator 常量指向别的脚本（章上的 generator 字段说谎）	scripts/measure_portfolio_nav.py
+GENERATOR = "scripts/measure_portfolio_nav.py"
+=== 变异体 ===
+GENERATOR = "scripts/measure_portfolio_nav.py.bak"
+
+M4 MDE 漏掉年化放大因子 252（**本次修正的本体**，低估 252 倍）	scripts/measure_portfolio_nav.py
+    mde = 1.96 * TRADING_DAYS_PER_YEAR * sd_log / sqrt(n)
+=== 变异体 ===
+    mde = 1.96 * sd_log / sqrt(n)
+
+M5 指纹原语退回 mtime 代理（改了又改回骗得过）	scripts/measure_portfolio_nav.py
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+=== 变异体 ===
+    return hashlib.sha256(str(path.stat().st_mtime).encode()).hexdigest()
+
+M6 --out 默认回到 None（裸跑只打印不落盘，而闸门看起来成功）	scripts/measure_portfolio_nav.py
+default=ROOT / "data/reports/portfolio_nav.json")
+=== 变异体 ===
+default=None)
+
+M7 把抓取点赋值成 None（关键字仍在，字节检查被 stamp() 整项跳过）	scripts/measure_portfolio_nav.py
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+=== 变异体 ===
+    expect_bytes = None
+
+M8 删掉 V7 结构闸门（years<1 的样本也能给方向判断）	scripts/measure_portfolio_nav.py
+    if years is None or years < MIN_YEARS_FOR_DIRECTION_VERDICT:
+=== 变异体 ===
+    if False:
+
+M9 V3 显著性判据失效（超出 MDE 就直接下方向结论）	scripts/measure_portfolio_nav.py
+    if abs(d) <= mde:
+=== 变异体 ===
+    if False and abs(d) <= mde:
+
+M11 措辞里的成分数换成写死的值（数字对，措辞说谎）	scripts/measure_portfolio_nav.py
+            f"{list(per_window.values())}，因为**重叠窗口会并集合并**、"
+=== 变异体 ===
+            "[10, 10, 10]，因为**重叠窗口会并集合并**、"
+
+M12 删掉「测量假设」三条（实测出来却从不落盘）	scripts/measure_portfolio_nav.py
+        "测量假设": [
+=== 变异体 ===
+        "_dropped_assumptions": [
