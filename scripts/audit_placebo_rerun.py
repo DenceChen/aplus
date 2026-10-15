@@ -78,8 +78,89 @@ def anchor_from_git_head() -> dict:
     return out
 
 
+BASELINE = "data/reports/placebo_control.json"
+WIDTH_REPORT = "data/reports/factor_width_mde.json"
+
+# ⚠️ 钉住**持有重跑前那份产物**的提交，不是 `HEAD`。
+#    重跑产物一旦提交，`HEAD:` 就会指向新产物 ⇒ 基线跟着变 ⇒
+#    「块数与旧窗口相同」这条机制判据**永远绿**。
+#    锚是冻结的，基线也必须冻结在同一个意义上。
+#    这不是「自己判自己」：它是一次外部引用，改它会在 git 里留痕，
+#    且下面 + `tests/test_placebo_rerun.py` 会核对它与锚一致。
+BASELINE_COMMIT = "d0a9cfcbf9f138496994dd3387c6ef7a7235a921"
+
+
+def baseline_from_frozen_commit() -> dict:
+    """从**钉住的那次提交**里读「旧窗口」的真值。
+
+    ## 为什么不用锚块里的数字当「旧窗口」
+
+    锚是我写下的承诺，旧产物是实际发生过的字节。两者**独立**才有验证意义；
+    若把锚同时当成承诺和事实，就是自己判自己。
+
+    ⚠️ 只读字段，不重算：块数直接取 `n_independent_obs`（= `_block_means`
+    的返回长度），**不许**拿 `n_days // block` 反推——`n_days` 是
+    `dropna()` 之前的长度，反推出来的是另一个量（第 135 层）。
+    """
+    r = subprocess.run(["git", "-C", str(_ROOT), "show",
+                        f"{BASELINE_COMMIT}:{BASELINE}"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(
+            f"🚨 读不到 {BASELINE_COMMIT[:7]} 版 {BASELINE}：{r.stderr.strip()}\n"
+            "  「旧窗口」的真值必须来自已提交的字节；没有它就只剩我自己的承诺。")
+    art = json.loads(r.stdout)
+    run0 = art["arms"]["P0_observed"]["runs"][0]
+    return {
+        "commit": BASELINE_COMMIT,
+        "window_end": art["window"][1],
+        "n_days": int(run0["n_days"]),
+        "n_blocks": int(run0["n_independent_obs"]),
+        "t_blocked": float(run0["t_blocked"]),
+        "p0_t_blocked": float(art["p0_t_blocked"]),
+    }
+
+
+def _show_at(ref: str, path: str) -> dict:
+    r = subprocess.run(["git", "-C", str(_ROOT), "show", f"{ref}:{path}"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit(
+            f"🚨 读不到 {ref[:7]} 版 {path}：{r.stderr.strip()}\n"
+            "  判决窗口的真值必须来自已提交的字节，不能是代码里的字面量"
+            "（本仓反复出现过的失效形态）。")
+    return json.loads(r.stdout)
+
+
+def target_from_frozen_commit() -> dict:
+    """判决窗口的真值来自**榜宽产物**——本次重跑的全部理由就是对齐它。
+
+    ## 为什么不是 `== "2026-10-12"`
+
+    那是**我**写下的字面量。它今天恰好等于榜宽产物的窗口，但没人保证它一直等于。
+    一旦链改了窗口，代码里的日期不会跟着动 ⇒ 守卫报绿，而两者其实已经分家。
+
+    ⇒ 判据改成「placebo 的窗口末端 == 榜宽产物的窗口末端」：
+    这才是重跑的**目的**，且真值来自已提交的产物，不是我的记忆。
+
+    ⚠️ `n_days` 取**所有档位的共识**：六个档位对同一天数达成一致，本身就是
+    一条该有的检查；若某个档位天数不同，判决为「榜宽实验内部就不一致」。
+    """
+    art = _show_at(BASELINE_COMMIT, WIDTH_REPORT)
+    counts = {int(v["n_days"]) for v in art["widths"].values() if "n_days" in v}
+    return {
+        "window_start": art["window"][0],
+        "window_end": art["window"][1],
+        "n_days": sorted(counts)[0] if len(counts) == 1 else None,
+        "widths_agree": len(counts) == 1,
+        "widths_seen": sorted(counts),
+    }
+
+
 def main() -> int:
     a = anchor_from_git_head()
+    base = baseline_from_frozen_commit()
+    tgt = target_from_frozen_commit()
 
     rp = _ROOT / REPORT
     if not rp.exists():
@@ -93,26 +174,50 @@ def main() -> int:
         "t_blocked": run0["t_blocked"],
         "p0_t_blocked": art["p0_t_blocked"],
         "n_days": run0["n_days"],
+        "n_blocks": run0.get("n_independent_obs"),
         "window_end": art["window"][1],
     }
 
-    block = a["block"]
-    # 机制：`evolve_race._block_means` 截掉尾部不足一块的交易日 ⇒ n = (len//b)*b
-    # 窗口少两天 ⇒ 截断后**仍是同一段前缀** ⇒ 分块 t 必然逐位相同。
-    prefix_old = (a["n_days"] // block) * block
-    prefix_new = (got["n_days"] // block) * block
-    prefix_same = prefix_old == prefix_new
+    # ★ 机制（2026-10-15 第 135 层修正）：`evolve_race._block_means` 截断的是
+    #   `s = daily.dropna()` 的**长度**，不是 `len(daily)`。
+    #   而产物里的 `n_days = len(series)` 是 `dropna` **之前**的长度。
+    # ⇒ 拿 `n_days` 代入 `n = (len//b)*b` 量错了对象。
+    # ⇒ 唯一能直接观测截断结果的量是 `n_independent_obs`（= `_block_means` 的返回长度），
+    #   所以机制判据改用它；`t_blocked` 的逐位相同仍然是那个决定性预测。
+    #
+    # 下面这段把「预测在什么条件下会失效」**算出来**，而不是写死：
+    #   块数 = (len(dropna)//b) ⇒ len(dropna) ∈ [块数*b, (块数+1)*b - 1]
+    #   若该区间内唯一的 b 的倍数是左端点，则失效条件 = NaN 数恰好等于
+    #   `n_days - 块数*b`，**且**被砍掉的那行不是 NaN。
+    b = a["block"]
+    nb = base["n_blocks"]
+    d_lo, d_hi = nb * b, (nb + 1) * b - 1
+    boundary = [m for m in range(d_lo, d_hi + 1) if m % b == 0]
+    if boundary == [d_lo]:
+        # NaN 个数恰等于它时，dropna 长度正贴着区间左端（= b 的倍数）
+        frag_nan = base["n_days"] - d_lo
+        premise = (f"dropna 长度落在 {d_lo}~{d_hi}，该区间内 b={b} 的唯一倍数是 {d_lo}"
+                   f" ⇒ 预测**仅在** NaN 个数 ≠ {frag_nan}、或被砍掉的那行是 NaN 时成立")
+    else:
+        premise = (f"dropna 长度区间 {d_lo}~{d_hi} 内 b={b} 的倍数有 {len(boundary)} 个 "
+                   f"⇒ 砍掉一天**不会**改变块数 ⇒ 逐位相同无条件成立")
+    blocks_same = got["n_blocks"] == base["n_blocks"]
 
     print(f"锚（git HEAD 的 {DOC}）")
     print(f"  window_end = {a['window_end']}   n_days = {a['n_days']}")
     print(f"  t_blocked  = {a['t_blocked']!r}   ({a['t_blocked'].hex()})")
+    print(f"旧窗口基线（钉住的提交 {base['commit'][:7]}）")
+    print(f"  window_end = {base['window_end']}   n_days = {base['n_days']}   块数 = {base['n_blocks']}")
+    print(f"判决窗口真值（同一提交里的 {WIDTH_REPORT}）")
+    print(f"  window = {tgt['window_start']} → {tgt['window_end']}   n_days = {tgt['n_days']}"
+          f"   （各档位见到 {tgt['widths_seen']}）")
     print(f"产物")
     print(f"  window_end = {got['window_end']}   n_days = {got['n_days']}")
+    print(f"  块数 n_independent_obs = {got['n_blocks']}   （= _block_means 的返回长度）")
     print(f"  t_blocked  = {got['t_blocked']!r}   ({got['t_blocked'].hex()})")
     print(f"  p0_t_blocked = {got['p0_t_blocked']!r}")
     print(f"  verdict    = {art['verdict']}")
-    print(f"机制：截断后前缀 {prefix_old} → {prefix_new} 天 "
-          f"{'（同一段 ⇒ 逐位相同是必然）' if prefix_same else '（⚠️ 不同段 ⇒ 预测不成立）'}")
+    print(f"机制：块数 {base['n_blocks']} → {got['n_blocks']}   {premise}")
 
     checks = []
 
@@ -120,9 +225,25 @@ def main() -> int:
         checks.append(bool(passed))
         print(f"{'✅' if passed else '❌'} {name}   {detail}")
 
-    chk("window[1] = 2026-10-12", got["window_end"] == "2026-10-12", got["window_end"])
-    chk("n_days = 1395", got["n_days"] == 1395, got["n_days"])
-    chk("机制：两窗口截断后同前缀", prefix_same, f"{prefix_old} vs {prefix_new}")
+    # ⚠️ 只比锚里**声称属于旧窗口**的那三项。
+    #   锚的 `window_end = 2026-10-14` 与基线同源（锚就是从那次产物抄的），
+    #   所以把它算进去是恒真的；目标窗口的真值走 `target_from_frozen_commit()`。
+    chk("锚块与钉住提交里的旧产物一致（锚不是凭记忆写的）",
+        a["t_blocked"].hex() == base["t_blocked"].hex()
+        and a["p0_t_blocked"].hex() == base["p0_t_blocked"].hex()
+        and a["n_days"] == base["n_days"],
+        f"锚 n_days={a['n_days']} vs 基线 n_days={base['n_days']}；"
+        f"锚 t={a['t_blocked'].hex()} vs 基线 t={base['t_blocked'].hex()}")
+    chk("榜宽产物的各档位 n_days 达成一致", tgt["widths_agree"],
+        f"见到 {tgt['widths_seen']}")
+    chk("window[1] 与榜宽产物一致（重跑就是为了对齐它）",
+        got["window_end"] == tgt["window_end"],
+        f"placebo {got['window_end']} vs 榜宽 {tgt['window_end']}")
+    chk("n_days 与榜宽产物一致",
+        got["n_days"] == tgt["n_days"],
+        f"placebo {got['n_days']} vs 榜宽 {tgt['n_days']}")
+    chk("机制：块数与旧窗口相同（量的是 dropna 后的长度，不是 n_days）",
+        blocks_same, f"{base['n_blocks']} vs {got['n_blocks']}")
     chk("t_blocked 逐位相同（比位模式，不是 ==",
         got["t_blocked"].hex() == a["t_blocked"].hex(),
         f"{a['t_blocked'].hex()} → {got['t_blocked'].hex()}")
@@ -155,9 +276,10 @@ def main() -> int:
               "**从推理升级为实测**。")
     else:
         print("🚨 有预测未兑现。**逐条处理，不许整体判过**：")
-        if not prefix_same or got["t_blocked"].hex() != a["t_blocked"].hex():
+        if not blocks_same or got["t_blocked"].hex() != a["t_blocked"].hex():
             print("   ▸ `t_blocked` 变了 ⇒ 我的机制理解是错的"
-                  "（`_block_means` 的截断不是我以为的那样，或 P0 臂不走那条路径）")
+                  "（`_block_means` 截的是 `dropna()` 后的长度；"
+                  "若 `dropna` 长度恰为 b 的倍数，砍掉一天就会少一块）")
             print("     ⇒ **此时任何安慰剂数字都不可引用**，先查机制，"
                   "**不许改判据、不许重跑到对上为止**（第 129 层）。")
     return 0 if ok else 1

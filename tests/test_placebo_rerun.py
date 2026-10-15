@@ -79,7 +79,7 @@ def test_the_external_anchor_has_not_moved_since_it_was_frozen():
         "  🚨 不许只把锚改成产物里的数。")
 
 
-def _anchor() -> dict:
+def _mod():
     """按路径导入并**每次重新执行**。
 
     ⚠️ 走 `import` 会命中 `sys.modules` 缓存 ⇒ 改了脚本不重起进程就测不到
@@ -89,40 +89,99 @@ def _anchor() -> dict:
     spec = importlib.util.spec_from_file_location("_audit_placebo_rerun", SCRIPT)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.anchor_from_git_head()
+    return mod
+
+
+def _executable_source(path: Path) -> str:
+    """剥掉**注释与 docstring** 后的源码。
+
+    ⚠️ 为什么必须剥（第 108 层：「不许出现 `shell=True`」的守卫，
+    而这个词出现在我自己的注释里）：
+    文本级扫描会命中**解释「为什么别用字面量」的那段说明**，
+    于是守卫把**自己的理由**判成违规——它守的成了
+    「文件里没有这个字符串」，而不是「代码里没用这个字面量」。
+
+    ⇒ 用 `ast` 删 docstring（它会随 `ast.unparse` 一起消失），
+    `ast.unparse` 本身就不保留注释。
+    """
+    import ast
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef,
+                             ast.AsyncFunctionDef, ast.ClassDef)):
+            body = node.body
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                node.body = body[1:] or [ast.Pass()]
+    return ast.unparse(tree)
+
+
+def test_the_audit_script_contains_no_hardcoded_verdict_window():
+    """🚨 判据不许是**我写下的日期**——真值必须来自已提交的榜宽产物。
+
+    「重跑就是为了让 placebo 与榜宽对齐」是这件事的**全部理由**；
+    把对齐目标写成日期字面量，就是把我自己的记忆当锚：
+    今天恰好相等，链一旦改窗口，代码不会跟着动，守卫照样绿。
+
+    ⇒ 这条不是查「数字对不对」，是查**判据的来源**。
+    ⚠️ 它必须能变异：把脚本里的派生换回字面量，本条立刻红。
+
+    ⚠️ 只查**可执行代码**：注释里写着「别用这个字面量」并**不是**违规，
+    那是这条守卫自己的理由（第 108 层）。
+    """
+    import re
+    code = _executable_source(SCRIPT)
+    for lit in ("2026-10-12", "1395"):
+        hit = re.search(rf"(?<![\w.\-]){re.escape(lit)}(?![\w.])", code)
+        assert hit is None, (
+            f"脚本的**可执行代码**里出现了写死的判决窗口字面量 {lit}"
+            f"（在 `…{code[max(0, hit.start()-40):hit.end()+40] if hit else ''}…`）。\n"
+            "  ⇒ 请改用 `target_from_frozen_commit()`："
+            "判决窗口的真值在**已提交的榜宽产物**里，那才是重跑要对齐的对象。")
 
 
 def test_the_three_preregistered_predictions_hold():
     """§0.1 三条预测 + 机制 + 章。判决量是**位模式**，不是 `==`。
 
     ## 🚨 这条**现在应当是红的**，直到链把 `placebo_control.py` 用
-    ## `--end 2026-10-12` 重跑完（2026-10-15 约 12:37）。
-    磁盘上仍是旧窗口（…2026-10-14，n_days=1396）的字节。
+    ## 榜宽产物的窗口（…2026-10-12）重跑完（2026-10-15 约 12:37）。
+    磁盘上仍是旧窗口（…2026-10-14）的字节。
     ⇒ 红在这里是**正确**的：产物还没重跑，预测就还没兑现。
     ⇒ **不许为了让门禁变绿而放宽它**，也不许 skip（第 130 层）。
     """
     if not REPORT.is_file():
         pytest.fail(f"{REPORT} 不存在 —— 产物缺失，判决为**未测**，不是「通过」")
 
-    a = _anchor()
+    mod = _mod()
+    a = mod.anchor_from_git_head()
+    base = mod.baseline_from_frozen_commit()
+    tgt = mod.target_from_frozen_commit()
+
     import json
     art = json.loads(REPORT.read_text(encoding="utf-8"))
     run0 = art["arms"]["P0_observed"]["runs"][0]
 
-    # 机制先行：`_block_means` 截掉尾部不足一块的交易日 ⇒ n = (len//b)*b。
-    # 两个窗口截断后必须是**同一段前缀**，「逐位相同」才是必然而不是巧合。
-    block = a["block"]
-    assert (a["n_days"] // block) * block == (run0["n_days"] // block) * block, (
-        f"截断后前缀不同：锚 {a['n_days']}//{block}*{block} vs "
-        f"产物 {run0['n_days']}//{block}*{block} ⇒ "
-        "「t_blocked 必然逐位相同」这条推理**不成立**")
+    # ★ 机制先行，且**量的是 `_block_means` 真正用的那个长度**。
+    #   `_block_means` 截断 `s = daily.dropna()`，而产物里的
+    #   `n_days = len(series)` 是 dropna **之前**的长度（第 135 层）。
+    #   拿 `n_days // block * block` 去比，是在比另一个量。
+    #   唯一直接可观测截断结果的是 `n_independent_obs`。
+    assert run0["n_independent_obs"] == base["n_blocks"], (
+        f"块数变了：旧 {base['n_blocks']} → 新 {run0['n_independent_obs']}\n"
+        "  ⇒ 截断后的序列长度不同 ⇒ 「t_blocked 必然逐位相同」这条推理**不成立**")
 
-    assert art["window"][1] == "2026-10-12", (
-        f"窗口末端是 {art['window'][1]}，锚写的是 2026-10-12 —— 产物还没用新窗口重跑")
-    assert run0["n_days"] == 1395, f"n_days = {run0['n_days']}，预测 1395"
+    assert tgt["widths_agree"], (
+        f"榜宽产物各档位 n_days 不一致：{tgt['widths_seen']} ⇒ "
+        "判决窗口本身就没有唯一定义，先修榜宽那份产物")
+    assert art["window"][1] == tgt["window_end"], (
+        f"窗口末端是 {art['window'][1]}，榜宽产物是 {tgt['window_end']} —— "
+        "产物还没用判决窗口重跑")
+    assert run0["n_days"] == tgt["n_days"], (
+        f"n_days = {run0['n_days']}，榜宽产物是 {tgt['n_days']}")
     assert run0["t_blocked"].hex() == a["t_blocked"].hex(), (
         f"t_blocked 位模式变了：{a['t_blocked'].hex()} → {run0['t_blocked'].hex()}\n"
-        "  ⇒ 我的机制理解错了（`_block_means` 的截断不是我以为的那样，"
+        "  ⇒ 我的机制理解错了（`_block_means` 截的是 `dropna()` 后的长度，"
         "或 P0 臂不走那条路径）\n"
         "  ⇒ **此时任何安慰剂数字都不可引用**，先查机制；"
         "🚨 不许改判据、不许重跑到对上为止（第 129 层）。")
