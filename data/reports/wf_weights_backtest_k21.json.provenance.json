@@ -1,9 +1,9 @@
 {
-  "code_sha": "e63a6f0d6c6cdd24b173b28224373ee9fa91c92b",
+  "code_sha": "b7247d7de6e7bd6cba58419f144013bf13db2865",
   "code_dirty": true,
-  "code_file_sha256": "3f3d0f0314d739e5df3a51bef1a83b8211ce85cf73ce0c7dabe64f28d9bc6eff",
-  "data_fp": "5460:1792002326.672246",
+  "code_file_sha256": "b1a806efbdb53ae9c8978b7bfa5ba64a505f25fb2be2905dadabaa4bffa16a4e",
+  "data_fp": "5460:1792062762.291641",
   "data_dir": "data/master/daily",
   "generator": "scripts/backtest_walk_forward_weights.py",
-  "stamped_at": "2026-10-15T09:55:48+00:00"
+  "stamped_at": "2026-10-15T20:29:00+00:00"
 }

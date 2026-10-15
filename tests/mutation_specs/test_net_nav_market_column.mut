@@ -63,3 +63,25 @@ from .evolve import DEFAULT_REBALANCE_EVERY, candidate_key, split_weights
 === 变异体 ===
 from .evolve import DEFAULT_REBALANCE_EVERY, candidate_key, split_weights
 from .ic_to_return import implied_spread
+
+M13 组合收益从均值改成求和（隐含 equity_weight 变成 N，产物一列都不会少）	aplus/evolve_race.py
+        daily = net.groupby(days).mean() - market
+=== 变异体 ===
+        daily = net.groupby(days).sum() - market
+
+M14 成本一整段不扣了（毛净之差不再等于实测成本）	aplus/evolve_race.py
+if direction == "up" and "cost" in leg.columns:
+        net = net - leg["cost"]        # 只有实际建仓的涨腿付成本
+=== 变异体 ===
+if False:
+        net = net - leg["cost"]        # 只有实际建仓的涨腿付成本
+
+M15 两条腿都扣成本（up 与 down 变成同号同值 ⇒ 成本被扣两次的签名）	aplus/evolve_race.py
+    if direction == "up" and "cost" in leg.columns:
+=== 变异体 ===
+    if "cost" in leg.columns:
+
+M16 成本按当日**最大**一笔摊到每条腿（总额被放大 ⇒ 毛−净 ≠ 逐笔成本之和）	aplus/evolve_race.py
+        net = net - leg["cost"]        # 只有实际建仓的涨腿付成本
+=== 变异体 ===
+        net = net - leg["cost"].max()  # 变异：按当日最贵的一笔摊给每条腿

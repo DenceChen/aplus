@@ -197,23 +197,72 @@ def test_the_backtest_is_the_only_path_to_the_real_cost_and_it_is_width_aware():
         )
 
 
+def _module_call_closure(fn) -> dict:
+    """`fn` 在**本模块内**能到达的函数（含 `fn` 自己），逐层展开。
+
+    只收 `ast.Call` 位置上的**裸名**（`ast.Name`）：属性调用 `obj.m()` 不收 ——
+    守卫要回答的是「本模块的哪条路径把费率算出来的」，
+    第三方模块里发生的事不在这一条的射程内。
+    """
+    import ast  # noqa: PLC0415
+    import inspect  # noqa: PLC0415
+
+    src = inspect.getsource(sys.modules[fn.__module__])
+    tree = ast.parse(src)
+    defs = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+    seen, stack = {}, [fn.__name__]
+    while stack:
+        name = stack.pop()
+        if name in seen or name not in defs:
+            continue
+        seen[name] = ast.get_source_segment(src, defs[name]) or ""
+        for node in ast.walk(defs[name]):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                stack.append(node.func.id)
+    return seen
+
+
 def test_run_year_takes_its_real_cost_from_that_one_function():
     """★ **接线守卫**：唯一入口必须真的被用上，不能只是「存在」。
 
     上一条证明了 `real_cost_for` 是对的；这条证明 `run_year` **调的是它**。
     两条合起来才闭合 —— 只测函数的正确性，接线断了照样全绿（第 6 种形状）。
-    """
-    import inspect  # noqa: PLC0415
 
+    🚨 **2026-10-16 第 175 层，本守卫是第三次换机制**（第四次被人打破）：
+    v1 grep `COST_REAL_50K` ⇒ 红在 `import` 那一行（声明被当成实现）；
+    v2 「标定名数之外直接 `raise`」⇒ 过度设计，当场把榜宽实验挡死；
+    v3 `inspect.getsource(run_year)` 里找子串 `real_cost_for(top_n`；
+    ⇒ **v3 死在我自己一次正当重构上**：把费率算成
+    `_net_by_cost` / `_tier_cost` 两个函数后，那个子串不再出现在
+    `run_year` 的函数体内 —— 而**性质其实一直成立**（`:572` 仍走
+    `_tier_cost` ⇒ `real_cost_for(top_n, rebalance_every)`）。
+
+    ★ **这就是文本锚点守卫的通病：它钉的是「字符串在哪一层出现」，
+    不是「费率最终从哪来」**（第 79 层：只钉存在不钉性质；
+      第 112 层：过严与恒真同害 —— 一个在无害重构上变红的守卫，
+      会把人推向「把本来正确的代码改回原样」）。
+
+    ⇒ 改成**模块内调用闭包**：从 `run_year` 出发逐层展开被调的函数，
+    断言 `real_cost_for` 在闭包里 ⇒ 深度再变也不死。
+    ⚠️ **边界要写明**：闭包只认「可达」，**认不出可达的那次调用是不是活的**。
+    它与上面那条「值守卫」（T6a：流进净序列的费率就是声明的那个）
+    合起来才闭合，单独看**不是**端到端证明。
+    """
     import scripts.backtest_walk_forward_weights as bw  # noqa: PLC0415
 
-    src = inspect.getsource(bw.run_year)
-    assert "real_cost_for(top_n" in src, (
-        "run_year 必须从 real_cost_for(top_n) 取实况成本 —— "
-        "否则标定常数会被拿到别的名数上"
+    closure = _module_call_closure(bw.run_year)
+    assert "real_cost_for" in closure, (
+        "从 run_year 出发在本模块里走不到 real_cost_for（可达 "
+        f"{len(closure)} 个函数）—— 实况成本的唯一入口被绕开了，"
+        "标定常数会被拿到别的名数上"
     )
-    assert "COST_REAL_50K" not in src, (
-        "run_year 里出现了裸的 COST_REAL_50K —— "
+    # 🚨 第 17 种形状：裸的 COST_REAL_50K 只能出现在 `real_cost_for` 内部
+    #   （那里它是**标定锚**，top_n == N 才返回），
+    #   路径上别处再出现就是一条「与 top_n 无关」的成本。
+    bare = sorted(n for n, s in closure.items()
+                  if n != "real_cost_for" and "COST_REAL_50K" in s)
+    assert not bare, (
+        f"run_year 的调用路径上，COST_REAL_50K 出现在 {bare} —— "
         "那条路径与 top_n 无关，正是第 17 种形状"
     )
 

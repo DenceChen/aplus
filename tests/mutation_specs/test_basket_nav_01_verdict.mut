@@ -1,0 +1,44 @@
+V1 「|c| < M」这条永不触发（阈值改成 0）	scripts/measure_basket_nav_01.py
+    if abs(cc) < MM:
+=== 变异体 ===
+    if abs(cc) < 0.0:
+
+V2 「|c| < M」方向反转（变成只有可定符号时才提）	scripts/measure_basket_nav_01.py
+    if abs(cc) < MM:
+=== 变异体 ===
+    if abs(cc) > MM:
+
+V3 95% 单侧上界退化成点估计本身（U = c）	scripts/measure_basket_nav_01.py
+    uu = cc + MM
+=== 变异体 ===
+    uu = cc
+
+V4 「U < T ⇒ 不可达」的方向反转	scripts/measure_basket_nav_01.py
+    if uu < TARGET:
+=== 变异体 ===
+    if uu > TARGET:
+
+V5 年化 MDE 乘 √R 而不是乘 R（2026-10-16 我差点亲手改错的那处）	scripts/measure_basket_nav_01.py
+        "mde_as_annual_pct": None if mde is None else mde * R,
+=== 变异体 ===
+        "mde_as_annual_pct": None if mde is None else mde * (R ** 0.5),
+
+V6 年交易日数换成美股惯例 252	scripts/measure_basket_nav_01.py
+from aplus.hurdle import DAYS_PER_YEAR as R          # noqa: E402  244，唯一真相源
+=== 变异体 ===
+R = 252            # noqa: E402  变异：换回美股惯例
+
+V7 账户净值漏加市场腿（把差序列当净值用，§18.1 的 10pp 错）	scripts/measure_basket_nav_01.py
+    return df["market_return"].to_numpy(float) + df[leg].to_numpy(float)
+=== 变异体 ===
+    return df[leg].to_numpy(float)
+
+V8 超额贡献的 MDE 取了毛腿而不是该组合自己的净超额腿	scripts/measure_basket_nav_01.py
+    key = EXCESS_LEG_PREFIX + nm
+=== 变异体 ===
+    key = "毛超额"
+
+V9 超额贡献从比值口径换成相减（复利年化不可相减）	scripts/measure_basket_nav_01.py
+    val = ((1 + cb) / (1 + cm)) ** (1 / yrs) - 1
+=== 变异体 ===
+    val = cb - cm

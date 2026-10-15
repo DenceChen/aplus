@@ -1,0 +1,41 @@
+N1 逐日净超额落盘被摘掉（回到只有毛值的那一遍）	scripts/backtest_walk_forward_weights.py
+            "net_by_cost": {
+=== 变异体 ===
+            "net_by_cost_DISABLED": {
+
+N2 net 序列改成按位置截断（等长但错位的那一种）	scripts/backtest_walk_forward_weights.py
+tag: [float(v) for v in np.asarray(ser.reindex(gross.index), float)]
+=== 变异体 ===
+tag: [float(v) for v in np.asarray(ser, float)][:len(gross.index)]
+
+N3 逐档推导退化成写死一档（C2 的三档塌成单档）	scripts/backtest_walk_forward_weights.py
+                for tag, ser in net_by_cost.items()
+=== 变异体 ===
+                for tag, ser in (("bt003", net_by_cost["bt003"]),)
+
+N4 档名常量把 0.003 抄进去（费率一改列名就撒谎）	scripts/backtest_walk_forward_weights.py
+COST_TIER_TAGS = ("bt003", "real")
+=== 变异体 ===
+COST_TIER_TAGS = ("bt003", "real", "net_excess_003")
+
+N5 成本扣两次（净序列 = 毛 − 2×成本）	scripts/backtest_walk_forward_weights.py
+        daily = _daily(at_cost(res, _tier_cost(tag, top_n, rebalance_every)),
+=== 变异体 ===
+        daily = _daily(at_cost(res, _tier_cost(tag, top_n, rebalance_every) * 2.0),
+
+N6 口径块删掉「它不是什么」（最可能的误读无人挡）	scripts/backtest_walk_forward_weights.py
+                "what_it_is_not": "不是毛超额（那是 `gross_excess`）；"
+=== 变异体 ===
+                "unused_not_declared": "不是毛超额（那是 `gross_excess`）；"
+
+N7 未知档静默回落成一个「看起来合理」的费率	scripts/backtest_walk_forward_weights.py
+    return table[tag]
+=== 变异体 ===
+    return table.get(tag, STOCK_COST_DEFAULT)
+
+N8 逐档循环只算第一档（高档静默消失，产物少一列）	scripts/backtest_walk_forward_weights.py
+for tag in COST_TIER_TAGS:
+        daily = _daily(at_cost(res, _tier_cost(tag, top_n, rebalance_every)),
+=== 变异体 ===
+for tag in COST_TIER_TAGS[:1]:
+        daily = _daily(at_cost(res, _tier_cost(tag, top_n, rebalance_every)),

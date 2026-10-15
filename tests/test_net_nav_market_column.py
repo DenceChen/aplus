@@ -173,6 +173,111 @@ def test_the_surviving_day_index_survives_the_min_basket_filter_too():
         "market 落在与 excess 不同的一批日子上")
 
 
+# ------------------------------------------------ G5/G6/G7：equity_weight 与逐腿成本
+
+
+def _uniform(n: int, actual_pct: float, market_pct: float, cost: float = 0.0):
+    """两天、每天 `n` 条腿，且**逐条收益相同**的合成夹具（给 G5 用）。"""
+    days = pd.to_datetime(["2021-01-05", "2021-01-06"])
+    rows = [
+        {"pred_date": d, "direction": "up", "code": f"C{i}",
+         "actual_pct": actual_pct, "cost": cost,
+         "market_pct": market_pct, "cap": 1.0}
+        for d in days for i in range(n)
+    ]
+    return pd.DataFrame(rows)
+
+
+def test_the_basket_is_a_mean_not_a_sum_so_the_account_is_fully_invested():
+    """🚨 `equity_weight = 1.0`（满仓、无杠杆）—— **§12.3 的承重墙**。
+
+    预注册 §12.3 那句「`real` 档在满仓下与真值只差 **0.002pp**」挂在
+    「每笔名义 = ¥50,000 / N」上；而「每笔名义 = 本金 / N」**只在组合收益是均值时成立**。
+    若哪天引擎把 `.mean()` 改成 `.sum()`，隐含权益立刻变成 `equity_weight = N`
+    （实测 `equity_weight=0.5` 时真实往返 0.752% 已高于 `real` 的 0.550%），
+    而**产物一列都不会少、没有一个值会变 NaN**。
+
+    ⇒ 判据是**不依赖实现的外部锚**：N 条腿收益**全等于 `r`** 时，
+    篮子必须等于 `r`，**与 N 无关**。`r` 是我们自己写的常数，
+    实现怎么改都不会跟着改（第 5/8 层）⇒ 这才是外部锚而不是「反推实现的期望」。
+    """
+    r, m = 0.01, 0.002
+    for n in (MIN_BASKET, 10, 40):
+        excess, market = _daily_series(
+            _uniform(n, actual_pct=r, market_pct=m), "up", return_parts=True)
+        basket = (market + excess).to_numpy(float)
+        assert len(basket) == 2, (
+            f"夹具失效：N={n} 时幸存天数 {len(basket)} ≠ 2 ⇒ "
+            f"MIN_BASKET={MIN_BASKET}，下面的断言会变成恒真")
+        assert np.allclose(market.to_numpy(float), m, rtol=0, atol=1e-12), (
+            f"N={n} 时 market 不是 {m} ⇒ 被减掉的那一项已经不对，"
+            "这条守卫量的不是加法本身")
+        assert np.allclose(basket, r, rtol=0, atol=1e-12), (
+            f"N={n} 时篮子收益 {basket} 不是 {r} ⇒ 组合收益**不是均值**。"
+            "若这是 `sum`，隐含 equity_weight 就变成 N 了，"
+            "§12.3 关于 `real` 档上下界的整张表随之作废")
+
+
+def test_the_cost_is_charged_per_leg_before_averaging_not_once_on_the_sum():
+    """成本**逐腿**扣、扣完再平均 —— 会计恒等式 `毛 − 净 ≡ 实测成本` 的引擎侧。
+
+    ⚠️ 成本**故意取成不等值**：全相等时「逐腿扣后平均」与「先平均再扣一次」
+    在代数上**不可区分**，那种夹具会给两种写法同时发绿（第 117 层的
+    「夹具让 `all()` 退化成装饰」的同族）。
+    不等成本下两者才分得开：`sum` 后减一次 ⇒ 0.012，逐腿扣后平均 ⇒ 0.018。
+
+    ⚠️ **边界**：本条**分不出**「逐腿扣再平均」与「先平均再减平均成本」——
+    两者代数等价。要分出来必须把成本与收益**非共线**地构造，超出本条射程。
+    """
+    actual = [0.01, 0.02, 0.03, 0.04]
+    cost = [0.001, 0.002, 0.003, 0.001]
+    rows = [
+        {"pred_date": pd.Timestamp("2021-01-05"), "direction": "up",
+         "code": f"C{i}", "actual_pct": a, "cost": c,
+         "market_pct": 0.002, "cap": 1.0}
+        for i, (a, c) in enumerate(zip(actual, cost))
+    ]
+    excess, market = _daily_series(pd.DataFrame(rows), "up", return_parts=True)
+    net_basket = (market + excess).to_numpy(float)
+
+    expect = float(np.mean([a - c for a, c in zip(actual, cost)]))
+    assert len(net_basket) == 1, (
+        f"夹具失效：幸存天数 {len(net_basket)} ≠ 1 ⇒ "
+        f"MIN_BASKET={MIN_BASKET}，下面的断言会变成恒真")
+    assert np.allclose(net_basket, expect, rtol=0, atol=1e-12), (
+        f"净篮子收益 {net_basket} 不是逐腿扣成本后的均值 {expect} ⇒ "
+        "成本被以别的次序/次数施加（毛 − 净 就对不上实测成本，"
+        "而 §8.3 的三档判决全建立在这条恒等式上）")
+
+
+def test_only_the_up_leg_pays_the_cost_so_the_down_leg_is_not_double_charged():
+    """成本**只**由 `direction == "up"` 那条腿付（`_daily_series` 的既有约定）。
+
+    ⚠️ 钉的是「down 腿的成本不许被扣」。反过来若两条腿都扣，
+    down 腿会变成 `0.01 − 0.005 − 0.002 = 0.003`，**与 up 腿同号同值** ——
+    而事实是它只扣市场项 ⇒ `0.008`。两条腿同值正是「成本被扣两次」的签名，
+    且它在产物里长得与正确答案非常像（只是更小、更容易被读成「策略不行」）。
+    """
+    day = pd.Timestamp("2021-01-05")
+    rows = [
+        {"pred_date": day, "direction": dirn, "code": f"{dirn}{i}",
+         "actual_pct": 0.01, "cost": 0.005, "market_pct": 0.002, "cap": 1.0}
+        for dirn in ("up", "down") for i in range(4)
+    ]
+    up_excess, _ = _daily_series(pd.DataFrame(rows), "up", return_parts=True)
+    down_excess, _ = _daily_series(pd.DataFrame(rows), "down", return_parts=True)
+
+    assert len(up_excess) == 1 and len(down_excess) == 1, (
+        f"夹具失效：up/down 腿的幸存天数 {len(up_excess)}/{len(down_excess)} ≠ 1")
+    assert np.allclose(up_excess.to_numpy(float), 0.003, rtol=0, atol=1e-12), (
+        f"up 腿超额 {up_excess.to_numpy(float)} 不是 0.003 ⇒ "
+        "涨腿的成本扣错了次数或方向")
+    assert np.allclose(down_excess.to_numpy(float), 0.008, rtol=0, atol=1e-12), (
+        f"down 腿超额 {down_excess.to_numpy(float)} 不是 0.008 ⇒ "
+        "空头腿也在付成本 —— 那是成本被扣两次的签名，"
+        "且它在产物里长得与正确答案非常像（只是更小、更像「策略不行」）")
+
+
 # ------------------------------------------------- V3：射程正确的物理排除
 
 

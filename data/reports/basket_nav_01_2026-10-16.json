@@ -1,0 +1,182 @@
+{
+  "artifact": "data/reports/wf_weights_backtest_k21.daily.parquet",
+  "artifact_sha256": "785d1aaf20f1dfcec4dfdfd4acd64357384378454ac265178a150422e6b5d995",
+  "R_days_per_year": 244,
+  "R_source": "aplus.hurdle.DAYS_PER_YEAR",
+  "target": 0.2,
+  "tiers": [
+    {
+      "tier": "c=0（market_return 本身，抽样面板等权**毛**收益）",
+      "chan_g_approx": 0.0950223345244221,
+      "chan_gap_pp": 0.4448700621560997,
+      "n_days": 1395,
+      "years": 5.717213,
+      "compounded_total": 0.7197151585397816,
+      "cagr": 0.0994710351459831,
+      "arith_ann": 0.12452862562143734,
+      "vol_drag": 0.025057590475454236,
+      "ann_vol": 0.2429250546856591,
+      "mde_log": 0.0008202497685474751,
+      "mde_as_annual_pct": 0.20014094352558393
+    },
+    {
+      "tier": "① 判决档：market_return + net_excess_bt003",
+      "chan_g_approx": 0.10056526264162635,
+      "chan_gap_pp": 0.49975695276743837,
+      "n_days": 1395,
+      "years": 5.717213,
+      "compounded_total": 0.7749076294493729,
+      "cagr": 0.10556283216930074,
+      "arith_ann": 0.13847618482192353,
+      "vol_drag": 0.032913352652622796,
+      "ann_vol": 0.2753576662462739,
+      "mde_log": 0.0009292521049496949,
+      "mde_as_annual_pct": 0.22673751360772554
+    },
+    {
+      "tier": "参考档（非判决）：market_return + net_excess_real",
+      "chan_g_approx": 0.07192890331234494,
+      "chan_gap_pp": 0.24317946371858745,
+      "n_days": 1395,
+      "years": 5.717213,
+      "compounded_total": 0.5069256759302072,
+      "cagr": 0.07436069794953082,
+      "arith_ann": 0.11000951815525689,
+      "vol_drag": 0.03564882020572607,
+      "ann_vol": 0.2759732408872713,
+      "mde_log": 0.0009313860690920364,
+      "mde_as_annual_pct": 0.22725820085845688
+    }
+  ],
+  "all_tiers_verdicts": {
+    "c=0（market_return 本身，抽样面板等权**毛**收益）": [
+      "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+      "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +9.95% 低于目标，但 95% 上界 +29.96% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+    ],
+    "参考档（非判决）：market_return + net_excess_real": [
+      "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+      "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +7.44% 低于目标，但 95% 上界 +30.16% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+    ]
+  },
+  "excess_legs_own_mde": {
+    "毛超额": {
+      "chan_g_approx": 0.03957027627549502,
+      "chan_gap_pp": 0.08177781640348464,
+      "n_days": 1395,
+      "years": 5.717213,
+      "compounded_total": 0.2540346046781392,
+      "cagr": 0.040388054439529864,
+      "arith_ann": 0.048107559200486205,
+      "vol_drag": 0.007719504760956342,
+      "ann_vol": 0.13066968221428557,
+      "mde_log": 0.0004381858914205501,
+      "mde_as_annual_pct": 0.10691735750661423,
+      "abs_cagr_over_mde": 0.37775021176548756,
+      "sign_determinable": false
+    },
+    "净超额@bt003": {
+      "chan_g_approx": 0.00538700437359039,
+      "chan_gap_pp": 0.0040909157415411,
+      "n_days": 1395,
+      "years": 5.717213,
+      "compounded_total": 0.031432508538839166,
+      "cagr": 0.005427913531005801,
+      "arith_ann": 0.013947559200486206,
+      "vol_drag": 0.008519645669480404,
+      "ann_vol": 0.13084765818994099,
+      "mde_log": 0.0004388170280912246,
+      "mde_as_annual_pct": 0.1070713548542588,
+      "abs_cagr_over_mde": 0.05069435740674112,
+      "sign_determinable": false
+    },
+    "净超额@real": {
+      "chan_g_approx": -0.023170959404060873,
+      "chan_gap_pp": 0.0290442886679107,
+      "n_days": 1395,
+      "years": 5.717213,
+      "compounded_total": -0.12395038178790874,
+      "cagr": -0.022880516517381766,
+      "arith_ann": -0.01451910746618045,
+      "vol_drag": 0.008361409051201316,
+      "ann_vol": 0.13154354364909304,
+      "mde_log": 0.0004411963688111001,
+      "mde_as_annual_pct": 0.10765191398990842,
+      "abs_cagr_over_mde": 0.21254166014667095,
+      "sign_determinable": false
+    }
+  },
+  "excess_contribution_ratio": {
+    "bt003": {
+      "annual_pct": 0.0009669115895649671,
+      "mde_of_the_underlying_excess_leg": 0.1070713548542588,
+      "excess_leg_key": "净超额@bt003",
+      "abs_over_mde": 0.009030534739016688,
+      "sign_determinable": false
+    },
+    "real": {
+      "annual_pct": -0.00403287126313534,
+      "mde_of_the_underlying_excess_leg": 0.10765191398990842,
+      "excess_leg_key": "净超额@real",
+      "abs_over_mde": 0.03746214176473808,
+      "sign_determinable": false
+    }
+  },
+  "excess_contribution_note": "复利年化**不可相减** ⇒ 超额贡献必须走比值 ((1+c_bk)/(1+c_mkt))^(1/years) − 1。⚠️ 「相减」的 +0.61pp 是错的（分数减分数得到的是差不是比值的年化）。⚠️ 它的 MDE 取**同源净超额序列**的 MDE（delta method 未做，属已知近似）。",
+  "verdict_reading": 0.10556283216930074,
+  "verdict_mde_annual": 0.22673751360772554,
+  "verdict_upper_one_sided_95": 0.3323003457770263,
+  "verdict_rule": "预注册 §16（对 §15.3 的修正）：U=c+M<T 才可说「不可达」；c<T≤U 只能说「测不出」；|c|<M 连符号都定不了",
+  "verdict_text": "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）‖`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.56% 低于目标，但 95% 上界 +33.23% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**",
+  "verdict_cases_fired": [
+    "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+    "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.56% 低于目标，但 95% 上界 +33.23% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+  ],
+  "caliber": {
+    "R": "244（aplus.hurdle.DAYS_PER_YEAR，A 股实况）",
+    "R_is_not": "不是 aplus.verify.TRADING_DAYS_PER_YEAR=252（美股惯例）；两者不是同一个量，本读数与 verify.compounded_stats 的 cagr 不可并排比较",
+    "primary": "复利 CAGR = prod(1+r)**(R/n) − 1",
+    "arith_role": "算术 mean×R **只作敏感性**，不许用它下判决",
+    "verdict_tier_is": "market_return + net_excess_bt003",
+    "verdict_tier_is_legit_because": "bt003 由 annual_friction(50_000, 10, rate=0.0003, min_comm=5) 一次算出，**不含 ¥5 固定佣金** ⇒ 比真实成本乐观 ⇒ 它是**上界**，「①<20% ⇒ 账户净值必然<20%」因此是单边结论",
+    "verdict_tier_is_not": "**不是**因为它等于真值（0.003 ≠ 真值 0.005520）；照「理由」把它改成 real 会亲手拆掉上界性（real 在 equity_weight=0.5 时真实 0.752% > 0.550%，翻成下界 ⇒ 失效在「做不到」误判成「做得到」那一侧）",
+    "real_tier_role": "答「大概能拿到多少」，**不能**答「能不能到 20%」",
+    "tier_sum_order": "三档都先**逐日相加**再复利，不是分别复利再合并",
+    "mde": "MDE = 1.96 × sd(log1p r)/sqrt(n)，年化栏按 ×R 近似",
+    "why_compounded_not_arith": "石川《因子投资方法与实践》[[p136]]：「月均收益率是算术平均，累计收益曲线图中反映的是收益率的几何平均，而收益率的波动使得几何平均总是小于算术平均」——并给出反例：月均收益率为正而累计收益小于零 ⇒ 算术栏**能把符号翻过去**，不是保守的敏感性。Chan《Quantitative Trading》p.136-137：g = m − s²/2，且「几何平均总是小于算术平均，除非两数完全相同」。",
+    "chan_external_anchor": "每档并排印出 Chan 闭式 g = m − s²/2 与其实测差（pp）。⚠️ 这是**与文献公式**对拍，**不是**用公式重算自己的字段（第 109 层）。",
+    "this_is_not": "不是 ② 账户净值（不含整手 100 股、¥5 固定佣金、闲置现金）",
+    "sample_size_anchor_chan_p85": {
+      "source": "Chan《Quantitative Trading》p.85 引 Bailey et al. (2012) 最小回测长度",
+      "table": [
+        [
+          "目标：置信「真实 Sharpe ≥ 0」",
+          "需要回测 Sharpe 1",
+          "需要样本 681（2.71 年日频）"
+        ],
+        [
+          "目标：置信「真实 Sharpe ≥ 0」",
+          "需要回测 Sharpe 2",
+          "需要样本 174（0.69 年日频）"
+        ],
+        [
+          "目标：置信「真实 Sharpe ≥ 1」",
+          "需要回测 Sharpe 1.5",
+          "需要样本 2739（10.87 年日频）"
+        ]
+      ],
+      "n_days_actual": 1395,
+      "can_support": "1395 ≥ 681 ⇒ 可以做「回测 Sharpe ≥ 1 ⇒ 真实 Sharpe ≥ 0」这一档",
+      "cannot_support": "1395 < 2739 ⇒ **不能**做「真实 Sharpe ≥ 1」的置信声明",
+      "why_it_matters": "这条外部表就是 §8.2「判决必须单边」的**外部依据**：本样本量支撑「低于目标」的符号级判决，支撑不住「达到目标」的强度级声明。判决方向由样本量决定，不由我选。"
+    },
+    "deflated_sharpe_caveat": "Chan p.84-85 的 Bailey (2014) Deflated Sharpe Ratio：**调参次数越多，真实 Sharpe 相对回测 Sharpe 被 deflation 越多**。本仓已迭代 5 档 K、多条权重路径、多轮成本标定与守卫 ⇒ 🚨 本读数的回测 Sharpe 应读作**上界**，未经 deflation 校正，**不许**当作「稳健可实现」的证据。",
+    "prereg": "docs/PREREG_7Y_NET_NAV_2026-10-16.md §15（事前预注册） + §16（判据修正案） + §17（产物实读）",
+    "bt003_optimism_has_TWO_sources": "🚨 ①不含 ¥5 固定佣金；🚨 ②**实测每次调仓成本只有标称档的 0.9435×**（54 天满档 / 9 天 0.9× / 6 天 0.5×，部分篮子日摊薄，均值 0.002830 vs 标称 0.003）。⇒ 「0.003」是**标称值**，实际每次调仓 0.00283。预注册 §17.4。",
+    "basket_size_not_in_artifact": "🚨 `.daily.parquet` **没有持仓数列** ⇒ **非调仓日的成分数测不到**。只有 15 个调仓日能从 `毛−净` 反推出是 5 或 9 只。⇒ 「1395 天每天都是 10 只篮子」这句话**产物支撑不了**，不许写。",
+    "c0_tier_label_caveat": "⚠️ `c=0` 档名里的「毛」字指**市场腿本身未扣成本**（成本是涨篮子调仓才付的，市场腿不调仓）⇒ 它是**多余限定词**，且极易被读成「涨篮子的毛」。⚠️ tier 名**故意不改**：改了会波及所有下游复制点（第 73 层的扩散成本）。这一档真正的含义 = **账户 100% 只持抽样面板等权、完全不选股**的上界对照。",
+    "market_return_is_not_an_index": "`market_return` 是**抽样面板等权日收益**（`aplus.backtest::_market_by_day`，`MARKET_SAMPLE=150`、种子 42 写死在源码）。🚨 **它不是被选中的那 10 只自身的等权收益** —— 更正 PREREG §12.4 那句「是那同一批被选中股票自身的等权收益」，那半句是错的（§18.2）。**不是**中证全指、也不是市值加权（那是 cap_weighted_benchmark.json 的口径）。✅ 仍然成立的是：`market + net_excess == 涨篮子等权的净收益` —— 但那是**定义式恒等**（`net_excess := 涨篮子净 − market`），与 market 是什么无关 ⇒ **恒真的恒等式定不了 market 的语义**（§18.2）。",
+    "net_excess_is_a_DIFFERENCE_not_a_nav_series": "🚨🚨 `net_excess_*` / `gross_excess` 三列**是差序列**（组合 − market），**不是**账户净值日收益序列。**直接对它算 CAGR 会得到一个无关的数** —— 本脚本第一版就踩过（把 bt003 的 cagr 打成 +0.54%，真值是 +10.56%，差 10pp）。账户净值**必须**先逐日 `market_return + net_excess_*` 相加。⚠️ 证据：`market_return` 每日唯一（1395 个不同取值 / 1395 行）⇒ 广播列；恒等式自检印在 stdout（`毛 − 账户净值` 应等于实测成本档）。",
+    "market_single_seed_bias_direction": "🚨 基准是**单个固定 seed 的 150 只随机抽样**，不是全池。实测该抽样日均 0.051036% vs 全池 0.047132% ⇒ 该 seed 的基准**偏高（乐观）** ⇒ 用它当分母 ⇒ **超额贡献被压低** ⇒ 本读数落在**下界侧**。🚨🚨 失效方向**不利于本平台的目标**：它让「选股没用 / 达不到」的结论**更容易成立**，而不是更难。所以这一栏**不能**被当成保守的安全垫。",
+    "market_single_seed_bias_direction_is_NOT_a_whole_claim": "⚠️ 这只是**这一个 seed** 的偏差方向，不是它的幅度保证。换 seed 基准会动 ⇒ **不许**声称「抽样基准等价于全池」，也**不许**用它去「修正」上表任何数字（第 109 层：只读字段，不许公式重算）。⚠️ 要真正消除这个自由度，需要的是**多 seed 稳健性扫描**，本仓**尚未做**，登记为欠账。"
+  }
+}

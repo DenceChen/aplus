@@ -25,6 +25,29 @@
     "rsi"
   ],
   "note": "净超额 = 涨篮子 − 市场，日频序列按调仓周期分块后求 t；观测单位是「一次调仓决策」。可成交性闸门已开。两个成本口径都报：回测默认低估真实现况 1.84 倍。",
+  "caliber": {
+    "market_return": {
+      "what_it_is": "抽样面板等权日收益（_market_by_day）",
+      "what_it_is_not": "不是中证全指；不是市值加权（那是 cap_weighted_benchmark.json 的口径）",
+      "source": "aplus/backtest.py::_market_by_day",
+      "used_for": "组合净值 = market_return + gross_excess（预注册 §8.1）"
+    },
+    "gross_excess": {
+      "what_it_is": "涨篮子等权 − market_return",
+      "note": "落盘的是**毛**的那一遍（cost=0）；逐日**净**的那一遍见 `net_excess_bt003` / `net_excess_real`"
+    },
+    "net_excess_bt003": {
+      "what_it_is": "涨篮子等权 − market_return，**已按中档费率扣过一次成本**（换手 × 0.003）；组合净值（中档）= market_return + 本列",
+      "what_it_is_not": "不是毛超额（那是 `gross_excess`）；不是绝对净值（绝对净值还要加 market_return）；不含整手取整与每笔 ¥5 固定佣金 ⇒ 它是账户净值的**上界**",
+      "source": "aplus/evolve_race.py::_daily_series（net = actual_pct − cost）",
+      "cost_rate": 0.003,
+      "used_for": "预注册 §8.2 的 ① 组合净值（判决用这一档，C2）"
+    },
+    "net_excess_real": {
+      "what_it_is": "同上，但费率是 `real_cost_for(top_n, rebalance_every)`（含 ¥5 最低佣金的实测档）",
+      "what_it_is_not": "不是判决档 —— C2 判决用 `bt003`；这一档只作对照"
+    }
+  },
   "years": [
     {
       "n_rows": 4703,

@@ -88,6 +88,18 @@ K = 21
 #   「多 2 天数据是免费的」正是第 99 层，而窗口是预注册判据的一部分。
 WINDOW_END_PINNED = "2026-10-12"
 
+#: **逐日净超额**要落盘的成本档（预注册 C2「三档并排」的日频那一半）。
+#:
+#:   `bt003` = 中档，费率 `aplus.backtest.STOCK_COST_DEFAULT`（C1/C2），**判决用它**
+#:   `real`  = 含 ¥5 最低佣金的实测档，只作对照
+#:
+#: 🚨 **档名与费率必须长在一起**：把费率抄进列名（`net_excess_003`）看着更「明确」，
+#:   实则改费率时列名不会跟着变，而 `STOCK_COST_DEFAULT` 是会变的常量
+#:   ⇒ 两份真相，下一次调费率后列名就在撒谎（第 73 层）。
+#: 🚨 加了新标签而忘了在 `run_year` 的 `tier_cost` 里登记 ⇒ **KeyError 当场崩**，
+#:   而不是静默少落一档。
+COST_TIER_TAGS = ("bt003", "real")
+
 _VERDICT = None
 
 
@@ -208,6 +220,38 @@ def _t(daily, block: int):
     """
     from aplus.evolve_race import _tstat
     return _tstat(daily, block=block)
+
+
+def _tier_cost(tag: str, top_n: int, rebalance_every: int) -> float:
+    """某一成本档的**费率**（每轮双边，占该期收益的比例）。
+
+    ⚠️ **未知档当场 KeyError**，不回落、不猜 ——
+    `COST_TIER_TAGS` 加了标签而忘了登记费率时，崩在这里比静默少算一档好。
+    """
+    table = {"bt003": STOCK_COST_DEFAULT,
+             "real": real_cost_for(top_n, rebalance_every)}
+    return table[tag]
+
+
+def _net_by_cost(res, wcol, top_n: int, rebalance_every: int) -> dict:
+    """**按成本档**给出逐日净超额序列（判决用 `bt003`，预注册 C2）。
+
+    🚨 抽成独立函数不是为了好看，是为了**让守卫能跑到它**：
+    `run_year` 那一层要把 GB 级面板读进来，而守卫一旦触发那一步，
+    守卫本身就成了最贵的那一步（与 `placebo_control.run_arms` 同源）。
+
+    ⚠️ 更要紧的理由：守卫直接调 `_daily_series` 只能验**机制**，
+    而档费率是从 `run_year` 里**流进来**的 —— 分成两处时，
+    「把费率翻倍」这种变异对守卫完全不可见（N5 实测存活）。
+    两处合成一处，被守卫的函数与被变异的函数才是同一个。
+    """
+    out: dict = {}
+    for tag in COST_TIER_TAGS:
+        daily = _daily(at_cost(res, _tier_cost(tag, top_n, rebalance_every)),
+                       weights_col=wcol)
+        if daily is not None and len(daily):
+            out[tag] = daily
+    return out
 
 
 def _rescale_check() -> dict:
@@ -442,6 +486,10 @@ def _daily_frame(chunks: list, factors) -> "pd.DataFrame":
         labels = [_label(d) for d in c["dates"]]
         wanted = [("gross_excess", c["excess"]),
                   ("market_return", c.get("market"))]
+        # 🚨 取值走 `.get(...)` 而不是 `c["net_by_cost"]`：旧产物上没有这个键，
+        #   直接下标会 KeyError —— 而那条分支**从未被执行过**（第 9 种形状）。
+        wanted += [(f"net_excess_{tag}", (c.get("net_by_cost") or {}).get(tag))
+                   for tag in COST_TIER_TAGS]
         wanted += [(f"expo_{f}", c.get("exposure", {}).get(f)) for f in factors]
         for name, vals in wanted:
             if vals is None:
@@ -516,9 +564,13 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
     #   ⇒ 直接解包会在最不该崩的那种输入上崩，而崩点离原因很远。
     gross, market = parts if parts is not None else (None, None)
     out = {"n_rows": int(len(res)), "n_days": int(len(dates))}
-    for tag, c in (("bt003", STOCK_COST_DEFAULT),
-                   ("real", real_cost_for(top_n, rebalance_every))):
-        daily = _daily(at_cost(res, c), weights_col=wcol)
+    #: 逐日**净**超额按档收好，最后随 chunk 落盘（预注册 C2 的日频那一半）。
+    #: 以前只在内存里活一次就被汇总成标量 `annual_net_pct` 扔掉 ⇒
+    #: 组合净值在中档成本下算不出来（`market + gross_excess` 只是**毛**的）。
+    net_by_cost = _net_by_cost(res, wcol, top_n, rebalance_every)
+    for tag in COST_TIER_TAGS:
+        c = _tier_cost(tag, top_n, rebalance_every)
+        daily = net_by_cost.get(tag)
         t, n_obs = _t(daily, block=rebalance_every)
         mean = float(daily.mean()) if daily is not None and len(daily) else float("nan")
         sd = float(daily.std(ddof=1)) if daily is not None and len(daily) > 1 else float("nan")
@@ -557,6 +609,17 @@ def run_year(xs, weights, dates, top_n: int, bottom_n: int,
             #   不是中证全指、也不是市值加权 ⇒ 不写清楚就会被读成指数（第 7 层）。
             "market": ([float(v) for v in np.asarray(market.reindex(gross.index), float)]
                        if market is not None else None),
+            # ★ 2026-10-16 新增（预注册 `PREREG_7Y_NET_NAV` C2 的日频那一半）：
+            #   **逐日净超额**，按成本档各一条。组合净值 = `market` + 这一条。
+            #   以前只有 `excess`（毛）落盘，净的那遍只用来算一个标量
+            #   ⇒ ① 的判决（中档成本）根本拿不到日频序列。
+            # 🚨 **按索引对齐**到 `gross`，不许按位置（`iloc[:len(gross)]`
+            #   那一族：等长但错位，`.daily.parquet` 里不报任何异常）。
+            "net_by_cost": {
+                tag: [float(v) for v in np.asarray(ser.reindex(gross.index), float)]
+                for tag, ser in net_by_cost.items()
+                if ser is not None and len(ser)
+            },
             # ★ 10 列（`EXPO_COLS`）：8 因子 + 市值主列 + 市值对照列。
             #   `cap_table is None` 时那**两列**都**整列 NaN**
             #   （不是 0、不是缺列）——
@@ -769,7 +832,26 @@ def main(argv=None) -> int:
             },
             "gross_excess": {
                 "what_it_is": "涨篮子等权 − market_return",
-                "note": "落盘的是**毛**的那一遍（cost=0）；net 那遍只用于算实测成本",
+                "note": "落盘的是**毛**的那一遍（cost=0）；"
+                        "逐日**净**的那一遍见 `net_excess_bt003` / `net_excess_real`",
+            },
+            # 🚨 逐字要跟数字走（第 7 层 / §8.4）：这一列最可能被读错成
+            #   「毛值」或「绝对净值」，而两种误读给出的判决方向完全相反。
+            "net_excess_bt003": {
+                "what_it_is": f"涨篮子等权 − market_return，**已按中档费率扣过一次成本**"
+                              f"（换手 × {STOCK_COST_DEFAULT}）；"
+                              f"组合净值（中档）= market_return + 本列",
+                "what_it_is_not": "不是毛超额（那是 `gross_excess`）；"
+                                  "不是绝对净值（绝对净值还要加 market_return）；"
+                                  "不含整手取整与每笔 ¥5 固定佣金 ⇒ 它是账户净值的**上界**",
+                "source": "aplus/evolve_race.py::_daily_series（net = actual_pct − cost）",
+                "cost_rate": STOCK_COST_DEFAULT,
+                "used_for": "预注册 §8.2 的 ① 组合净值（判决用这一档，C2）",
+            },
+            "net_excess_real": {
+                "what_it_is": "同上，但费率是 `real_cost_for(top_n, rebalance_every)`"
+                              "（含 ¥5 最低佣金的实测档）",
+                "what_it_is_not": "不是判决档 —— C2 判决用 `bt003`；这一档只作对照",
             },
         },
         "years": rows,

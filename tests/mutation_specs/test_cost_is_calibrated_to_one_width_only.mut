@@ -1,0 +1,9 @@
+C1 接线被绕开：real 档改用裸的标定常数（第 17 种形状复发）	scripts/backtest_walk_forward_weights.py
+             "real": real_cost_for(top_n, rebalance_every)}
+=== 变异体 ===
+             "real": COST_REAL_50K}
+
+C2 接线被绕开但**不点名**：real 档写死字面量（可达性检查专杀这一条）	scripts/backtest_walk_forward_weights.py
+             "real": real_cost_for(top_n, rebalance_every)}
+=== 变异体 ===
+             "real": 0.0055}
