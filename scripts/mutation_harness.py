@@ -174,6 +174,26 @@ def load_specs(path: Path) -> list[Spec]:
       `"\n"` 开头** ⇒ `block.split("\n", 1)[1]` 把**首行标签**当成 `old` 的
       第一行 ⇒ `src.count(old) == 0`。追加规格后若报「旧串匹配 0 处」
       而你确信锚点是对的，**先查这一项**（改法：`b.strip("\\n")` 再 join）。
+
+    ④ 🚨 **`dedent` 对「变异体」也生效，且两边的 pad 可以不同。**
+      2026-10-15 实测（`test_bond_sync_probe.mut:BS4` 第一次写）：
+        锚点写 `failed.append(c)` @0 格 + `continue` @12 格
+          ⇒ pad=0，**逐字命中**源码；
+        而变异体我写成了 `failed.append(c)` @12 格 + `raise` @12 格
+          ⇒ pad=**12**，两条都被拽成 0 格
+          ⇒ 替进源码后 `except` 块里多出一行 0 格缩进
+          ⇒ **IndentationError** ⇒ rc=2「不可验证」。
+
+      ⇒ **规则不是「锚点首行缩进 ≤ 块内最小值」，而是**
+        **「锚点与变异体的首行缩进必须相同」**（两者的 pad 才一致）。
+        多行块的稳妥写法：首行写 0 格（`pad=0` ⇒ 逐字命中），
+        其余行**照抄源码的缩进**，变异体同样首行 0 格。
+
+      ⚠️ 这与 ①② 是不同的失效方向：①② 报「旧串匹配 0 处」（一眼看得见），
+        ④ 报的是 **IndentationError**，
+        而台子对 `compile()` 失败只说「不可验证，跳过 pytest」——
+        **很容易读成「这条变异不重要」**，其实它可能正是你唯一想验的那条。
+        见到 SyntaxError 请先查本项，别直接改变异体。
     """
     specs: list[Spec] = []
     for block in path.read_text(encoding="utf-8").split("\n\n"):

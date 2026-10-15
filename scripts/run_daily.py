@@ -834,9 +834,21 @@ def step_bond_update(data_root):
     status = res.get("status")
     if status == "ok":
         print(f"[bond-update] {res['latest']} → {res['new_latest']}：更新 {res['saved']} 只"
-              f"（失败 {res['failed']}，摘牌/无数据 {res['empty']}，共 {res['total']} 只）")
+              f"（失败 {res['failed']}，摘牌/无数据 {res['empty']}，共 {res['total']} 只；"
+              f"探针 {res.get('probe_fetched')}/{len(res.get('probe_codes') or [])} "
+              f"问出结果、{res.get('probe_advanced')} 只前进）")
     elif status == "no_new_session":
-        print(f"[bond-update] 无新交易日（最新仍为 {res['latest']}），跳过")
+        # 🚨 2026-10-15：这一行原本只打印结论、不打印任何证据，
+        #   而结论连续 4 个交易日是**错的**——探针选中一只 10-09 后停止交易的债，
+        #   `max()` 又让它成为确定性的死点，整个 1087 只的库被永久冻住。
+        #   「市场没开」是**否定**断言，必须自带可独立重算的材料
+        #   （第「守卫不许给自己发信号」层：告警不许只凭自己存在就成立）。
+        _d = res.get("probe_source_dates") or {}
+        print(f"[bond-update] 无新交易日（最新仍为 {res['latest']}），跳过。"
+              f"⚠️ 该结论由 {res.get('probe_fetched')} 只探针支撑："
+              f"{', '.join(f'{c}→{d}' for c, d in sorted(_d.items())) or '(无)'}"
+              + (f"；探针失败 {len(res.get('probe_failed') or [])} 只"
+                 if res.get("probe_failed") else ""))
     else:
         print(f"[bond-update] 状态 {status}：{res.get('reason') or res.get('error', '')}")
 

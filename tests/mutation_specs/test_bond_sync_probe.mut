@@ -1,0 +1,43 @@
+BS1	 aplus/bond_sync.py
+    return tied[:k]
+    === 变异体 ===
+    return tied[:1]
+
+BS2	 aplus/bond_sync.py
+    new_latest = max(src_dates.values())
+    === 变异体 ===
+    new_latest = min(src_dates.values())
+
+BS3	 aplus/bond_sync.py
+    advanced = sorted(c for c, d in src_dates.items() if d > latest)
+    === 变异体 ===
+    advanced = sorted(src_dates)
+
+BS4	 aplus/bond_sync.py
+failed.append(c)
+            continue
+    === 变异体 ===
+failed.append(c)
+            raise
+
+BS5	 aplus/bond_sync.py
+    return {"status": "no_new_session", **evidence,
+    === 变异体 ===
+    return {"status": "no_new_session", "latest": latest, **{},
+
+BS6	 aplus/bond_sync.py
+    return {"status": "ok", **evidence,
+    === 变异体 ===
+    return {"status": "ok", "latest": latest,
+
+BS7	 aplus/bond_sync.py
+    return {"status": "probe_empty", **evidence,
+    === 变异体 ===
+    return {"status": "probe_empty", "latest": latest,
+
+BS8	 aplus/bond_sync.py
+if df is None or df.empty:
+            continue          # 空帧对「市场开没开」零信息（同本模块 docstring）
+    === 变异体 ===
+if False:
+            continue          # 空帧对「市场开没开」零信息（同本模块 docstring）
