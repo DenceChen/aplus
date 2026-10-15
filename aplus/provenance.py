@@ -183,6 +183,14 @@ DEFAULT_GENERATORS: dict[str, str] = {
         "scripts/regime_control_sweep.py",
     "regime_control_judge_window_by_year_2026-10-15.json":
         "scripts/regime_control_by_year.py",
+    # 🚨 2026-10-15：`stats.json` 此前**未登记** ⇒ `freshness()` 判 `unknown`
+    # ⇒ 按本模块自己的规矩「不可引用」，而它恰是**已交付产品的前瞻账**
+    # （`docs/GOAL_20PCT_VERDICT_2026-10-15.md` 第五节整节引它的字段）。
+    # ⚠️ 生成器名**从写盘点读**：`scripts/run_daily.py:800` 的 `path.write_text`
+    # （第 123 层：绝不许从输出文件名反推）。
+    # ⚠️⚠️ 同样**不调 stamp()**（该文件 `grep stamp` 零命中）
+    # ⇒ 与上面两条同理，判 fresh 只有 **commit 走查**强度，没有字节证据。
+    "stats.json": "scripts/run_daily.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
     # 2026-10-14 重跑：`yearly` 补齐三档（原实现只聚合 `all`，
     # 是**口径不一致**——全段表出三档、逐年表只出一档）。

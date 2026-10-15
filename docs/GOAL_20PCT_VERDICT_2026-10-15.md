@@ -120,22 +120,79 @@ rounds_per_year(K) = 244 / K
 
 ## 五、对用户交付物的处置（不改变产品行为，只改说法）
 
-`data/reports/stats.json` 已交付产品的实测账，逐字段：
+### 🚨🚨 本节数字的引用资格：**当前 `unknown` = 不可引用**（2026-10-15 自查更正）
+
+`provenance.freshness("data/reports/stats.json")` 逐字：
 
 ```
-n_predictions 80 · judged 69 · n_independent_windows 2
-hit_rate_up 0.4857 · hit_rate_down 0.3824 · overall 0.4348
-avg_up_return  −0.00436   avg_down_return +0.00361
-gross_up_excess +0.00018877   avg_cost_drag 0.003   cost_share 15.8921
-excess_breadth −0.00796
+verdict = unknown
+reason  = 没有溯源 sidecar——生成它的 commit 无从得知
 ```
 
-会计恒等式当场闭合：`+0.00018877 − 0.003 = −0.0028112` = `up_excess_vs_market`。
+`scripts/run_daily.py`（`:800` 唯一的 `write_text`）**不调 `stamp()`**
+（该文件 `grep stamp` 零命中）⇒ 即便今天补上登记，`freshness()` 仍判 `unknown`。
 
-⇒ **毛超额 +0.019%/笔，成本 0.30%/笔，成本是毛超额的 15.9 倍。**
-⇒ 而 **`n_independent_windows = 2`** ⇒ 69 条判定**不是 69 个样本**；
-按仓库自己的 MDE 纪律，这些命中率**不具备判决资格**。
-⇒ 「会跌」篮子平均 **+0.361%** ⇒ 与生产日志「产品承诺未兑现 ⚠️」一致。
+⇒ **下面是「只读字段」的如实转录，不是可引用的判决。**
+⚠️ 这是**形状 6 的镜像「假装不可引用」**：产物照常出数、
+结论照常被抄进文档，而缺的那份证据**只影响能不能引用**，所以现场看什么都是对的。
+⇒ 恢复可引用的唯一正路：给 `step_stats()` 接上 `stamp()` 并重跑（跑一次即可，不是 GB 级）。
 
-⚠️ **不许把 `0.4348` 当作「43.5% 命中率」对外说**——它是 2 个独立窗口上的 69 条。
-`aplus/verify.py:250-270` 的注释已经写明这一点，**但 `[stats]` 日志行没印它**。
+### 字段（`data/reports/stats.json`，mtime 10-15 19:18:44，逐字只读）
+
+```
+n_predictions 100 · judged 89 · n_independent_windows 3
+hit_rate_up 0.4888889 · hit_rate_down 0.5227273 · overall_hit_rate 0.5056180
+avg_up_return  −0.00474596   avg_down_return −0.00491908
+gross_up_excess +0.00514238   avg_cost_drag 0.003   cost_share 0.5833870
+up_excess_vs_market +0.00214238   down_excess_vs_market −0.00196926
+excess_breadth +0.00017312   excess_tilt +0.00411165
+up_basket_n 45 · down_basket_n 47
+```
+
+会计恒等式当场闭合：`+0.00514238 − 0.003 = +0.00214238` = `up_excess_vs_market` ✓
+
+⇒ **毛超额 +0.514%/笔，成本 0.300%/笔，成本是毛超额的 0.583 倍。**
+
+### ⚠️ 本节此前写的数字**全部作废**（都是 19:18 那次重写之前的旧产物）
+
+| 字段 | 旧文（作废） | **现值** |
+|---|---|---|
+| `n_predictions` | 80 | **100** |
+| `judged` | 69 | **89** |
+| `n_independent_windows` | 2 | **3** |
+| `avg_down_return` | **+0.00361** | **−0.00491908** |
+| `gross_up_excess` | +0.00018877 | **+0.00514238** |
+| `cost_share` | **15.8921** | **0.5833870** |
+| `excess_breadth` | −0.00796 | **+0.00017312** |
+
+🚨 **其中两处方向翻转，不是量级变化**：
+
+1. **旧文「成本是毛超额的 15.9 倍」⇒ 现值 0.583 倍。**
+   旧叙述是「成本把毛超额吃光还倒欠」；现值是**成本吃掉毛超额 58%**。
+   ⇒ 两种读法都指向「成本是决定性的一项」，但**量级差 27 倍**，
+   而旧读法会让人以为**毛超额本身几乎为零**（0.019%/笔）。
+2. **旧文「`avg_down_return +0.361%` ⇒ 与生产日志『产品承诺未兑现 ⚠️』一致」
+   ⇒ 现值 `−0.00491908`。**
+   ⚠️ **但不许把这条读成「产品已兑现」**——
+   `aplus/verify.py:246` 逐字：`down_excess = market − avg_down`，
+   **正 = 回避有效**；现值 `down_excess_vs_market = −0.00196926` **为负**
+   ⇒ **回避清单无效**：跌篮子平均 **−0.492%**，
+   而同期市场跌得**更多**（否则 `market − avg_down` 不会为负）。
+   ⇒ **「挑出的会跌」确实跌了，但跌得比大盘少** ⇒ 择时**没有**带来相对价值。
+   ⚠️ 这与第 7 层同族：**绝对收益**与**相对超额**不是同一个量。
+
+   ⚠️⚠️ **本行初版写了「市场平均 = −0.6888%」，那是我用两个字段相减算出来的，
+   而 `market` 不是 `stats.json` 的字段** ⇒ 违反「核对产物只读字段，
+   禁止用公式重算『验证』」（第 109 层）⇒ **已删**。
+   现在只引产物自带的 `down_excess_vs_market` 与源码逐字注释，
+   **不反推 `market`**。需要 `market` 的值必须让它自己成为产物字段。
+
+### 不许做的事
+
+- ❌ 不许把 `0.5056` 说成「50.6% 命中率」对外——
+  它是 **3 个独立成交窗口**上的 89 条判定。
+  `aplus/verify.py` 的注释已写明，**但 `[stats]` 日志行只印 `overall/涨命中/超额`，
+  不印 `n_independent_windows`**（日志行在 `run_daily.py:810-813`）。
+- ❌ 不许把上面任何一格当**可引用**的判决，直到 `step_stats()` 接上 `stamp()` 并重跑。
+- ❌ 不许用本节的**日频每笔**数字去推年化（要乘每年调仓次数）
+  —— 那是换算不是读字段，且 `n_independent_windows = 3` 与「每笔」不是同一个量。
