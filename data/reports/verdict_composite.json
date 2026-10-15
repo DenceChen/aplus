@@ -3,12 +3,16 @@
   "generated_by": "scripts/verdict_composite.py",
   "note": "「桥·年毛超额」那一列走已被实测证伪的 IC→分位价差桥（常数错 + 形状错，q=0.2 上高估 4.02×），**不许被引用**；判决只依据组合 IC 与门槛。",
   "config": {
-    "matrices": "/private/var/folders/hd/q0_8f1493_q_srhcqg6q_z9c0000gn/T/pytest-of-airboom/pytest-2330/test_the_control_arm_is_restri0/mat.parquet",
+    "matrices": "data/reports/ic_matrices.parquet",
     "factors": [
-      "0",
-      "1",
-      "2",
-      "3"
+      "mom20",
+      "rev5",
+      "vol20",
+      "vsur",
+      "turn20",
+      "turnratio",
+      "ivol",
+      "rsi"
     ],
     "judged_from": 2021,
     "equal_weight_years": [
@@ -16,9 +20,9 @@
       2020
     ],
     "weight_rule_main": "optimal",
-    "n_days_extracted": 270,
-    "date_min": "2026-01-01",
-    "date_max": "2028-12-22"
+    "n_days_extracted": 1655,
+    "date_min": "2019-12-06",
+    "date_max": "2026-10-08"
   },
   "threshold": {
     "need_pct": 0.2639047619047619,
@@ -27,58 +31,154 @@
     "derived_from": "σ_r 实测 + 月频成本假设（外部锚，非字面量）"
   },
   "judged_years": [
-    2027,
-    2028
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
   ],
   "n_fail_years": 0,
   "three_arm": {
     "threshold_ic": 0.013890106515233716,
     "years": [
-      2027,
-      2028
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
     ],
     "by_year": {
-      "2027": {
-        "optimal": 0.742730030609329,
-        "sign_only": 0.7428324760913589,
-        "equal_raw": -0.0019123967473897263,
-        "optimal_minus_sign": -0.00010244548202997805,
+      "2021": {
+        "optimal": 0.06146644572480219,
+        "sign_only": 0.05610108383682297,
+        "equal_raw": -0.052240344963624515,
+        "optimal_minus_sign": 0.005365361887979224,
         "pass_optimal": true,
         "pass_sign": true,
         "pass_equal": false,
         "weights": {
-          "0": 0.6023033093368191,
-          "1": -0.6013567051086566,
-          "2": 0.6005060491187427,
-          "3": -0.5860573110182727
+          "mom20": -0.19362773359989024,
+          "rev5": 0.41264679332247584,
+          "vol20": 0.3228359833119451,
+          "vsur": -0.4003523928138514,
+          "turn20": -0.233916997335209,
+          "turnratio": -0.10352282418278796,
+          "ivol": -0.9304067665532337,
+          "rsi": 0.31569400286424476
         },
         "weights_source": "walk_forward"
       },
-      "2028": {
-        "optimal": 0.743922976670792,
-        "sign_only": 0.7439483977280773,
-        "equal_raw": -0.002497424460250947,
-        "optimal_minus_sign": -2.5421057285313076e-05,
+      "2022": {
+        "optimal": 0.07795611889311331,
+        "sign_only": 0.06905710655302708,
+        "equal_raw": -0.06593602215674088,
+        "optimal_minus_sign": 0.008899012340086235,
         "pass_optimal": true,
         "pass_sign": true,
         "pass_equal": false,
         "weights": {
-          "0": 0.6023096179877091,
-          "1": -0.5990485979982415,
-          "2": 0.5958186208141262,
-          "3": -0.5932291561973769
+          "mom20": -0.12829911911383954,
+          "rev5": 0.4055574013742842,
+          "vol20": 0.29586166775912986,
+          "vsur": -0.35700503844192494,
+          "turn20": -0.228038019212876,
+          "turnratio": -0.08840249980566305,
+          "ivol": -0.9547404278359528,
+          "rsi": 0.2610982328382712
+        },
+        "weights_source": "walk_forward"
+      },
+      "2023": {
+        "optimal": 0.076542840957536,
+        "sign_only": 0.06923754002955049,
+        "equal_raw": -0.0701261082189657,
+        "optimal_minus_sign": 0.0073053009279855086,
+        "pass_optimal": true,
+        "pass_sign": true,
+        "pass_equal": false,
+        "weights": {
+          "mom20": -0.12424727674524239,
+          "rev5": 0.3554636982953004,
+          "vol20": 0.43049298177519435,
+          "vsur": -0.3334875107385048,
+          "turn20": -0.28623021282329225,
+          "turnratio": -0.062044624354364857,
+          "ivol": -1.0693795341187209,
+          "rsi": 0.2192756561207146
+        },
+        "weights_source": "walk_forward"
+      },
+      "2024": {
+        "optimal": 0.06772237165118267,
+        "sign_only": 0.06902427674283787,
+        "equal_raw": -0.06741665646493604,
+        "optimal_minus_sign": -0.0013019050916552033,
+        "pass_optimal": true,
+        "pass_sign": true,
+        "pass_equal": false,
+        "weights": {
+          "mom20": -0.17923628745249837,
+          "rev5": 0.279870410845375,
+          "vol20": 0.3774880765736294,
+          "vsur": -0.36488106560248657,
+          "turn20": -0.26622669158173223,
+          "turnratio": -0.026780405004736656,
+          "ivol": -1.0538954536258698,
+          "rsi": 0.21032635070371908
+        },
+        "weights_source": "walk_forward"
+      },
+      "2025": {
+        "optimal": 0.08023148765188692,
+        "sign_only": 0.07508436092217291,
+        "equal_raw": -0.06719882970127196,
+        "optimal_minus_sign": 0.005147126729714013,
+        "pass_optimal": true,
+        "pass_sign": true,
+        "pass_equal": false,
+        "weights": {
+          "mom20": -0.14718248734016662,
+          "rev5": 0.2231765768297421,
+          "vol20": 0.24454271791046217,
+          "vsur": -0.35305271966227797,
+          "turn20": -0.24732229994810273,
+          "turnratio": -0.03598287878809099,
+          "ivol": -0.9147070671000964,
+          "rsi": 0.0827736354777024
+        },
+        "weights_source": "walk_forward"
+      },
+      "2026": {
+        "optimal": 0.06142449606696501,
+        "sign_only": 0.05676940070815916,
+        "equal_raw": -0.057476180059189245,
+        "optimal_minus_sign": 0.004655095358805851,
+        "pass_optimal": true,
+        "pass_sign": true,
+        "pass_equal": false,
+        "weights": {
+          "mom20": -0.22077009935344272,
+          "rev5": 0.2653936067754187,
+          "vol20": 0.2873773621373628,
+          "vsur": -0.37164587970324753,
+          "turn20": -0.230538352105853,
+          "turnratio": -0.07143758072376458,
+          "ivol": -0.9298595527371918,
+          "rsi": 0.17814032299510352
         },
         "weights_source": "walk_forward"
       }
     },
     "summary": {
-      "mean_advantage_optimal_over_sign": -6.393326965764556e-05,
-      "advantage_as_fraction_of_threshold": -0.0046027918927423585,
+      "mean_advantage_optimal_over_sign": 0.005011665358819271,
+      "advantage_as_fraction_of_threshold": 0.3608082740994693,
       "sign_arm_failures": 0,
-      "equal_arm_failures": 2,
-      "sign_not_worse_years": 2,
-      "n_years": 2,
-      "equal_arm_ic_negative_years": 2
+      "equal_arm_failures": 6,
+      "sign_not_worse_years": 1,
+      "n_years": 6,
+      "equal_arm_ic_negative_years": 6
     },
     "arm_definitions": {
       "optimal": "w ∝ R⁻¹Σ_f（optimal_weights），只用该年之前的数据 —— **主判决**",
@@ -87,17 +187,41 @@
     }
   },
   "vs_best_single_factor": {
-    "2027": {
-      "composite_ic": 0.742730030609329,
-      "best_single": "3",
-      "best_single_ic": -0.3130294505258589,
-      "increment": 0.42970058008347006
+    "2021": {
+      "composite_ic": 0.06146644572480219,
+      "best_single": "ivol",
+      "best_single_ic": -0.05310855293173346,
+      "increment": 0.008357892793068734
     },
-    "2028": {
-      "composite_ic": 0.743922976670792,
-      "best_single": "1",
-      "best_single_ic": -0.3142571110316457,
-      "increment": 0.42966586563914627
+    "2022": {
+      "composite_ic": 0.07795611889311331,
+      "best_single": "ivol",
+      "best_single_ic": -0.06790450363553,
+      "increment": 0.010051615257583316
+    },
+    "2023": {
+      "composite_ic": 0.076542840957536,
+      "best_single": "ivol",
+      "best_single_ic": -0.06701113686172615,
+      "increment": 0.009531704095809848
+    },
+    "2024": {
+      "composite_ic": 0.06772237165118267,
+      "best_single": "ivol",
+      "best_single_ic": -0.060024352957437244,
+      "increment": 0.007698018693745423
+    },
+    "2025": {
+      "composite_ic": 0.08023148765188692,
+      "best_single": "ivol",
+      "best_single_ic": -0.06083742102461573,
+      "increment": 0.019394066627271195
+    },
+    "2026": {
+      "composite_ic": 0.06142449606696501,
+      "best_single": "ivol",
+      "best_single_ic": -0.05406705135996246,
+      "increment": 0.007357444707002551
     }
   },
   "default_weights_reference": {
