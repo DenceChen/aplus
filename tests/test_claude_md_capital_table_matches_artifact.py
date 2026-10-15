@@ -364,19 +364,32 @@ def _numeric_width_keys() -> set[str]:
             if isinstance(v, (int, float)) and not isinstance(v, bool)}
 
 
-def test_the_artifact_labels_every_numeric_field_and_labels_nothing_else():
-    """★ 正向守卫：`caliber` 块与数值字段**集合相等**，两头都不许有洞。
-
-    删掉任何一个标签 ⇒ 红（读者会读到没口径的数）。
-    往 `widths` 里加一个没标签的字段 ⇒ 红（**新字段不许静默逃出标注**）。
-    """
-    payload = json.loads(
+def _artifact_payload() -> dict:
+    return json.loads(
         (ROOT / "data" / "reports" / "width_capital_feasibility.json")
         .read_text(encoding="utf-8"))
+
+
+def test_the_artifact_labels_every_numeric_field_and_labels_nothing_else():
+    """★ 正向守卫，两个方向分别成立。
+
+    ① **数值字段一个都不许漏标签** ⇒ 往 `widths` 加一个没标签的字段会红。
+    ② **每个标签都必须指向真实存在的字段** ⇒ 幻觉标签会红。
+
+    ⚠️ 第一版把这两条写成「标签集合 == 数值字段集合」，**当场把自己判红**：
+    `breakeven_verdict`（str）/`breakeven_flips_within_1se`（bool）/
+    `capital_for_target_net`（**null**）/`target_reachable`（bool）
+    **本来就该有标签** —— 它们恰恰是最容易被误读的那几个
+    （`null` 到底是「无解」还是「没算出来」？）。
+    ⇒ 这是**过严守卫**（第 112 层）的**镜像**：把「不许有洞」写成了「不许有非数值标签」。
+    ⇒ 标签还可能指向**顶层**键（如 `hurdle_gross_from_hurdle_rate`），不在 `widths` 里。
+    """
+    payload = _artifact_payload()
     caliber = payload.get("caliber")
     assert isinstance(caliber, dict) and caliber, \
         "产物没有 caliber 块 —— 口径标签必须**跟着数字离开脚本**（预注册 G2）"
 
+    row = _widths_by_n()[10]
     numeric = _numeric_width_keys()
     labeled = set(caliber)
     assert not numeric - labeled, (
@@ -384,8 +397,9 @@ def test_the_artifact_labels_every_numeric_field_and_labels_nothing_else():
         "⇒ 读者无从知道它们是毛口径还是净口径。"
         "⚠️ 加了字段就补标签，**别改判据、也别删字段让它变绿**。"
     )
-    assert not labeled - numeric, (
-        f"caliber 里这些标签指向不存在的字段：{sorted(labeled - numeric)}\n"
+    valid = set(row) | set(payload)
+    assert not labeled - valid, (
+        f"caliber 里这些标签指向不存在的字段：{sorted(labeled - valid)}\n"
         "⇒ 这是**我正在修的那个病**（标签说一个数、产物里没这个数），"
         "不是排版问题。逐条读源码核对字段名。"
     )
