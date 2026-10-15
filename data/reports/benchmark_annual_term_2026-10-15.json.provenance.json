@@ -1,9 +1,9 @@
 {
-  "code_sha": "d6afba1750ec9913bd90bd9416c6bd4cd120afdf",
-  "code_dirty": true,
+  "code_sha": "8b47d031727a76f430b4b776c9a4154ea5464452",
+  "code_dirty": false,
   "code_file_sha256": "a73c592c6198cc8978b64bfbfc2994376fb3fc5f9d5f1fa39a51791c85b55ee1",
   "data_fp": "5460:1792062762.291641",
   "data_dir": "data/master/daily",
   "generator": "scripts/benchmark_annual_term.py",
-  "stamped_at": "2026-10-15T13:54:08+00:00"
+  "stamped_at": "2026-10-15T14:05:05+00:00"
 }
