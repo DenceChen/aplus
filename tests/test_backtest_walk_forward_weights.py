@@ -249,6 +249,100 @@ def test_the_pinned_end_is_the_same_one_every_other_report_uses():
             f"⇒ 这三份产物的窗口不可比"
         )
 
+def _pinned_end_definitions(scripts_dir=None):
+    """★ **扫出**全仓自己定义 `WINDOW_END_PINNED` 的地方与它们的值。
+
+    ## 为什么必须是「扫」而不是「列」
+    上一条守卫是个**手维护的三元组**。而它的 docstring 自己就写着
+    「后者在只有两处时会漏掉第三处」—— 话音刚落，第三处就出现了：
+    `factor_width_mde.py`（2026-10-15，陈旧性守卫触发重跑时暴露）。
+
+    ⇒ **守卫的枚举方式决定了它能发现第几个。** 人维护的清单永远差一个，
+      扫出来的清单自动包含新来者。
+    ⇒ 用 AST 而不是子串：本文件与 `factor_width_mde.py` 的**注释里都引用了**
+      `WINDOW_END_PINNED = "2026-10-12"` 这段原文（记录旧代码），
+      子串扫描会把注释当成定义。
+    """
+    import ast
+    out = {}
+    for py in sorted((scripts_dir or _SCRIPT.parent).glob("*.py")):
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(tg, ast.Name) and tg.id == "WINDOW_END_PINNED"
+                       for tg in node.targets):
+                continue
+            v = node.value
+            out[py.name] = (v.value if isinstance(v, ast.Constant)
+                            and isinstance(v.value, str) else f"<非字面量 {ast.unparse(v)}>")
+    return out
+
+
+def test_every_copy_of_the_pinned_end_agrees(tmp_path):
+    """★ 第 137 层的正面对策：两份副本之间必须有守卫，否则它们会漂。
+
+    CLAUDE.md 第 1311 行声称这几份「**共用同一个常量**」——
+    实测是**各自一份字面量，没有任何 import**。那句话本身就是第 137 层的现场。
+    ⇒ 这里钉的不是「它们相等」（那是上一次手维护版本的写法），
+      是「**扫到的每一份都必须相等，且必须至少扫到一份**」。
+    """
+    defs = _pinned_end_definitions()
+    assert defs, (
+        "扫不到任何 WINDOW_END_PINNED 定义 ⇒ **探测器坏了**，"
+        "本条会恒绿（第 131 层：只验探测器 = 假信用）")
+    bad = {k: v for k, v in defs.items() if v != M.WINDOW_END_PINNED}
+    assert not bad, (
+        f"这些脚本各自写了一份钉死末端，与 {M.WINDOW_END_PINNED!r} 不一致："
+        f"{bad}\n⇒ 它们的产物窗口不可比，而且**不会有人发现**")
+
+
+def test_the_pinned_end_detector_really_sees_a_divergent_copy(tmp_path):
+    """★ 探测器的正反控。⚠️ 少一条，本条主守卫就是恒绿。"""
+    (tmp_path / "aaa_ok.py").write_text('WINDOW_END_PINNED = "2026-10-12"\n',
+                                        encoding="utf-8")
+    (tmp_path / "bbb_bad.py").write_text('WINDOW_END_PINNED = "2026-10-14"\n',
+                                         encoding="utf-8")
+    (tmp_path / "ccc_comment.py").write_text(
+        '# 旧代码：WINDOW_END_PINNED = "2026-10-14"  ← **注释不是定义**\n',
+        encoding="utf-8")
+    got = _pinned_end_definitions(tmp_path)
+    assert got == {"aaa_ok.py": "2026-10-12", "bbb_bad.py": "2026-10-14"}, got
+
+
+def test_factor_width_mde_consumes_the_pin_instead_of_writing_a_fourth_copy():
+    """★ 第三个受害者必须**消费**它，不许再抄一份。
+
+    ⚠️ 它**曾经没有这个常量**（`--end` 默认 `""`），
+      修法不是给它加一份字面量 —— fwm 本来就已经 import
+      `backtest_walk_forward_weights`（`ENTRY_LAG` 等），加进同一行是零成本的真去重。
+
+    🚨 **第一版只断言了「值相等」，而变异 N3 存活了** ——
+      让 fwm 自己写一份**同值**字面量，`WINDOW_END_PINNED` 与
+      `_parse_args([]).end` 全都照样通过。
+      ⇒ 测试名声称守的是「consumes 而非 writes」，实际守的是「值相同」。
+      ⇒ **两份同值副本正是第 137 层要防的东西**：一旦有人只改其中一份，
+        这条守卫立刻瞎。⇒ 断言必须落在**来源**上：
+      **本文件不许出现模块级定义**，因为它必须消费那一份。
+    """
+    assert "factor_width_mde.py" not in _pinned_end_definitions(), (
+        "factor_width_mde 自己又写了一份 WINDOW_END_PINNED ⇒ 那是第 4 份副本，"
+        "与其它几份之间没有守卫，会漂。\n⇒ 从 backtest_walk_forward_weights "
+        "import（它已经有这条 import）。")
+
+    import importlib.util as _u
+    spec = _u.spec_from_file_location("_pin_fwm", _SCRIPT.parent / "factor_width_mde.py")
+    m = _u.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert m.WINDOW_END_PINNED == M.WINDOW_END_PINNED, (
+        f"factor_width_mde 看到的是 {m.WINDOW_END_PINNED!r}，"
+        f"而钉死值是 {M.WINDOW_END_PINNED!r}")
+    # ⇒ 而且它的**默认实参**必须就是这个值，不是另一个常量
+    assert m._parse_args([]).end == M.WINDOW_END_PINNED
+
 
 def test_a_blank_window_end_is_refused_with_a_diagnosable_message(tmp_path, capsys):
     """末端留空必须**拒**且**说清为什么**。

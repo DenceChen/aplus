@@ -246,17 +246,33 @@ def main(argv: list[str] | None = None) -> int:
     print(f"K={k}｜年调仓 {rpy:.1f} 次｜本金 {args.capital/1e4:.0f} 万"
           f"｜目标净 {args.target:.0%}/年")
     print(f"判决门槛（毛口径，hurdle_rate 实算）= {hurdle_gross:.2%}\n")
+    # 🚨「回本本金」这一列**可以是 None**，而第一版的打印层直接 `None/1e4`
+    #   ⇒ TypeError 崩在**第一行表格**上。第一版能跑只是因为当时 N=10 恰好有解
+    #   —— 即「它没崩过」是**窗口的偶然**，不是代码的性质（第 139 层同族：
+    #   判决强度不到 1σ ⇒ 判决会随日历翻面，而**消费者只见过其中一面**）。
     hdr = (f"{'N':>5}{'毛超额/年':>11}{'摩擦/年':>11}{'真实净/年':>12}"
-           f"{'回本本金':>12}{'到目标净本金':>14}{'达标?':>8}")
+           f"{'回本本金':>12}{'距下界':>9}{'到目标净本金':>14}{'达标?':>8}")
     print(hdr)
     print("-" * len(hdr))
     for r in rows:
-        be = f"{r['capital_for_breakeven']/1e4:.1f}万"
+        be = ("**无解**" if r["capital_for_breakeven"] is None
+              else f"{r['capital_for_breakeven']/1e4:.1f}万")
         need = ("不存在" if not r["target_reachable"]
                 else f"{r['capital_for_target_net']/1e4:.0f}万")
         ok = "✅" if r["gross_annual"] >= hurdle_gross else "❌"
+        # ★ 判决强度必须**与判决同排印出**（第 139 层）：
+        #   只印「无解」而不印 σ，读起来与 10σ 一样确定。
+        sig = f"{r['breakeven_margin_sigma']:+.3f}σ"
         print(f"{r['n']:>5}{r['gross_annual']:>10.2%}{r['friction_at_capital']:>11.2%}"
-              f"{r['net_at_capital']:>12.2%}{be:>12}{need:>14}{ok:>8}")
+              f"{r['net_at_capital']:>12.2%}{be:>12}{sig:>9}{need:>14}{ok:>8}")
+
+    flips = [r for r in rows if r["breakeven_flips_within_1se"]]
+    if flips:
+        print(f"\n🚨 **判决强度**：{len(flips)}/{len(rows)} 档的 ±1σ 区间"
+              f"**跨越摩擦下界** ⇒ 「有无回本本金」这个结论**不成立**"
+              f"（不是「没有」也不是「有」）。")
+        for r in flips:
+            print(f"   N={r['n']:>3}：{r['breakeven_verdict']}")
 
     reachable = [r for r in rows if r["target_reachable"]]
     print()

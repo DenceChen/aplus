@@ -82,6 +82,104 @@ def test_default_window_is_the_judgement_window():
     assert fw._parse_args(["--start", "2019-01-01"]).start == "2019-01-01"
 
 
+def test_the_default_end_is_pinned_and_not_the_pinned_end_of_one_stock():
+    """★ 形状 23 的第三个受害者，而**上一条守卫只断言了 `args.start`**。
+
+    左端守住了、右端是盲区 —— 所以本文件绿了半年，而一次陈旧性守卫触发的
+    重跑就把判决窗口从 `2026-10-12`（1395 天）拉长到 `2026-10-14`（1396 天）：
+
+    | | 窗口末端 | n_days | gross(10) |
+    |---|---|---|---|
+    | 钉死 | `2026-10-12` | 1395 | 0.048108 |
+    | 未钉 | `2026-10-14` | 1396 | 0.046733 |
+
+    ⇒ 判决强度从 **+0.004σ** 翻成 **−0.021σ** ⇒「有无回本本金」这个结论
+    **完全由一个没人登记的窗口末端决定**。
+
+    ⚠️ CLAUDE.md 第 1266 行**早就写着**后果（「不钉会无声地从 10-12 长到 10-14」）
+      而我读了那行仍然漏传 ⇒ 「文档写过了」≠「代码挡住了」。
+      ⇒ 守卫必须落在**代码**上，而且要**可问**：跑一次回测是 11 分钟，
+        那种判据实际上无法被守（第 1341 行）⇒ 问 `_parse_args([])`，1 毫秒。
+    """
+    args = fw._parse_args([])
+    assert args.end == fw.WINDOW_END_PINNED, (
+        f"默认末端是 {args.end!r}，而钉死值是 {fw.WINDOW_END_PINNED!r} "
+        "⇒ 裸跑会一只票定全池窗口")
+    assert fw.WINDOW_END_PINNED == "2026-10-12", (
+        f"钉死值变成了 {fw.WINDOW_END_PINNED!r} —— "
+        "改它就是**判据变更**，得先改预注册")
+    # 正路必须仍可覆盖（守卫要能测那条**错路**，不是只钉一个常量）
+    assert fw._parse_args(["--end", "2026-10-09"]).end == "2026-10-09"
+
+
+def test_an_empty_end_is_refused_instead_of_falling_back_to_the_last_day(
+        capsys, monkeypatch, tmp_path):
+    """★ 回落必须**不存在**，且留空必须**响**。
+
+    「留空就用默认值」看起来更友好，但那样下一次重跑又会是留空 ——
+    ⇒ 留空要直接拒绝（rc=2）并说清为什么，与 `basket_weighting` /
+    `backtest_walk_forward_weights` 同一修法。
+
+    🚨 **这条守卫的第一版会花 11 分钟才失败** —— 我用变异 M2（拆拒绝块、
+    装回 `files[0]` 回落）实测：`_run` 不再快速失败，而是**真的跑起整场回测**
+    ⇒ 守卫失效时代价巨大 ⇒ **没人会跑它**，于是它等于不存在。
+    ⇒ 修法与 `basket_weighting` 那条同源（第 1319 行「钉的是实参」）：
+      **把回落触发点做成地雷**。`read_parquet` 是回落唯一必经的一步，
+      把它换成炸函数 ⇒ 回落只要存在，本条**立刻**失败并指名道姓，
+      而面板构建（274 s）与回测（~11 min）**根本到不了**。
+
+    ⚠️ 这也是第 1341 行的**镜像**：「判据不可问就等于没有守卫」有第二面 ——
+      **判据太贵 ⇒ 问一次要 11 分钟 ⇒ 也不会有人问**。两面都得堵。
+    """
+    def _boom(*a, **k):
+        raise AssertionError(
+            "走到了面板构建 ⇒ 留空的 --end **没有被拒绝** ⇒ "
+            "窗口末端仍然是一只票决定的（形状 23）")
+
+    # ⚠️ 第一版把雷埋在 `pd.read_parquet` 上 —— 结果**正确的代码也炸**：
+    #   `LocalStore.__init__` 自己就读 parquet。雷埋得太靠前 = 假红。
+    # ⇒ 雷必须精确落在**第一个昂贵步骤**上：逐日读取 5460 只（实测 274 s）
+    #   与面板构建。`LocalStore` 用代理而不是替身，`root` 仍是真的，
+    #   所以 `glob` 照常工作、地雷只在被拒绝之后才有机会响。
+    real_store = fw.LocalStore
+
+    class _Tripwire:
+        def __init__(self, root):
+            self._s = real_store(root)
+
+        @property
+        def root(self):
+            return self._s.root
+
+        def read_daily(self, *a, **k):
+            raise AssertionError(
+                "留空的 --end 走进了逐日读取（5460 只，274 s）⇒ 拒绝块不见了")
+
+    monkeypatch.setattr(fw, "LocalStore", _Tripwire)
+    monkeypatch.setattr(fw, "build_cross_sections", _boom)
+
+    out = tmp_path / "_should_not_exist.json"
+    rc = fw._run(fw._parse_args(["--end", "", "--out", str(out)]))
+    assert rc == 2, (
+        f"留空的 --end 返回 {rc} 而不是 2 ⇒ 拒绝块不见了")
+    assert not out.exists(), "留空却还是落了盘 —— 旧口径的产物比没有产物更危险"
+    assert "一只票" in capsys.readouterr().err
+
+
+def test_the_artifact_records_both_the_pinned_end_and_the_measured_one():
+    """★ 请求值 ≠ 实测量；两个都要落盘。
+
+    只记请求值 ⇒ 「窗口比上次短一天」在 json 里**不可见**；
+    只记实测量 ⇒ 判据本身不可见，读者不知道它**应该**是多少。
+    """
+    assert not hasattr(fw, "_payload_fields"), "结构变了，先看这里"
+    src = Path(fw.__file__).read_text(encoding="utf-8")
+    for field in ("window_end_pinned", "window_end_actual"):
+        assert f'"{field}"' in src, (
+            f"产物里没有 `{field}` ⇒ 窗口要么只记请求值要么只记实测量，"
+            "而「这次和上次用的窗口一样吗」在 json 里将不可见")
+
+
 # ── 3. 措辞守卫：「测不到」≠「没有」（预注册 §6 第三条）──────────────
 def test_insignificant_is_never_written_as_no_excess():
     """★ 最容易犯、也最贵的一个错。

@@ -67,7 +67,8 @@ from aplus.store import LocalStore  # noqa: E402
 #   `weights_by_year` 就定义在那个文件里（不在 aplus.composite —— 我第一次
 #   按字面猜去 import 它，ImportError 才发现）。
 #   自己重写一遍 = 造第二台测量仪，两台之间的差永远查不出来。
-from backtest_walk_forward_weights import (ENTRY_LAG, at_cost, _daily,  # noqa: E402
+from backtest_walk_forward_weights import (ENTRY_LAG, WINDOW_END_PINNED,  # noqa: E402
+                                           at_cost, _daily,
                                            _rescale_check, _t, run_year,
                                            weights_by_year)
 from factor_attribution import T_CRIT_5PCT, power_floor  # noqa: E402
@@ -325,7 +326,29 @@ def _parse_args(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default="2021-01-01",
                     help="★ 必须与判决窗口一致（2021-01-01），不得改成 2019")
-    ap.add_argument("--end", default="")
+    # 🚨 形状 23 的**第三个**受害者（2026-10-15）。
+    #   这一行此前是 `default=""`，而 `_run` 里的回落是
+    #   `args.end or str(pd.read_parquet(files[0])["date"].max())`
+    #   ⇒ `files[0]` 恒为 `000001.SZ` ⇒ **一只票定全池窗口末端**。
+    #
+    #   ⚠️ 代价是**实测的**，不是推演的：陈旧性守卫逼我重跑 fwm，我漏传 `--end`
+    #   ⇒ 窗口从钉死的 2026-10-12（**1395** 天）无声长到 2026-10-14（**1396** 天）
+    #   ⇒ `gross_10` 0.048108 → 0.046733
+    #   ⇒ **判决从 +0.004σ 翻成 −0.021σ** ⇒ 「有无回本本金」这个结论
+    #   **完全由一个没人登记的窗口末端决定**。
+    #   ⇒ 同一件事，CLAUDE.md 第 1266 行早就写着（「不钉会无声地从 10-12 长到 10-14」）
+    #     而我读了那行**仍然**漏传 ⇒ 「文档写过了」不等于「代码挡住了」。
+    #
+    # ★ 常量**从 backtest_walk_forward_weights import**，不在这里写字面量：
+    #   全仓曾有 4 份独立字面量（cap_weighted_benchmark:99 / basket_weighting:72 /
+    #   backtest_walk_forward_weights:88 / 本文件）。CLAUDE.md 第 1311 行声称
+    #   它们「**共用同一个常量**」—— 实测**没有任何 import**，是 4 份各写各的
+    #   ⇒ 第 137 层（两份副本之间没有守卫）就发生在那句话上。
+    #   ⇒ 本文件已有对 backtest_walk_forward_weights 的 import ⇒ 加进同一行是零成本
+    #     的真去重，不是第 5 份副本。
+    ap.add_argument("--end", default=WINDOW_END_PINNED,
+                    help=f"★ 窗口末端**已钉死** {WINDOW_END_PINNED}（形状 23）。"
+                         "改它会移动既有判决窗口")
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--matrices", type=Path, default=Path("data/reports/ic_matrices.parquet"))
     ap.add_argument("--widths", default=",".join(str(w) for w in WIDTHS))
@@ -372,7 +395,16 @@ def _run(args) -> int:
     if not files:
         print("🚨 主库为空")
         return 1
-    end = args.end or str(pd.read_parquet(files[0])["date"].max())
+    # 🚨 回落**已删除**。留空不是「用今天」，是「一只票定全池窗口」——
+    #   它与 `basket_weighting` / `backtest_walk_forward_weights` 是同一条形状 23，
+    #   那两份的修法就是：回落删掉、留空直接拒绝并说清为什么（形状 23 的同族）。
+    #   ⚠️ 为什么不「留空就用默认值」：留空必须**响**，否则下一次重跑又会是它。
+    if not args.end:
+        print(f"🚨 --end 留空 = 用到今天 = **一只票定全池窗口**（形状 23）。\n"
+              f"   判决窗口是预注册判据的一部分，请显式传 --end {WINDOW_END_PINNED}。",
+              file=sys.stderr)
+        return 2
+    end = args.end
 
     t0 = time.time()
     daily_map = {p.stem: store.read_daily(p.stem) for p in files}
@@ -427,7 +459,13 @@ def _run(args) -> int:
         "generated": date.today().isoformat(),
         "prereg": "docs/TODO_basket_width_2026-10-15.md",
         "window": [args.start, end],
-        "window_note": "★ 与判决窗口一致；`basket_width_sweep.json` 的 2019–2023 不是同一个量",
+        # 🚨 `window` 记的是**请求值**（= 钉死值），而**实测量**此前只以
+        #   每行的 `n_days` 隐式出现 ⇒ 「窗口比上次短一天」在 json 里**不可见**。
+        #   ⇒ 两个都写：钉死的判据 + 真的量到的那一天。
+        "window_end_pinned": WINDOW_END_PINNED,
+        "window_end_actual": str(dates[-1]) if len(dates) else None,
+        "window_note": "★ 与判决窗口一致；`basket_width_sweep.json` 的 2019–2023 不是同一个量。"
+                       "`window_end_pinned` 是判据（钉死），`window_end_actual` 是实测量，两者可不同",
         "k_rebalance_every": K,
         "alpha_two_sided": ALPHA,
         "t_crit": T_CRIT_5PCT,

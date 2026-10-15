@@ -30,6 +30,7 @@ fwd_windows/tail_q/bonferroni_crit`，边车只有 4 个 key
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -37,6 +38,9 @@ from pathlib import Path
 from aplus.factor_ic import (_find_ic_report, weight_sign_conflicts,
                              yearly_sign_consistency)
 from aplus.provenance import SIDECAR_SUFFIX, report_jsons
+
+#: 本守卫扫**全仓源码**，所以根是仓库根而不是 tests/。
+ROOT = Path(__file__).resolve().parents[1]
 
 # 够用的最小真报告：只需要 `_find_ic_report` 的下游能认出它是报告。
 _REAL = {"kind": "factor_ic", "window": ["2018-01-01", "2025-12-31"],
@@ -133,3 +137,156 @@ def test_report_jsons_on_the_real_directory_returns_no_sidecar():
     assert len(got) == len(raw) - len(raw_sidecars), (
         f"数量对不上：裸 glob {len(raw)}（含 {len(raw_sidecars)} 边车），"
         f"report_jsons {len(got)}")
+
+
+# ══ 手拼 sidecar 路径：真名带 `.json`，写漏一段就是「静默没有边车」 ══
+#
+# 🚨 **本文件这条是我在同一个会话里当场踩的**：
+# 查 `data/reports/factor_width_mde.provenance.json` ⇒ `No such file`，
+# 而真名是 `factor_width_mde**.json**.provenance.json`。
+#
+# 与第 123 层同族（**查不到 ≠ 没有**），但更贵一层：
+# `ls` 的失败输出看起来就像「这份产物没有 sidecar」
+# ⇒ 那是一条关于**可引用性**的判决（按本仓规矩 `unknown` = 不许引用）。
+#
+# ⇒ 与其记在记忆里，不如让**全仓任何一处手拼**都过一次 `sidecar_path()`。
+
+def _hand_written_sidecar_names(root: Path):
+    """扫出**字面量里手拼**、且**少了 `主报告名 + ".json"`** 的边车文件名。
+
+    ## 三种必须**放行**的正当形态
+
+    | 形态 | 例子 | 为什么放行 |
+    |---|---|---|
+    | ① 常量自身 | `'.provenance.json'` | 它是 `SIDECAR_SUFFIX` 的**值**，不是文件名 |
+    | ② 拼接 | `p.name + '.provenance.json'` | 源码里**没有**完整字面量，扫不到 |
+    | ③ **glob 通配符** | `'*.provenance.json'` | **正确写法**：真名本身以它结尾，通配符匹配到的就是真名 |
+
+    ⚠️ ③ 是**实测补的**：第一版只判 `stem.endswith(".json")` ⇒ 把
+    `tests/test_provenance.py` 两处 `glob("*.provenance.json")` 报成缺陷
+    ⇒ **过严守卫会把人推向「改本来正确的代码」**（第 112 层）。
+    ⚠️ 而通配符**恰好**以 `stem` 不含 `.json` 的形态出现，所以判据必须是
+    「**没有通配符字符**且 stem 不含 `.json`」**两个条件同时成立**才算缺陷。
+    """
+    bad = []
+    for path in sorted(root.rglob("*.py")):
+        if ".venv" in path.parts or ".mutation_backup" in path.parts:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue                                   # 变异体：不是本守卫的职责
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            v = node.value
+            if not v.endswith(SIDECAR_SUFFIX) or v == SIDECAR_SUFFIX:
+                continue                                # ① 常量自身的值
+            stem = v[: -len(SIDECAR_SUFFIX)]
+            if any(ch in stem for ch in "*?["):
+                continue                                # ③ glob 通配符（正确写法）
+            if stem.endswith(".json"):
+                continue                                # ② 完整的真名
+            bad.append(f"{path.relative_to(root)}:{node.lineno}  {v!r}")
+    return bad
+
+
+def _sidecar_built_from_stem(root: Path):
+    """扫出「**用 `.stem` 拼**边车名」的地方 —— 那是最真实的失效形态。
+
+    🚨 **实测**：变异把 `report_path.name + ".provenance.json"`
+    改成 `report_path.stem + ".provenance.json"`（`name` → `stem`），
+    产物从 `report.json.provenance.json` 变成 `report.provenance.json`
+    ⇒ **指向不存在的文件**，而 `with_name` 正常返回、`.exists()` 返 False、
+    **不抛任何异常** ⇒ 静默「没有边车」。
+
+    ⚠️ 这个形态**没有任何字面量可扫**（源码里只有 `".provenance.json"` 一段）
+    ⇒ 必须扫 **AST 的 `+` 表达式**：左边是 `X.stem`，右边是以 `SIDECAR_SUFFIX`
+    结尾的字符串。
+
+    ⇒ 与字面量那条**互补**，不是重复：一条守「写死整个名字」，
+    一条守「用 stem 拼名字」—— 两者的源码形态互不可见。"""
+    bad = []
+    for path in sorted(root.rglob("*.py")):
+        if ".venv" in path.parts or ".mutation_backup" in path.parts:
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.BinOp) or not isinstance(node.op, ast.Add):
+                continue
+            terms = [node.left, node.right]
+            has_suffix = any(isinstance(x, ast.Constant) and isinstance(x.value, str)
+                             and x.value.endswith(SIDECAR_SUFFIX) for x in terms)
+            if not has_suffix:
+                continue
+            for x in terms:
+                if isinstance(x, ast.Attribute) and x.attr == "stem":
+                    bad.append(f"{path.relative_to(root)}:{node.lineno}  "
+                               f"`{ast.unparse(x)} + …{SIDECAR_SUFFIX}`")
+    return bad
+
+
+def test_no_source_file_hand_writes_a_sidecar_path_that_is_missing_the_json_suffix():
+    """真名是 `主报告名.json.provenance.json`，不是 `主报告名.provenance.json`。
+
+    ⚠️ **判据是「字面量」，不是子串**（第 13 种形状）：
+    源码里到处都有 `".provenance.json"` 这段（拼接、`endswith`、docstring），
+    全文扫会命中上百处**正当**写法。真正危险的只有**整个文件名写死**的那一种。
+    ⇒ 判据条件化在「字面量恰好等于一个 `*.provenance.json` 且 `*` 不含 `.json`」。"""
+    offenders = _hand_written_sidecar_names(ROOT)
+    assert not offenders, (
+        "这些字面量指向的边车文件**不存在**（真名多一段 `.json`）：\n"
+        + "\n".join(offenders)
+        + "\n⇒ 读它会静默返回「没有边车」，而那是一条关于可引用性的判决"
+          "（本仓规矩 `unknown` = 不许引用）。改用 `provenance.sidecar_path()`。"
+    )
+    stems = _sidecar_built_from_stem(ROOT)
+    assert not stems, (
+        "这些地方用 `.stem` 拼边车名 ⇒ 得到 `主报告名.provenance.json`\n"
+        "（少了 `.json` 那一段）⇒ **指向不存在的文件**，"
+        "而 `with_name` 不报错、`.exists()` 静默返 False：\n"
+        + "\n".join(stems)
+        + "\n⇒ 要拼也得用 `.name`（`provenance.sidecar_path()` 更省事）。"
+    )
+
+
+def test_the_stem_detector_sees_a_stem_built_sidecar(tmp_path):
+    """正反控：`.stem + …` 必被抓，`.name + …` 必须放过。"""
+    (tmp_path / "bad.py").write_text(
+        "sc = report_path.with_name(report_path.stem + '.provenance.json')\n",
+        encoding="utf-8")
+    (tmp_path / "ok.py").write_text(
+        "sc = report_path.with_name(report_path.name + '.provenance.json')\n",
+        encoding="utf-8")
+    (tmp_path / "ok2.py").write_text(
+        "sc = report_path.with_name(report_path.name + '.other.json')\n",
+        encoding="utf-8")
+    bad = _sidecar_built_from_stem(tmp_path)
+    assert len(bad) == 1 and "bad.py" in bad[0], bad
+
+
+def test_that_detector_really_sees_a_hand_written_name(tmp_path):
+    """★ 探测器的正反控（第 131 层：只验探测器 = 假信用）。
+
+    正例 = 手拼漏 `.json`；反例 = 两种正当形态（拼接 / 带 `.json`）。
+    ⚠️ 若探测器收窄到永远返回空，上面那条主守卫会**恒绿**。"""
+    # 正例：手拼漏了 `主报告名 + ".json"` 那一段 ⇒ 指向不存在的文件
+    (tmp_path / "bad.py").write_text(
+        "SIDECAR = 'report.provenance.json'\n", encoding="utf-8")
+    (tmp_path / "bad2.py").write_text(
+        "SC = 'factor_width_mde.provenance.json'\n", encoding="utf-8")
+    # 反例 ①：拼接（源码里没有完整字面量，扫不到）
+    (tmp_path / "ok_concat.py").write_text(
+        "SIDECAR = p.name + '.provenance.json'\n", encoding="utf-8")
+    # 反例 ②：glob 通配符 —— **正确写法**，第一版没收窄到它而误报
+    (tmp_path / "ok_glob.py").write_text(
+        "REPORTS = sorted(root.glob('*.provenance.json'))\n", encoding="utf-8")
+    # 反例 ③：常量自身的值
+    (tmp_path / "ok_const.py").write_text(
+        "SUFFIX = '.provenance.json'\n", encoding="utf-8")
+    bad = _hand_written_sidecar_names(tmp_path)
+    assert sorted(b.split(":")[0].split("/")[-1] for b in bad) == \
+        ["bad.py", "bad2.py"], bad
