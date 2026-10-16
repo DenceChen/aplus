@@ -181,6 +181,12 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 🚨 本条**不是**被守卫逼出来的（`basket_nav_01` 至今仍未登记），
     #   是本轮自查发现的：盖了章却查不到生成器 = `unknown` = 不可引用（形状 16）。
     "deployed_account_nav.json": "scripts/deployed_account_nav.py",
+    # 2026-10-16 登记：**D2 达标所需的毛超额** `g*(N) = x* + friction(N)`。
+    # 预注册 docs/PREREG_D2_SIGNAL_REQUIREMENT_2026-10-16.md §3（四分支，
+    # 且 **C_UNMEASURABLE 必须先于 A/B** —— 顺序本身就是判据）。
+    # 🚨 它**只读三份已有产物**、不重跑回测 ⇒ 产物不比输入更新，
+    #   上游 stale 则本产物继承同一 staleness（预注册 §4.5）。
+    "d2_signal_requirement.json": "scripts/d2_signal_requirement.py",
     "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",

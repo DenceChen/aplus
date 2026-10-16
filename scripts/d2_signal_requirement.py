@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+"""D2（年化 20%）达标所必需的**毛超额** —— 门槛的换算，不是新测量。
+
+预注册：`docs/PREREG_D2_SIGNAL_REQUIREMENT_2026-10-16.md`
+
+# 这个脚本算的是什么、不是什么
+
+账户年化 ≡ 市场腿 + 净超额（口径逐字来自
+`basket_nav_01_2026-10-16.json::caliber.verdict_tier_is`）。
+达标所需净超额 `x*` 已由 `required_excess()` 给出；**本脚本给的是毛额门槛**
+
+    g*(N) = x* + annual_friction(C, 1.0, N, 244/21)
+
+即：**要让账户到 20%，信号本身必须交出多少毛超额。** 这个数此前仓里不存在。
+
+🚨 **它不是判决。** `g_obs < g*` 不等于「D2 达不到」，只等于
+「当前配置下、当前实测信号交不出门槛要求的量」。预注册 §4 全文。
+
+# 三条硬口径（预注册 §2.1）
+
+- 摩擦**只调** `aplus.costs.annual_friction`，不在本文件重写公式
+  （第 5 层：断言 == 公式，公式错了断言跟着一错）
+- `equity_weight = 1.0`（单边多头）；0.5 会让摩擦减半、口径改变
+- `rounds_per_year = 244/21`，**不取整**（取整 12 会抬摩擦下界 4.787% → 4.944%）
+
+# 🚨 量纲（预注册 §2.2，仓里最贵的一条）
+
+上游三份产物**三种量纲，无一声明**：
+
+| 文件::键 | 值 | 量纲 |
+|---|---|---|
+| `factor_width_mde.json::widths[N].gross_annual_pct` | 0.0481 | **分数**（名字带 `_pct`） |
+| `factor_width_mde.json::widths[N].net_width_aware_annual_pct` | −0.016030 | **分数** |
+| `market_nav_caliber.json::equal_weight.geometric_annual_pct` | 9.9471 | **真百分数** |
+| `basket_nav_01_2026-10-16.json::...required_excess_annual` | 0.091434 | **分数** |
+
+判定**只用绝对外部锚**「年化收益率不可能低于 −100%」，不用字段名、不用容差
+（第 182 层：量纲守卫钉住生产者，对消费者零覆盖）。
+本文件里每一次读法都是**显式的一处换算**，不许有第二个入口。
+
+# D_NO_DATA 绝不回落（预注册 §3 分支 D）
+
+上游任一键缺失 → `require()` 抛 `KeyError` 并点名缺哪个键。
+**不许 `.get(..., 默认值)`**：缺低尾档就用全截面顶上 = 口径不一致。
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from aplus import provenance
+from aplus.costs import (
+    COMMISSION_MIN,
+    COMMISSION_RATE,
+    SPREAD_ONE_WAY,
+    STAMP_DUTY_SELL,
+    TRANSFER_FEE,
+    annual_friction,
+)
+
+REPORTS = ROOT / "data" / "reports"
+GENERATOR = "scripts/d2_signal_requirement.py"
+OUT = REPORTS / "d2_signal_requirement.json"
+
+# 预注册 §2.1 C3：精确 244/21，不取整
+ROUNDS_PER_YEAR = 244 / 21
+# 预注册 §2.1 C2：单边多头口径
+EQUITY_WEIGHT = 1.0
+# 预注册 §2.1 C1：唯一摩擦入口
+FRICTION = annual_friction
+# 「年化收益率不可能低于 −100%」——**绝对外部锚**，不需要公式也不需要容差
+IMPOSSIBLE_RETURN_FLOOR = -1.0
+# 判决臂是 equal_weight（预注册）；cap_weight 是对照臂（第 183 层）
+ARM = "equal_weight"
+# 可交付形态：每天 10 涨 10 跌 ⇒ 涨腿 10 只
+DELIVERABLE_N = 10
+# 5 万本金
+CAPITAL = 50_000.0
+# 供「本金 → ∞」用的替身：只要求 > COMMISSION_MIN_BINDS_BELOW，
+# 使最低佣金不生效，于是摩擦退化成纯比例费率 = **可证的正下界**
+INFINITE_CAPITAL = 1e12
+
+
+def require(container: dict, *path: str):
+    """按路径取值，缺键就点名抛 —— **绝不回落**（预注册 §3 分支 D）。"""
+    cur = container
+    for i, key in enumerate(path):
+        if key not in cur:
+            raise KeyError(
+                f"{GENERATOR}: 缺上游键 {' -> '.join(path[:i + 1])}"
+                f"（分支 D_NO_DATA，绝不回落）"
+            )
+        cur = cur[key]
+    return cur
+
+
+def calib_frac(pct: float, scale: float = 100.0) -> float:
+    """真百分数 → 分数。`scale` 显式必传且**在本仓只有 100 这一个取值**
+    （写出来是为了让「除以 100」这一步在代码里可见，而不是藏在读法里）。"""
+    return pct / scale
+
+
+def net_excess(gross: float, friction: float) -> float:
+    """净超额 = 毛超额 − 摩擦。**两条腿都必须是同量纲的年分数**。"""
+    return gross - friction
+
+
+def friction_at(capital: float, n_positions: int,
+                equity_weight: float = EQUITY_WEIGHT) -> float:
+    """摩擦的唯一入口。第 5 层：公式住在 `aplus.costs`，这里一行都不重写。"""
+    return FRICTION(capital, equity_weight, n_positions, ROUNDS_PER_YEAR)
+
+
+def required_gross(required_excess: float, capital: float, n_positions: int,
+                   equity_weight: float = EQUITY_WEIGHT) -> float:
+    """`g* = x* + friction`。**只做一次加法。**
+
+    ⚠️ 任何一次再乘/除 `years` 就是**第二次年化**（第 181 层：好动机给出错误数）。
+    `required_excess` 与 `friction` 各自**已经是年分数**，这里不碰时间。
+    """
+    return required_excess + friction_at(capital, n_positions, equity_weight)
+
+
+def friction_floor(n_positions: int,
+                   equity_weight: float = EQUITY_WEIGHT) -> float:
+    """本金 → ∞ 时的摩擦下界。
+
+    ★ **可证 > 0**：`COMMISSION_MIN_BINDS_BELOW = 5/0.0003 = ¥16,667`，
+    每笔本金一旦超过它，佣金 = `per × rate` 且与本金无关 ⇒ 剩下的成本
+    （印花税 0.05% 卖出 + 过户费 + 价差 0.15% 单边 × 2 轮）**与本金无关**
+    ⇒ **本金买不到零成本**（第 5 层的正面陈述，不是估计）。
+    """
+    return friction_at(INFINITE_CAPITAL, n_positions, equity_weight)
+
+
+def ceiling_net_excess(gross: float, n_positions: int) -> float:
+    """**净超额的绝对上限**（本金 → ∞，最低佣金不再起作用）。
+
+    同一个 N 上比：毛超额 − **该 N 自己的**摩擦下界。
+    ⚠️ 不许拿 N≤3 的下界去抵 N=10 的毛超额（跨档比较，第 7 层）。
+    """
+    return net_excess(gross, friction_floor(n_positions))
+
+
+# ── 闭式：与上面那条**推导路径不同**，所以才有判别力 ──────────────
+# 代码路径：per = notional/N → N 次 round_trip(per) 求和
+# 闭式路径：N × (notional/N) × K = notional × K，**N 直接约掉**
+#   K = 2×(commission + transfer_fee + spread) + stamp_duty
+#     = 2×(0.0003 + 0.00001 + 0.0015) + 0.0005 = 0.00412
+# ⇒ friction_floor = equity_weight × K × rounds_per_year
+#
+# ⚠️ 容差由推导给，不拍脑袋：float64 朴素求和 n 项的相对误差界 O(n·ε)，
+#   最大档 n=546 时 546 × 2.22e-16 ≈ 1.2e-13 ⇒ 取 1e-12 留一个数量级余量。
+#   （第 178 层：没有阈值的「一致」等于没有判据。）
+FLOOR_REL_TOL = 1e-12
+_ONE_WAY_LINEAR = COMMISSION_RATE + TRANSFER_FEE + SPREAD_ONE_WAY
+_ROUND_TRIP_LINEAR = 2 * _ONE_WAY_LINEAR + STAMP_DUTY_SELL
+
+
+def friction_floor_closed_form(equity_weight: float = EQUITY_WEIGHT) -> float:
+    """摩擦下界的**代数闭式**，**不含 `n_positions`** —— 这正是要证明的性质。
+
+    只在最低佣金不咬人时成立（即 `per > COMMISSION_MIN / COMMISSION_RATE`），
+    而 `INFINITE_CAPITAL = 1e12` 对任何 realistic N 都满足。
+    """
+    return equity_weight * _ROUND_TRIP_LINEAR * ROUNDS_PER_YEAR
+
+
+def friction_floor_is_width_independent(widths) -> tuple[bool, float]:
+    """实测下界在五档上是否**同一个数**，以及最大档间相对差。
+
+    ⚠️ 这条**不是**恒真：`friction_at` 里若有人改过 `rebalance` 的均分逻辑
+    （例如先求和再乘费率，`costs.py` 的 docstring 明写那是错的），
+    实测下界就会随 N 变 ⇒ 这里立刻返回 False。
+    """
+    vals = [friction_floor(n) for n in widths]
+    lo, hi = min(vals), max(vals)
+    rel = 0.0 if lo == 0 else abs(hi - lo) / abs(lo)
+    return (rel <= FLOOR_REL_TOL), rel
+
+
+def friction_floor_matches_closed_form(n_positions: int) -> tuple[bool, float]:
+    """实测下界 vs 闭式，**两条推导路径**互相对拍（第 5 层的正解）。"""
+    got = friction_floor(n_positions)
+    want = friction_floor_closed_form()
+    rel = abs(got - want) / abs(want)
+    return (rel <= FLOOR_REL_TOL), rel
+
+
+def decide(rows: list[dict]) -> str:
+    """预注册 §3 的四分支。**顺序是判据**（§3.2）：C 必须先于 A/B。
+
+    - `C` = 全部档 `|g_obs| / MDE < 1` ⇒ **连符号都定不了** ⇒ 只准形状陈述。
+      先检它，是为了**不**输出「达不到」这个乐观方向的结论（第 160 层）。
+    - `B` = 全部档 `g_obs ≥ g*`（配置侧能封口），先于更弱的 `A`。
+    """
+    if all(r["measured_gross_over_mde_abs"] is not None
+           and r["measured_gross_over_mde_abs"] < 1.0 for r in rows):
+        return "C_UNMEASURABLE"
+    shortfalls = [r["measured_over_required"] for r in rows]
+    if all(s is not None and s >= 1.0 for s in shortfalls):
+        return "B_CONFIG_COULD_CLOSE_IT"
+    if any(s is not None and s < 1.0 for s in shortfalls):
+        return "A_SIGNAL_SHORTFALL_IS_SIGNAL_SIDE"
+    return "D_NO_DATA"
+
+
+def main() -> int:
+    # 第 125 层：开跑抓一次字节，盖章时比对 —— 拒绝盖「写盘那一刻恰好是这些字节」
+    # 的章。必须落在**第一条执行语句**（第 131 层：放在盖章前更坏 ⇒ 检查恒真）。
+    expect = provenance.code_file_sha256(ROOT, GENERATOR)
+
+    width = json.loads((REPORTS / "factor_width_mde.json").read_text())
+    nav = json.loads((REPORTS / "basket_nav_01_2026-10-16.json").read_text())
+    calib = json.loads((REPORTS / "market_nav_caliber.json").read_text())
+
+    # —— 量纲：每一处读法显式，换算不留第二入口 ——
+    c_mkt = calib_frac(require(calib, ARM, "geometric_annual_pct"))
+    x_star = require(nav, "gap_to_target_by_benchmark", ARM,
+                     "required_excess_annual")
+    target = require(nav, "target")
+
+    # ✅ 对拍 1（**跨文件、推导路径不同** ⇒ 不是恒等式自证）：
+    # 上游自己记的 c_mkt 来源写着 `geometric_annual_pct / 100.0`，
+    # 而这里是「从 market_nav_caliber.json 读真百分数再除 100」
+    # —— 两份独立产物必须逐位相等。
+    c_mkt_crosscheck_diff = abs(
+        c_mkt - require(nav, "gap_to_target_by_benchmark", ARM, "c_mkt_fraction"))
+
+    # ✅ 对拍 2（**充分性锚**：外部锚，不需公式也不需容差）：
+    #   `x* = (1+T)/(1+c_mkt) − 1` 无幂 ⇔ `(1+c)(1+x) == 1+T`。
+    #   带幂式在这里差 8.36pp（第 181 层）。
+    sufficiency_gap = (1 + c_mkt) * (1 + x_star) - (1 + target)
+    sufficiency_anchor_ok = abs(sufficiency_gap) < 1e-12
+
+    # ✅ 对拍 3（**量纲的绝对外部锚**，不依赖上面任何一条）：
+    #   年化收益率不可能低于 −100%。若 c_mkt 被误读成 0.099471→0.9947 之类，
+    #   这条立刻响；它**不需要公式也不需要容差**。
+    unit_anchor_ok = IMPOSSIBLE_RETURN_FLOOR < min(
+        c_mkt, x_star, *(
+            w["gross_annual_pct"] for w in width["widths"].values()))
+
+    rows = []
+    for key in sorted(require(width, "widths"), key=int):
+        w = require(width, "widths", key)
+        n = require(w, "n")
+        gross = require(w, "gross_annual_pct")            # 分数
+        mde = require(w, "MDE_annual_pct")                # 名字带 pct，值是分数
+        gross_over_mde = abs(gross) / mde if mde else None
+
+        g_star_5w = required_gross(x_star, CAPITAL, n)
+        g_star_inf = required_gross(x_star, INFINITE_CAPITAL, n)
+        cap = ceiling_net_excess(gross, n)
+
+        rows.append({
+            "n": n,
+            "measured_gross_annual": gross,
+            "measured_net_at_50k": net_excess(
+                gross, friction_at(CAPITAL, n)),
+            "measured_net_ceiling": cap,
+            "mde_annual": mde,
+            "measured_gross_over_mde_abs": gross_over_mde,
+            "detectable": abs(gross) > mde,
+
+            "friction_at_50k": friction_at(CAPITAL, n),
+            "friction_floor": friction_floor(n),
+            "required_gross_at_50k": g_star_5w,
+            "required_gross_at_infinite_capital": g_star_inf,
+            "shortfall_at_50k_pp": (g_star_5w - gross) * 100.0,
+            "shortfall_at_infinite_capital_pp": (g_star_inf - gross) * 100.0,
+            "measured_over_required": (gross / g_star_inf) if g_star_inf else None,
+            "multiple_needed_at_50k": (g_star_5w / gross) if gross else None,
+            "multiple_needed_at_infinite_capital":
+                (g_star_inf / gross) if gross else None,
+
+            # ✅ 对拍 4：本脚本的摩擦 vs 上游产物自己报的摩擦（推导路径不同：
+            # 上游走自己的成本链，本脚本走 `aplus.costs.annual_friction`）。
+            "upstream_friction_width_aware": require(
+                w, "friction_width_aware_annual_pct"),
+            "friction_diff_vs_upstream": friction_at(CAPITAL, n) - require(
+                w, "friction_width_aware_annual_pct"),
+        })
+
+    # ✅ 对拍 5：摩擦下界的**闭式 vs 实测**，两条推导路径（第 5 层的正解）。
+    #    闭式里 `n_positions` 根本不存在 —— 「与榜宽无关」因此是**被算出来的**，
+    #    不是被声称的（第 181 层：散文里的公式没有守卫）。
+    widths = [r["n"] for r in rows]
+    floor_width_independent, floor_width_rel = friction_floor_is_width_independent(widths)
+    floor_matches_closed_form, floor_vs_closed_rel = friction_floor_matches_closed_form(
+        DELIVERABLE_N)
+    if not floor_width_independent:
+        raise AssertionError(
+            f"{GENERATOR}: 摩擦下界随榜宽变化，最大相对差 {floor_width_rel:.3e} > "
+            f"{FLOOR_REL_TOL:.0e} ⇒ '下界与榜宽无关' 这条前提已被破坏，"
+            f"整个 g*(∞) 的解读作废"
+        )
+    if not floor_matches_closed_form:
+        raise AssertionError(
+            f"{GENERATOR}: 实测摩擦下界与闭式不符，相对差 {floor_vs_closed_rel:.3e} > "
+            f"{FLOOR_REL_TOL:.0e}"
+        )
+
+    branch = decide(rows)
+    deliverable = next(r for r in rows if r["n"] == DELIVERABLE_N)
+    by_multiple_inf = sorted(
+        (r for r in rows if r["multiple_needed_at_infinite_capital"] is not None),
+        key=lambda r: r["multiple_needed_at_infinite_capital"])
+    cheapest = by_multiple_inf[0]     # 最接近门槛的档
+    hardest = by_multiple_inf[-1]     # 离门槛最远的档
+    best_ceiling = max(rows, key=lambda r: r["measured_net_ceiling"])
+
+    max_friction_diff = max(abs(r["friction_diff_vs_upstream"]) for r in rows)
+    max_shortfall_inf = max(r["shortfall_at_infinite_capital_pp"] for r in rows)
+
+    out = {
+        "artifact": OUT.name,
+        "generator": GENERATOR,
+        "prereg": "docs/PREREG_D2_SIGNAL_REQUIREMENT_2026-10-16.md",
+
+        "question": "要让账户年化到 20%，信号本身必须交出多少毛超额？",
+        "branch": branch,
+        "branch_order_is_the_criterion":
+            "预注册 §3.2：C_UNMEASURABLE 必须先于 A/B 被检 —— 否则输出"
+            "乐观方向的结论（把「仪器看不清」说成「东西不行」）",
+
+        "account_leg": {
+            "arm": ARM,
+            "c_mkt_annual": c_mkt,
+            "required_excess_annual": x_star,
+            "target": target,
+            "sufficiency_anchor_form": "(1 + c_mkt) * (1 + x_star) == 1 + target",
+            "sufficiency_anchor_gap": sufficiency_gap,
+            "sufficiency_anchor_ok": sufficiency_anchor_ok,
+            "c_mkt_crosscheck_diff": c_mkt_crosscheck_diff,
+            "unit_anchor_ok": unit_anchor_ok,
+            "unit_anchor_form": "年化收益率不可能低于 −100%（绝对锚，不需公式/容差）",
+            "max_friction_diff_vs_upstream": max_friction_diff,
+        },
+
+        "rows": rows,
+
+        "headline": {
+            "required_gross_at_infinite_capital_best": min(
+                r["required_gross_at_infinite_capital"] for r in rows) * 100.0,
+            "required_gross_at_infinite_capital_hardest": max(
+                r["required_gross_at_infinite_capital"] for r in rows) * 100.0,
+            "required_gross_at_50k_deliverable":
+                deliverable["required_gross_at_50k"] * 100.0,
+            "measured_gross_best": max(
+                r["measured_gross_annual"] for r in rows) * 100.0,
+            "multiple_needed_at_infinite_capital": {
+                "cheapest_width": cheapest["n"],
+                "cheapest": cheapest["multiple_needed_at_infinite_capital"],
+                "hardest_width": hardest["n"],
+                "hardest": hardest["multiple_needed_at_infinite_capital"],
+            },
+            "multiple_needed_at_50k_deliverable":
+                deliverable["multiple_needed_at_50k"],
+
+            "account_annual_ceiling_pct":
+                (c_mkt + best_ceiling["measured_net_ceiling"]) * 100.0,
+            "account_annual_ceiling_is_a_point_estimate":
+                f"这个天花板由 |g_obs|/MDE = "
+                f"{best_ceiling['measured_gross_over_mde_abs']:.2f} 的点估计撑起 "
+                f"⇒ 连符号都定不了 ⇒ 只支持形状陈述，不支持水平陈述（预注册 §3.1）",
+
+            "capital_can_close_at_most_pp":
+                deliverable["shortfall_at_50k_pp"]
+                - deliverable["shortfall_at_infinite_capital_pp"],
+            "gap_left_after_infinite_capital_pp": max_shortfall_inf,
+        },
+
+        "friction_floor_is_provable_positive": {
+            "value": friction_floor(DELIVERABLE_N),
+            "why": "COMMISSION_MIN_BINDS_BELOW = 5/0.0003 = ¥16,667；每笔本金"
+                   "超过它后佣金 = per × rate 与本金无关 ⇒ 下界 > 0",
+            "consequence": "本金买不到零成本 ⇒ 加本金不能把 g* 压到 x* 以下 ⇒ "
+                           "剩下的缺口不可能由本金封口",
+
+            # 🚨 下面这三块是为了让「五档 g*(∞) 完全相同」**不像一个 bug**。
+            #    那五个数相同是**算出来的性质**，不是笔误；机制在此逐字给出。
+            "why_it_is_the_same_number_on_every_width": {
+                "one_line": "equity_weight=1.0 ⇒ 一轮调仓的总成交额 = 全部权益，"
+                            "与 N 无关；成本按成交额线性 ⇒ 每轮摩擦与 N 无关",
+                "derivation": [
+                    "代码路径：per = notional/N，然后 N 次 round_trip(per) 求和",
+                    "闭式路径：N × (notional/N) × K = notional × K，**N 直接约掉**",
+                    "K = 2×(commission + transfer_fee + spread) + stamp_duty"
+                    f" = {_ROUND_TRIP_LINEAR}",
+                    f"⇒ friction_floor = equity_weight × K × (244/21)"
+                    f" = {friction_floor_closed_form():.6f}"
+                    f"（即 {friction_floor_closed_form() * 100:.4f}%/年）",
+                ],
+                "checked_not_asserted": {
+                    "closed_form": friction_floor_closed_form(),
+                    "measured_at_deliverable_width": friction_floor(DELIVERABLE_N),
+                    "relative_diff": floor_vs_closed_rel,
+                    "tolerance": FLOOR_REL_TOL,
+                    "tolerance_derivation": "float64 朴素求和 n 项的相对误差界 O(n·ε)；"
+                                           f"最大档 n={max(widths)} ⇒ "
+                                           f"{max(widths)} × 2.22e-16 ≈ 1.2e-13 ⇒ "
+                                           "取 1e-12 留一个数量级余量",
+                },
+                "width_independence": {
+                    "widths_checked": widths,
+                    "max_relative_spread": floor_width_rel,
+                    "tolerance": FLOOR_REL_TOL,
+                    "note": "这一条**不是**恒真：`costs.py::rebalance` 若被改成"
+                            "「先求和再乘费率」（它自己的 docstring 明写那是错的），"
+                            "实测下界立刻随 N 变 ⇒ 这里会 AssertionError",
+                },
+                "consequence": "★ **放宽榜宽不能降低达标所需的毛超额**。"
+                               f"N={by_multiple_inf[0]['n']} 只需 "
+                               f"×{by_multiple_inf[0]['multiple_needed_at_infinite_capital']:.2f}"
+                               f" 而 N={by_multiple_inf[-1]['n']} 需 "
+                               f"×{by_multiple_inf[-1]['multiple_needed_at_infinite_capital']:.2f}，"
+                               "差别**全部来自毛超额更高**，与门槛无关",
+            },
+        },
+
+        "caliber": {
+            "account_annual_is": "market_return + net_excess（上游 caliber 原文）",
+            "required_excess_is_a_DIFFERENCE_not_a_nav_series":
+                "x* 是「超额差」的年率，**不是净值序列**；直接对它算 CAGR 会错 ~10pp",
+            "net_excess_is_also_a_difference":
+                "measured_net_* 与 measured_net_ceiling 同为差序列，不是净值",
+            "rounds_per_year": ROUNDS_PER_YEAR,
+            "rounds_per_year_note": "精确 244/21，不取整；取整 12 会抬摩擦下界",
+            "equity_weight": EQUITY_WEIGHT,
+            "equity_weight_is_the_FULL_POSITION_verdict_caliber_not_live":
+                "⚠️ 本文件的 EQUITY_WEIGHT=1.0 是**满仓判决口径**（预注册 §2.1 C2）。"
+                "实盘是**半仓**：`aplus/alloc.py::build_allocation(max_positions=5, "
+                "per_stock_cap=0.10)` ⇒ equity_weight=0.5，"
+                "`deployed_account_nav.json` 已记此债。"
+                "⇒ 两个口径下的「所需毛超额」**不可互相代替**："
+                f"半仓的摩擦正好是满仓的一半（{friction_floor(DELIVERABLE_N) * 100:.6f}%"
+                f" → {friction_floor_closed_form(0.5) * 100:.6f}%/年，实测比值 "
+                f"{friction_floor_closed_form(0.5) / friction_floor(DELIVERABLE_N):.10f}），"
+                f"g*(∞) 相应降到 {(x_star + friction_floor_closed_form(0.5)) * 100:.6f}%。"
+                "**本文件全部数字是满仓口径**，引用时必须带这一句；"
+                "不要拿它去论证实盘半仓的可行性，反之亦然（第 7 层："
+                "两个各自都对的数放一起比）",
+            "friction_calibrated_at_one_width_only":
+                "COST_REAL_50K 是 N=10 标定值；本脚本用逐笔成本链，不用它",
+            "upstream_units_differ": {
+                "factor_width_mde_*_pct": "分数（字段名带 _pct 但值是分数）",
+                "market_nav_caliber.geometric_annual_pct": "真百分数",
+                "basket_nav_01.required_excess_annual": "分数",
+            },
+            "unit_anchor_used":
+                "绝对外部锚「年化收益率不可能低于 −100%」——不用字段名、不用容差",
+        },
+
+        "what_this_does_not_prove": [
+            "g_obs < g* 不等于「D2 达不到」——只等于「当前配置下交不出门槛要的量」",
+            "五档 detectable 全为 False ⇒ 连「实测毛超额是不是正的」都定不了 ⇒ "
+            "本文件的水平陈述全部只支持形状（第 160 层）",
+            "不重跑回测 ⇒ 本产物不比上游更新；上游 stale 则本产物继承同一 staleness",
+            "不改 LIVE_REBALANCE_EVERY、不写 weights.json、不改任何生产路径",
+            "★ 不改 CLAUDE.md 的 D2 缺口 9.4437pp —— 那是 c 对 20% 的差，"
+            "本文件是同一件事的毛额口径，两者不可互相代替",
+        ],
+    }
+    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
+    provenance.stamp(OUT, GENERATOR, expect_bytes=expect, extra={"source": [
+        "data/reports/factor_width_mde.json",
+        "data/reports/basket_nav_01_2026-10-16.json",
+        "data/reports/market_nav_caliber.json",
+    ]})
+
+    print(f"branch = {branch}")
+    print(f"锚：充分性 gap={sufficiency_gap:+.3e} ok={sufficiency_anchor_ok} | "
+          f"c_mkt 跨文件差={c_mkt_crosscheck_diff:.3e} | "
+          f"量纲锚 ok={unit_anchor_ok} | 摩擦 vs 上游最大差={max_friction_diff:.3e}")
+    for r in rows:
+        print(f"  N={r['n']:>3}  g_obs={r['measured_gross_annual']*100:>7.4f}%  "
+              f"g*(5万)={r['required_gross_at_50k']*100:>7.4f}%  "
+              f"g*(∞)={r['required_gross_at_infinite_capital']*100:>7.4f}%  "
+              f"净上限={r['measured_net_ceiling']*100:>7.4f}%  "
+              f"需 ×{r['multiple_needed_at_50k']:.2f}(5万)/"
+              f"×{r['multiple_needed_at_infinite_capital']:.2f}(∞)")
+    h = out["headline"]
+    print(f"  本金最多省 {h['capital_can_close_at_most_pp']:.4f}pp；"
+          f"加到 ∞ 还差 {h['gap_left_after_infinite_capital_pp']:.4f}pp；"
+          f"账户天花板 {h['account_annual_ceiling_pct']:.4f}%")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

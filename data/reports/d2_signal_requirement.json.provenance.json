@@ -1,0 +1,14 @@
+{
+  "code_sha": "b82be9dc3086761dd44c8155f11f4eae7d9753cb",
+  "code_dirty": true,
+  "code_file_sha256": "b839aebefd0c8fa47c6f14498be762bbae4d059931caf826d6215b26c5e71359",
+  "data_fp": "5460:1792149148.049984",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/d2_signal_requirement.py",
+  "stamped_at": "2026-10-16T15:06:22+00:00",
+  "source": [
+    "data/reports/factor_width_mde.json",
+    "data/reports/basket_nav_01_2026-10-16.json",
+    "data/reports/market_nav_caliber.json"
+  ]
+}

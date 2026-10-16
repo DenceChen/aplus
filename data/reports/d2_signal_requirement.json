@@ -1,0 +1,197 @@
+{
+  "artifact": "d2_signal_requirement.json",
+  "generator": "scripts/d2_signal_requirement.py",
+  "prereg": "docs/PREREG_D2_SIGNAL_REQUIREMENT_2026-10-16.md",
+  "question": "要让账户年化到 20%，信号本身必须交出多少毛超额？",
+  "branch": "C_UNMEASURABLE",
+  "branch_order_is_the_criterion": "预注册 §3.2：C_UNMEASURABLE 必须先于 A/B 被检 —— 否则输出乐观方向的结论（把「仪器看不清」说成「东西不行」）",
+  "account_leg": {
+    "arm": "equal_weight",
+    "c_mkt_annual": 0.09947103514598311,
+    "required_excess_annual": 0.09143393653900955,
+    "target": 0.2,
+    "sufficiency_anchor_form": "(1 + c_mkt) * (1 + x_star) == 1 + target",
+    "sufficiency_anchor_gap": 0.0,
+    "sufficiency_anchor_ok": true,
+    "c_mkt_crosscheck_diff": 0.0,
+    "unit_anchor_ok": true,
+    "unit_anchor_form": "年化收益率不可能低于 −100%（绝对锚，不需公式/容差）",
+    "max_friction_diff_vs_upstream": 0.0
+  },
+  "rows": [
+    {
+      "n": 10,
+      "measured_gross_annual": 0.048107559200486205,
+      "measured_net_at_50k": -0.016029583656656646,
+      "measured_net_ceiling": 0.00023708301001001963,
+      "mde_annual": 0.1531039803741692,
+      "measured_gross_over_mde_abs": 0.3142149477950648,
+      "detectable": false,
+      "friction_at_50k": 0.06413714285714285,
+      "friction_floor": 0.047870476190476186,
+      "required_gross_at_50k": 0.1555710793961524,
+      "required_gross_at_infinite_capital": 0.13930441272948574,
+      "shortfall_at_50k_pp": 10.746352019566618,
+      "shortfall_at_infinite_capital_pp": 9.119685352899953,
+      "measured_over_required": 0.3453412440990361,
+      "multiple_needed_at_50k": 3.2338177613172294,
+      "multiple_needed_at_infinite_capital": 2.8956865624576906,
+      "upstream_friction_width_aware": 0.06413714285714285,
+      "friction_diff_vs_upstream": 0.0
+    },
+    {
+      "n": 30,
+      "measured_gross_annual": 0.05546419982190264,
+      "measured_net_at_50k": -0.055149133511430685,
+      "measured_net_ceiling": 0.007593723631426463,
+      "mde_annual": 0.12263063945773224,
+      "measured_gross_over_mde_abs": 0.45228663951491327,
+      "detectable": false,
+      "friction_at_50k": 0.11061333333333333,
+      "friction_floor": 0.04787047619047618,
+      "required_gross_at_50k": 0.2020472698723429,
+      "required_gross_at_infinite_capital": 0.13930441272948574,
+      "shortfall_at_50k_pp": 14.658307005044025,
+      "shortfall_at_infinite_capital_pp": 8.384021290758309,
+      "measured_over_required": 0.39815106165809827,
+      "multiple_needed_at_50k": 3.6428411573794137,
+      "multiple_needed_at_infinite_capital": 2.511609527890004,
+      "upstream_friction_width_aware": 0.11061333333333333,
+      "friction_diff_vs_upstream": 0.0
+    },
+    {
+      "n": 100,
+      "measured_gross_annual": 0.061731916738626345,
+      "measured_net_at_50k": -0.21154808326137367,
+      "measured_net_ceiling": 0.01386144054815016,
+      "mde_annual": 0.10787936652643178,
+      "measured_gross_over_mde_abs": 0.5722309902839601,
+      "detectable": false,
+      "friction_at_50k": 0.27328,
+      "friction_floor": 0.047870476190476186,
+      "required_gross_at_50k": 0.3647139365390096,
+      "required_gross_at_infinite_capital": 0.13930441272948574,
+      "shortfall_at_50k_pp": 30.298201980038325,
+      "shortfall_at_infinite_capital_pp": 7.757249599085939,
+      "measured_over_required": 0.44314401481669585,
+      "multiple_needed_at_50k": 5.9080287120066695,
+      "multiple_needed_at_infinite_capital": 2.2566027444004737,
+      "upstream_friction_width_aware": 0.27328,
+      "friction_diff_vs_upstream": 0.0
+    },
+    {
+      "n": 200,
+      "measured_gross_annual": 0.0694654436628111,
+      "measured_net_at_50k": -0.4361955087181412,
+      "measured_net_ceiling": 0.021594967472334914,
+      "mde_annual": 0.10374291146326173,
+      "measured_gross_over_mde_abs": 0.6695921936547035,
+      "detectable": false,
+      "friction_at_50k": 0.5056609523809523,
+      "friction_floor": 0.047870476190476186,
+      "required_gross_at_50k": 0.5970948889199619,
+      "required_gross_at_infinite_capital": 0.13930441272948574,
+      "shortfall_at_50k_pp": 52.762944525715085,
+      "shortfall_at_infinite_capital_pp": 6.983896906667464,
+      "measured_over_required": 0.49865931955583886,
+      "multiple_needed_at_50k": 8.595567197674454,
+      "multiple_needed_at_infinite_capital": 2.005377139829073,
+      "upstream_friction_width_aware": 0.5056609523809523,
+      "friction_diff_vs_upstream": 0.0
+    },
+    {
+      "n": 546,
+      "measured_gross_annual": 0.07568490729039987,
+      "measured_net_at_50k": -1.2340141403286478,
+      "measured_net_ceiling": 0.02781443109992368,
+      "mde_annual": 0.09320124734105258,
+      "measured_gross_over_mde_abs": 0.8120589525314513,
+      "detectable": false,
+      "friction_at_50k": 1.3096990476190475,
+      "friction_floor": 0.047870476190476186,
+      "required_gross_at_50k": 1.401132984158057,
+      "required_gross_at_infinite_capital": 0.13930441272948574,
+      "shortfall_at_50k_pp": 132.54480768676572,
+      "shortfall_at_infinite_capital_pp": 6.361950543908587,
+      "measured_over_required": 0.5433058853445788,
+      "multiple_needed_at_50k": 18.51271322539866,
+      "multiple_needed_at_infinite_capital": 1.8405837797353766,
+      "upstream_friction_width_aware": 1.3096990476190475,
+      "friction_diff_vs_upstream": 0.0
+    }
+  ],
+  "headline": {
+    "required_gross_at_infinite_capital_best": 13.930441272948574,
+    "required_gross_at_infinite_capital_hardest": 13.930441272948574,
+    "required_gross_at_50k_deliverable": 15.55710793961524,
+    "measured_gross_best": 7.568490729039986,
+    "multiple_needed_at_infinite_capital": {
+      "cheapest_width": 546,
+      "cheapest": 1.8405837797353766,
+      "hardest_width": 10,
+      "hardest": 2.8956865624576906
+    },
+    "multiple_needed_at_50k_deliverable": 3.2338177613172294,
+    "account_annual_ceiling_pct": 12.728546624590681,
+    "account_annual_ceiling_is_a_point_estimate": "这个天花板由 |g_obs|/MDE = 0.81 的点估计撑起 ⇒ 连符号都定不了 ⇒ 只支持形状陈述，不支持水平陈述（预注册 §3.1）",
+    "capital_can_close_at_most_pp": 1.6266666666666652,
+    "gap_left_after_infinite_capital_pp": 9.119685352899953
+  },
+  "friction_floor_is_provable_positive": {
+    "value": 0.047870476190476186,
+    "why": "COMMISSION_MIN_BINDS_BELOW = 5/0.0003 = ¥16,667；每笔本金超过它后佣金 = per × rate 与本金无关 ⇒ 下界 > 0",
+    "consequence": "本金买不到零成本 ⇒ 加本金不能把 g* 压到 x* 以下 ⇒ 剩下的缺口不可能由本金封口",
+    "why_it_is_the_same_number_on_every_width": {
+      "one_line": "equity_weight=1.0 ⇒ 一轮调仓的总成交额 = 全部权益，与 N 无关；成本按成交额线性 ⇒ 每轮摩擦与 N 无关",
+      "derivation": [
+        "代码路径：per = notional/N，然后 N 次 round_trip(per) 求和",
+        "闭式路径：N × (notional/N) × K = notional × K，**N 直接约掉**",
+        "K = 2×(commission + transfer_fee + spread) + stamp_duty = 0.00412",
+        "⇒ friction_floor = equity_weight × K × (244/21) = 0.047870（即 4.7870%/年）"
+      ],
+      "checked_not_asserted": {
+        "closed_form": 0.04787047619047619,
+        "measured_at_deliverable_width": 0.047870476190476186,
+        "relative_diff": 1.4495142843988917e-16,
+        "tolerance": 1e-12,
+        "tolerance_derivation": "float64 朴素求和 n 项的相对误差界 O(n·ε)；最大档 n=546 ⇒ 546 × 2.22e-16 ≈ 1.2e-13 ⇒ 取 1e-12 留一个数量级余量"
+      },
+      "width_independence": {
+        "widths_checked": [
+          10,
+          30,
+          100,
+          200,
+          546
+        ],
+        "max_relative_spread": 1.4495142843988922e-16,
+        "tolerance": 1e-12,
+        "note": "这一条**不是**恒真：`costs.py::rebalance` 若被改成「先求和再乘费率」（它自己的 docstring 明写那是错的），实测下界立刻随 N 变 ⇒ 这里会 AssertionError"
+      },
+      "consequence": "★ **放宽榜宽不能降低达标所需的毛超额**。N=546 只需 ×1.84 而 N=10 需 ×2.90，差别**全部来自毛超额更高**，与门槛无关"
+    }
+  },
+  "caliber": {
+    "account_annual_is": "market_return + net_excess（上游 caliber 原文）",
+    "required_excess_is_a_DIFFERENCE_not_a_nav_series": "x* 是「超额差」的年率，**不是净值序列**；直接对它算 CAGR 会错 ~10pp",
+    "net_excess_is_also_a_difference": "measured_net_* 与 measured_net_ceiling 同为差序列，不是净值",
+    "rounds_per_year": 11.619047619047619,
+    "rounds_per_year_note": "精确 244/21，不取整；取整 12 会抬摩擦下界",
+    "equity_weight": 1.0,
+    "equity_weight_is_the_FULL_POSITION_verdict_caliber_not_live": "⚠️ 本文件的 EQUITY_WEIGHT=1.0 是**满仓判决口径**（预注册 §2.1 C2）。实盘是**半仓**：`aplus/alloc.py::build_allocation(max_positions=5, per_stock_cap=0.10)` ⇒ equity_weight=0.5，`deployed_account_nav.json` 已记此债。⇒ 两个口径下的「所需毛超额」**不可互相代替**：半仓的摩擦正好是满仓的一半（4.787048% → 2.393524%/年，实测比值 0.5000000000），g*(∞) 相应降到 11.536917%。**本文件全部数字是满仓口径**，引用时必须带这一句；不要拿它去论证实盘半仓的可行性，反之亦然（第 7 层：两个各自都对的数放一起比）",
+    "friction_calibrated_at_one_width_only": "COST_REAL_50K 是 N=10 标定值；本脚本用逐笔成本链，不用它",
+    "upstream_units_differ": {
+      "factor_width_mde_*_pct": "分数（字段名带 _pct 但值是分数）",
+      "market_nav_caliber.geometric_annual_pct": "真百分数",
+      "basket_nav_01.required_excess_annual": "分数"
+    },
+    "unit_anchor_used": "绝对外部锚「年化收益率不可能低于 −100%」——不用字段名、不用容差"
+  },
+  "what_this_does_not_prove": [
+    "g_obs < g* 不等于「D2 达不到」——只等于「当前配置下交不出门槛要的量」",
+    "五档 detectable 全为 False ⇒ 连「实测毛超额是不是正的」都定不了 ⇒ 本文件的水平陈述全部只支持形状（第 160 层）",
+    "不重跑回测 ⇒ 本产物不比上游更新；上游 stale 则本产物继承同一 staleness",
+    "不改 LIVE_REBALANCE_EVERY、不写 weights.json、不改任何生产路径",
+    "★ 不改 CLAUDE.md 的 D2 缺口 9.4437pp —— 那是 c 对 20% 的差，本文件是同一件事的毛额口径，两者不可互相代替"
+  ]
+}
