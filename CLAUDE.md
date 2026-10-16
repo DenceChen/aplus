@@ -1955,7 +1955,26 @@ ok = require_run_completed("data/reports/wf_weights_backtest_k21.json")
 
    ⚠️ **这只降低损耗，不提高收益。** 降低 K 是提速，砍掉前瞻验证是作弊。
    守卫 `tests/test_live_rebalance_frequency.py`（3 条，**三个变异全部变红**）。
-2. **换止损/持有规则** —— 当前是等权满仓持有 21 天。
+2. ~~**换止损/持有规则**~~ 🚨 **2026-10-17 由书关闭（不是「试了不行」，是「前提不成立」）** —— 当前是等权满仓持有 21 天。
+   - **止损**（Chan，`data/books/chan_lines.txt:4799-4805`）：「It is a **common fallacy** to
+     believe that imposing stop loss will prevent the portfolio from suffering catastrophic
+     losses… by exiting the positions, we are actually **realizing** the catastrophic loss and
+     **not avoiding** it.」⇒ 止损要有效的**前提**是「we must believe that we are in a **momentum,
+     or trending**, regime」；均值回归状态下「we will eventually recoup our losses if we didn't
+     exit too quickly」。⇒ 我们是**短持有 10 只篮子**（交付形态实测 1 天，回测 K=21），
+     该前提**不成立** ⇒ 止损杠杆**结构上不适用**，不必花 GB 级回测去证伪一条幻觉。
+     ⚠️ 这是**书否决 + 机制说明**，不是我们的实验结论 ⇒ 不许写成「实测止损无效」。
+   - **持有期 ↔ 目标**（Chan `chan_lines.txt:1104-1113`，p.44）：「maximum long-term growth is
+     achieved by finding a strategy with the **maximum Sharpe ratio**, **provided that you have
+     access to sufficiently high leverage**」；拿短持有/高 Sharpe/**低年化**与长持有/低 Sharpe/
+     **高年化**相比，「**it is still preferable to choose the short-term strategy even if your
+     goal is long-term growth**」。
+     ⇒ 🚨 **D2 的目标（年化 20%）正是 Chan 说选错的那个指标** —— 但他的处方带前置条件
+       *sufficiently high leverage*，而本平台 `EQUITY_WEIGHT=1.0`、5 万满仓、**零杠杆**
+       ⇒ **Sharpe 法不适用，年化反而是无杠杆下的唯一正确目标**。
+     ⇒ **结论不是「改追 Sharpe」，是「20% 只能在无杠杆下追，而无杠杆下它被毛超额上限锁死」**
+       （实测多头毛超额天花板 ~11%/年 vs 门槛 26.39%/年，差 2.4 倍，见第 17 种形状）。
+     ⚠️ **诚实边界**：「5 万拿不到融资融券额度」是**外部常识，本仓未核实**，不许当已验证前提引用。
 3. ~~**承认这不是量化策略**~~ 🚨 **这条已被第 16 种形状改写。**
    原来的理由是「11%/年毛超额、扣费后 4.7%，跑不赢指数」——
    但 P0 结清后净数是 **+0.49%/年**（⚠️ 该数出自**已标不可引用**的 `k_sweep_summary.json`
