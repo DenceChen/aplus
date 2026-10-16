@@ -1,0 +1,23 @@
+{
+  "code_sha": "cd3905cb913258ec605ff35bc2035256b70265aa",
+  "code_dirty": true,
+  "code_file_sha256": "e0a3b0f37f51a2e06984756f4b457946920f6050bced866e59f1a9625248f43a",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_random_arm_nav.py",
+  "stamped_at": "2026-10-16T04:40:02+00:00",
+  "branch": null,
+  "verdict": null,
+  "reps": 100,
+  "smoke": false,
+  "test_window": {
+    "start": "2021-01-01",
+    "end": "2026-10-12",
+    "start_actual": "2021-01-04",
+    "end_actual": "2026-10-09",
+    "n_days": 1395
+  },
+  "strategy_cagr": 0.10556283216930074,
+  "anchor_bitwise_equal": true,
+  "expect_bytes_checked": true
+}

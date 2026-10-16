@@ -1,0 +1,14 @@
+{
+  "code_sha": "cd3905cb913258ec605ff35bc2035256b70265aa",
+  "code_dirty": true,
+  "code_file_sha256": "25eb394ad1154ba69bd00411977f401e265a4f2b618e0439028071de97ec289a",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/verdict_horizon.py",
+  "stamped_at": "2026-10-16T03:00:58+00:00",
+  "data_fp_applicability": "data_fp 不适用：verdict_horizon.py 读 data/reports/basket_nav_01_2026-10-16.json 与 data/reports/wf_weights_backtest_k21.daily.parquet，不读 master/daily 下的任何 parquet。真实输入指纹见 source_basket_sha256 / source_daily_sha256。",
+  "source_basket": "data/reports/basket_nav_01_2026-10-16.json",
+  "source_basket_sha256": "0eca9bdb00e351e49de4f46782ee682c291f8c2542432060d52f8b9b982624b4",
+  "source_daily": "data/reports/wf_weights_backtest_k21.daily.parquet",
+  "source_daily_sha256": "785d1aaf20f1dfcec4dfdfd4acd64357384378454ac265178a150422e6b5d995"
+}

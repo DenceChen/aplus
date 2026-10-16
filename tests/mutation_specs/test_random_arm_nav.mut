@@ -1,0 +1,92 @@
+Y1 四分支优先级倒序	scripts/measure_random_arm_nav.py
+_BRANCH_ORDER = ("E-判不出", "E-上", "E-下", "E-内")
+=== 变异体 ===
+_BRANCH_ORDER = ("E-内", "E-下", "E-上", "E-判不出")
+
+Y2 E-判不出 退回 §10.6 原判据（逻辑自噬，E-下 永不可达）	scripts/measure_random_arm_nav.py
+        "E-判不出": bool(band(rec) < float(rec["mde_resolution"])),
+=== 变异体 ===
+        "E-判不出": bool(band(rec) < abs(s - float(rec["p95"]))),
+
+Y3 decide_branch 偷偷重算条件（不许只读字段）	scripts/measure_random_arm_nav.py
+for name in _BRANCH_ORDER:
+        if conds[name]:
+            return name
+=== 变异体 ===
+for name in _BRANCH_ORDER:
+        if branch_conditions(rec)[name]:
+            return name
+
+Y4 mde_resolution 不再看 boots（p95 自身的估计误差消失）	scripts/measure_random_arm_nav.py
+lo, hi = np.percentile(boots, [2.5, 97.5])
+    return float((hi - lo) / 2.0)
+=== 变异体 ===
+lo, hi = np.percentile(boots, [2.5, 97.5])
+    return float((hi - lo) / 2.0) * 10.0
+
+Y5 换回 make_shuffle_list（域会 ⊇ 策略域）	scripts/measure_random_arm_nav.py
+from placebo_control import make_shuffle_score  # noqa: E402
+=== 变异体 ===
+from placebo_control import make_shuffle_list  # noqa: E402
+
+Y6 日期轴闸摘掉（改回只查 market 逐位相同）	scripts/measure_random_arm_nav.py
+same_axis = same_date_axis(tb, strat, strat_keys)
+=== 变异体 ===
+same_axis = bool((tb["market"] == strat["market"]).all())
+
+Y7 冒烟 reps 与正式 reps 合并（冒烟数字会进判决）	scripts/measure_random_arm_nav.py
+N_SMOKE_REPS = 3
+=== 变异体 ===
+N_SMOKE_REPS = 100
+
+Y8 branch 写盘不再随 verdict 同生共死	scripts/measure_random_arm_nav.py
+"branch": (branch if verdict_is_adopted(branch, verdict) else None),
+=== 变异体 ===
+"branch": branch,
+
+Y9 MIN_BASKET 改回手写字面量 3（第 73 层）	scripts/measure_random_arm_nav.py
+    verify_mod.MIN_BASKET = scaled_min_basket(TOP_N)
+=== 变异体 ===
+    verify_mod.MIN_BASKET = 3
+
+Y10 账户净值漏加市场腿（只留差序列）	scripts/measure_random_arm_nav.py
+    return tbl["market"] + tbl["net"][tag]
+=== 变异体 ===
+    return tbl["net"][tag]
+
+Y11 规模标注的守卫被换成总真条件（压住的判决被复活成 'None …' 字符串）	scripts/measure_random_arm_nav.py
+if verdict is not None:
+        return verdict + note
+=== 变异体 ===
+if note:
+        return verdict + note
+
+Y12 非预注册规模的标注整块被摘掉（--reps<N 时什么提示都没有）	scripts/measure_random_arm_nav.py
+verdict = append_rep_scale_note(
+            verdict, suppressed,
+            f"🚨 **仅 {args.reps} rep，非预注册的 {N_RANDOM_REPS}，"
+            f"不得作为正式判决引用**")
+=== 变异体 ===
+pass
+
+Y13 count_at_least 用 > 替掉 >=（恰好相等的元素被排除）	scripts/measure_random_arm_nav.py
+arr = np.asarray(values, dtype=float)
+    return int(np.count_nonzero(arr >= threshold))
+=== 变异体 ===
+arr = np.asarray(values, dtype=float)
+    return int(np.count_nonzero(arr > threshold))
+
+Y14 count_at_least 退回数 NaN（复现 2026-10-16 那个真实事故的语义）	scripts/measure_random_arm_nav.py
+return int(np.count_nonzero(arr >= threshold))
+=== 变异体 ===
+return int(np.isnan(arr).sum())
+
+Y15 count_at_least 把 NaN 也计入（「保守计数」变成「NaN 计入」）	scripts/measure_random_arm_nav.py
+return int(np.count_nonzero(arr >= threshold))
+=== 变异体 ===
+return int(np.count_nonzero(arr >= threshold) + np.isnan(arr).sum())
+
+Y16 用点退回内联手写（G2 接线守卫的专属变异，**故意用真名** np.count_nonzero ⇒ G3 抓不到它）	scripts/measure_random_arm_nav.py
+n_ge = count_at_least(random_arr, strat_cagr)
+=== 变异体 ===
+n_ge = int(np.count_nonzero(random_arr >= strat_cagr))

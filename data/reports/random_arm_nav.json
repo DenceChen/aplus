@@ -1,0 +1,3807 @@
+{
+  "kind": "Y5_net_nav_random_arm",
+  "prereg": "docs/PREREG_7Y_NET_NAV_2026-10-16.md",
+  "prereg_sections": "§10 + §19",
+  "generated": "2026-10-16",
+  "smoke": false,
+  "reps": 100,
+  "reps_preregistered": 100,
+  "smoke_reps_preregistered": 3,
+  "seed_base": 20261016,
+  "seed_rule": "第 rep 个种子 = Y5_SEED_BASE + rep（§10.4 Y5-R2）；逐日种子由 (rep 种子, 信号日, 盐) 派生 ⇒ 逐日期独立。🚨 不许 hash(day)（PYTHONHASHSEED ⇒ 不可复现的阴性等于没跑）",
+  "window": {
+    "start": "2021-01-01",
+    "end": "2026-10-12",
+    "start_actual": "2021-01-04",
+    "end_actual": "2026-10-09",
+    "n_days": 1395
+  },
+  "config": {
+    "top_n": 10,
+    "bottom_n": 10,
+    "k_rebalance_every": 21,
+    "min_basket": 3,
+    "min_basket_note": "由 `scaled_min_basket(TOP_N)` 算出（不许手打）",
+    "cross_section_source": "build_cross_sections（同 placebo）"
+  },
+  "legs_relation": "同一次抽样的两端（build_predictions 同一张 ranked 做 head/tail）⇒ 构造上不相交，**不是**两次独立抽样。口径不许改写成后者。",
+  "domain_rule": "U_t ≜ { filter_universe 后 composite_score 非 NaN }。随机臂用 placebo_control.make_shuffle_score（保域置换）：NaN **原地不动**，只换顺序 ⇒ 它的域与策略臂**逐日相同**。🚨 不许用 make_shuffle_list：它给每行赋有限值 ⇒ notna 剔不掉 ⇒ 域 ⊇ 策略域。",
+  "domain_check": {
+    "strategy": {
+      "label": "strategy",
+      "n_days": 1395,
+      "overlap_all_zero": true,
+      "max_overlap": 0
+    },
+    "random_rep0": {
+      "label": "random_rep0",
+      "n_days": 1395,
+      "overlap_all_zero": true,
+      "max_overlap": 0
+    },
+    "comparison": {
+      "rule": "U_t ≜ { filter_universe 后 composite_score 非 NaN }。随机臂用 placebo_control.make_shuffle_score（保域置换）：NaN **原地不动**，只换顺序 ⇒ 它的域与策略臂**逐日相同**。🚨 不许用 make_shuffle_list：它给每行赋有限值 ⇒ notna 剔不掉 ⇒ 域 ⊇ 策略域。",
+      "n_days_compared": 1395,
+      "n_days_domains_identical": 1395,
+      "all_identical": true,
+      "max_gap": 0,
+      "mean_gap": 0.0,
+      "note": "🚨 差异**不等于**不可比：域相同而分数多重集不同 ⇒ 选出的股票必然不同，那正是随机臂的定义。真正要查的是 `overlap_all_zero`（两腿构造上不相交）与 `all_identical`（域一致 ⇒ 两臂是同一个池）。"
+    },
+    "per_day_probe_is_in_this_run_only": "逐日明细不落盘（1395 行 × 2 会让产物读不下去）；落盘的是汇总 + 判定布尔。明细要复现请重跑 --smoke。"
+  },
+  "window_identity_across_arms": {
+    "rule": "Y5-A3：每个随机臂的**日期轴**必须与策略臂逐位相同",
+    "all_reps_dates_identical": false,
+    "n_reps_dates_identical": 84,
+    "n_reps": 100,
+    "why_not_derived_from_market": "日期**部分重叠**时两表长度可以**恰好相同**而内容不同 ⇒ 『market 逐位相等』证明不了『同一天』，必须单比日期轴（第 7 种形状）"
+  },
+  "market_identical_across_arms": {
+    "checked_on": "rep 0",
+    "random_vs_strategy_bitwise_equal": false,
+    "max_abs_diff": 1.3877787807814457e-17,
+    "why_it_matters": "随机臂只置换 score、不改 market ⇒ 若为假，两臂差的不只是选股（连基准都变了）"
+  },
+  "annualization": {
+    "primary": "compounded",
+    "function": "measure_basket_nav_01.tier（import，不重写）",
+    "DAYS_PER_YEAR": 244,
+    "DAYS_PER_YEAR_source": "aplus.hurdle.DAYS_PER_YEAR",
+    "arithmetic_sensitivity": "arith_ann 与 cagr 并排落盘",
+    "both_calibers_disagree": true,
+    "⚠️_not_the_same_quantity": "仓内另有 -1 与 -1 两套年化常数，本判决用 244（aplus.hurdle）"
+  },
+  "quantiles": {
+    "min": -0.056581853960623874,
+    "p5": -0.02764878440154616,
+    "p25": 0.027519775886586217,
+    "median": 0.05455692018739855,
+    "p75": 0.10476746648281399,
+    "p95": 0.1581503021318896,
+    "max": 0.23471327429048583,
+    "grid": [
+      0.0,
+      5.0,
+      25.0,
+      50.0,
+      75.0,
+      95.0,
+      100.0
+    ],
+    "n_ge_strategy": 25,
+    "n_random_arms": 100,
+    "rank_of_strategy_percent": 25.0,
+    "rank_rule": "n_ge = 随机臂中 ≥ 策略值的个数（保守计数）"
+  },
+  "p95_bootstrap_ci95": {
+    "draws": 2000,
+    "seed": 21161016,
+    "ci95": [
+      0.13102885886909368,
+      0.17289182437162273
+    ],
+    "half_width": 0.020931482751264524
+  },
+  "mde": {
+    "mde_resolution": 0.020931482751264524,
+    "what_it_is": "**p95 这个分位数本身**的 bootstrap 95% 区间半宽",
+    "what_it_is_NOT": "🚨 **不是**「策略值离上尾多远」（那个数在 dist_to_p95）",
+    "band_p95_minus_p5": 0.18579908653343577,
+    "dist_to_p95": -0.05258746996258887,
+    "strategy_own_mde": 0.22673751360772554,
+    "strategy_own_mde_does_not_enter_branch": true
+  },
+  "branch_order": [
+    "E-判不出",
+    "E-上",
+    "E-下",
+    "E-内"
+  ],
+  "branch_conditions": {
+    "E-判不出": false,
+    "E-上": false,
+    "E-下": false,
+    "E-内": true
+  },
+  "branch": null,
+  "branch_text": null,
+  "branch_computed_but_not_adopted": {
+    "code": "E-内",
+    "text": "账户年化落在随机臂的 [p5, p95] 内（与随机不可区分）",
+    "why_not_adopted": "判决被压住 ⇒ 该码**未被采用**，见 verdict_suppressed_reasons"
+  },
+  "strategy_own_mde_verdict": {
+    "strategy_cagr": 0.10556283216930074,
+    "abs_over_own_mde": 0.4655728577492169,
+    "sign_determinable": false,
+    "note": "🚨 这是**绝对水平**的不确定度。它**不许**参与 `branch` 计算 —拿绝对量的 MDE 去判相对位置是用 A 标定的仪器量 B。本判决对「账户年化 +10.56% 本身测出来了」零信息。"
+  },
+  "arms": {
+    "strategy": {
+      "zero": {
+        "cagr": 0.1440992709454234,
+        "arith_ann": 0.17263618482192353,
+        "compounded_total": 1.1589842941838855,
+        "n_days": 1395,
+        "years": 5.717213,
+        "ann_vol": 0.27493117544737045,
+        "vol_drag": 0.02853691387650012,
+        "mde_own_as_annual_pct": 0.22637104714099315
+      },
+      "bt003": {
+        "cagr": 0.10556283216930074,
+        "arith_ann": 0.13847618482192353,
+        "compounded_total": 0.7749076294493729,
+        "n_days": 1395,
+        "years": 5.717213,
+        "ann_vol": 0.2753576662462739,
+        "vol_drag": 0.032913352652622796,
+        "mde_own_as_annual_pct": 0.22673751360772554
+      },
+      "hi006": {
+        "cagr": 0.06821783783445001,
+        "arith_ann": 0.10431618482192355,
+        "compounded_total": 0.45832503766083765,
+        "n_days": 1395,
+        "years": 5.717213,
+        "ann_vol": 0.2761246002543914,
+        "vol_drag": 0.03609834698747354,
+        "mde_own_as_annual_pct": 0.2273858471597884
+      }
+    },
+    "random": [
+      {
+        "rep": 0,
+        "seed": 20261016,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1430728413339406,
+          "arith_ann": 0.16898383238144993,
+          "compounded_total": 1.1479338331108422,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2654072425409817,
+          "vol_drag": 0.025910991047509324,
+          "mde_own_as_annual_pct": 0.2177209669037138
+        },
+        "bt003": {
+          "cagr": 0.10416986425544605,
+          "arith_ann": 0.13440404743521334,
+          "compounded_total": 0.76216006251892,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2656119169107912,
+          "vol_drag": 0.030234183179767282,
+          "mde_own_as_annual_pct": 0.21793594425918916
+        },
+        "hi006": {
+          "cagr": 0.06648226650708278,
+          "arith_ann": 0.09982426248897679,
+          "compounded_total": 0.4448305235425343,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26617886107251,
+          "vol_drag": 0.03334199598189401,
+          "mde_own_as_annual_pct": 0.2184504677441177
+        },
+        "market_identical_to_strategy": false,
+        "market_max_abs_diff": 1.3877787807814457e-17
+      },
+      {
+        "rep": 1,
+        "seed": 20261017,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.05759128526042434,
+          "arith_ann": 0.08878394578347104,
+          "compounded_total": 0.37730590062196456,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25499382083451116,
+          "vol_drag": 0.0311926605230467,
+          "mde_own_as_annual_pct": 0.21048013863465784
+        },
+        "bt003": {
+          "cagr": 0.02144623836490034,
+          "arith_ann": 0.05415168771895493,
+          "compounded_total": 0.12898209449519094,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25556085688744,
+          "vol_drag": 0.03270544935405459,
+          "mde_own_as_annual_pct": 0.21096375563029923
+        },
+        "hi006": {
+          "cagr": -0.013564823505519796,
+          "arith_ann": 0.01951942965443881,
+          "compounded_total": -0.0751130718286771,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25650386542898634,
+          "vol_drag": 0.03308425315995861,
+          "mde_own_as_annual_pct": 0.21175889647850638
+        }
+      },
+      {
+        "rep": 2,
+        "seed": 20261018,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.05567414741640553,
+          "arith_ann": 0.08889244728354527,
+          "compounded_total": 0.3630926430897583,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2630410185823543,
+          "vol_drag": 0.03321829986713974,
+          "mde_own_as_annual_pct": 0.21627468167022548
+        },
+        "bt003": {
+          "cagr": 0.01970333836542415,
+          "arith_ann": 0.05436513545558829,
+          "compounded_total": 0.11801274810395967,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26358119478182324,
+          "vol_drag": 0.03466179709016414,
+          "mde_own_as_annual_pct": 0.2167407304468924
+        },
+        "hi006": {
+          "cagr": -0.015142359551042262,
+          "arith_ann": 0.019837823627631274,
+          "compounded_total": -0.08353760379229269,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2644839424531039,
+          "vol_drag": 0.03498018317867353,
+          "mde_own_as_annual_pct": 0.21750821995598923
+        }
+      },
+      {
+        "rep": 3,
+        "seed": 20261019,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.08977634542806778,
+          "arith_ann": 0.12471935971116412,
+          "compounded_total": 0.6348041857019255,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2772563807098877,
+          "vol_drag": 0.03494301428309633,
+          "mde_own_as_annual_pct": 0.22875907047221633
+        },
+        "bt003": {
+          "cagr": 0.052840000331473735,
+          "arith_ann": 0.09029699411976627,
+          "compounded_total": 0.3423027286338223,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27749441783809353,
+          "vol_drag": 0.037456993788292536,
+          "mde_own_as_annual_pct": 0.2289723252182744
+        },
+        "hi006": {
+          "cagr": 0.017052843752959346,
+          "arith_ann": 0.05587462852836843,
+          "compounded_total": 0.10149989493737044,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2780760797231076,
+          "vol_drag": 0.03882178477540908,
+          "mde_own_as_annual_pct": 0.22946824233182678
+        }
+      },
+      {
+        "rep": 4,
+        "seed": 20261020,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.16775482304205647,
+          "arith_ann": 0.1892303760548172,
+          "compounded_total": 1.426966877154351,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2607725082838359,
+          "vol_drag": 0.021475553012760745,
+          "mde_own_as_annual_pct": 0.2143338501334334
+        },
+        "bt003": {
+          "cagr": 0.12787613277922394,
+          "arith_ann": 0.15459811799030107,
+          "compounded_total": 0.9897091584696032,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26127764407075144,
+          "vol_drag": 0.02672198521107713,
+          "mde_own_as_annual_pct": 0.21476485947433155
+        },
+        "hi006": {
+          "cagr": 0.08924759557972761,
+          "arith_ann": 0.11996585992578494,
+          "compounded_total": 0.6302745213725025,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26215089548462417,
+          "vol_drag": 0.03071826434605733,
+          "mde_own_as_annual_pct": 0.21550149575371313
+        }
+      },
+      {
+        "rep": 5,
+        "seed": 20261021,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.12312982719161147,
+          "arith_ann": 0.15125388190353184,
+          "compounded_total": 0.9423112904149131,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26439033562727177,
+          "vol_drag": 0.028124054711920365,
+          "mde_own_as_annual_pct": 0.21758030784264168
+        },
+        "bt003": {
+          "cagr": 0.08480182490403321,
+          "arith_ann": 0.11667409695729526,
+          "compounded_total": 0.5925966987858216,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2649623427938396,
+          "vol_drag": 0.031872272053262055,
+          "mde_own_as_annual_pct": 0.21807801626669274
+        },
+        "hi006": {
+          "cagr": 0.04767449251698297,
+          "arith_ann": 0.0820943120110587,
+          "compounded_total": 0.305084013844515,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26589593131433004,
+          "vol_drag": 0.03441981949407573,
+          "mde_own_as_annual_pct": 0.21887627013454133
+        }
+      },
+      {
+        "rep": 6,
+        "seed": 20261022,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.034819351775869034,
+          "arith_ann": 0.06897405134960584,
+          "compounded_total": 0.21614050319077904,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26312032243590355,
+          "vol_drag": 0.034154699573736805,
+          "mde_own_as_annual_pct": 0.21644566027332152
+        },
+        "bt003": {
+          "cagr": -0.00040185597468433976,
+          "arith_ann": 0.03439426640336932,
+          "compounded_total": -0.0022953197194970354,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2633068666033331,
+          "vol_drag": 0.03479612237805366,
+          "mde_own_as_annual_pct": 0.21661676763523577
+        },
+        "hi006": {
+          "cagr": -0.034522619783523334,
+          "arith_ann": -0.00018551854286727738,
+          "compounded_total": -0.18197353743039346,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26385889711581256,
+          "vol_drag": 0.03433710124065606,
+          "mde_own_as_annual_pct": 0.2170892219586467
+        }
+      },
+      {
+        "rep": 7,
+        "seed": 20261023,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.13984427599917382,
+          "arith_ann": 0.16731343069071272,
+          "compounded_total": 1.1134791494696459,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2695144230265654,
+          "vol_drag": 0.027469154691538905,
+          "mde_own_as_annual_pct": 0.22136394194507938
+        },
+        "bt003": {
+          "cagr": 0.10090476994892028,
+          "arith_ann": 0.13273364574447621,
+          "compounded_total": 0.7325757750480184,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27022914687102034,
+          "vol_drag": 0.03182887579555593,
+          "mde_own_as_annual_pct": 0.2219698569267947
+        },
+        "hi006": {
+          "cagr": 0.06318637647698311,
+          "arith_ann": 0.09815386079823962,
+          "compounded_total": 0.4194876804696128,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27129756556768525,
+          "vol_drag": 0.034967484321256515,
+          "mde_own_as_annual_pct": 0.22287138238041931
+        }
+      },
+      {
+        "rep": 8,
+        "seed": 20261024,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.167842438043746,
+          "arith_ann": 0.1871247518847892,
+          "compounded_total": 1.4280081196605638,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25264313114142,
+          "vol_drag": 0.019282313841043203,
+          "mde_own_as_annual_pct": 0.20722352999094795
+        },
+        "bt003": {
+          "cagr": 0.12804396065904267,
+          "arith_ann": 0.1525974400568322,
+          "compounded_total": 0.9914024397351424,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25328573773048524,
+          "vol_drag": 0.02455347939778954,
+          "mde_own_as_annual_pct": 0.20777029979450573
+        },
+        "hi006": {
+          "cagr": 0.08949046375665981,
+          "arith_ann": 0.1180701282288752,
+          "compounded_total": 0.6323538231365209,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2543049723256781,
+          "vol_drag": 0.028579664472215396,
+          "mde_own_as_annual_pct": 0.208631368464131
+        }
+      },
+      {
+        "rep": 9,
+        "seed": 20261025,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.06514010724794073,
+          "arith_ann": 0.09260044519237029,
+          "compounded_total": 0.43409472989551756,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.24275890490716565,
+          "vol_drag": 0.027460337944429564,
+          "mde_own_as_annual_pct": 0.19928189694616652
+        },
+        "bt003": {
+          "cagr": 0.02872579791054286,
+          "arith_ann": 0.05794334332723399,
+          "compounded_total": 0.17562605703508227,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2433053105017652,
+          "vol_drag": 0.02921754541669113,
+          "mde_own_as_annual_pct": 0.1997473145789826
+        },
+        "hi006": {
+          "cagr": -0.006545605921961961,
+          "arith_ann": 0.023286241462097703,
+          "compounded_total": -0.03682361653342181,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.24424694999477617,
+          "vol_drag": 0.029831847384059664,
+          "mde_own_as_annual_pct": 0.20054161975347298
+        }
+      },
+      {
+        "rep": 10,
+        "seed": 20261026,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.11446610799754087,
+          "arith_ann": 0.145441423877009,
+          "compounded_total": 0.8581950628468549,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27106968716944163,
+          "vol_drag": 0.03097531587946814,
+          "mde_own_as_annual_pct": 0.22373553211573727
+        },
+        "bt003": {
+          "cagr": 0.07645926083730803,
+          "arith_ann": 0.11086163893077244,
+          "compounded_total": 0.5238319987867954,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27153905334159695,
+          "vol_drag": 0.034402378093464414,
+          "mde_own_as_annual_pct": 0.22414453438592066
+        },
+        "hi006": {
+          "cagr": 0.03964224857914034,
+          "arith_ann": 0.0762818539845359,
+          "compounded_total": 0.2489037457519807,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27236179861019116,
+          "vol_drag": 0.036639605405395556,
+          "mde_own_as_annual_pct": 0.22484571491106603
+        }
+      },
+      {
+        "rep": 11,
+        "seed": 20261027,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.11596942998716187,
+          "arith_ann": 0.1463328435895784,
+          "compounded_total": 0.8725712154430354,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2700542705219564,
+          "vol_drag": 0.03036341360241654,
+          "mde_own_as_annual_pct": 0.22206636576895916
+        },
+        "bt003": {
+          "cagr": 0.07803440468557143,
+          "arith_ann": 0.11180553176162136,
+          "compounded_total": 0.5366241353886161,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2703008890908692,
+          "vol_drag": 0.03377112707604993,
+          "mde_own_as_annual_pct": 0.2222907505425134
+        },
+        "hi006": {
+          "cagr": 0.041283086405005553,
+          "arith_ann": 0.07727821993366439,
+          "compounded_total": 0.26021502986411593,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27090233119453777,
+          "vol_drag": 0.03599513352865884,
+          "mde_own_as_annual_pct": 0.22280812300614367
+        }
+      },
+      {
+        "rep": 12,
+        "seed": 20261028,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.06129136788889378,
+          "arith_ann": 0.09813339078968496,
+          "compounded_total": 0.4050833779746186,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2775396721751937,
+          "vol_drag": 0.03684202290079118,
+          "mde_own_as_annual_pct": 0.22821733395990834
+        },
+        "bt003": {
+          "cagr": 0.025041350151955077,
+          "arith_ann": 0.06355360584344841,
+          "compounded_total": 0.1518894169996905,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.278176157688749,
+          "vol_drag": 0.03851225569149333,
+          "mde_own_as_annual_pct": 0.22875874840079505
+        },
+        "hi006": {
+          "cagr": -0.010072046817092062,
+          "arith_ann": 0.02897382089721183,
+          "compounded_total": -0.05623302778253847,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27915674709176097,
+          "vol_drag": 0.03904586771430389,
+          "mde_own_as_annual_pct": 0.22958704798034638
+        }
+      },
+      {
+        "rep": 13,
+        "seed": 20261029,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.08736713234946314,
+          "arith_ann": 0.12386365587118874,
+          "compounded_total": 0.6142488898751668,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.282531918651268,
+          "vol_drag": 0.036496523521725596,
+          "mde_own_as_annual_pct": 0.23253930459028832
+        },
+        "bt003": {
+          "cagr": 0.05043250888265116,
+          "arith_ann": 0.0894412902797909,
+          "compounded_total": 0.3248487172234378,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.28302953114936497,
+          "vol_drag": 0.039008781397139744,
+          "mde_own_as_annual_pct": 0.23297008784132
+        },
+        "hi006": {
+          "cagr": 0.014649486352144026,
+          "arith_ann": 0.05501892468839305,
+          "compounded_total": 0.08670119809460597,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2838630811578098,
+          "vol_drag": 0.04036943833624902,
+          "mde_own_as_annual_pct": 0.2336798580777679
+        }
+      },
+      {
+        "rep": 14,
+        "seed": 20261030,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.15317186396383842,
+          "arith_ann": 0.18381072189345285,
+          "compounded_total": 1.258714830098571,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.28658751463588733,
+          "vol_drag": 0.030638857929614433,
+          "mde_own_as_annual_pct": 0.2358978261095164
+        },
+        "bt003": {
+          "cagr": 0.11379724460240359,
+          "arith_ann": 0.14917846382893674,
+          "compounded_total": 0.8518281119320379,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.28701483481235596,
+          "vol_drag": 0.035381219226533145,
+          "mde_own_as_annual_pct": 0.23627334307626371
+        },
+        "hi006": {
+          "cagr": 0.07565676745271843,
+          "arith_ann": 0.1145462057644206,
+          "compounded_total": 0.5173486149227506,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2877777019806471,
+          "vol_drag": 0.03888943831170216,
+          "mde_own_as_annual_pct": 0.2369269552086684
+        }
+      },
+      {
+        "rep": 15,
+        "seed": 20261031,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1620650496938434,
+          "arith_ann": 0.1838791125458887,
+          "compounded_total": 1.3601321685332026,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25861018100025157,
+          "vol_drag": 0.02181406285204532,
+          "mde_own_as_annual_pct": 0.2130335237460856
+        },
+        "bt003": {
+          "cagr": 0.12246469368317947,
+          "arith_ann": 0.14929932759965214,
+          "compounded_total": 0.9357441624153904,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25902421883380283,
+          "vol_drag": 0.026834633916472672,
+          "mde_own_as_annual_pct": 0.21339664220119547
+        },
+        "hi006": {
+          "cagr": 0.08410310846826263,
+          "arith_ann": 0.1147195426534156,
+          "compounded_total": 0.586740969331145,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2598089217732076,
+          "vol_drag": 0.03061643418515296,
+          "mde_own_as_annual_pct": 0.21406623951243606
+        }
+      },
+      {
+        "rep": 16,
+        "seed": 20261032,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.08699529690461683,
+          "arith_ann": 0.11981786404231136,
+          "compounded_total": 0.6110954889537195,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2690632552401393,
+          "vol_drag": 0.03282256713769453,
+          "mde_own_as_annual_pct": 0.22156282960054138
+        },
+        "bt003": {
+          "cagr": 0.05005326214487171,
+          "arith_ann": 0.08529055221435436,
+          "compounded_total": 0.3221163783808174,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26926446990584824,
+          "vol_drag": 0.035237290069482646,
+          "mde_own_as_annual_pct": 0.22175456090374318
+        },
+        "hi006": {
+          "cagr": 0.014263679133966534,
+          "arith_ann": 0.05076324038639738,
+          "compounded_total": 0.0843409407548521,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2698220060967728,
+          "vol_drag": 0.03649956125243085,
+          "mde_own_as_annual_pct": 0.22223994713172074
+        }
+      },
+      {
+        "rep": 17,
+        "seed": 20261033,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.13380672960348505,
+          "arith_ann": 0.16017605488764752,
+          "compounded_total": 1.0492160046706132,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26279259120953563,
+          "vol_drag": 0.02636932528416247,
+          "mde_own_as_annual_pct": 0.2157813132072988
+        },
+        "bt003": {
+          "cagr": 0.0950952028948977,
+          "arith_ann": 0.12557146378291295,
+          "compounded_total": 0.6803242607619095,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26335715369740653,
+          "vol_drag": 0.03047626088801525,
+          "mde_own_as_annual_pct": 0.21625998784114894
+        },
+        "hi006": {
+          "cagr": 0.05759707964702909,
+          "arith_ann": 0.09096687267817838,
+          "compounded_total": 0.3770329701894921,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26428578442601575,
+          "vol_drag": 0.033369793031149286,
+          "mde_own_as_annual_pct": 0.2170418756515103
+        }
+      },
+      {
+        "rep": 18,
+        "seed": 20261034,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.10234761389367919,
+          "arith_ann": 0.13460012323381979,
+          "compounded_total": 0.7455981086382215,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27249314975201194,
+          "vol_drag": 0.032252509340140595,
+          "mde_own_as_annual_pct": 0.22357331213623682
+        },
+        "bt003": {
+          "cagr": 0.06478673943103685,
+          "arith_ann": 0.10007281140586279,
+          "compounded_total": 0.4317470209670411,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27303272847348886,
+          "vol_drag": 0.03528607197482593,
+          "mde_own_as_annual_pct": 0.2240438105796131
+        },
+        "hi006": {
+          "cagr": 0.0284006860282513,
+          "arith_ann": 0.06554549957790581,
+          "compounded_total": 0.1736396976789336,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2739223717784579,
+          "vol_drag": 0.037144813549654515,
+          "mde_own_as_annual_pct": 0.22480606491989413
+        }
+      },
+      {
+        "rep": 19,
+        "seed": 20261035,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.11569261537401965,
+          "arith_ann": 0.14307208740606286,
+          "compounded_total": 0.8699171883027066,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25902521533261924,
+          "vol_drag": 0.027379472032043217,
+          "mde_own_as_annual_pct": 0.2125610797881283
+        },
+        "bt003": {
+          "cagr": 0.07754671142399872,
+          "arith_ann": 0.10843982934154675,
+          "compounded_total": 0.5326540231936179,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.259668186774494,
+          "vol_drag": 0.030893117917548035,
+          "mde_own_as_annual_pct": 0.2131081395843099
+        },
+        "hi006": {
+          "cagr": 0.04059807247257852,
+          "arith_ann": 0.0738075712770306,
+          "compounded_total": 0.2554825825025133,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2606807449066892,
+          "vol_drag": 0.03320949880445208,
+          "mde_own_as_annual_pct": 0.21396351518298806
+        }
+      },
+      {
+        "rep": 20,
+        "seed": 20261036,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.0017205310847718813,
+          "arith_ann": 0.03665498409634914,
+          "compounded_total": 0.009876645727234346,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2633465812954738,
+          "vol_drag": 0.03493445301157726,
+          "mde_own_as_annual_pct": 0.21725640606306165
+        },
+        "bt003": {
+          "cagr": -0.03236902725921986,
+          "arith_ann": 0.0021276722683921416,
+          "compounded_total": -0.17148636674025386,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26368812214006154,
+          "vol_drag": 0.034496699527612,
+          "mde_own_as_annual_pct": 0.2175613113412321
+        },
+        "hi006": {
+          "cagr": -0.06539365195998403,
+          "arith_ann": -0.032399639559564854,
+          "compounded_total": -0.3206741043614396,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2643930226436446,
+          "vol_drag": 0.03299401240041918,
+          "mde_own_as_annual_pct": 0.21816604776370058
+        }
+      },
+      {
+        "rep": 21,
+        "seed": 20261037,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.13521444723415943,
+          "arith_ann": 0.16187179925839065,
+          "compounded_total": 1.0648672994209902,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2636178296643282,
+          "vol_drag": 0.026657352024231223,
+          "mde_own_as_annual_pct": 0.21749206352169081
+        },
+        "bt003": {
+          "cagr": 0.09650400977103613,
+          "arith_ann": 0.12723954119387457,
+          "compounded_total": 0.6933509602594503,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26389905691791826,
+          "vol_drag": 0.03073553142283844,
+          "mde_own_as_annual_pct": 0.21774651180776594
+        },
+        "hi006": {
+          "cagr": 0.059005331730684674,
+          "arith_ann": 0.09260728312935841,
+          "compounded_total": 0.38786751462498104,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26454572925131803,
+          "vol_drag": 0.03360195139867374,
+          "mde_own_as_annual_pct": 0.21830173263856037
+        }
+      },
+      {
+        "rep": 22,
+        "seed": 20261038,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1203315928491615,
+          "arith_ann": 0.1470142003809101,
+          "compounded_total": 0.9148066708115483,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25781934546079943,
+          "vol_drag": 0.026682607531748587,
+          "mde_own_as_annual_pct": 0.21206511278078094
+        },
+        "bt003": {
+          "cagr": 0.08215983211645006,
+          "arith_ann": 0.1124868885529531,
+          "compounded_total": 0.5705482995611202,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25839635363479196,
+          "vol_drag": 0.030327056436503033,
+          "mde_own_as_annual_pct": 0.21255997011766561
+        },
+        "hi006": {
+          "cagr": 0.045181984977158196,
+          "arith_ann": 0.07795957672499612,
+          "compounded_total": 0.2874319153235525,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25934297182848454,
+          "vol_drag": 0.032777591747837925,
+          "mde_own_as_annual_pct": 0.21336189704815
+        }
+      },
+      {
+        "rep": 23,
+        "seed": 20261039,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.07477040623860765,
+          "arith_ann": 0.10631930939836338,
+          "compounded_total": 0.5102141277989669,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26113080959115487,
+          "vol_drag": 0.03154890315975574,
+          "mde_own_as_annual_pct": 0.21469787137450433
+        },
+        "bt003": {
+          "cagr": 0.038081335491146895,
+          "arith_ann": 0.07168705133384723,
+          "compounded_total": 0.23822130808429431,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2615299960713406,
+          "vol_drag": 0.033605715842700334,
+          "mde_own_as_annual_pct": 0.2150515561189454
+        },
+        "hi006": {
+          "cagr": 0.002541965597811613,
+          "arith_ann": 0.037054793269331116,
+          "compounded_total": 0.014620366274349372,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2622974579940262,
+          "vol_drag": 0.0345128276715195,
+          "mde_own_as_annual_pct": 0.21571046305782662
+        }
+      },
+      {
+        "rep": 24,
+        "seed": 20261040,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.059972723317815335,
+          "arith_ann": 0.09433959573778421,
+          "compounded_total": 0.3951314557931247,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2679959143677817,
+          "vol_drag": 0.03436687241996887,
+          "mde_own_as_annual_pct": 0.22065114116032916
+        },
+        "bt003": {
+          "cagr": 0.023932810265968607,
+          "arith_ann": 0.05991723014638633,
+          "compounded_total": 0.1447855076695974,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2686392843123813,
+          "vol_drag": 0.03598441988041772,
+          "mde_own_as_annual_pct": 0.22119873546234134
+        },
+        "hi006": {
+          "cagr": -0.010982272724251452,
+          "arith_ann": 0.0254948645549885,
+          "compounded_total": -0.06118357212185499,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26963572265155605,
+          "vol_drag": 0.03647713727923995,
+          "mde_own_as_annual_pct": 0.22204028510546192
+        }
+      },
+      {
+        "rep": 25,
+        "seed": 20261041,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1230631855804476,
+          "arith_ann": 0.1523209716107509,
+          "compounded_total": 0.9416524837803313,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26838054949674706,
+          "vol_drag": 0.029257786030303295,
+          "mde_own_as_annual_pct": 0.221152137882812
+        },
+        "bt003": {
+          "cagr": 0.08483731839119879,
+          "arith_ann": 0.11779365978279391,
+          "compounded_total": 0.5928946340912666,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2688055685669073,
+          "vol_drag": 0.03295634139159512,
+          "mde_own_as_annual_pct": 0.2215180071449892
+        },
+        "hi006": {
+          "cagr": 0.04780578457260942,
+          "arith_ann": 0.08326634795483695,
+          "compounded_total": 0.3060193404680578,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2695867000134336,
+          "vol_drag": 0.03546056338222753,
+          "mde_own_as_annual_pct": 0.2221785349122581
+        }
+      },
+      {
+        "rep": 26,
+        "seed": 20261042,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.13897236921369238,
+          "arith_ann": 0.16553381627713817,
+          "compounded_total": 1.1042529386516509,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26536862483247997,
+          "vol_drag": 0.026561447063445792,
+          "mde_own_as_annual_pct": 0.21841376475708252
+        },
+        "bt003": {
+          "cagr": 0.10007242460558641,
+          "arith_ann": 0.13090155821262206,
+          "compounded_total": 0.7251000037897581,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2658543630622197,
+          "vol_drag": 0.030829133607035653,
+          "mde_own_as_annual_pct": 0.21884262025500922
+        },
+        "hi006": {
+          "cagr": 0.062392052238442464,
+          "arith_ann": 0.09626930014810589,
+          "compounded_total": 0.41343511965930424,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2667019988126534,
+          "vol_drag": 0.03387724790966343,
+          "mde_own_as_annual_pct": 0.21957166491438207
+        }
+      },
+      {
+        "rep": 27,
+        "seed": 20261043,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.04359361846082721,
+          "arith_ann": 0.07720045510471031,
+          "compounded_total": 0.2762861235589349,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2621516032644444,
+          "vol_drag": 0.0336068366438831,
+          "mde_own_as_annual_pct": 0.21580463323156693
+        },
+        "bt003": {
+          "cagr": 0.008079924608481726,
+          "arith_ann": 0.04272561639503291,
+          "compounded_total": 0.04708386138223042,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2627172370051472,
+          "vol_drag": 0.034645691786551185,
+          "mde_own_as_annual_pct": 0.21628864946711923
+        },
+        "hi006": {
+          "cagr": -0.02632439998998004,
+          "arith_ann": 0.0082507776853555,
+          "compounded_total": -0.14145708439420712,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2636454096115402,
+          "vol_drag": 0.03457517767533554,
+          "mde_own_as_annual_pct": 0.21707397089646255
+        }
+      },
+      {
+        "rep": 28,
+        "seed": 20261044,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.15457520975860017,
+          "arith_ann": 0.17850513790483574,
+          "compounded_total": 1.2744750795461979,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2633758360800272,
+          "vol_drag": 0.02392992814623557,
+          "mde_own_as_annual_pct": 0.21624662452703147
+        },
+        "bt003": {
+          "cagr": 0.1151469215991916,
+          "arith_ann": 0.14392535295859923,
+          "compounded_total": 0.8646943064347998,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26407124682972727,
+          "vol_drag": 0.028778431359407636,
+          "mde_own_as_annual_pct": 0.21682930181812313
+        },
+        "hi006": {
+          "cagr": 0.07695464449493139,
+          "arith_ann": 0.10934556801236264,
+          "compounded_total": 0.5278456252742831,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2651286959922975,
+          "vol_drag": 0.03239092351743125,
+          "mde_own_as_annual_pct": 0.2177142742980412
+        }
+      },
+      {
+        "rep": 29,
+        "seed": 20261045,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.14450725237279394,
+          "arith_ann": 0.16659771703278417,
+          "compounded_total": 1.1633895976249526,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2508650524860111,
+          "vol_drag": 0.022090464659990233,
+          "mde_own_as_annual_pct": 0.20633680404972804
+        },
+        "bt003": {
+          "cagr": 0.10556877866456449,
+          "arith_ann": 0.13201793208654758,
+          "compounded_total": 0.7749622106763892,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25105607150962705,
+          "vol_drag": 0.02644915342198309,
+          "mde_own_as_annual_pct": 0.20651615929810468
+        },
+        "hi006": {
+          "cagr": 0.06784640628382688,
+          "arith_ann": 0.09743814714031107,
+          "compounded_total": 0.4554283510281705,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2516303582437954,
+          "vol_drag": 0.029591740856484194,
+          "mde_own_as_annual_pct": 0.20701118532707607
+        }
+      },
+      {
+        "rep": 30,
+        "seed": 20261046,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1505583921210243,
+          "arith_ann": 0.17725295385045917,
+          "compounded_total": 1.22960441375856,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2708590539362855,
+          "vol_drag": 0.02669456172943488,
+          "mde_own_as_annual_pct": 0.2234571193229679
+        },
+        "bt003": {
+          "cagr": 0.11144220472494193,
+          "arith_ann": 0.1427781151407817,
+          "compounded_total": 0.8295534260525474,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27133623793391676,
+          "vol_drag": 0.031335910415839774,
+          "mde_own_as_annual_pct": 0.2238638776027609
+        },
+        "hi006": {
+          "cagr": 0.07354673181613713,
+          "arith_ann": 0.10830327643110428,
+          "compounded_total": 0.5004100459812466,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27216493675181724,
+          "vol_drag": 0.03475654461496715,
+          "mde_own_as_annual_pct": 0.22456149545586737
+        }
+      },
+      {
+        "rep": 31,
+        "seed": 20261047,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.15720269171270518,
+          "arith_ann": 0.18058418222163009,
+          "compounded_total": 1.304226963591224,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2624960315847745,
+          "vol_drag": 0.023381490508924907,
+          "mde_own_as_annual_pct": 0.21567897699200456
+        },
+        "bt003": {
+          "cagr": 0.11771265252573437,
+          "arith_ann": 0.14600439727539352,
+          "compounded_total": 0.889356298029303,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2630902431120902,
+          "vol_drag": 0.028291744749659148,
+          "mde_own_as_annual_pct": 0.21619022280465403
+        },
+        "hi006": {
+          "cagr": 0.07945969132483444,
+          "arith_ann": 0.11142461232915694,
+          "compounded_total": 0.5482754790925544,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2640484711351658,
+          "vol_drag": 0.03196492100432251,
+          "mde_own_as_annual_pct": 0.21700443012921802
+        }
+      },
+      {
+        "rep": 32,
+        "seed": 20261048,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.21420722775261414,
+          "arith_ann": 0.22693579744403003,
+          "compounded_total": 2.0309203099480992,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2561285342706515,
+          "vol_drag": 0.012728569691415892,
+          "mde_own_as_annual_pct": 0.20997532350283932
+        },
+        "bt003": {
+          "cagr": 0.17286496629098358,
+          "arith_ann": 0.19243622786009884,
+          "compounded_total": 1.4866911605369357,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2567690709254716,
+          "vol_drag": 0.01957126156911526,
+          "mde_own_as_annual_pct": 0.21052404412010542
+        },
+        "hi006": {
+          "cagr": 0.13281491461647188,
+          "arith_ann": 0.15793665827616774,
+          "compounded_total": 1.0389958586816377,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2577803094929907,
+          "vol_drag": 0.025121743659695855,
+          "mde_own_as_annual_pct": 0.2113824482404953
+        }
+      },
+      {
+        "rep": 33,
+        "seed": 20261049,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.18828701260995628,
+          "arith_ann": 0.20654394798195194,
+          "compounded_total": 1.6793797642742332,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2605938283800585,
+          "vol_drag": 0.01825693537199566,
+          "mde_own_as_annual_pct": 0.2138793635777497
+        },
+        "bt003": {
+          "cagr": 0.14792184128520391,
+          "arith_ann": 0.1720443783980208,
+          "compounded_total": 1.1993074976052274,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.260899960379026,
+          "vol_drag": 0.024122537112816894,
+          "mde_own_as_annual_pct": 0.21414828268560715
+        },
+        "hi006": {
+          "cagr": 0.10881541551285867,
+          "arith_ann": 0.13754480881408968,
+          "compounded_total": 0.8042057914832452,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2615726241865803,
+          "vol_drag": 0.028729393301231004,
+          "mde_own_as_annual_pct": 0.21472074427003676
+        }
+      },
+      {
+        "rep": 34,
+        "seed": 20261050,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.13065923371086585,
+          "arith_ann": 0.15917219447690975,
+          "compounded_total": 1.0179429688695638,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.268337147084161,
+          "vol_drag": 0.0285129607660439,
+          "mde_own_as_annual_pct": 0.22166371087304879
+        },
+        "bt003": {
+          "cagr": 0.09213360738745813,
+          "arith_ann": 0.12464488264895275,
+          "compounded_total": 0.6551247878874358,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2689072259313044,
+          "vol_drag": 0.032511275261494624,
+          "mde_own_as_annual_pct": 0.22214563281029232
+        },
+        "hi006": {
+          "cagr": 0.05481298222742992,
+          "arith_ann": 0.09011757082099578,
+          "compounded_total": 0.3567476554610687,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2698325565939455,
+          "vol_drag": 0.03530458859356586,
+          "mde_own_as_annual_pct": 0.2229217321281927
+        }
+      },
+      {
+        "rep": 35,
+        "seed": 20261051,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.01672746827678706,
+          "arith_ann": 0.051779522388511405,
+          "compounded_total": 0.09948671570188306,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26472743541515226,
+          "vol_drag": 0.035052054111724344,
+          "mde_own_as_annual_pct": 0.2178537927158742
+        },
+        "bt003": {
+          "cagr": -0.017831097773602256,
+          "arith_ann": 0.01730468367883398,
+          "compounded_total": -0.09775035174843372,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2651219406737001,
+          "vol_drag": 0.03513578145243623,
+          "mde_own_as_annual_pct": 0.21819164627042578
+        },
+        "hi006": {
+          "cagr": -0.051311393111053705,
+          "arith_ann": -0.017170155030843428,
+          "compounded_total": -0.2600349084462624,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2658765571760933,
+          "vol_drag": 0.03414123808021027,
+          "mde_own_as_annual_pct": 0.21882771598203452
+        }
+      },
+      {
+        "rep": 36,
+        "seed": 20261052,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.03368853892084456,
+          "arith_ann": 0.06630998410572682,
+          "compounded_total": 0.2085621463258227,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2571511668651009,
+          "vol_drag": 0.03262144518488226,
+          "mde_own_as_annual_pct": 0.21146109376612296
+        },
+        "bt003": {
+          "cagr": -0.0014615902170260764,
+          "arith_ann": 0.03183514539604938,
+          "compounded_total": -0.008327468331794874,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25762192158497793,
+          "vol_drag": 0.03329673561307546,
+          "mde_own_as_annual_pct": 0.21186522980202624
+        },
+        "hi006": {
+          "cagr": -0.0355145285660059,
+          "arith_ann": -0.002639693313628043,
+          "compounded_total": -0.18676677615160397,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.258462875876417,
+          "vol_drag": 0.03287483525237785,
+          "mde_own_as_annual_pct": 0.21257661023626304
+        }
+      },
+      {
+        "rep": 37,
+        "seed": 20261053,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1793728004424615,
+          "arith_ann": 0.20077976346367604,
+          "compounded_total": 1.5682934945930098,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2672198404439806,
+          "vol_drag": 0.02140696302121453,
+          "mde_own_as_annual_pct": 0.21934596073096735
+        },
+        "bt003": {
+          "cagr": 0.13919037724682126,
+          "arith_ann": 0.16619997851743948,
+          "compounded_total": 1.1065567011198123,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2676089982253185,
+          "vol_drag": 0.027009601270618216,
+          "mde_own_as_annual_pct": 0.21968223553821445
+        },
+        "hi006": {
+          "cagr": 0.10026467453566834,
+          "arith_ann": 0.13162019357120297,
+          "compounded_total": 0.7268243425259027,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26835707257388713,
+          "vol_drag": 0.03135551903553463,
+          "mde_own_as_annual_pct": 0.22031626188674305
+        }
+      },
+      {
+        "rep": 38,
+        "seed": 20261054,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.17034764844781014,
+          "arith_ann": 0.1917815271802935,
+          "compounded_total": 1.4579371124637346,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2624831801922346,
+          "vol_drag": 0.02143387873248337,
+          "mde_own_as_annual_pct": 0.2151925074700774
+        },
+        "bt003": {
+          "cagr": 0.13050622383321064,
+          "arith_ann": 0.1572542153523365,
+          "compounded_total": 1.016382186380301,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2629627711017526,
+          "vol_drag": 0.026747991519125852,
+          "mde_own_as_annual_pct": 0.2156024304228432
+        },
+        "hi006": {
+          "cagr": 0.09190983501904992,
+          "arith_ann": 0.12272690352437955,
+          "compounded_total": 0.6531868674895616,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26380610090433587,
+          "vol_drag": 0.03081706850532963,
+          "mde_own_as_annual_pct": 0.2163148969075341
+        }
+      },
+      {
+        "rep": 39,
+        "seed": 20261055,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.18119677146249713,
+          "arith_ann": 0.2056117080751458,
+          "compounded_total": 1.5910853768431452,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2814731683919901,
+          "vol_drag": 0.02441493661264868,
+          "mde_own_as_annual_pct": 0.22841772954411602
+        },
+        "bt003": {
+          "cagr": 0.140958924550872,
+          "arith_ann": 0.1710843962471888,
+          "compounded_total": 1.1253225530343869,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2820019034858948,
+          "vol_drag": 0.030125471696316797,
+          "mde_own_as_annual_pct": 0.22888177376272298
+        },
+        "hi006": {
+          "cagr": 0.10197930551842971,
+          "arith_ann": 0.1365570844192318,
+          "compounded_total": 0.7422663046975639,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2828696579731778,
+          "vol_drag": 0.0345777789008021,
+          "mde_own_as_annual_pct": 0.22963140621105152
+        }
+      },
+      {
+        "rep": 40,
+        "seed": 20261056,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.06395065544576517,
+          "arith_ann": 0.09798930979784118,
+          "compounded_total": 0.42533147440182884,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2669042863147416,
+          "vol_drag": 0.03403865435207601,
+          "mde_own_as_annual_pct": 0.2206692065362268
+        },
+        "bt003": {
+          "cagr": 0.02771990235259092,
+          "arith_ann": 0.06346199796988418,
+          "compounded_total": 0.16920475627790488,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26736941948557674,
+          "vol_drag": 0.03574209561729326,
+          "mde_own_as_annual_pct": 0.2210606441227343
+        },
+        "hi006": {
+          "cagr": -0.0073782892486955465,
+          "arith_ann": 0.028934686141927225,
+          "compounded_total": -0.041455836490751796,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26819238558557046,
+          "vol_drag": 0.03631297539062277,
+          "mde_own_as_annual_pct": 0.22174741903927458
+        }
+      },
+      {
+        "rep": 41,
+        "seed": 20261057,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.05850614038858715,
+          "arith_ann": 0.09229673032413631,
+          "compounded_total": 0.38413141492537517,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26536147713100644,
+          "vol_drag": 0.03379058993554916,
+          "mde_own_as_annual_pct": 0.2187150026760609
+        },
+        "bt003": {
+          "cagr": 0.022338432728178148,
+          "arith_ann": 0.05766447225962015,
+          "compounded_total": 0.1346315963650182,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26587842043053483,
+          "vol_drag": 0.035326039531442005,
+          "mde_own_as_annual_pct": 0.21915433304275944
+        },
+        "hi006": {
+          "cagr": -0.012694832431235814,
+          "arith_ann": 0.023032214195104046,
+          "compounded_total": -0.07043978186376298,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2667570689856821,
+          "vol_drag": 0.03572704662633986,
+          "mde_own_as_annual_pct": 0.2198935286268522
+        }
+      },
+      {
+        "rep": 42,
+        "seed": 20261058,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.06406566739904895,
+          "arith_ann": 0.09448150091825219,
+          "compounded_total": 0.4258496694690519,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2542793180562813,
+          "vol_drag": 0.03041583351920324,
+          "mde_own_as_annual_pct": 0.2088688954193115
+        },
+        "bt003": {
+          "cagr": 0.027758803204753102,
+          "arith_ann": 0.05982439905311589,
+          "compounded_total": 0.16932657786652672,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2545258023354428,
+          "vol_drag": 0.032065595848362785,
+          "mde_own_as_annual_pct": 0.20909358074300288
+        },
+        "hi006": {
+          "cagr": -0.007410781191598992,
+          "arith_ann": 0.02516729718797961,
+          "compounded_total": -0.04160599224658701,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.25515153688463366,
+          "vol_drag": 0.0325780783795786,
+          "mde_own_as_annual_pct": 0.20963193626186852
+        }
+      },
+      {
+        "rep": 43,
+        "seed": 20261059,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.07402835514159944,
+          "arith_ann": 0.10441367875398193,
+          "compounded_total": 0.5042625265597633,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2562267658831692,
+          "vol_drag": 0.030385323612382484,
+          "mde_own_as_annual_pct": 0.21094974582639742
+        },
+        "bt003": {
+          "cagr": 0.0374151446303681,
+          "arith_ann": 0.06983389380774538,
+          "compounded_total": 0.23368510382534335,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2566584669246,
+          "vol_drag": 0.032418749177377276,
+          "mde_own_as_annual_pct": 0.21131668094567752
+        },
+        "hi006": {
+          "cagr": 0.0019476998740632911,
+          "arith_ann": 0.03525410886150881,
+          "compounded_total": 0.011186693393296254,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25746415556003033,
+          "vol_drag": 0.03330640898744552,
+          "mde_own_as_annual_pct": 0.21199313890061153
+        }
+      },
+      {
+        "rep": 44,
+        "seed": 20261060,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.1253808796941993,
+          "arith_ann": 0.15373893645475858,
+          "compounded_total": 0.963722490861519,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2668210486649794,
+          "vol_drag": 0.028358056760559275,
+          "mde_own_as_annual_pct": 0.21889140122258546
+        },
+        "bt003": {
+          "cagr": 0.0870277058227602,
+          "arith_ann": 0.11918685611042576,
+          "compounded_total": 0.610819146429763,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.267320336996573,
+          "vol_drag": 0.032159150287665556,
+          "mde_own_as_annual_pct": 0.2193243701911869
+        },
+        "hi006": {
+          "cagr": 0.049874433827339804,
+          "arith_ann": 0.0846347757660929,
+          "compounded_total": 0.320566158538385,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2681775995594101,
+          "vol_drag": 0.0347603419387531,
+          "mde_own_as_annual_pct": 0.2200555699026204
+        }
+      },
+      {
+        "rep": 45,
+        "seed": 20261061,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.003261267266639223,
+          "arith_ann": 0.03453758163793246,
+          "compounded_total": 0.018789361802169502,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.24866239022702158,
+          "vol_drag": 0.03127631437129324,
+          "mde_own_as_annual_pct": 0.20580480126634132
+        },
+        "bt003": {
+          "cagr": -0.030892329441683408,
+          "arith_ann": -4.220330830409368e-05,
+          "compounded_total": -0.16423150267022046,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.24887042509353038,
+          "vol_drag": 0.030850126133379313,
+          "mde_own_as_annual_pct": 0.20599089474327714
+        },
+        "hi006": {
+          "cagr": -0.06397863041786478,
+          "arith_ann": -0.034621988254540666,
+          "compounded_total": -0.31477280180285505,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.24946503226718858,
+          "vol_drag": 0.029356642163324113,
+          "mde_own_as_annual_pct": 0.20649390755091293
+        }
+      },
+      {
+        "rep": 46,
+        "seed": 20261062,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.1498641005882564,
+          "arith_ann": 0.17167687017188496,
+          "compounded_total": 1.2206519788772843,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2532266591421364,
+          "vol_drag": 0.021812769583628572,
+          "mde_own_as_annual_pct": 0.2074321221749554
+        },
+        "bt003": {
+          "cagr": 0.11061574814034447,
+          "arith_ann": 0.13707227906715036,
+          "compounded_total": 0.8210059890407011,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.25377211152835405,
+          "vol_drag": 0.026456530926805888,
+          "mde_own_as_annual_pct": 0.20790579187961003
+        },
+        "hi006": {
+          "cagr": 0.07259726151079016,
+          "arith_ann": 0.10246768796241583,
+          "compounded_total": 0.49241040194564945,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2546954442386607,
+          "vol_drag": 0.029870426451625673,
+          "mde_own_as_annual_pct": 0.20869461796018662
+        }
+      },
+      {
+        "rep": 47,
+        "seed": 20261063,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.0876743244708571,
+          "arith_ann": 0.11997788128744807,
+          "compounded_total": 0.6163011101522193,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2677784972103087,
+          "vol_drag": 0.03230355681659097,
+          "mde_own_as_annual_pct": 0.22002783669298998
+        },
+        "bt003": {
+          "cagr": 0.05057095883924623,
+          "arith_ann": 0.08542580094311523,
+          "compounded_total": 0.3255793175646562,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2683792486540911,
+          "vol_drag": 0.03485484210386901,
+          "mde_own_as_annual_pct": 0.220547690198629
+        },
+        "hi006": {
+          "cagr": 0.014629509056481194,
+          "arith_ann": 0.050873720598782375,
+          "compounded_total": 0.08651420464097526,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26933601768100285,
+          "vol_drag": 0.03624421154230118,
+          "mde_own_as_annual_pct": 0.22136443738596537
+        }
+      },
+      {
+        "rep": 48,
+        "seed": 20261064,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.0325590187809337,
+          "arith_ann": 0.06508928976173761,
+          "compounded_total": 0.20087369306880487,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.256946162287028,
+          "vol_drag": 0.03253027098080391,
+          "mde_own_as_annual_pct": 0.21100792182055295
+        },
+        "bt003": {
+          "cagr": -0.0025667258237719315,
+          "arith_ann": 0.030589720177806496,
+          "compounded_total": -0.014575583257821378,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2573731305887636,
+          "vol_drag": 0.033156446001578424,
+          "mde_own_as_annual_pct": 0.21137957737771837
+        },
+        "hi006": {
+          "cagr": -0.03659549744275348,
+          "arith_ann": -0.003909849406124663,
+          "compounded_total": -0.19184049830527827,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2581711231841479,
+          "vol_drag": 0.032685648036628816,
+          "mde_own_as_annual_pct": 0.21205932186654994
+        }
+      },
+      {
+        "rep": 49,
+        "seed": 20261065,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.09172911305248199,
+          "arith_ann": 0.12271498164050365,
+          "compounded_total": 0.6510291855845394,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2645686551826878,
+          "vol_drag": 0.03098586858802166,
+          "mde_own_as_annual_pct": 0.2167916690362481
+        },
+        "bt003": {
+          "cagr": 0.0544804918260513,
+          "arith_ann": 0.08811039053576906,
+          "compounded_total": 0.3540100178177916,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2650122264522487,
+          "vol_drag": 0.03362989870971776,
+          "mde_own_as_annual_pct": 0.21717561406599212
+        },
+        "hi006": {
+          "cagr": 0.01839859591344073,
+          "arith_ann": 0.053505799431034506,
+          "compounded_total": 0.10977580847730528,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2658182237362173,
+          "vol_drag": 0.03510720351759378,
+          "mde_own_as_annual_pct": 0.21786129985153058
+        }
+      },
+      {
+        "rep": 50,
+        "seed": 20261066,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.06310480219170889,
+          "arith_ann": 0.09535270285972833,
+          "compounded_total": 0.41886512035886114,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26117385365693707,
+          "vol_drag": 0.03224790066801944,
+          "mde_own_as_annual_pct": 0.21443310260399107
+        },
+        "bt003": {
+          "cagr": 0.02691939648857211,
+          "arith_ann": 0.0608778641500509,
+          "compounded_total": 0.16400758682308036,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2617810058627979,
+          "vol_drag": 0.03395846766147879,
+          "mde_own_as_annual_pct": 0.2149517435189533
+        },
+        "hi006": {
+          "cagr": -0.008135426179598726,
+          "arith_ann": 0.026403025440373474,
+          "compounded_total": -0.04562842811336931,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2627517461239399,
+          "vol_drag": 0.034538451619972196,
+          "mde_own_as_annual_pct": 0.21577362599405792
+        }
+      },
+      {
+        "rep": 51,
+        "seed": 20261067,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.13993668818465932,
+          "arith_ann": 0.16912347587828994,
+          "compounded_total": 1.114458975820039,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27530999640864673,
+          "vol_drag": 0.029186787693630617,
+          "mde_own_as_annual_pct": 0.22678328766636116
+        },
+        "bt003": {
+          "cagr": 0.10108611911289644,
+          "arith_ann": 0.13454369093205337,
+          "compounded_total": 0.7342081170673926,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27569561048559926,
+          "vol_drag": 0.03345757181915693,
+          "mde_own_as_annual_pct": 0.22713197351738554
+        },
+        "hi006": {
+          "cagr": 0.0634510040809082,
+          "arith_ann": 0.09996390598581681,
+          "compounded_total": 0.421508821927457,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2764296561958239,
+          "vol_drag": 0.03651290190490861,
+          "mde_own_as_annual_pct": 0.22776880777534136
+        }
+      },
+      {
+        "rep": 52,
+        "seed": 20261068,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.27836717551619294,
+          "arith_ann": 0.28037674151042535,
+          "compounded_total": 3.0675766311517974,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26343916945433415,
+          "vol_drag": 0.0020095659942324096,
+          "mde_own_as_annual_pct": 0.21598156236791904
+        },
+        "bt003": {
+          "cagr": 0.23471327429048583,
+          "arith_ann": 0.24577215040569078,
+          "compounded_total": 2.3352449504913357,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26408266152664117,
+          "vol_drag": 0.011058876115204952,
+          "mde_own_as_annual_pct": 0.21653160610983135
+        },
+        "hi006": {
+          "cagr": 0.19242786872044904,
+          "arith_ann": 0.2111675593009562,
+          "compounded_total": 1.7331625319163906,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2650887573479823,
+          "vol_drag": 0.018739690580507173,
+          "mde_own_as_annual_pct": 0.21738449255536813
+        }
+      },
+      {
+        "rep": 53,
+        "seed": 20261069,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.06985332590019455,
+          "arith_ann": 0.10514753429435197,
+          "compounded_total": 0.4711363819729779,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2738073815866348,
+          "vol_drag": 0.03529420839415742,
+          "mde_own_as_annual_pct": 0.22521673388611047
+        },
+        "bt003": {
+          "cagr": 0.03329095170830132,
+          "arith_ann": 0.07051527622983583,
+          "compounded_total": 0.20590691662649685,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2743364715517532,
+          "vol_drag": 0.03722432452153451,
+          "mde_own_as_annual_pct": 0.22566928353155946
+        },
+        "hi006": {
+          "cagr": -0.0021243842952712866,
+          "arith_ann": 0.03588301816531969,
+          "compounded_total": -0.012084861342177122,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27521608879807846,
+          "vol_drag": 0.03800740246059098,
+          "mde_own_as_annual_pct": 0.22641320348580268
+        }
+      },
+      {
+        "rep": 54,
+        "seed": 20261070,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.20452521711926064,
+          "arith_ann": 0.2226278438250911,
+          "compounded_total": 1.8976218208379962,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2695235419896322,
+          "vol_drag": 0.01810262670583046,
+          "mde_own_as_annual_pct": 0.22175144109714948
+        },
+        "bt003": {
+          "cagr": 0.16354419280634613,
+          "arith_ann": 0.1881005319971341,
+          "compounded_total": 1.377358959590143,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2699309362747691,
+          "vol_drag": 0.02455633919078798,
+          "mde_own_as_annual_pct": 0.22209934664456404
+        },
+        "hi006": {
+          "cagr": 0.12384305149127739,
+          "arith_ann": 0.15357322016917713,
+          "compounded_total": 0.949373651099434,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2706930398382311,
+          "vol_drag": 0.029730168677899738,
+          "mde_own_as_annual_pct": 0.22274084130693766
+        }
+      },
+      {
+        "rep": 55,
+        "seed": 20261071,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.14625828645572225,
+          "arith_ann": 0.1725187862011136,
+          "compounded_total": 1.18238123811149,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2676648959242347,
+          "vol_drag": 0.026260499745391352,
+          "mde_own_as_annual_pct": 0.2202541242071936
+        },
+        "bt003": {
+          "cagr": 0.10719556958016496,
+          "arith_ann": 0.13793900125487704,
+          "compounded_total": 0.789946179091084,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26805289482409594,
+          "vol_drag": 0.03074343167471208,
+          "mde_own_as_annual_pct": 0.2206062728090563
+        },
+        "hi006": {
+          "cagr": 0.06935482265757442,
+          "arith_ann": 0.1033592163086405,
+          "compounded_total": 0.4672216342003954,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2687992224729087,
+          "vol_drag": 0.034004393651066084,
+          "mde_own_as_annual_pct": 0.22125505769280865
+        }
+      },
+      {
+        "rep": 56,
+        "seed": 20261072,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": -0.02327903578650059,
+          "arith_ann": 0.013025220584687493,
+          "compounded_total": -0.12599116547537081,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26929655747171877,
+          "vol_drag": 0.03630425637118809,
+          "mde_own_as_annual_pct": 0.22239677915104264
+        },
+        "bt003": {
+          "cagr": -0.056581853960623874,
+          "arith_ann": -0.0215020912432695,
+          "compounded_total": -0.2832319052172507,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2698712131466083,
+          "vol_drag": 0.03507976271735437,
+          "mde_own_as_annual_pct": 0.22288806499833808
+        },
+        "hi006": {
+          "cagr": -0.08884230301707041,
+          "arith_ann": -0.056029403071226516,
+          "compounded_total": -0.4125272806578114,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2707998306710655,
+          "vol_drag": 0.032812899945843896,
+          "mde_own_as_annual_pct": 0.22367282678860323
+        }
+      },
+      {
+        "rep": 57,
+        "seed": 20261073,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.12195717057818456,
+          "arith_ann": 0.1527740994290654,
+          "compounded_total": 0.930745517013243,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27372589130143204,
+          "vol_drag": 0.03081692885088083,
+          "mde_own_as_annual_pct": 0.22546976594381435
+        },
+        "bt003": {
+          "cagr": 0.08366681626160988,
+          "arith_ann": 0.11814184136454928,
+          "compounded_total": 0.5830935553754257,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27409992430285446,
+          "vol_drag": 0.0344750251029394,
+          "mde_own_as_annual_pct": 0.2257981429362877
+        },
+        "hi006": {
+          "cagr": 0.04657605979573343,
+          "arith_ann": 0.08350958330003315,
+          "compounded_total": 0.29728039492403235,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2748254936038627,
+          "vol_drag": 0.03693352350429972,
+          "mde_own_as_annual_pct": 0.22641711701130898
+        }
+      },
+      {
+        "rep": 58,
+        "seed": 20261074,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.07207467505853304,
+          "arith_ann": 0.10666455945294483,
+          "compounded_total": 0.4886855686491067,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2722431125463531,
+          "vol_drag": 0.03458988439441178,
+          "mde_own_as_annual_pct": 0.22332168956180412
+        },
+        "bt003": {
+          "cagr": 0.03549334906630186,
+          "arith_ann": 0.07208477450670828,
+          "compounded_total": 0.22067604248756423,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27276718892171486,
+          "vol_drag": 0.03659142544040642,
+          "mde_own_as_annual_pct": 0.22377115035002407
+        },
+        "hi006": {
+          "cagr": 5.788207406332013e-05,
+          "arith_ann": 0.03750498956047171,
+          "compounded_total": 0.0003309693342941067,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27364278912589424,
+          "vol_drag": 0.03744710748640839,
+          "mde_own_as_annual_pct": 0.22451342526765816
+        }
+      },
+      {
+        "rep": 59,
+        "seed": 20261075,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.03719043521609611,
+          "arith_ann": 0.07381292798385748,
+          "compounded_total": 0.23215811621278348,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27144357864846874,
+          "vol_drag": 0.036622492767761375,
+          "mde_own_as_annual_pct": 0.22475766061459532
+        },
+        "bt003": {
+          "cagr": 0.0020130775849431792,
+          "arith_ann": 0.039390562392459604,
+          "compounded_total": 0.011563976381529173,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.271741614650662,
+          "vol_drag": 0.037377484807516424,
+          "mde_own_as_annual_pct": 0.22502538217814544
+        },
+        "hi006": {
+          "cagr": -0.03206910698100629,
+          "arith_ann": 0.0049681968010617744,
+          "compounded_total": -0.17001711027758648,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2723903389849274,
+          "vol_drag": 0.037037303782068064,
+          "mde_own_as_annual_pct": 0.2255811506045575
+        }
+      },
+      {
+        "rep": 60,
+        "seed": 20261076,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.09792244106770931,
+          "arith_ann": 0.13072574412074392,
+          "compounded_total": 0.7059128393709739,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27207024959567333,
+          "vol_drag": 0.03280330305303461,
+          "mde_own_as_annual_pct": 0.22442604320504134
+        },
+        "bt003": {
+          "cagr": 0.06047349941156366,
+          "arith_ann": 0.09619843229278689,
+          "compounded_total": 0.3989039828321481,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2727457347716701,
+          "vol_drag": 0.035724932881223234,
+          "mde_own_as_annual_pct": 0.22500153696683461
+        },
+        "hi006": {
+          "cagr": 0.024197086919702793,
+          "arith_ann": 0.06167112046482991,
+          "compounded_total": 0.14647579379650244,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2737708745363114,
+          "vol_drag": 0.037474033545127114,
+          "mde_own_as_annual_pct": 0.22586789959089484
+        }
+      },
+      {
+        "rep": 61,
+        "seed": 20261077,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.0781986468422029,
+          "arith_ann": 0.11031544152122205,
+          "compounded_total": 0.5379630722894944,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26305545625603594,
+          "vol_drag": 0.03211679467901915,
+          "mde_own_as_annual_pct": 0.21772814575653504
+        },
+        "bt003": {
+          "cagr": 0.041504251585465335,
+          "arith_ann": 0.07584060281154464,
+          "compounded_total": 0.26174609808808746,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26364763103539135,
+          "vol_drag": 0.03433635122607931,
+          "mde_own_as_annual_pct": 0.21823152831189252
+        },
+        "hi006": {
+          "cagr": 0.005956225220103528,
+          "arith_ann": 0.041365764101867236,
+          "compounded_total": 0.03453494387822764,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2646009174194121,
+          "vol_drag": 0.03540953888176371,
+          "mde_own_as_annual_pct": 0.2190334560655345
+        }
+      },
+      {
+        "rep": 62,
+        "seed": 20261078,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.19773159285538644,
+          "arith_ann": 0.21562110409458377,
+          "compounded_total": 1.8054206589042314,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26459999177713095,
+          "vol_drag": 0.017889511239197325,
+          "mde_own_as_annual_pct": 0.21756678517629216
+        },
+        "bt003": {
+          "cagr": 0.15679066638210992,
+          "arith_ann": 0.1809888460300676,
+          "compounded_total": 1.2995403471778046,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26523194346266177,
+          "vol_drag": 0.024198179647957674,
+          "mde_own_as_annual_pct": 0.21810762376690912
+        },
+        "hi006": {
+          "cagr": 0.11713441663894497,
+          "arith_ann": 0.14635658796555148,
+          "compounded_total": 0.8837748972022501,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26622582616119816,
+          "vol_drag": 0.02922217132660651,
+          "mde_own_as_annual_pct": 0.2189496619659981
+        }
+      },
+      {
+        "rep": 63,
+        "seed": 20261079,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.06888940392056608,
+          "arith_ann": 0.10128923554901183,
+          "compounded_total": 0.4631749112605934,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26288882069805247,
+          "vol_drag": 0.032399831628445744,
+          "mde_own_as_annual_pct": 0.21619667780136528
+        },
+        "bt003": {
+          "cagr": 0.03236562880943361,
+          "arith_ann": 0.06668464444427724,
+          "compounded_total": 0.19958930085646043,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2635212635831902,
+          "vol_drag": 0.03431901563484363,
+          "mde_own_as_annual_pct": 0.21673733453149435
+        },
+        "hi006": {
+          "cagr": -0.0030124351956507534,
+          "arith_ann": 0.03208005333954267,
+          "compounded_total": -0.01708866642897433,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2645171482343771,
+          "vol_drag": 0.03509248853519342,
+          "mde_own_as_annual_pct": 0.21758094064721617
+        }
+      },
+      {
+        "rep": 64,
+        "seed": 20261080,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.10989630932761085,
+          "arith_ann": 0.13816997543673087,
+          "compounded_total": 0.8150524216335762,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2600287603863344,
+          "vol_drag": 0.02827366610912002,
+          "mde_own_as_annual_pct": 0.21361953915615312
+        },
+        "bt003": {
+          "cagr": 0.07202606317534199,
+          "arith_ann": 0.10359019049049431,
+          "compounded_total": 0.48829968327216156,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2605853041892487,
+          "vol_drag": 0.03156412731515232,
+          "mde_own_as_annual_pct": 0.21410144692459845
+        },
+        "hi006": {
+          "cagr": 0.03534198420067369,
+          "arith_ann": 0.06901040554425776,
+          "compounded_total": 0.21965624758580327,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2615095695300056,
+          "vol_drag": 0.03366842134358407,
+          "mde_own_as_annual_pct": 0.21488923881797567
+        }
+      },
+      {
+        "rep": 65,
+        "seed": 20261081,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.04962064619509854,
+          "arith_ann": 0.08454138929712524,
+          "compounded_total": 0.3190052118542581,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2683245583199184,
+          "vol_drag": 0.0349207431020267,
+          "mde_own_as_annual_pct": 0.2205935188548104
+        },
+        "bt003": {
+          "cagr": 0.013950548627231552,
+          "arith_ann": 0.05011902370572737,
+          "compounded_total": 0.08242840963052211,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.268894901390586,
+          "vol_drag": 0.03616847507849582,
+          "mde_own_as_annual_pct": 0.22108422732123742
+        },
+        "hi006": {
+          "cagr": -0.020606848144335888,
+          "arith_ann": 0.015696658114329538,
+          "compounded_total": -0.11223176413231362,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2698185191919793,
+          "vol_drag": 0.03630350625866542,
+          "mde_own_as_annual_pct": 0.22186900869695664
+        }
+      },
+      {
+        "rep": 66,
+        "seed": 20261082,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.09402222002083782,
+          "arith_ann": 0.12556608962682927,
+          "compounded_total": 0.671555401599979,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26682387416377584,
+          "vol_drag": 0.031543869605991454,
+          "mde_own_as_annual_pct": 0.21927591081383285
+        },
+        "bt003": {
+          "cagr": 0.056642575539870954,
+          "arith_ann": 0.09093383156231312,
+          "compounded_total": 0.370257161244397,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2673452975607211,
+          "vol_drag": 0.034291256022442165,
+          "mde_own_as_annual_pct": 0.2197258329510968
+        },
+        "hi006": {
+          "cagr": 0.020435306738109782,
+          "arith_ann": 0.056301573497797,
+          "compounded_total": 0.12260880009468655,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26822642474149266,
+          "vol_drag": 0.03586626675968722,
+          "mde_own_as_annual_pct": 0.22047493718961464
+        }
+      },
+      {
+        "rep": 67,
+        "seed": 20261083,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.07126230076928297,
+          "arith_ann": 0.10396206365036992,
+          "compounded_total": 0.48224769672376033,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2647974366397538,
+          "vol_drag": 0.03269976288108695,
+          "mde_own_as_annual_pct": 0.21745868143067754
+        },
+        "bt003": {
+          "cagr": 0.0347235902536982,
+          "arith_ann": 0.06938227870413335,
+          "compounded_total": 0.215497223496393,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2652778020176271,
+          "vol_drag": 0.034658688450435154,
+          "mde_own_as_annual_pct": 0.21787648340620938
+        },
+        "hi006": {
+          "cagr": -0.0006710788412874757,
+          "arith_ann": 0.03480249375789679,
+          "compounded_total": -0.0038306330277542155,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26611980704306504,
+          "vol_drag": 0.035473572599184267,
+          "mde_own_as_annual_pct": 0.21859485775725615
+        }
+      },
+      {
+        "rep": 68,
+        "seed": 20261084,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.08047903155764469,
+          "arith_ann": 0.11132900021341544,
+          "compounded_total": 0.5561592043108143,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2602189440663305,
+          "vol_drag": 0.03084996865577075,
+          "mde_own_as_annual_pct": 0.21377140334618164
+        },
+        "bt003": {
+          "cagr": 0.043506551530510196,
+          "arith_ann": 0.07667189834827913,
+          "compounded_total": 0.2754548400210244,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2608553802596744,
+          "vol_drag": 0.033165346817768934,
+          "mde_own_as_annual_pct": 0.21431659577147993
+        },
+        "hi006": {
+          "cagr": 0.0076955491289201206,
+          "arith_ann": 0.042014796483142804,
+          "compounded_total": 0.04477050477945954,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26186002029061034,
+          "vol_drag": 0.03431924735422268,
+          "mde_own_as_annual_pct": 0.21516887145348546
+        }
+      },
+      {
+        "rep": 69,
+        "seed": 20261085,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.06565002886976945,
+          "arith_ann": 0.10113209806198994,
+          "compounded_total": 0.4383963066409875,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27304505453223915,
+          "vol_drag": 0.035482069192220494,
+          "mde_own_as_annual_pct": 0.22516317293493038
+        },
+        "bt003": {
+          "cagr": 0.029351764324364815,
+          "arith_ann": 0.06660478623403293,
+          "compounded_total": 0.17985869616612948,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2735263775597673,
+          "vol_drag": 0.037253021909668116,
+          "mde_own_as_annual_pct": 0.2255793335786033
+        },
+        "hi006": {
+          "cagr": -0.0058115276907932945,
+          "arith_ann": 0.03207747440607596,
+          "compounded_total": -0.03277358008909581,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2743574264068235,
+          "vol_drag": 0.037889002096869254,
+          "mde_own_as_annual_pct": 0.22628508712420933
+        }
+      },
+      {
+        "rep": 70,
+        "seed": 20261086,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.16984642858848287,
+          "arith_ann": 0.18976147836989643,
+          "compounded_total": 1.4519249617701004,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25607374988838155,
+          "vol_drag": 0.019915049781413563,
+          "mde_own_as_annual_pct": 0.21025982689893435
+        },
+        "bt003": {
+          "cagr": 0.12997129355562942,
+          "arith_ann": 0.15512922030538026,
+          "compounded_total": 1.0109334376663974,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2563258238557736,
+          "vol_drag": 0.025157926749750842,
+          "mde_own_as_annual_pct": 0.21048935308738778
+        },
+        "hi006": {
+          "cagr": 0.0913438153406736,
+          "arith_ann": 0.12049696224086417,
+          "compounded_total": 0.6482933616705715,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25695421589554407,
+          "vol_drag": 0.02915314690019058,
+          "mde_own_as_annual_pct": 0.21102995405202077
+        }
+      },
+      {
+        "rep": 71,
+        "seed": 20261087,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.07528559953379022,
+          "arith_ann": 0.10538041583107537,
+          "compounded_total": 0.5143576382756199,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2549694369805222,
+          "vol_drag": 0.03009481629728515,
+          "mde_own_as_annual_pct": 0.21049007557965474
+        },
+        "bt003": {
+          "cagr": 0.03859360775952525,
+          "arith_ann": 0.0708006308848388,
+          "compounded_total": 0.24171880724764838,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2555357677515242,
+          "vol_drag": 0.03220702312531355,
+          "mde_own_as_annual_pct": 0.21097010556007242
+        },
+        "hi006": {
+          "cagr": 0.0030509485487781873,
+          "arith_ann": 0.03622084593860223,
+          "compounded_total": 0.017568917596876732,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2564770030072351,
+          "vol_drag": 0.033169897389824045,
+          "mde_own_as_annual_pct": 0.2117606284026245
+        }
+      },
+      {
+        "rep": 72,
+        "seed": 20261088,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.09160894575051648,
+          "arith_ann": 0.12282454303016983,
+          "compounded_total": 0.6505840483798608,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2647026433216998,
+          "vol_drag": 0.031215597279653354,
+          "mde_own_as_annual_pct": 0.21769822266200742
+        },
+        "bt003": {
+          "cagr": 0.05447577980709917,
+          "arith_ann": 0.08829723120221286,
+          "compounded_total": 0.3542698270595017,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26504714936238644,
+          "vol_drag": 0.033821451395113694,
+          "mde_own_as_annual_pct": 0.21798938110315108
+        },
+        "hi006": {
+          "cagr": 0.018502141342772616,
+          "arith_ann": 0.05376991937425588,
+          "compounded_total": 0.11050404415885096,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26575314518536114,
+          "vol_drag": 0.03526777803148327,
+          "mde_own_as_annual_pct": 0.21857955183265868
+        }
+      },
+      {
+        "rep": 73,
+        "seed": 20261089,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.08130487240753248,
+          "arith_ann": 0.11358306832771792,
+          "compounded_total": 0.5634675263564057,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2659006647140343,
+          "vol_drag": 0.03227819592018544,
+          "mde_own_as_annual_pct": 0.21833981683160283
+        },
+        "bt003": {
+          "cagr": 0.04468553370928041,
+          "arith_ann": 0.07926564897287923,
+          "compounded_total": 0.28393965324480086,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2664249125583487,
+          "vol_drag": 0.03458011526359882,
+          "mde_own_as_annual_pct": 0.2187967440228681
+        },
+        "hi006": {
+          "cagr": 0.009204555934156256,
+          "arith_ann": 0.044948229618040514,
+          "compounded_total": 0.053779991639020475,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2673037025409009,
+          "vol_drag": 0.03574367368388426,
+          "mde_own_as_annual_pct": 0.21954870433631588
+        }
+      },
+      {
+        "rep": 74,
+        "seed": 20261090,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.06031234936134067,
+          "arith_ann": 0.09316813318395514,
+          "compounded_total": 0.39768906402050686,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2633871638381241,
+          "vol_drag": 0.032855783822614476,
+          "mde_own_as_annual_pct": 0.21563394139706388
+        },
+        "bt003": {
+          "cagr": 0.024180225905457764,
+          "arith_ann": 0.05864082135599814,
+          "compounded_total": 0.1463678910331916,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2639413969007526,
+          "vol_drag": 0.03446059545054038,
+          "mde_own_as_annual_pct": 0.21611304103002082
+        },
+        "hi006": {
+          "cagr": -0.010821634428291982,
+          "arith_ann": 0.024113509528041185,
+          "compounded_total": -0.06031145171314456,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2648576310176898,
+          "vol_drag": 0.03493514395633317,
+          "mde_own_as_annual_pct": 0.2168944516170544
+        }
+      },
+      {
+        "rep": 75,
+        "seed": 20261091,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.09192548953394675,
+          "arith_ann": 0.12535458854034584,
+          "compounded_total": 0.6533223782711097,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.272879964173696,
+          "vol_drag": 0.03342909900639909,
+          "mde_own_as_annual_pct": 0.22458426357111042
+        },
+        "bt003": {
+          "cagr": 0.0546333485487458,
+          "arith_ann": 0.0907748035941093,
+          "compounded_total": 0.35542720741602274,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27352898375386886,
+          "vol_drag": 0.03614145504536351,
+          "mde_own_as_annual_pct": 0.225133608147414
+        },
+        "hi006": {
+          "cagr": 0.018510340126253633,
+          "arith_ann": 0.05619501864787272,
+          "compounded_total": 0.1105551534952871,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2745278578294504,
+          "vol_drag": 0.03768467852161909,
+          "mde_own_as_annual_pct": 0.22597445625299417
+        }
+      },
+      {
+        "rep": 76,
+        "seed": 20261092,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.19880818926312038,
+          "arith_ann": 0.214917607760097,
+          "compounded_total": 1.8198682876924144,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2582692054448791,
+          "vol_drag": 0.016109418496976613,
+          "mde_own_as_annual_pct": 0.21262478812117222
+        },
+        "bt003": {
+          "cagr": 0.1578664131490235,
+          "arith_ann": 0.18028534969558083,
+          "compounded_total": 1.3117930897095054,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25879506838913413,
+          "vol_drag": 0.022418936546557328,
+          "mde_own_as_annual_pct": 0.21308110331456773
+        },
+        "hi006": {
+          "cagr": 0.11820819965754081,
+          "arith_ann": 0.14565309163106474,
+          "compounded_total": 0.8941503992977391,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25969245437950855,
+          "vol_drag": 0.027444891973523927,
+          "mde_own_as_annual_pct": 0.2138454213939229
+        }
+      },
+      {
+        "rep": 77,
+        "seed": 20261093,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1434875519837704,
+          "arith_ann": 0.1703730498698134,
+          "compounded_total": 1.1523929432592053,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2689787831352946,
+          "vol_drag": 0.026885497886042997,
+          "mde_own_as_annual_pct": 0.22099230547721377
+        },
+        "bt003": {
+          "cagr": 0.10450036242223049,
+          "arith_ann": 0.13579326492357682,
+          "compounded_total": 0.7651777169622198,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26943678799168364,
+          "vol_drag": 0.03129290250134634,
+          "mde_own_as_annual_pct": 0.22139018020545678
+        },
+        "hi006": {
+          "cagr": 0.06673339501142883,
+          "arith_ann": 0.10121347997734027,
+          "compounded_total": 0.44677671188614343,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2702509747153987,
+          "vol_drag": 0.03448008496591144,
+          "mde_own_as_annual_pct": 0.22208375180276987
+        }
+      },
+      {
+        "rep": 78,
+        "seed": 20261094,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.10909296952439007,
+          "arith_ann": 0.13564595810997498,
+          "compounded_total": 0.8075543591122465,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2531736580635749,
+          "vol_drag": 0.026552988585584913,
+          "mde_own_as_annual_pct": 0.20780611659443537
+        },
+        "bt003": {
+          "cagr": 0.07123005429163798,
+          "arith_ann": 0.10101370004545886,
+          "compounded_total": 0.48199262589538194,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25361708754334933,
+          "vol_drag": 0.029783645753820878,
+          "mde_own_as_annual_pct": 0.20818961911798178
+        },
+        "hi006": {
+          "cagr": 0.03455370810179348,
+          "arith_ann": 0.06638144198094272,
+          "compounded_total": 0.21435672798219318,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25444003527031456,
+          "vol_drag": 0.031827733879149236,
+          "mde_own_as_annual_pct": 0.20888823075204
+        }
+      },
+      {
+        "rep": 79,
+        "seed": 20261095,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.07478910058757693,
+          "arith_ann": 0.10547032843048929,
+          "compounded_total": 0.5103643158469677,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2577043467584004,
+          "vol_drag": 0.030681227842912356,
+          "mde_own_as_annual_pct": 0.2120027396571032
+        },
+        "bt003": {
+          "cagr": 0.03811756379541875,
+          "arith_ann": 0.07089054348425271,
+          "compounded_total": 0.23846838662469727,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25824948738500436,
+          "vol_drag": 0.032772979688833956,
+          "mde_own_as_annual_pct": 0.2124693424438963
+        },
+        "hi006": {
+          "cagr": 0.0025946167491848193,
+          "arith_ann": 0.03631075853801615,
+          "compounded_total": 0.014925048461347679,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25916572843660696,
+          "vol_drag": 0.03371614178883133,
+          "mde_own_as_annual_pct": 0.21324420988032375
+        }
+      },
+      {
+        "rep": 80,
+        "seed": 20261096,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.21356258876467815,
+          "arith_ann": 0.22944460244468734,
+          "compounded_total": 2.024136544663873,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26763896374363555,
+          "vol_drag": 0.015882013680009188,
+          "mde_own_as_annual_pct": 0.21947332154168267
+        },
+        "bt003": {
+          "cagr": 0.17220072288140376,
+          "arith_ann": 0.19491729061673035,
+          "compounded_total": 1.4802705284276585,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2682768886247409,
+          "vol_drag": 0.022716567735326598,
+          "mde_own_as_annual_pct": 0.22002360325701484
+        },
+        "hi006": {
+          "cagr": 0.1321329118875212,
+          "arith_ann": 0.16038997878877334,
+          "compounded_total": 1.0330263735030236,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2692705030517241,
+          "vol_drag": 0.028257066901252154,
+          "mde_own_as_annual_pct": 0.22087090699005965
+        }
+      },
+      {
+        "rep": 81,
+        "seed": 20261097,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.054367935012227475,
+          "arith_ann": 0.0873970611287223,
+          "compounded_total": 0.3534781511993106,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26203551757844207,
+          "vol_drag": 0.03302912611649482,
+          "mde_own_as_annual_pct": 0.21551179476843627
+        },
+        "bt003": {
+          "cagr": 0.018369344305940505,
+          "arith_ann": 0.052817276182485766,
+          "compounded_total": 0.10967648812793707,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2626478264202748,
+          "vol_drag": 0.03444793187654526,
+          "mde_own_as_annual_pct": 0.21603650753208584
+        },
+        "hi006": {
+          "cagr": -0.016501001590701447,
+          "arith_ann": 0.01823749123624921,
+          "compounded_total": -0.09074233268365361,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26362465483904096,
+          "vol_drag": 0.03473849282695066,
+          "mde_own_as_annual_pct": 0.21686474790670426
+        }
+      },
+      {
+        "rep": 82,
+        "seed": 20261098,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.0849932991466924,
+          "arith_ann": 0.11763301338872609,
+          "compounded_total": 0.5942044948019509,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2680037867590911,
+          "vol_drag": 0.032639714242033685,
+          "mde_own_as_annual_pct": 0.22043981702293827
+        },
+        "bt003": {
+          "cagr": 0.04797266522430821,
+          "arith_ann": 0.08305322844248952,
+          "compounded_total": 0.30720899901270515,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26853880234458,
+          "vol_drag": 0.035080563218181315,
+          "mde_own_as_annual_pct": 0.22089498704847385
+        },
+        "hi006": {
+          "cagr": 0.012111586178993106,
+          "arith_ann": 0.04847344349625297,
+          "compounded_total": 0.07125252098495216,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2694308012776683,
+          "vol_drag": 0.03636185731725986,
+          "mde_own_as_annual_pct": 0.22164679216686792
+        }
+      },
+      {
+        "rep": 83,
+        "seed": 20261099,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.11571949465409026,
+          "arith_ann": 0.14425779632294716,
+          "compounded_total": 0.869335676778644,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26340642756152854,
+          "vol_drag": 0.028538301668856902,
+          "mde_own_as_annual_pct": 0.21632437108405078
+        },
+        "bt003": {
+          "cagr": 0.07760566761251497,
+          "arith_ann": 0.10960069445781086,
+          "compounded_total": 0.5326639567544953,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2638360844427486,
+          "vol_drag": 0.031995026845295885,
+          "mde_own_as_annual_pct": 0.21668716049659786
+        },
+        "hi006": {
+          "cagr": 0.040687114191106044,
+          "arith_ann": 0.07494359259267454,
+          "compounded_total": 0.25589161142314176,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26463091860965854,
+          "vol_drag": 0.034256478401568494,
+          "mde_own_as_annual_pct": 0.21735325797827415
+        }
+      },
+      {
+        "rep": 84,
+        "seed": 20261100,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.04310708441986022,
+          "arith_ann": 0.0767703154773882,
+          "compounded_total": 0.2728880192508887,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2621682045329876,
+          "vol_drag": 0.033663231057527984,
+          "mde_own_as_annual_pct": 0.21597968408430243
+        },
+        "bt003": {
+          "cagr": 0.007453597022437419,
+          "arith_ann": 0.04213805741287208,
+          "compounded_total": 0.04336991165065007,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2627226782874276,
+          "vol_drag": 0.034684460390434664,
+          "mde_own_as_annual_pct": 0.21645728676645037
+        },
+        "hi006": {
+          "cagr": -0.027081203760000006,
+          "arith_ann": 0.0075057993483559435,
+          "compounded_total": -0.14526528003669537,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2636429828436499,
+          "vol_drag": 0.03458700310835595,
+          "mde_own_as_annual_pct": 0.21723858718275615
+        }
+      },
+      {
+        "rep": 85,
+        "seed": 20261101,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.21486445311767532,
+          "arith_ann": 0.23126476050257955,
+          "compounded_total": 2.04273120570788,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2699630796930085,
+          "vol_drag": 0.016400307384904222,
+          "mde_own_as_annual_pct": 0.22193521372761932
+        },
+        "bt003": {
+          "cagr": 0.17340212790376675,
+          "arith_ann": 0.19663250243806338,
+          "compounded_total": 1.4948392286332624,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2703891726451672,
+          "vol_drag": 0.023230374534296633,
+          "mde_own_as_annual_pct": 0.22230550481010017
+        },
+        "hi006": {
+          "cagr": 0.13323882374354779,
+          "arith_ann": 0.16200024437354724,
+          "compounded_total": 1.0444066065509285,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2711713913152557,
+          "vol_drag": 0.02876142062999945,
+          "mde_own_as_annual_pct": 0.22297084119378446
+        }
+      },
+      {
+        "rep": 86,
+        "seed": 20261102,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.015485990530216265,
+          "arith_ann": 0.055691608198340785,
+          "compounded_total": 0.09183325103958917,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.28328097365243937,
+          "vol_drag": 0.04020561766812452,
+          "mde_own_as_annual_pct": 0.2332564089132366
+        },
+        "bt003": {
+          "cagr": -0.01921542693160816,
+          "arith_ann": 0.021111823252104228,
+          "compounded_total": -0.10499672431023865,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.28393806980303515,
+          "vol_drag": 0.04032725018371239,
+          "mde_own_as_annual_pct": 0.2338159889791854
+        },
+        "hi006": {
+          "cagr": -0.05282830247620973,
+          "arith_ann": -0.01346796169413232,
+          "compounded_total": -0.26677388370901733,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.28493219298367883,
+          "vol_drag": 0.03936034078207741,
+          "mde_own_as_annual_pct": 0.23465662948858634
+        }
+      },
+      {
+        "rep": 87,
+        "seed": 20261103,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.09327830564738604,
+          "arith_ann": 0.12311128996565529,
+          "compounded_total": 0.6650674818813811,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25964602867181075,
+          "vol_drag": 0.02983298431826925,
+          "mde_own_as_annual_pct": 0.21393913539085777
+        },
+        "bt003": {
+          "cagr": 0.05600883690031111,
+          "arith_ann": 0.08858397813769828,
+          "compounded_total": 0.36556520226360334,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2602752007621184,
+          "vol_drag": 0.03257514123738717,
+          "mde_own_as_annual_pct": 0.214477388453093
+        },
+        "hi006": {
+          "cagr": 0.01990562902727744,
+          "arith_ann": 0.05405666630974131,
+          "compounded_total": 0.11928138209062422,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26127101034296096,
+          "vol_drag": 0.034151037282463874,
+          "mde_own_as_annual_pct": 0.2153203683879971
+        }
+      },
+      {
+        "rep": 88,
+        "seed": 20261104,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.08607600444113928,
+          "arith_ann": 0.11685413263155336,
+          "compounded_total": 0.6033211146470787,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26055231081857355,
+          "vol_drag": 0.03077812819041409,
+          "mde_own_as_annual_pct": 0.2152672462360745
+        },
+        "bt003": {
+          "cagr": 0.0491071355124868,
+          "arith_ann": 0.08232682080359637,
+          "compounded_total": 0.31532013213006427,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26098040463281486,
+          "vol_drag": 0.033219685291109566,
+          "mde_own_as_annual_pct": 0.21563314002998465
+        },
+        "hi006": {
+          "cagr": 0.013293412513748049,
+          "arith_ann": 0.0477995089756394,
+          "compounded_total": 0.07842381752534089,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26177524198989727,
+          "vol_drag": 0.03450609646189135,
+          "mde_own_as_annual_pct": 0.21630159177599903
+        }
+      },
+      {
+        "rep": 89,
+        "seed": 20261105,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": -0.010816603458900453,
+          "arith_ann": 0.02131178850203106,
+          "compounded_total": -0.06028412731586463,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25331179626969996,
+          "vol_drag": 0.032128391960931514,
+          "mde_own_as_annual_pct": 0.20828367276920387
+        },
+        "bt003": {
+          "cagr": -0.04461866648389534,
+          "arith_ann": -0.013320469562485062,
+          "compounded_total": -0.22968870718577505,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2538252407838157,
+          "vol_drag": 0.03129819692141028,
+          "mde_own_as_annual_pct": 0.2087243233823696
+        },
+        "hi006": {
+          "cagr": -0.07736039618454926,
+          "arith_ann": -0.04795272762700117,
+          "compounded_total": -0.36892493480339206,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25471752606809595,
+          "vol_drag": 0.029407668557548096,
+          "mde_own_as_annual_pct": 0.20947977542038546
+        }
+      },
+      {
+        "rep": 90,
+        "seed": 20261106,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": -0.00207260218641514,
+          "arith_ann": 0.0326100855804385,
+          "compounded_total": -0.011791731185613608,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2626994825394828,
+          "vol_drag": 0.03468268776685364,
+          "mde_own_as_annual_pct": 0.2163310704578257
+        },
+        "bt003": {
+          "cagr": -0.0360637137033778,
+          "arith_ann": -0.001917226247518486,
+          "compounded_total": -0.1894106415350586,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26316679779485685,
+          "vol_drag": 0.03414648745585931,
+          "mde_own_as_annual_pct": 0.21673168705376566
+        },
+        "hi006": {
+          "cagr": -0.06899198894552894,
+          "arith_ann": -0.03644453807547544,
+          "compounded_total": -0.3354922137394981,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26399763177695074,
+          "vol_drag": 0.0325474508700535,
+          "mde_own_as_annual_pct": 0.2174335708941295
+        }
+      },
+      {
+        "rep": 91,
+        "seed": 20261107,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.14591001696032135,
+          "arith_ann": 0.1715726664150798,
+          "compounded_total": 1.1785930046930964,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2653327443906771,
+          "vol_drag": 0.025662649454758435,
+          "mde_own_as_annual_pct": 0.21826429502305078
+        },
+        "bt003": {
+          "cagr": 0.10680960337827772,
+          "arith_ann": 0.13694040835056362,
+          "compounded_total": 0.7863817316202364,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26570375571923877,
+          "vol_drag": 0.0301308049722859,
+          "mde_own_as_annual_pct": 0.21859206754284782
+        },
+        "hi006": {
+          "cagr": 0.06893395326760232,
+          "arith_ann": 0.1023081502860475,
+          "compounded_total": 0.46392324065342283,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2664373938816368,
+          "vol_drag": 0.033374197018445184,
+          "mde_own_as_annual_pct": 0.21921975721711337
+        }
+      },
+      {
+        "rep": 92,
+        "seed": 20261108,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1209937894535209,
+          "arith_ann": 0.1512988127003086,
+          "compounded_total": 0.921286374605091,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2711050245191209,
+          "vol_drag": 0.030305023246787688,
+          "mde_own_as_annual_pct": 0.2237807484777179
+        },
+        "bt003": {
+          "cagr": 0.0830366080838909,
+          "arith_ann": 0.11692892022719029,
+          "compounded_total": 0.577837214253774,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.271429458453279,
+          "vol_drag": 0.03389231214329938,
+          "mde_own_as_annual_pct": 0.22406489218344197
+        },
+        "hi006": {
+          "cagr": 0.04625918458765299,
+          "arith_ann": 0.08255902775407199,
+          "compounded_total": 0.29503638089407547,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27210384303700214,
+          "vol_drag": 0.036299843166419,
+          "mde_own_as_annual_pct": 0.22463736799365944
+        }
+      },
+      {
+        "rep": 93,
+        "seed": 20261109,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.006863747534264775,
+          "arith_ann": 0.037294611356312,
+          "compounded_total": 0.039882211535723355,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.24636079377708425,
+          "vol_drag": 0.030430863822047224,
+          "mde_own_as_annual_pct": 0.20261312723995983
+        },
+        "bt003": {
+          "cagr": -0.027478071504696833,
+          "arith_ann": 0.0027148264100754446,
+          "compounded_total": -0.14725671949286145,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2468414649895462,
+          "vol_drag": 0.03019289791477228,
+          "mde_own_as_annual_pct": 0.2030291734123624
+        },
+        "hi006": {
+          "cagr": -0.06074466081684471,
+          "arith_ann": -0.031864958536161093,
+          "compounded_total": -0.30112668948848453,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.24771069139403665,
+          "vol_drag": 0.028879702280683615,
+          "mde_own_as_annual_pct": 0.20376767096879853
+        }
+      },
+      {
+        "rep": 94,
+        "seed": 20261110,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.04161082417324313,
+          "arith_ann": 0.07751884805415513,
+          "compounded_total": 0.2624844197859686,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27101141178488514,
+          "vol_drag": 0.03590802388091199,
+          "mde_own_as_annual_pct": 0.22243501350502803
+        },
+        "bt003": {
+          "cagr": 0.006296377890609328,
+          "arith_ann": 0.04309648246275729,
+          "compounded_total": 0.036536513590659236,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2712691237672657,
+          "vol_drag": 0.03680010457214796,
+          "mde_own_as_annual_pct": 0.2226669001729131
+        },
+        "hi006": {
+          "cagr": -0.027919045500887973,
+          "arith_ann": 0.00867411687135942,
+          "compounded_total": -0.14946498766024696,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27187826797520437,
+          "vol_drag": 0.03659316237224739,
+          "mde_own_as_annual_pct": 0.22318975224293103
+        }
+      },
+      {
+        "rep": 95,
+        "seed": 20261111,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.07580935779651532,
+          "arith_ann": 0.1047187061968216,
+          "compounded_total": 0.5181249271890409,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2512729747760785,
+          "vol_drag": 0.028909348400306276,
+          "mde_own_as_annual_pct": 0.2064829245747634
+        },
+        "bt003": {
+          "cagr": 0.039249894303538424,
+          "arith_ann": 0.07027164737329218,
+          "compounded_total": 0.24601484316894084,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.25179602958367403,
+          "vol_drag": 0.031021753069753757,
+          "mde_own_as_annual_pct": 0.2069351816770517
+        },
+        "hi006": {
+          "cagr": 0.0038309152934357105,
+          "arith_ann": 0.03582458854976276,
+          "compounded_total": 0.022084983936654368,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.25269666852195566,
+          "vol_drag": 0.03199367325632705,
+          "mde_own_as_annual_pct": 0.20770165091664486
+        }
+      },
+      {
+        "rep": 96,
+        "seed": 20261112,
+        "dates_identical_to_strategy": false,
+        "n_days": 1394,
+        "zero": {
+          "cagr": 0.1621672814151629,
+          "arith_ann": 0.1851492944344267,
+          "compounded_total": 1.359865527129025,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.26345864992906914,
+          "vol_drag": 0.02298201301926381,
+          "mde_own_as_annual_pct": 0.21667600397492898
+        },
+        "bt003": {
+          "cagr": 0.12250946138197505,
+          "arith_ann": 0.1505447033296921,
+          "compounded_total": 0.9352687691276702,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2639617668036966,
+          "vol_drag": 0.02803524194771706,
+          "mde_own_as_annual_pct": 0.21710237639236812
+        },
+        "hi006": {
+          "cagr": 0.08409399687419472,
+          "arith_ann": 0.11594011222495754,
+          "compounded_total": 0.5861397522634051,
+          "n_days": 1394,
+          "years": 5.713115,
+          "ann_vol": 0.2648284529330414,
+          "vol_drag": 0.031846115350762816,
+          "mde_own_as_annual_pct": 0.21783066229837808
+        }
+      },
+      {
+        "rep": 97,
+        "seed": 20261113,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.18591123126587394,
+          "arith_ann": 0.2079062671508862,
+          "compounded_total": 1.650770365347551,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2741219652382478,
+          "vol_drag": 0.021995035885012254,
+          "mde_own_as_annual_pct": 0.22379529336479081
+        },
+        "bt003": {
+          "cagr": 0.14548825316855973,
+          "arith_ann": 0.17332648220464963,
+          "compounded_total": 1.1740126168154084,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2745475797371096,
+          "vol_drag": 0.0278382290360899,
+          "mde_own_as_annual_pct": 0.2241797287193823
+        },
+        "hi006": {
+          "cagr": 0.10633007568123665,
+          "arith_ann": 0.13874669725841307,
+          "compounded_total": 0.7819613919150143,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27532291026710054,
+          "vol_drag": 0.032416621577176424,
+          "mde_own_as_annual_pct": 0.22485618871248647
+        }
+      },
+      {
+        "rep": 98,
+        "seed": 20261114,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.0740550011994896,
+          "arith_ann": 0.10599793838817022,
+          "compounded_total": 0.5044759050563965,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26224464735617625,
+          "vol_drag": 0.03194293718868062,
+          "mde_own_as_annual_pct": 0.21585209004398742
+        },
+        "bt003": {
+          "cagr": 0.03748627674721261,
+          "arith_ann": 0.07147062656021323,
+          "compounded_total": 0.23416879936967216,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26268974230883957,
+          "vol_drag": 0.03398434981300062,
+          "mde_own_as_annual_pct": 0.21624229858772942
+        },
+        "hi006": {
+          "cagr": 0.002060501379253843,
+          "arith_ann": 0.03694331473225623,
+          "compounded_total": 0.011837723228086405,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26349912172293133,
+          "vol_drag": 0.03488281335300239,
+          "mde_own_as_annual_pct": 0.21693422603900084
+        }
+      },
+      {
+        "rep": 99,
+        "seed": 20261115,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.03745703321302285,
+          "arith_ann": 0.07344523636291353,
+          "compounded_total": 0.2339699255714267,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2701732485986318,
+          "vol_drag": 0.03598820314989068,
+          "mde_own_as_annual_pct": 0.22241745677531527
+        },
+        "bt003": {
+          "cagr": 0.0020151134479413635,
+          "arith_ann": 0.03881297829839741,
+          "compounded_total": 0.011575726844463174,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2706429236681086,
+          "vol_drag": 0.036797864850456045,
+          "mde_own_as_annual_pct": 0.22282269057958562
+        },
+        "hi006": {
+          "cagr": -0.03231535900494997,
+          "arith_ann": 0.004180720233881277,
+          "compounded_total": -0.1712236132091609,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.27146819059074734,
+          "vol_drag": 0.03649607923883125,
+          "mde_own_as_annual_pct": 0.22352296753366496
+        }
+      }
+    ]
+  },
+  "cost": {
+    "tiers": {
+      "zero": 0.0,
+      "bt003": 0.003,
+      "hi006": 0.006
+    },
+    "judge_tag": "bt003",
+    "realized_cost_is_used_for_judgment": true,
+    "note": "三档由 `annual_friction` / STOCK_COST_DEFAULT **一次性**给出，全程不许叠加第二次（第 82 层）。两臂逐档相同。"
+  },
+  "external_anchor": {
+    "path": "data/reports/basket_nav_01_2026-10-16.json",
+    "field": "verdict_reading",
+    "expected": 0.10556283216930074,
+    "recomputed_here": 0.10556283216930074,
+    "bitwise_equal": true,
+    "rule": "不相等 ⇒ verdict=None，不出结论"
+  },
+  "verdict": null,
+  "verdict_suppressed_reasons": [
+    "🚨 16/100 个随机臂的**日期轴**与策略臂不同（Y5-A3 窗口逐日相同被破坏 ⇒ 分位数跨样本不可比）"
+  ],
+  "what_this_cannot_prove": [
+    "**不能**证明账户年化 +10.56% 本身测出来了 —— |c|/M = 0.4656 < 1 ⇒ 绝对水平那一半仍是「连符号都定不了」（§18）",
+    "**不能**把 E-上 读成因子有效 —— 它只说账户净值这一个数相对随机臂偏高",
+    "**不能**替代前瞻：100 个 rep 共用**同一段 6 年历史**，它们之间不独立 ⇒ p5/p95 是「历史内重抽」的分布，不是「未来」的分布",
+    "**不能**证明 20%/年可达 —— 本判决对绝对水平零信息",
+    "🚨 冒烟产物（--smoke）的任何数字都**不得**进入判决"
+  ]
+}

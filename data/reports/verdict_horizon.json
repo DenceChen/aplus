@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T08:30:15",
+  "generated_at": "2026-10-16T11:00:58",
   "question": "判决 |c|<M 是「还没攒够数据」还是「结构上不可能」",
   "source_artifact": "data/reports/basket_nav_01_2026-10-16.json",
   "source_daily": "data/reports/wf_weights_backtest_k21.daily.parquet",

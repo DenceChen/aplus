@@ -48,6 +48,7 @@ r"""判决所需样本量的反解 —— D2 究竟是「还没攒够」还是�
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +60,22 @@ ROOT = Path(__file__).resolve().parent.parent
 BASKET = ROOT / "data/reports/basket_nav_01_2026-10-16.json"
 DAILY = ROOT / "data/reports/wf_weights_backtest_k21.daily.parquet"
 OUT = ROOT / "data/reports/verdict_horizon.json"
+
+#: 自己的路径，写进溯源章 —— `code_file_sha256` 算的就是这份文件的字节。
+GENERATOR = "scripts/verdict_horizon.py"
+
+#: 🚨 第 166 层：章里的 `data_fp` **不适用于本脚本**。
+#: `stamp()` 默认它算 `master/daily`（5460 个 parquet）的 `(文件数, 最大 mtime)`，
+#: 而本脚本读的是 `BASKET`（一份 JSON）与 `DAILY`（一份 parquet）——**在 `master/daily` 里一个都没读**。
+#: ⇒ 不声明的话，那是一枚**指向它压根没读过的目录的假章**，
+#: 而假章比无章更坏：它主动发出一个「数据是新鲜的」信号。
+#: ⇒ 两份真实输入的指纹由调用点写进 `extra`（路径 + sha256 成对：路径答「从哪来」，
+#:   指纹答「是哪些字节」——`DAILY` 是**可重写的副产物**，只给路径会给出恒真的新鲜度）。
+DATA_FP_NOT_APPLICABLE = (
+    "data_fp 不适用：verdict_horizon.py 读 data/reports/basket_nav_01_2026-10-16.json "
+    "与 data/reports/wf_weights_backtest_k21.daily.parquet，"
+    "不读 master/daily 下的任何 parquet。真实输入指纹见 source_basket_sha256 / source_daily_sha256。"
+)
 
 #: Newey-West 的最大滞后。与记忆 `diagnose-with-the-quantity-production-actually-uses`
 #: 无关；5 是「日频收益的一周效应刚好覆盖」这个独立锚，不是为了拟合结果而挑的。
@@ -97,6 +114,13 @@ def required_n(c: float, M: float, n_now: int, M_needed: float | None = None) ->
 def main() -> None:
     import sys
     sys.path.insert(0, str(ROOT))
+    from aplus import provenance
+
+    # 🚨 第 125 层：盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节。
+    #   抓在**读任何输入之前**。传 None 会让 stamp() **整项跳过**字节检查
+    #   而无人察觉（第 131 层：关键字在、检查没跑）。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+
     from scripts.measure_basket_nav_01 import R, account_nav
 
     basket = json.loads(BASKET.read_text(encoding="utf-8"))
@@ -234,6 +258,17 @@ def main() -> None:
     )
 
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # 🚨 第 166 层：章盖在本脚本真正读过的那两份字节上（见 DATA_FP_NOT_APPLICABLE）。
+    provenance.stamp(
+        OUT, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        extra={
+            "data_fp_applicability": DATA_FP_NOT_APPLICABLE,
+            "source_basket": str(BASKET.relative_to(ROOT)),
+            "source_basket_sha256": hashlib.sha256(BASKET.read_bytes()).hexdigest(),
+            "source_daily": str(DAILY.relative_to(ROOT)),
+            "source_daily_sha256": hashlib.sha256(DAILY.read_bytes()).hexdigest(),
+        })
     print(f"→ {OUT.relative_to(ROOT)}")
     print(out["reading"])
     print(f"\n写盘前最后一次确认：读数校验逐位相等 = {bitwise}")

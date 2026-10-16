@@ -1,0 +1,315 @@
+{
+  "kind": "Y5_net_nav_random_arm",
+  "prereg": "docs/PREREG_7Y_NET_NAV_2026-10-16.md",
+  "prereg_sections": "§10 + §19",
+  "generated": "2026-10-16",
+  "smoke": true,
+  "reps": 3,
+  "reps_preregistered": 100,
+  "smoke_reps_preregistered": 3,
+  "seed_base": 20261016,
+  "seed_rule": "第 rep 个种子 = Y5_SEED_BASE + rep（§10.4 Y5-R2）；逐日种子由 (rep 种子, 信号日, 盐) 派生 ⇒ 逐日期独立。🚨 不许 hash(day)（PYTHONHASHSEED ⇒ 不可复现的阴性等于没跑）",
+  "window": {
+    "start": "2021-01-01",
+    "end": "2026-10-12",
+    "start_actual": "2021-01-04",
+    "end_actual": "2026-10-09",
+    "n_days": 1395
+  },
+  "config": {
+    "top_n": 10,
+    "bottom_n": 10,
+    "k_rebalance_every": 21,
+    "min_basket": 3,
+    "min_basket_note": "由 `scaled_min_basket(TOP_N)` 算出（不许手打）",
+    "cross_section_source": "build_cross_sections（同 placebo）"
+  },
+  "legs_relation": "同一次抽样的两端（build_predictions 同一张 ranked 做 head/tail）⇒ 构造上不相交，**不是**两次独立抽样。口径不许改写成后者。",
+  "domain_rule": "U_t ≜ { filter_universe 后 composite_score 非 NaN }。随机臂用 placebo_control.make_shuffle_score（保域置换）：NaN **原地不动**，只换顺序 ⇒ 它的域与策略臂**逐日相同**。🚨 不许用 make_shuffle_list：它给每行赋有限值 ⇒ notna 剔不掉 ⇒ 域 ⊇ 策略域。",
+  "domain_check": {
+    "strategy": {
+      "label": "strategy",
+      "n_days": 1395,
+      "overlap_all_zero": true,
+      "max_overlap": 0
+    },
+    "random_rep0": {
+      "label": "random_rep0",
+      "n_days": 1395,
+      "overlap_all_zero": true,
+      "max_overlap": 0
+    },
+    "comparison": {
+      "rule": "U_t ≜ { filter_universe 后 composite_score 非 NaN }。随机臂用 placebo_control.make_shuffle_score（保域置换）：NaN **原地不动**，只换顺序 ⇒ 它的域与策略臂**逐日相同**。🚨 不许用 make_shuffle_list：它给每行赋有限值 ⇒ notna 剔不掉 ⇒ 域 ⊇ 策略域。",
+      "n_days_compared": 1395,
+      "n_days_domains_identical": 1395,
+      "all_identical": true,
+      "max_gap": 0,
+      "mean_gap": 0.0,
+      "note": "🚨 差异**不等于**不可比：域相同而分数多重集不同 ⇒ 选出的股票必然不同，那正是随机臂的定义。真正要查的是 `overlap_all_zero`（两腿构造上不相交）与 `all_identical`（域一致 ⇒ 两臂是同一个池）。"
+    },
+    "per_day_probe_is_in_this_run_only": "逐日明细不落盘（1395 行 × 2 会让产物读不下去）；落盘的是汇总 + 判定布尔。明细要复现请重跑 --smoke。"
+  },
+  "window_identity_across_arms": {
+    "rule": "Y5-A3：每个随机臂的**日期轴**必须与策略臂逐位相同",
+    "all_reps_dates_identical": true,
+    "n_reps_dates_identical": 3,
+    "n_reps": 3,
+    "why_not_derived_from_market": "日期**部分重叠**时两表长度可以**恰好相同**而内容不同 ⇒ 『market 逐位相等』证明不了『同一天』，必须单比日期轴（第 7 种形状）"
+  },
+  "market_identical_across_arms": {
+    "checked_on": "rep 0",
+    "random_vs_strategy_bitwise_equal": false,
+    "max_abs_diff": 1.3877787807814457e-17,
+    "why_it_matters": "随机臂只置换 score、不改 market ⇒ 若为假，两臂差的不只是选股（连基准都变了）"
+  },
+  "annualization": {
+    "primary": "compounded",
+    "function": "measure_basket_nav_01.tier（import，不重写）",
+    "DAYS_PER_YEAR": 244,
+    "DAYS_PER_YEAR_source": "aplus.hurdle.DAYS_PER_YEAR",
+    "arithmetic_sensitivity": "arith_ann 与 cagr 并排落盘",
+    "both_calibers_disagree": true,
+    "⚠️_not_the_same_quantity": "仓内另有 -1 与 -1 两套年化常数，本判决用 244（aplus.hurdle）"
+  },
+  "quantiles": {
+    "min": 0.01970333836542415,
+    "p5": 0.01987762836537177,
+    "p25": 0.020574788365162244,
+    "median": 0.02144623836490034,
+    "p75": 0.0628080513101732,
+    "p95": 0.09589750166639148,
+    "max": 0.10416986425544605,
+    "grid": [
+      0.0,
+      5.0,
+      25.0,
+      50.0,
+      75.0,
+      95.0,
+      100.0
+    ],
+    "n_ge_strategy": 0,
+    "n_random_arms": 3,
+    "rank_of_strategy_percent": 0.0,
+    "rank_rule": "n_ge = 随机臂中 ≥ 策略值的个数（保守计数）"
+  },
+  "p95_bootstrap_ci95": {
+    "draws": 2000,
+    "seed": 21161016,
+    "ci95": [
+      0.01970333836542415,
+      0.10416986425544605
+    ],
+    "half_width": 0.04223326294501095
+  },
+  "mde": {
+    "mde_resolution": 0.04223326294501095,
+    "what_it_is": "**p95 这个分位数本身**的 bootstrap 95% 区间半宽",
+    "what_it_is_NOT": "🚨 **不是**「策略值离上尾多远」（那个数在 dist_to_p95）",
+    "band_p95_minus_p5": 0.07601987330101971,
+    "dist_to_p95": 0.009665330502909256,
+    "strategy_own_mde": 0.22673751360772554,
+    "strategy_own_mde_does_not_enter_branch": true
+  },
+  "branch_order": [
+    "E-判不出",
+    "E-上",
+    "E-下",
+    "E-内"
+  ],
+  "branch_conditions": {
+    "E-判不出": false,
+    "E-上": true,
+    "E-下": false,
+    "E-内": false
+  },
+  "branch": null,
+  "branch_text": null,
+  "branch_computed_but_not_adopted": {
+    "code": "E-上",
+    "text": "账户年化高于随机臂分布的 p95（⚠️ 不等于因子有效，也不等于账户绝对水平可信）",
+    "why_not_adopted": "判决被压住 ⇒ 该码**未被采用**，见 verdict_suppressed_reasons"
+  },
+  "strategy_own_mde_verdict": {
+    "strategy_cagr": 0.10556283216930074,
+    "abs_over_own_mde": 0.4655728577492169,
+    "sign_determinable": false,
+    "note": "🚨 这是**绝对水平**的不确定度。它**不许**参与 `branch` 计算 —拿绝对量的 MDE 去判相对位置是用 A 标定的仪器量 B。本判决对「账户年化 +10.56% 本身测出来了」零信息。"
+  },
+  "arms": {
+    "strategy": {
+      "zero": {
+        "cagr": 0.1440992709454234,
+        "arith_ann": 0.17263618482192353,
+        "compounded_total": 1.1589842941838855,
+        "n_days": 1395,
+        "years": 5.717213,
+        "ann_vol": 0.27493117544737045,
+        "vol_drag": 0.02853691387650012,
+        "mde_own_as_annual_pct": 0.22637104714099315
+      },
+      "bt003": {
+        "cagr": 0.10556283216930074,
+        "arith_ann": 0.13847618482192353,
+        "compounded_total": 0.7749076294493729,
+        "n_days": 1395,
+        "years": 5.717213,
+        "ann_vol": 0.2753576662462739,
+        "vol_drag": 0.032913352652622796,
+        "mde_own_as_annual_pct": 0.22673751360772554
+      },
+      "hi006": {
+        "cagr": 0.06821783783445001,
+        "arith_ann": 0.10431618482192355,
+        "compounded_total": 0.45832503766083765,
+        "n_days": 1395,
+        "years": 5.717213,
+        "ann_vol": 0.2761246002543914,
+        "vol_drag": 0.03609834698747354,
+        "mde_own_as_annual_pct": 0.2273858471597884
+      }
+    },
+    "random": [
+      {
+        "rep": 0,
+        "seed": 20261016,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.1430728413339406,
+          "arith_ann": 0.16898383238144993,
+          "compounded_total": 1.1479338331108422,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2654072425409817,
+          "vol_drag": 0.025910991047509324,
+          "mde_own_as_annual_pct": 0.2177209669037138
+        },
+        "bt003": {
+          "cagr": 0.10416986425544605,
+          "arith_ann": 0.13440404743521334,
+          "compounded_total": 0.76216006251892,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2656119169107912,
+          "vol_drag": 0.030234183179767282,
+          "mde_own_as_annual_pct": 0.21793594425918916
+        },
+        "hi006": {
+          "cagr": 0.06648226650708278,
+          "arith_ann": 0.09982426248897679,
+          "compounded_total": 0.4448305235425343,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26617886107251,
+          "vol_drag": 0.03334199598189401,
+          "mde_own_as_annual_pct": 0.2184504677441177
+        },
+        "market_identical_to_strategy": false,
+        "market_max_abs_diff": 1.3877787807814457e-17
+      },
+      {
+        "rep": 1,
+        "seed": 20261017,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.05759128526042434,
+          "arith_ann": 0.08878394578347104,
+          "compounded_total": 0.37730590062196456,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25499382083451116,
+          "vol_drag": 0.0311926605230467,
+          "mde_own_as_annual_pct": 0.21048013863465784
+        },
+        "bt003": {
+          "cagr": 0.02144623836490034,
+          "arith_ann": 0.05415168771895493,
+          "compounded_total": 0.12898209449519094,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25556085688744,
+          "vol_drag": 0.03270544935405459,
+          "mde_own_as_annual_pct": 0.21096375563029923
+        },
+        "hi006": {
+          "cagr": -0.013564823505519796,
+          "arith_ann": 0.01951942965443881,
+          "compounded_total": -0.0751130718286771,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.25650386542898634,
+          "vol_drag": 0.03308425315995861,
+          "mde_own_as_annual_pct": 0.21175889647850638
+        }
+      },
+      {
+        "rep": 2,
+        "seed": 20261018,
+        "dates_identical_to_strategy": true,
+        "n_days": 1395,
+        "zero": {
+          "cagr": 0.05567414741640553,
+          "arith_ann": 0.08889244728354527,
+          "compounded_total": 0.3630926430897583,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2630410185823543,
+          "vol_drag": 0.03321829986713974,
+          "mde_own_as_annual_pct": 0.21627468167022548
+        },
+        "bt003": {
+          "cagr": 0.01970333836542415,
+          "arith_ann": 0.05436513545558829,
+          "compounded_total": 0.11801274810395967,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.26358119478182324,
+          "vol_drag": 0.03466179709016414,
+          "mde_own_as_annual_pct": 0.2167407304468924
+        },
+        "hi006": {
+          "cagr": -0.015142359551042262,
+          "arith_ann": 0.019837823627631274,
+          "compounded_total": -0.08353760379229269,
+          "n_days": 1395,
+          "years": 5.717213,
+          "ann_vol": 0.2644839424531039,
+          "vol_drag": 0.03498018317867353,
+          "mde_own_as_annual_pct": 0.21750821995598923
+        }
+      }
+    ]
+  },
+  "cost": {
+    "tiers": {
+      "zero": 0.0,
+      "bt003": 0.003,
+      "hi006": 0.006
+    },
+    "judge_tag": "bt003",
+    "realized_cost_is_used_for_judgment": true,
+    "note": "三档由 `annual_friction` / STOCK_COST_DEFAULT **一次性**给出，全程不许叠加第二次（第 82 层）。两臂逐档相同。"
+  },
+  "external_anchor": {
+    "path": "data/reports/basket_nav_01_2026-10-16.json",
+    "field": "verdict_reading",
+    "expected": 0.10556283216930074,
+    "recomputed_here": 0.10556283216930074,
+    "bitwise_equal": true,
+    "rule": "不相等 ⇒ verdict=None，不出结论"
+  },
+  "verdict": null,
+  "verdict_suppressed_reasons": [
+    "冒烟（§19.5）：只跑 3 个 rep，n=3 时 p95==max、p5==min ⇒ **数字不得进入任何判决**"
+  ],
+  "what_this_cannot_prove": [
+    "**不能**证明账户年化 +10.56% 本身测出来了 —— |c|/M = 0.4656 < 1 ⇒ 绝对水平那一半仍是「连符号都定不了」（§18）",
+    "**不能**把 E-上 读成因子有效 —— 它只说账户净值这一个数相对随机臂偏高",
+    "**不能**替代前瞻：100 个 rep 共用**同一段 6 年历史**，它们之间不独立 ⇒ p5/p95 是「历史内重抽」的分布，不是「未来」的分布",
+    "**不能**证明 20%/年可达 —— 本判决对绝对水平零信息",
+    "🚨 冒烟产物（--smoke）的任何数字都**不得**进入判决"
+  ]
+}

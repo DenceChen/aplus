@@ -144,6 +144,20 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   修法照旧 —— 在 `provenance.py` 里补一行，而不是删掉那份 sidecar
     #   或给守卫加白名单。**盖一个解析不出生成器的章比不盖更坏**（形状 16）。
     "portfolio_exec.json": "scripts/measure_portfolio_exec.py",
+    # 2026-10-16 登记：Y5 净值口径随机臂（预注册 §10 + §19.5）。
+    # 🚨 **两个键都必须登记，不能只登记正式那份** —— 冒烟产物 `verdict`/`branch`
+    #   都是 `null`，它**照样会被引用**（引用它的人看到的是「冒烟没出判决」，
+    #   而这恰恰是最该被看见的一条）；只登记正式那份 ⇒ 冒烟 sidecar 判
+    #   `unknown` = 不可引用 ⇒ **「不可引用」与「没出判决」被合并成同一个
+    #   症状**（第 25 层的反面：把不可引用的东西登记成永久债）。
+    "random_arm_nav.json": "scripts/measure_random_arm_nav.py",
+    "random_arm_nav_smoke.json": "scripts/measure_random_arm_nav.py",
+    # 2026-10-16 登记：§18 ① **组合账户净值**判决档（c=+10.5563%、M=±22.6738%、
+    # 判「测不出」）。🚨 这是**对着 D2 本身**的一次测量，产物却**既没章也没登记**
+    # ⇒ 交付物最该被引用的那份产物，恰好是引用链上唯一断掉的一环。
+    # ⚠️ 文件名带 `2026-10-16` 且**写死在脚本里**（`measure_basket_nav_01.py`
+    #   无 `--out`）⇒ 换名要两处一起改；这里登记的是**精确名**。
+    "basket_nav_01_2026-10-16.json": "scripts/measure_basket_nav_01.py",
     # 2026-10-15 登记（第 127 层）：三臂判决（最优定权 / 朴素翻号 / 原样等权）。
     # 🚨 登记**卡在 K 链跑完之后才做** —— `aplus/provenance.py` 正在被链的
     #   `backtest_walk_forward_weights.py` 调用（`provenance.stamp()`），
@@ -381,6 +395,37 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   ⚠️ **本条只改门槛数字，不改结论**：门槛降低 = 目标降低（第 129 层）。
     #   预注册 `docs/TODO_nav_vs_excess_caliber_2026-10-15.md` §4 G3/G3-bis/G3-quad。
     "market_nav_caliber.json": "scripts/market_nav_caliber.py",
+
+    # 🚨 2026-10-16 补登记：下面四份此前**既未登记也未盖章** ⇒ `freshness` 报
+    #   `unknown`，而按本模块自己的规矩 `unknown` = **不许引用**。
+    #   之所以拖到现在才收口，是因为它们是 2026-10-16 当天才写出来的四个
+    #   **判决地平线**脚本，而**判决恰恰是最不许没有产物出处的东西**
+    #   （第 6 种形状的镜像「假装不可引用」：产物照常出数、判决照常被抄进文档，
+    #   而它自己从不发出「我不可引用」的信号）。
+    #
+    # ① D1（每天 10 涨 10 跌）的判决需要多少个**独立成交窗口**。
+    #   它与 D2 卡的**不是同一个量**：观测单位是成交窗口（`exit_date` 去重，
+    #   现读数 **W=3**）而不是交易日（1395 天）⇒ 96 行判定只落在 3 个窗口上，
+    #   行级区间虚增 `√(96/3) = 5.657` 倍。
+    "verdict_horizon_d1.json": "scripts/verdict_horizon_d1.py",
+    # ② D2 的判决地平线：判符号需 **26.4 年**（`1.96·sd·√R/√n` 反解）。
+    #   ⚠️ ①与②的先后不是随意的：②先算、①后算，而**两者差一个数量级以上**
+    #   ⇒ 「两个交付物都样本不够」是一个**把两个量合并**的说法（第 7 种形状）。
+    "verdict_horizon.json": "scripts/verdict_horizon.py",
+    # ③ 摩擦敏感性扫描：在多大的价差假设下，摩擦会先于信号把 20% 目标吃光。
+    #   🚨 **它零数据输入**（纯推导，读的全是仓内常量与已落盘产物）
+    #   ⇒ `stamp()` 默认那个 `master/daily` 的 `data_fp` 对它是**一枚假章**
+    #   （第 166 层：章指向它压根没读过的目录）⇒ 脚本用 `extra` 逐字声明
+    #   「`data_fp` 不适用」，并在产物正文里带这个声明。
+    "friction_sensitivity.json": "scripts/friction_sensitivity.py",
+    # ④ IC 序列**自相关**的半衰期（Kahn 1999 定义），用来回答「k=21 有没有物理机制」。
+    #   ⚠️ 🚨 **它不是「前瞻收益随持有期衰减的半衰期」**，两者不可互换：
+    #   前者是 IC 序列的 ρ(k) 降到 0.5 的 lag，后者要逐日重算 forward IC，
+    #   成本高一个量级且**结论方向可能不同**。
+    #   同理，`fundamental_ic` 用的 `[21,63]` 窗口**不能**与
+    #   `ic_matrices.parquet` 的 1 天前瞻窗口并列比较 ——
+    #   那不是同一个量（记忆 `ic-autocorrelation-is-not-halflife`）。
+    "ic_halflife.json": "scripts/measure_ic_halflife.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；

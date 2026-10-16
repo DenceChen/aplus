@@ -29,6 +29,10 @@ def _repo_root() -> Path:
 ROOT = _repo_root()
 sys.path.insert(0, str(ROOT))
 from aplus.hurdle import DAYS_PER_YEAR as R          # noqa: E402  244，唯一真相源
+from aplus import provenance                        # noqa: E402
+
+#: 自己的路径，写进溯源章 —— `code_file_sha256` 算的就是这份文件的字节。
+GENERATOR = "scripts/measure_basket_nav_01.py"
 
 ART = ROOT / "data/reports/wf_weights_backtest_k21.daily.parquet"
 CALIBER = ROOT / "data/reports/market_nav_caliber.json"
@@ -197,6 +201,11 @@ def judge(cc: float, MM: float, label: str) -> tuple[list[str], float]:
 
 
 def main() -> int:
+    # 🚨 第 125 层：盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节。
+    #   抓在**跑之前**（`main()` 第一行）；传 None 会让 stamp() **整项跳过**
+    #   字节检查而无人察觉（第 131 层的形态：关键字在、检查没跑）。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+
     df = pd.read_parquet(ART)
     cols = list(df.columns)
     print(f"产物 {ART.name}")
@@ -458,6 +467,19 @@ def main() -> int:
     }
     op = ROOT / "data/reports/basket_nav_01_2026-10-16.json"
     op.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 🚨 第 166 层：章必须盖在**本脚本真正读过的那两份字节**上，
+    #   而不是 stamp() 默认的 master/daily（5460 个文件，本脚本一个都没读）。
+    #   ⚠️ 落盘路径**写死在源码里**（文件名带 2026-10-16）⇒ 它同时是
+    #   `DEFAULT_GENERATORS` 里的一个键；换名要两处一起改，否则
+    #   `freshness()` 判「不在登记表里」= 不可引用。
+    provenance.stamp(
+        op, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        extra={
+            "source_daily_parquet": str(ART.relative_to(ROOT)),
+            "source_daily_parquet_sha256": hashlib.sha256(ART.read_bytes()).hexdigest(),
+            "source_caliber": str(CALIBER.relative_to(ROOT)),
+            "source_caliber_sha256": hashlib.sha256(CALIBER.read_bytes()).hexdigest(),
+        })
     print(f"\n→ {op.relative_to(ROOT)}")
     return 0
 

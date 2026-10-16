@@ -55,6 +55,7 @@ r"""测量 IC 半衰期 —— 判断 k（换仓周期）是否有物理机制�
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -65,6 +66,21 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 IC_PARQUET = ROOT / "data/reports/ic_matrices.parquet"
 OUT = ROOT / "data/reports/ic_halflife.json"
+
+#: 自己的路径，写进溯源章 —— `code_file_sha256` 算的就是这份文件的字节。
+GENERATOR = "scripts/measure_ic_halflife.py"
+
+#: 🚨 第 166 层：章里的 `data_fp` **不适用于本脚本**。
+#: `stamp()` 默认它算 `master/daily`（5460 个 parquet）的 `(文件数, 最大 mtime)`，
+#: 而本脚本读的是 `data/reports/ic_matrices.parquet` **一份**——
+#: `master/daily` 里一个都没读，而 `ic_matrices.parquet` **不在那个目录里**，
+#: 所以默认指纹与本脚本的真实输入**完全无关**。
+#: ⇒ 那不是一枚不精确的章，是一枚**指向它压根没读过的目录的假章**。
+#: ⇒ 真实输入的 sha256 由调用点写进 `extra`。
+DATA_FP_NOT_APPLICABLE = (
+    "data_fp 不适用：measure_ic_halflife.py 只读 data/reports/ic_matrices.parquet，"
+    "该文件不在 master/daily 下。默认指纹描述的是本脚本从未读过的目录。真实输入指纹见 source_ic_parquet_sha256。"
+)
 
 # 最大滞后：覆盖 k-sweep 全部五档（最大 63）并留余量。
 # 依据外部锚取 126 = 2 × 63，不是手打的"好看"数字。
@@ -169,6 +185,12 @@ def surrogate_control(series: np.ndarray, max_lag: int, n: int = 200) -> dict:
 def main() -> None:
     import sys
     sys.path.insert(0, str(ROOT))
+    from aplus import provenance
+
+    # 🚨 第 125 层：盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节。
+    #   抓在**读 IC_PARQUET 之前**。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+
     from aplus.evolve import DEFAULT_WEIGHTS, LIVE_REBALANCE_EVERY
 
     live_factors = list(DEFAULT_WEIGHTS)
@@ -245,6 +267,15 @@ def main() -> None:
     result["per_factor"] = per
 
     OUT.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # 🚨 第 166 层：章盖在本脚本真正读过的那份字节上（见 DATA_FP_NOT_APPLICABLE）。
+    provenance.stamp(
+        OUT, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        extra={
+            "data_fp_applicability": DATA_FP_NOT_APPLICABLE,
+            "source_ic_parquet": str(IC_PARQUET.relative_to(ROOT)),
+            "source_ic_parquet_sha256": hashlib.sha256(IC_PARQUET.read_bytes()).hexdigest(),
+        })
     print(f"→ {OUT.relative_to(ROOT)}")
     print(f"日期 {result['date_range'][0]} ~ {result['date_range'][1]}，{result['n_dates']} 个交易日")
     print("\ncomposite（生产 4 因子）")

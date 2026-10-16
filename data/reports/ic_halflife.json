@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T08:19:15",
+  "generated_at": "2026-10-16T11:01:00",
   "what_this_is": "IC 序列自相关半衰期（Kahn 1999 定义）；**不是**前瞻收益衰减半衰期",
   "source": "data/reports/ic_matrices.parquet",
   "source_window": "lag1_real = FWD_WINDOWS[(0,1)]（1 交易日前瞻）",

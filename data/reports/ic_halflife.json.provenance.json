@@ -1,0 +1,12 @@
+{
+  "code_sha": "cd3905cb913258ec605ff35bc2035256b70265aa",
+  "code_dirty": true,
+  "code_file_sha256": "654231181613eca1be565706b7c4bef68f4c82b79fa81ca812832106c382c504",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_ic_halflife.py",
+  "stamped_at": "2026-10-16T03:01:00+00:00",
+  "data_fp_applicability": "data_fp 不适用：measure_ic_halflife.py 只读 data/reports/ic_matrices.parquet，该文件不在 master/daily 下。默认指纹描述的是本脚本从未读过的目录。真实输入指纹见 source_ic_parquet_sha256。",
+  "source_ic_parquet": "data/reports/ic_matrices.parquet",
+  "source_ic_parquet_sha256": "3a529ad5c695a2250732361bdc0f3646a08820aea0053fff71a82d0de31adda5"
+}

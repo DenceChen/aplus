@@ -1,0 +1,106 @@
+{
+  "generated_at": "2026-10-16T11:00:59",
+  "question": "摩擦本身会不会先吃掉 20% 净收益目标",
+  "config": {
+    "capital": 50000.0,
+    "n_positions": 10,
+    "equity_weight": 1.0,
+    "position_role": "🚨 **D1 的「跌的 10 只」只能是回避清单，不是空头仓位。**两融开户门槛是 20 个交易日日均资产 50 万元，5 万账户**开不了信用账户**⇒ 从制度上就无从融券。`aplus/verify.py` 的实现与此一致（「跌腿不扣成本：它是我们没做过的仓位」）。",
+    "R_days_per_year": 244,
+    "LIVE_REBALANCE_EVERY": 21,
+    "rebalances_per_year_exact": 11.619048,
+    "rebalances_per_year_NOT_rounded_note": "round() 会得到 12，使摩擦虚高 3.28%。本文件全程用精确值。",
+    "commission_min_yuan": 5.0,
+    "commission_min_binds_below_yuan": 16666.666666666668,
+    "why_min_commission_matters": "5 万 ÷ 10 只 = 每只 5,000 元，远低于最低佣金咬住线 ¥16,667 ⇒ 单腿佣金按 ¥5 收，实际费率是名义费率的数倍。这是小资金的**主**成本来源，不是价差。"
+  },
+  "external_sources": {
+    "survey_date": "2026-10-16",
+    "numbers_bp_round_trip": {
+      "spread_or_slippage_low_smallcap": 40.0,
+      "spread_or_slippage_high_smallcap": 100.0,
+      "near_limit_up": 204.0
+    },
+    "source_grade": "⚠️ 中低。滑点区间来自券商投教/自媒体口径，**没有学术文献标定**。与 `SPREAD_ONE_WAY`（买卖价差）**是否重叠未经验证** ⇒ 不可相加（会双计），也不可直接替换（会漏计）。因此本文件只做敏感性，不产出「真实摩擦」。",
+    "limit_up_is_excluded_in_production": "`scripts/run_daily.py:500` 实盘名单已剔除「一字板 / 涨停收盘」⇒ 204bp 那档在生产里不会发生。此处保留只为量出它的量级。"
+  },
+  "sensitivity": [
+    {
+      "round_trip_spread_bp": 0.0,
+      "annual_friction_on_capital": 0.02928,
+      "annual_friction_on_equity": 0.02928,
+      "gross_needed_for_net_20pct": 0.22928,
+      "is_production": false,
+      "role": "无价差下界（纯费率+最低佣金）"
+    },
+    {
+      "round_trip_spread_bp": 15.0,
+      "annual_friction_on_capital": 0.046709,
+      "annual_friction_on_equity": 0.046709,
+      "gross_needed_for_net_20pct": 0.246709,
+      "is_production": false,
+      "role": "敏感性格线点"
+    },
+    {
+      "round_trip_spread_bp": 30.0,
+      "annual_friction_on_capital": 0.064137,
+      "annual_friction_on_equity": 0.064137,
+      "gross_needed_for_net_20pct": 0.264137,
+      "is_production": true,
+      "role": "生产口径"
+    },
+    {
+      "round_trip_spread_bp": 40.0,
+      "annual_friction_on_capital": 0.075756,
+      "annual_friction_on_equity": 0.075756,
+      "gross_needed_for_net_20pct": 0.275756,
+      "is_production": false,
+      "role": "⚠️ 外部对照臂（2026-10-16 调研给出的滑点区间，非实测）"
+    },
+    {
+      "round_trip_spread_bp": 60.0,
+      "annual_friction_on_capital": 0.098994,
+      "annual_friction_on_equity": 0.098994,
+      "gross_needed_for_net_20pct": 0.298994,
+      "is_production": false,
+      "role": "敏感性格线点"
+    },
+    {
+      "round_trip_spread_bp": 100.0,
+      "annual_friction_on_capital": 0.14547,
+      "annual_friction_on_equity": 0.14547,
+      "gross_needed_for_net_20pct": 0.34547,
+      "is_production": false,
+      "role": "⚠️ 外部对照臂（2026-10-16 调研给出的滑点区间，非实测）"
+    },
+    {
+      "round_trip_spread_bp": 147.0,
+      "annual_friction_on_capital": 0.20008,
+      "annual_friction_on_equity": 0.20008,
+      "gross_needed_for_net_20pct": 0.40008,
+      "is_production": false,
+      "role": "敏感性格线点"
+    },
+    {
+      "round_trip_spread_bp": 204.0,
+      "annual_friction_on_capital": 0.266309,
+      "annual_friction_on_equity": 0.266309,
+      "gross_needed_for_net_20pct": 0.466309,
+      "is_production": false,
+      "role": "⚠️ 外部对照臂（2026-10-16 调研给出的滑点区间，非实测）"
+    }
+  ],
+  "breakeven": {
+    "definition": "使年化摩擦恰好等于 20% 的往返价差 bp",
+    "round_trip_spread_bp": 146.931,
+    "production_bp": 30.0,
+    "headroom_multiple": 4.9,
+    "reading": "生产口径往返 30bp ⇒ 摩擦 6.41%，毛须给出 26.41%。摩擦吃光 20% 目标的临界价差是 147bp，即生产假设有 **4.9 倍**余量。"
+  },
+  "what_this_does_not_say": {
+    "does_not_say_real_friction": "本文件不给「真实摩擦是多少」。真实值需要实测滑点，本文件没有实测。敏感性表的每一行都是一个**假设**，不是一个测量。",
+    "does_not_change_costs_py": "生产 `SPREAD_ONE_WAY` 保持 0.0015 不变。改它属于改判据臂，须另起预注册；本文件只登记外部区间，不动生产。",
+    "does_not_change_D2_verdict": "不改判决档、不改 TARGET、不改任何预注册阈值",
+    "contradiction_policy": "与本文件结论相反时，只加对照臂，不改判据臂"
+  }
+}
