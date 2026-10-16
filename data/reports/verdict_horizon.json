@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-10-16T08:30:15",
+  "question": "判决 |c|<M 是「还没攒够数据」还是「结构上不可能」",
+  "source_artifact": "data/reports/basket_nav_01_2026-10-16.json",
+  "source_daily": "data/reports/wf_weights_backtest_k21.daily.parquet",
+  "leg": "net_excess_bt003（① 判决档）",
+  "target_annual": 0.2,
+  "R_days_per_year": 244,
+  "criterion_A_bitwise_readback": {
+    "MDE_from_daily": 0.22673751360772554,
+    "MDE_in_artifact": 0.22673751360772554,
+    "bitwise_equal": true,
+    "rule": "不相等即抛错退出，不出结论"
+  },
+  "criterion_B_iid_holds": {
+    "preregistered_wording_verbatim": "若折损显著 ⇒ **MDE 可能被高估**，此时读法甲有部分成立，判据不适用。",
+    "preregistered_wording_is_wrong_about_direction": "🚨 预注册这句把方向写反了，2026-10-16 实测发现。自相关修正把有效样本量**调小**（n_eff < n）⇒ MDE **调大**，不是调小 ⇒ 方向是「MDE 被**低估**」。🚨 保留原措辞不删：它是判据臂的一部分，删掉就变成「看到不利结论后改判据」。本条只登记实测方向，**不删不改**预注册原文。",
+    "acf_lag1_to_5": [
+      0.02123,
+      0.043966,
+      -0.031905,
+      0.018108,
+      0.009513
+    ],
+    "acf_se_approx": 0.026774,
+    "acf_all_insignificant": true,
+    "n_eff_newey_west": 1294.9,
+    "shrink": 0.07179,
+    "tolerance": 0.002,
+    "holds": false,
+    "MDE_newey_west": 0.235342,
+    "direction_actually_observed": "MDE_newey_west > MDE_iid ⇒ 自相关让 MDE **更大**",
+    "control_arm_role": "⚠️ 对照臂，非判决臂。判决仍用产物原口径 iid。本臂只用于回答「自相关会不会把结论救回来」，而实测方向是**加重**不是减轻。"
+  },
+  "criterion_C_horizon": {
+    "c": 0.10556283216930074,
+    "MDE": 0.22673751360772554,
+    "abs_c_over_M": 0.4655728577492169,
+    "n_now": 1395,
+    "years_now": 5.717213,
+    "to_determine_sign": {
+      "n_required": 6436,
+      "years_required": 26.37704918032787,
+      "multiple_of_now": 4.613620071684588
+    },
+    "to_determine_unreachable": {
+      "M_needed": 0.09443716783069928,
+      "n_required": 8041,
+      "years_required": 32.954918032786885,
+      "multiple_of_now": 5.76415770609319
+    },
+    "control_arm_newey_west_horizon": {
+      "role": "⚠️ 对照臂（非判决）",
+      "MDE": 0.235342,
+      "n_required": 6933,
+      "years_required": 28.41393442622951,
+      "multiple_of_now": 4.969892473118279,
+      "reading": "自相关口径**加重**结论，不是减轻"
+    }
+  },
+  "what_this_is_not": {
+    "does_not_change_judge": true,
+    "does_not_change_target": true,
+    "does_not_suggest_a_different_formula": "本文件只算「当前公式要多少样本」。该不该换公式是判据臂重写，须另起预注册；此处提出即视为越权。",
+    "contradiction_policy": "与本文件结论相反时，只加对照臂，不改判据臂"
+  },
+  "reading": "c=+10.5563%，M=+22.6738%/年，|c|/M=0.466（<1 ⇒ 连符号都定不了，这与产物判决一致）。\n要翻转成「符号可判」需 n×4.6 = 26.4 年数据，而现有 5.72 年。\n要判成「不可达」需 33.0 年。\n对照臂（Newey-West，非判决）：自相关让 MDE 变大 → M=+23.5342%/年，需 28.4 年，即**加重**结论。\n⚠️ 预注册 B 的后果陈述把方向写反了（原文保留未删，见产物 preregistered_wording_verbatim）。"
+}
