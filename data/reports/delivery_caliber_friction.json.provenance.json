@@ -1,0 +1,11 @@
+{
+  "code_sha": "f0493323a7d2e3372c315924a829cd795a7f3514",
+  "code_dirty": true,
+  "code_file_sha256": "96f75a11455587c04c8db152ef41a3118a3d1d5df5ac8bb5f2b7f8655b0e0029",
+  "data_fp": "5460:1792149148.049984",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_delivery_caliber_friction.py",
+  "stamped_at": "2026-10-16T16:50:42+00:00",
+  "verification_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
+  "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037"
+}

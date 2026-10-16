@@ -440,6 +440,10 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   实测 6 个 `pred_date` 只对应 4 个 `entry_date`，10-09/10-10/10-11
     #   三天的单**全部 entry 到 2026-10-12** ⇒ 持有同一批 bar ⇒ 不是 3 个观测。
     "forward_d2_verdict.json": "scripts/forward_d2_verdict.py",
+    #   D1 的**真实交付形态**（次日买、次日卖、5 万、10 只）下的年摩擦判决。
+    #   🚨 它与仓里其余全部 D2 读数**不是同一个量**：那些出自 K=21 回测，
+    #   而本项量的是**日频**形态的**成本算术**（不需要 MDE，见预注册 §3 D1）。
+    "delivery_caliber_friction.json": "scripts/measure_delivery_caliber_friction.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；

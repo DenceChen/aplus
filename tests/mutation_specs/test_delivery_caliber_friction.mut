@@ -1,0 +1,47 @@
+F1 单边换手被乘 2	scripts/measure_delivery_caliber_friction.py
+rpy = DAYS_PER_YEAR * turnover
+=== 变异体 ===
+rpy = DAYS_PER_YEAR * 2 * turnover
+
+F2 判决臂写死满换手	scripts/measure_delivery_caliber_friction.py
+turn["turnover_min_measured"], fee)
+=== 变异体 ===
+1.0, fee)
+
+F3 年化常数取错另一套	scripts/measure_delivery_caliber_friction.py
+from aplus.hurdle import DAYS_PER_YEAR
+=== 变异体 ===
+from aplus.costs import TRADING_DAYS_PER_YEAR as DAYS_PER_YEAR
+
+F4 判决取点估计而非区间下端	scripts/measure_delivery_caliber_friction.py
+verdict, verdict_text = judge(at_min["annual_friction_pct_of_capital"])
+=== 变异体 ===
+verdict, verdict_text = judge(at_point["annual_friction_pct_of_capital"])
+
+F5 名数写成 5	scripts/measure_delivery_caliber_friction.py
+N_POSITIONS = 10
+=== 变异体 ===
+N_POSITIONS = 5
+
+F6 判决边界 >= 写成 >	scripts/measure_delivery_caliber_friction.py
+if friction_min >= net_target:
+=== 变异体 ===
+if friction_min > net_target:
+
+F7 跌腿不过滤	scripts/measure_delivery_caliber_friction.py
+leg = rows[rows["direction"] == "up"]
+=== 变异体 ===
+leg = rows
+
+F8 首个 entry_date 参与换手	scripts/measure_delivery_caliber_friction.py
+if prev is None:
+            prev = cur
+            continue
+=== 变异体 ===
+if prev is None:
+            prev = cur
+
+F9 measure 调用点名数少 5	scripts/measure_delivery_caliber_friction.py
+at_min = friction_at(CAPITAL, EQUITY_WEIGHT, N_POSITIONS,
+=== 变异体 ===
+at_min = friction_at(CAPITAL, EQUITY_WEIGHT, N_POSITIONS - 5,

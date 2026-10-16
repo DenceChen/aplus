@@ -1,0 +1,141 @@
+{
+  "config": {
+    "capital": 50000.0,
+    "n_positions": 10,
+    "equity_weight": 1.0,
+    "net_target": 0.2,
+    "days_per_year": 244,
+    "days_per_year_source": "aplus.hurdle.DAYS_PER_YEAR"
+  },
+  "fee_schedule": {
+    "commission_rate": 0.0003,
+    "commission_min": 5.0,
+    "stamp_duty_sell": 0.0005,
+    "transfer_fee": 1e-05,
+    "spread_one_way": 0.0015,
+    "commission_min_binds_below": 16666.666666666668
+  },
+  "mechanism": {
+    "notional_per_position": 5000.0,
+    "effective_commission_rate": 0.001,
+    "note": "单笔名义额 < 最低佣金阈值 ⇒ 每笔吃满 ¥5 固定额，实际费率是名义费率的数倍；这是「5 万 + 10 只 + 日频」的联合后果"
+  },
+  "turnover": {
+    "observation_unit": "entry_date",
+    "why_not_pred_date": "6 个 pred_date 只对应 4 个 entry_date；按 pred_date 相邻对算会把没有产生成交的配对算进去",
+    "n_pred_dates": 6,
+    "n_entry_dates": 4,
+    "n_rebalances": 3,
+    "basket_size_per_rebalance": 10,
+    "per_rebalance": [
+      {
+        "entry_date": "2026-10-13",
+        "held": 10,
+        "kept": 4,
+        "bought": 6,
+        "one_side_turnover": 0.6
+      },
+      {
+        "entry_date": "2026-10-14",
+        "held": 10,
+        "kept": 4,
+        "bought": 6,
+        "one_side_turnover": 0.6
+      },
+      {
+        "entry_date": "2026-10-15",
+        "held": 10,
+        "kept": 0,
+        "bought": 10,
+        "one_side_turnover": 1.0
+      }
+    ],
+    "turnover_point_estimate": 0.7333333333333334,
+    "turnover_min_measured": 0.6,
+    "turnover_max_measured": 1.0
+  },
+  "friction_by_turnover": {
+    "at_measured_min": {
+      "one_side_turnover": 0.6,
+      "rebalances_per_year": 146.4,
+      "annual_friction_pct_of_capital": 0.8081280000000001,
+      "gross_excess_needed_pct_of_equity": 1.0081280000000001,
+      "role": "判决臂（区间下端）"
+    },
+    "at_point_estimate": {
+      "one_side_turnover": 0.7333333333333334,
+      "rebalances_per_year": 178.93333333333334,
+      "annual_friction_pct_of_capital": 0.9877119999999999,
+      "gross_excess_needed_pct_of_equity": 1.1877119999999999,
+      "role": "点估计·不进判决"
+    },
+    "at_measured_max": {
+      "one_side_turnover": 1.0,
+      "rebalances_per_year": 244.0,
+      "annual_friction_pct_of_capital": 1.34688,
+      "gross_excess_needed_pct_of_equity": 1.54688,
+      "role": "对照臂（区间上端）"
+    },
+    "at_full_turnover": {
+      "one_side_turnover": 1.0,
+      "rebalances_per_year": 244.0,
+      "annual_friction_pct_of_capital": 1.34688,
+      "gross_excess_needed_pct_of_equity": 1.54688,
+      "role": "对照臂（假设 10 只全换）"
+    }
+  },
+  "required_turnover_for_target": 0.14849132810643859,
+  "verdict": "SINGLE_SIDED_UNREACHABLE",
+  "verdict_text": "即便取实测最省的一档，年摩擦 80.81% 仍 ≥ 目标 20% ⇒ 交付形态单边不可达",
+  "verdict_rule": "预注册 §3 D2 三档，顺序即判据；入参取实测换手区间的**下端**（D3）",
+  "caliber": {
+    "no_mde_needed": "🚨 本判决**不需要 MDE**：摩擦是已公布费率的确定性算术，换手是底稿计数，两者都不含随机成分 ⇒ 没有「样本量不足」这一格",
+    "deterministic_is_not_reliable": "⚠️ 确定性 ≠ 可靠：失效模式是费率表错或换手测错，那两件事由守卫钉，不靠样本量兜底",
+    "recommend_daily_is_not_trade_daily": "「每天推荐」≠「每天交易」：推荐可每日，持仓周期必须拉长。K=21 下同一只票的年摩擦是日频口径的 1/21",
+    "turnover_is_a_point_estimate": "换手点估计基于 3 次调仓，按 §3 D3 不进判决；判决只用实测区间",
+    "two_denominators": "annual_friction_pct_of_capital 与 gross_excess_needed_pct_of_equity 🚨 **分母不同**，不得相除或并列成同一个「%」"
+  },
+  "what_this_cannot_prove": [
+    "本产物**不回答**「策略毛超额能不能到 154%」——那是另一个量，且仓里实测多头毛超额天花板约 11%/年",
+    "本产物**不回答**「K=21 能不能到 20%」——K=21 是另一个口径，其摩擦单列（见 friction_by_holding_period）",
+    "换手只有 3 次调仓的样本 ⇒ 点估计不可引用，只支持「区间下端已超过目标」这一个**形状**陈述"
+  ],
+  "friction_by_holding_period": {
+    "K=1": {
+      "rebalances_per_year": 244.0,
+      "annual_friction_pct_of_capital": 1.34688,
+      "gross_excess_needed_pct_of_equity": 1.54688,
+      "role": "对照臂·非判决"
+    },
+    "K=5": {
+      "rebalances_per_year": 48.8,
+      "annual_friction_pct_of_capital": 0.269376,
+      "gross_excess_needed_pct_of_equity": 0.469376,
+      "role": "对照臂·非判决"
+    },
+    "K=10": {
+      "rebalances_per_year": 24.4,
+      "annual_friction_pct_of_capital": 0.134688,
+      "gross_excess_needed_pct_of_equity": 0.334688,
+      "role": "对照臂·非判决"
+    },
+    "K=21": {
+      "rebalances_per_year": 11.619047619047619,
+      "annual_friction_pct_of_capital": 0.06413714285714285,
+      "gross_excess_needed_pct_of_equity": 0.26413714285714285,
+      "role": "对照臂·非判决"
+    },
+    "K=42": {
+      "rebalances_per_year": 5.809523809523809,
+      "annual_friction_pct_of_capital": 0.032068571428571425,
+      "gross_excess_needed_pct_of_equity": 0.23206857142857143,
+      "role": "对照臂·非判决"
+    },
+    "K=63": {
+      "rebalances_per_year": 3.873015873015873,
+      "annual_friction_pct_of_capital": 0.02137904761904762,
+      "gross_excess_needed_pct_of_equity": 0.22137904761904764,
+      "role": "对照臂·非判决"
+    }
+  }
+}
