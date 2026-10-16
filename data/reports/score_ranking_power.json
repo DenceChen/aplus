@@ -6,16 +6,16 @@
   "by_score_col": {
     "score": {
       "score_col": "score",
-      "n_rows_total": 100,
-      "n_rows_judgeable": 96,
+      "n_rows_total": 120,
+      "n_rows_judgeable": 116,
       "n_rows_dropped_undecidable": 4,
       "dropped_breakdown": {
         "flat": 3,
         "no_data": 1
       },
       "n_rows_score_missing": 0,
-      "n_rows_scored": 96,
-      "n_independent_pred_dates": 5,
+      "n_rows_scored": 116,
+      "n_independent_pred_dates": 6,
       "independent_unit": "pred_date（一天一个独立事件；条目数不是独立观测数）",
       "quartile_rule": "组内（pred_date × direction）按 score 名次切 4 段",
       "quartile_sizes_at_n10": {
@@ -28,63 +28,63 @@
       "arms": {
         "down": {
           "Q1": {
-            "n": 14,
-            "hit_rate": 0.5714285714285714
+            "n": 17,
+            "hit_rate": 0.5882352941176471
           },
           "Q2": {
-            "n": 10,
-            "hit_rate": 0.6
+            "n": 12,
+            "hit_rate": 0.5833333333333334
           },
           "Q3": {
-            "n": 14,
-            "hit_rate": 0.5714285714285714
+            "n": 17,
+            "hit_rate": 0.47058823529411764
           },
           "Q4": {
-            "n": 9,
-            "hit_rate": 0.4444444444444444
+            "n": 11,
+            "hit_rate": 0.5454545454545454
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.5714285714285714,
-              0.6,
-              0.5714285714285714,
-              0.4444444444444444
+              0.5882352941176471,
+              0.5833333333333334,
+              0.47058823529411764,
+              0.5454545454545454
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.46713737443443404,
-            "permutation_p_two_sided": 0.8188090595470227,
-            "null_abs_rho_q95_power_floor": 0.5448222906956628,
+            "point_biserial_rho": -0.022900512019038127,
+            "permutation_p_two_sided": 0.5470226488675566,
+            "null_abs_rho_q95_power_floor": 0.06898822396247543,
             "detectable_at_alpha05": false
           }
         },
         "up": {
           "Q1": {
-            "n": 15,
-            "hit_rate": 0.6666666666666666
+            "n": 18,
+            "hit_rate": 0.6111111111111112
           },
           "Q2": {
-            "n": 10,
-            "hit_rate": 0.4
+            "n": 12,
+            "hit_rate": 0.3333333333333333
           },
           "Q3": {
-            "n": 14,
-            "hit_rate": 0.2857142857142857
+            "n": 17,
+            "hit_rate": 0.29411764705882354
           },
           "Q4": {
-            "n": 10,
-            "hit_rate": 0.6
+            "n": 12,
+            "hit_rate": 0.6666666666666666
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.6666666666666666,
-              0.4,
-              0.2857142857142857,
-              0.6
+              0.6111111111111112,
+              0.3333333333333333,
+              0.29411764705882354,
+              0.6666666666666666
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.11711969392302517,
-            "permutation_p_two_sided": 0.4871256437178141,
-            "null_abs_rho_q95_power_floor": 0.2943853973896465,
+            "point_biserial_rho": -0.08624019386268826,
+            "permutation_p_two_sided": 0.5032248387580621,
+            "null_abs_rho_q95_power_floor": 0.2347996969293442,
             "detectable_at_alpha05": false
           }
         }
@@ -101,16 +101,16 @@
     },
     "adjusted_score": {
       "score_col": "adjusted_score",
-      "n_rows_total": 100,
-      "n_rows_judgeable": 96,
+      "n_rows_total": 120,
+      "n_rows_judgeable": 116,
       "n_rows_dropped_undecidable": 4,
       "dropped_breakdown": {
         "flat": 3,
         "no_data": 1
       },
-      "n_rows_score_missing": 66,
-      "n_rows_scored": 30,
-      "n_independent_pred_dates": 5,
+      "n_rows_score_missing": 76,
+      "n_rows_scored": 40,
+      "n_independent_pred_dates": 6,
       "independent_unit": "pred_date（一天一个独立事件；条目数不是独立观测数）",
       "quartile_rule": "组内（pred_date × direction）按 score 名次切 4 段",
       "quartile_sizes_at_n10": {
@@ -120,36 +120,36 @@
         "Q4": 2
       },
       "quartile_sizes_note": "四分位按名次取整分段，**段大小不均**（n=10 → 3/2/3/2）。这是「组内排名分段的必然」而不是缺陷：只有 n % 4 == 0 才均衡。⇒ 各段命中率的样本量不同，**跨段比较必须读 n**；G4 判的是**单调性**而非段间差值，故不受段大小影响。",
-      "score_missing_note": "⚠️ `adjusted_score` 有 66/96 条可判定记录**缺分数** ⇒ 本口径只用 30 条。引用本口径的任何结论都只能带这个分母。",
+      "score_missing_note": "⚠️ `adjusted_score` 有 76/116 条可判定记录**缺分数** ⇒ 本口径只用 40 条。引用本口径的任何结论都只能带这个分母。",
       "arms": {
         "up": {
           "Q1": {
-            "n": 9,
-            "hit_rate": 0.7777777777777778
+            "n": 12,
+            "hit_rate": 0.6666666666666666
           },
           "Q2": {
-            "n": 6,
-            "hit_rate": 0.16666666666666666
+            "n": 8,
+            "hit_rate": 0.25
           },
           "Q3": {
-            "n": 9,
-            "hit_rate": 0.2222222222222222
+            "n": 12,
+            "hit_rate": 0.3333333333333333
           },
           "Q4": {
-            "n": 6,
-            "hit_rate": 0.3333333333333333
+            "n": 8,
+            "hit_rate": 0.25
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.7777777777777778,
-              0.16666666666666666,
-              0.2222222222222222,
-              0.3333333333333333
+              0.6666666666666666,
+              0.25,
+              0.3333333333333333,
+              0.25
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": 0.29014842281297304,
-            "permutation_p_two_sided": 0.12369381530923454,
-            "null_abs_rho_q95_power_floor": 0.3705206163369686,
+            "point_biserial_rho": 0.12475609149052072,
+            "permutation_p_two_sided": 0.20913954302284885,
+            "null_abs_rho_q95_power_floor": 0.19512549399597157,
             "detectable_at_alpha05": false
           }
         }
@@ -166,11 +166,11 @@
     }
   },
   "verdict": "NOT_PASSED_POWERLESS",
-  "verdict_reason": "闸门臂 up：四分位不单调；点二列 ρ=-0.1171，置换 p=0.4871，零分布 95 分位（检出力下限）= 0.2944 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许发布，先攒前瞻期；down 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）单调=False ρ=-0.4671 检出力下限=0.5448",
+  "verdict_reason": "闸门臂 up：四分位不单调；点二列 ρ=-0.0862，置换 p=0.5032，零分布 95 分位（检出力下限）= 0.2348 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许发布，先攒前瞻期；down 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）单调=False ρ=-0.0229 检出力下限=0.0690",
   "publish_allowed": false,
   "what_this_cannot_prove": [
-    "**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——n=5 个独立预测日，任何形状都极易出现，包括真的单调的那种；「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
-    "**不能**用条目数 100 当独立观测数 —— 它是 5 日 × 每臂 10 只",
+    "**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——n=6 个独立预测日，任何形状都极易出现，包括真的单调的那种；「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
+    "**不能**用条目数 120 当独立观测数 —— 它是 6 日 × 每臂 10 只",
     "本脚本只测 G4 一个判据；G1/G2/G3/G5/G6 未测 ⇒ 即使 G4 通过也**不许**据此发布"
   ]
 }

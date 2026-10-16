@@ -1,6 +1,6 @@
 {
-  "as_of": "2026-10-15",
-  "days_since_rebalance": 0,
+  "as_of": "2026-10-16",
+  "days_since_rebalance": 1,
   "every": 21,
   "buffer_multiple": null,
   "up": [

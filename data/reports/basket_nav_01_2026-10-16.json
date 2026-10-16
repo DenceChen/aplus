@@ -107,17 +107,17 @@
   },
   "excess_contribution_ratio": {
     "bt003": {
-      "annual_pct": 0.0009669115895649671,
+      "annual_pct": 0.005540661671463498,
       "mde_of_the_underlying_excess_leg": 0.1070713548542588,
       "excess_leg_key": "净超额@bt003",
-      "abs_over_mde": 0.009030534739016688,
+      "abs_over_mde": 0.051747376121327904,
       "sign_determinable": false
     },
     "real": {
-      "annual_pct": -0.00403287126313534,
+      "annual_pct": -0.022838561811788227,
       "mde_of_the_underlying_excess_leg": 0.10765191398990842,
       "excess_leg_key": "净超额@real",
-      "abs_over_mde": 0.03746214176473808,
+      "abs_over_mde": 0.21215193455760736,
       "sign_determinable": false
     }
   },
@@ -128,20 +128,20 @@
       "role": "判决臂",
       "c_mkt_fraction": 0.09947103514598311,
       "c_mkt_source": "market_nav_caliber.json:equal_weight.geometric_annual_pct / 100.0",
-      "required_excess_annual": 0.01542102069416118,
+      "required_excess_annual": 0.09143393653900955,
       "required_is_annualized": true,
       "neither_side_is_a_point_estimate": true,
       "per_combo": {
         "bt003": {
-          "measured_excess_annual": 0.0009669115895649671,
-          "measured_over_required": 0.06270088139697953,
-          "measured_abs_over_mde": 0.009030534739016688,
+          "measured_excess_annual": 0.005540661671463498,
+          "measured_over_required": 0.06059743112011391,
+          "measured_abs_over_mde": 0.051747376121327904,
           "measured_sign_determinable": false
         },
         "real": {
-          "measured_excess_annual": -0.00403287126313534,
-          "measured_over_required": -0.26151779075572446,
-          "measured_abs_over_mde": 0.03746214176473808,
+          "measured_excess_annual": -0.022838561811788227,
+          "measured_over_required": -0.2497821123784202,
+          "measured_abs_over_mde": 0.21215193455760736,
           "measured_sign_determinable": false
         }
       }
@@ -151,20 +151,20 @@
       "role": "⚠️ 敏感性臂（非判决）",
       "c_mkt_fraction": 0.01808663656249898,
       "c_mkt_source": "market_nav_caliber.json:cap_weight.geometric_annual_pct / 100.0",
-      "required_excess_annual": 0.029172070320555354,
+      "required_excess_annual": 0.17868161402424376,
       "required_is_annualized": true,
       "neither_side_is_a_point_estimate": true,
       "per_combo": {
         "bt003": {
-          "measured_excess_annual": 0.014522220564985755,
-          "measured_over_required": 0.4978124762969957,
-          "measured_abs_over_mde": 0.13563123941742228,
+          "measured_excess_annual": 0.08592215285543792,
+          "measured_over_required": 0.48086734230965633,
+          "measured_abs_over_mde": 0.8024756291950511,
           "measured_sign_determinable": false
         },
         "real": {
-          "measured_excess_annual": 0.009454729578686205,
-          "measured_over_required": 0.3241021111903796,
-          "measured_abs_over_mde": 0.08782685999965144,
+          "measured_excess_annual": 0.055274334586138396,
+          "measured_over_required": 0.309345395652396,
+          "measured_abs_over_mde": 0.5134542669749463,
           "measured_sign_determinable": false
         }
       }

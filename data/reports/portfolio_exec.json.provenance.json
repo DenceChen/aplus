@@ -1,11 +1,11 @@
 {
-  "code_sha": "2d43b35526b0f3050afdcadd2c1fa31fad0bd788",
+  "code_sha": "b82be9dc3086761dd44c8155f11f4eae7d9753cb",
   "code_dirty": true,
   "code_file_sha256": "5ee8de8a8007d5f2f18a8fac28f429e24d82a36223d34a77a476c44e03548730",
-  "data_fp": "5460:1792062762.291641",
+  "data_fp": "5460:1792149148.049984",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_portfolio_exec.py",
-  "stamped_at": "2026-10-16T09:10:31+00:00",
-  "source_parquet_sha256": "77c3fb47acace17af9f87415284df6b0d863d86d8daef1e24c051529198c9ea8",
-  "n_days_measured": 3
+  "stamped_at": "2026-10-16T11:27:50+00:00",
+  "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037",
+  "n_days_measured": 4
 }

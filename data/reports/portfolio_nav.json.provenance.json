@@ -1,14 +1,14 @@
 {
-  "code_sha": "2d43b35526b0f3050afdcadd2c1fa31fad0bd788",
+  "code_sha": "b82be9dc3086761dd44c8155f11f4eae7d9753cb",
   "code_dirty": true,
   "code_file_sha256": "79bb7e48133c45674dacd28c96654bedf0c99a68b3b100ad718e7001ea9e5cb7",
-  "data_fp": "5460:1792062762.291641",
+  "data_fp": "5460:1792149148.049984",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_portfolio_nav.py",
-  "stamped_at": "2026-10-16T09:10:30+00:00",
+  "stamped_at": "2026-10-16T11:27:42+00:00",
   "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
-  "source_parquet_sha256": "77c3fb47acace17af9f87415284df6b0d863d86d8daef1e24c051529198c9ea8",
+  "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037",
   "diagnosis": "/Users/airboom/opencode/aplus/data/reports/hit_rate_diagnosis.json",
-  "diagnosis_sha256": "a894b59296fb22843c90fb00a040714cb3fe91f2f7aac8e4ba15a9800c39b01d",
-  "n_days_measured": 3
+  "diagnosis_sha256": "1b2c9a189535db328a40049edf1cfef054c927af9e46dd388776190a200a3c31",
+  "n_days_measured": 4
 }
