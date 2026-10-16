@@ -1,0 +1,73 @@
+M1 D4 的基线复核格从 k=0 滑到 k=1（拿没量过的那格去和生产对账）	scripts/bench_seed_sweep.py
+base = c_mkt_by_k.get(0)
+=== 变异体 ===
+base = c_mkt_by_k.get(1)
+
+M2 D4 的逐位比较右端写成自己（两台测量仪之间的差永远查不出来，第 22 层）	scripts/bench_seed_sweep.py
+"k0_matches_artifact_bitwise": bool(base == artifact_as_fraction),
+=== 变异体 ===
+"k0_matches_artifact_bitwise": bool(base == base),
+
+M3 D4 的「种子被忽略」判定恒真（真换了票群也会喊停止）	scripts/bench_seed_sweep.py
+"all_identical_across_k": len(distinct) == 1,
+=== 变异体 ===
+"all_identical_across_k": True,
+
+M4 缺档检测反了（缺的日子变成现存的日子，缺一天照算不误）	scripts/bench_seed_sweep.py
+missing = [d for d in dates if d not in series]
+=== 变异体 ===
+missing = [d for d in dates if d in series]
+
+M5 窗口长度少算一天（年化的分母比终值小一格）	scripts/bench_seed_sweep.py
+n = len(dates)
+=== 变异体 ===
+n = len(dates) - 1
+
+M6 年化调用点把交易日数乘了 244（打**用点**不打定义点：定义点在字节冻结的 market_nav_caliber.py 里）	scripts/bench_seed_sweep.py
+g = _annualized_compound(mult, n)
+=== 变异体 ===
+g = _annualized_compound(mult, n * 244)
+
+M7 D2 的越线判定写成严格大于（恰好等于 MDE 那一格被静默判成测不出）	scripts/bench_seed_sweep.py
+ge1 = sorted(k for k, r in ratios.items() if r >= 1.0)
+=== 变异体 ===
+ge1 = sorted(k for k, r in ratios.items() if r > 1.0)
+
+M8 D1 的 holds 写死 True（代数必然被旁路，判决与目标脱钩）	scripts/bench_seed_sweep.py
+holds = c_mkts[max_k] < target
+=== 变异体 ===
+holds = True
+
+M9 D1 的年化无定义拒绝条件放宽成「任何负 c_mkt」（把合法的负收益全拒掉）	scripts/bench_seed_sweep.py
+rejected = sorted(k for k, c in c_mkts.items() if 1.0 + c <= 0.0)
+=== 变异体 ===
+rejected = sorted(k for k, c in c_mkts.items() if c < 0.0)
+
+M10 D2 的比值去掉 abs（MDE 的定义是 |c|，去掉它就成单边读数，第 119 层）	scripts/bench_seed_sweep.py
+ratios = {k: abs(c) / m_mkt for k, c in c_mkts.items()}
+=== 变异体 ===
+ratios = {k: c / m_mkt for k, c in c_mkts.items()}
+
+M11 键顺序指纹改成排序序（换顺序抽到不同票这件事被藏起来，第 22 层）	scripts/bench_seed_sweep.py
+for k in daily_map:                       # 按**插入序**，不是排序序
+        h.update(str(k).encode("utf-8"))
+        h.update(b"\x00")
+=== 变异体 ===
+for k in sorted(daily_map):                       # 按**插入序**，不是排序序
+        h.update(str(k).encode("utf-8"))
+        h.update(b"\x00")
+
+M12 判决臂被换成敏感性臂（被诊断的对象整个换掉，判决可能一字不变，第 183 层）	scripts/bench_seed_sweep.py
+verdict_arm = VERDICT_BENCH_ARM                     # 「equal_weight」
+=== 变异体 ===
+verdict_arm = "cap_weight"                     # 「equal_weight」
+
+M13 在本文件里第二次做量纲换算（改 CALIBER_PCT_SCALE 会静默地只换一半，第 182 层）	scripts/bench_seed_sweep.py
+c_mkt_verdict = caliber_benchmark_fraction(cal, verdict_arm)   # arm 显式传，无默认值
+=== 变异体 ===
+c_mkt_verdict = caliber_benchmark_fraction(cal, verdict_arm) / CALIBER_PCT_SCALE   # arm 显式传，无默认值
+
+M14 接线把年化年数挪了一位（实参传错，D1 的逐格恒等式全部对不上）	scripts/bench_seed_sweep.py
+req = {k: required_excess(target, c_mkts[k], yrs) for k in sorted(c_mkts)}
+=== 变异体 ===
+req = {k: required_excess(target, c_mkts[k], yrs + 1) for k in sorted(c_mkts)}

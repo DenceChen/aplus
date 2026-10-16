@@ -19,6 +19,60 @@ from .verify import verify_predictions
 
 MARKET_SAMPLE = 150  # 市场平均收益的抽样规模
 
+# 市场基准抽样的**唯一种子**（2026-10-16 从 `_market_by_day` 内联字面量提上来）。
+#
+# 🚨 为什么提上来：它此前有**三份副本**，且**三份的查找方式互不相同**——
+#   ① 本文件 `_market_by_day` 里的**内联字面量** `Random(42)`（真抽样器）；
+#   ② `scripts/market_benchmark_audit.py::MARKET_SEED = 42` —— 一份
+#      **有意的第二份抽样实现**（`list(daily_map)` + `rng.sample`，为拿同一批票做配对）；
+#   ③ `scripts/market_nav_caliber.py` 产物里的 `sample.seed` **自报字段**。
+# ⚠️ **「三份」这个数差点被我写成「两份」**：我 grep `Random(42)` 零命中就下了结论，
+#   而 ② 的字面量长在 `Random(MARKET_SEED)` 里 ⇒ **grep 空了 ≠ 不存在**
+#   （[[found-is-not-found-right]] 的镜像）。
+#   ⇒ 副本要靠**「它是干什么的」**去找，不靠**「它长什么样」**去找。
+#
+# 🚨 而「产物说自己用了哪个种子」与「代码真的用了哪个种子」之间**没有任何守卫**
+#   ⇒ 改一边，那边的自报字段就成了**假 provenance**（第 182 层同族：
+#   守卫钉住了生产者，消费者一侧无人负责）。
+#
+# ⇒ 守卫：`tests/test_benchmark_seed_single_source.py`。
+# ⚠️ **守卫的形状是被实测逼出来的，不是我想出来的**：
+#   我第一版写的是「全仓不许出现 `Random(42)` 之类的种子字面量」——
+#   而全仓另有 **5 处与基准种子无关**的 `Random(42)`
+#   （`st_gap_correct.py`、若干测试夹具）与 **2 处我自己写的注释/help 文本**
+#   ⇒ 那条守卫会**永远红**，并把人推向「去改本来无关的夹具」这个错误修法
+#   （第 13 层：作者对刚写的话没有免疫力；第 112 层：过严与恒真同害）。
+#   ⇒ **正解是锚在函数上，不是锚在全仓上**：AST 只解析 `_market_by_day` 的函数体，
+#     断言它的 RNG 实参是 `BENCH_SEED` 而非字面量；再单独一条断言
+#     产物 `sample.seed == BENCH_SEED`（不许手打）。
+BENCH_SEED = 42
+
+
+def benchmark_cohort(all_codes, sample_size: int = MARKET_SAMPLE,
+                     seed: int | None = None) -> list:
+    """基准抽样：**唯一样本选择实现**，返回被抽中的代码列表。
+
+    🚨 **它存在是因为同一段抽样此前有 4 份拷贝**：
+      ① `_market_by_day` 内联（生产）
+      ② `scripts/market_benchmark_audit.py::audit_window`（有意重写，为了配对拿同一批票）
+      ③ `tests/test_cap_weighted_benchmark.py` 两处测试**复现器**
+      ④ `tests/test_backtest.py` 一处测试复现器
+      ⇒ 改一处，其余三处**静默错开**，而「配对失效」这件事**照常出报告**
+      （第 22 层：两台测量仪之间的差永远查不出来）。
+
+    ⇒ 正解不是「给 4 份都加守卫」（那是 4 条会各自腐烂的守卫），
+      而是**让错误表达不出来**：一份实现，四个调用点。
+
+    ⚠️ **`seed` 不等于「可复现」**：`rng.sample` 作用在 `list(all_codes)` 上，
+    而它的**顺序由调用方怎么建 `daily_map` 决定**
+    ⇒ 同一个 seed 配一个键顺序不同的 `daily_map`，抽到的**不是同一批票**。
+    真要复现必须同时固定 `daily_map` 的**键顺序**（不是只固定种子）。
+    """
+    import random as _random
+
+    rng = _random.Random(BENCH_SEED if seed is None else seed)
+    return rng.sample(list(all_codes), min(sample_size, len(all_codes)))
+
 # 成交滞后（单位：交易日）。1 = 信号 D 收盘 → D+1 收盘买 → D+2 收盘卖。
 # 这是 A 股 T+1 下的**最短可成交**持有窗口；0 是旧的前视口径，仅供 A/B 对照。
 ENTRY_LAG = 1
@@ -548,7 +602,8 @@ def _resolve_maps(store, daily_map, factors_map):
 def _market_by_day(daily_map: dict, dates: list, sample_size: int = MARKET_SAMPLE,
                    entry_lag: int = ENTRY_LAG, factors_map: dict | None = None,
                    adj_cache: dict | None = None,
-                   cap_ctx=None, cap_sink: dict | None = None) -> dict:
+                   cap_ctx=None, cap_sink: dict | None = None,
+                   seed: int | None = None) -> dict:
     """市场基准日收益——随机分层抽样、固定种子，与权重**无关**，故整窗只算一次。
 
     （此前 list()[:150] 取的是文件名序前 150 只 sh.600xxx 老工业股，基准系统性
@@ -570,12 +625,30 @@ def _market_by_day(daily_map: dict, dates: list, sample_size: int = MARKET_SAMPL
 
     ★ **抽样、成交窗口、复权口径三者与等权臂完全共用**，只有聚合那一步不同。
       抽样种子若不一致，B 臂与 A 臂减的就不再是同一个市场。
-    """
-    import random as _random
+    ★ **因此 `seed` 只能加在这里**（一次抽样、两处聚合）：
+      加在聚合层就变成两支各自抽样 ⇒ 两臂减的不是同一个市场。
+      `cap_sink` 与返回值来自**同一批 `ret`**，种子一改两者同步改。
 
-    rng = _random.Random(42)
-    all_codes = list(daily_map)
-    sample_codes = rng.sample(all_codes, min(sample_size, len(all_codes)))
+    ## `seed`（2026-10-16 加）
+
+    `None` ⇒ `Random(BENCH_SEED)`，**与本参数存在之前逐位相同**
+    ⇒ 既有守卫文本、既有产物、既有截图全部不受影响（程序对拍证明）。
+
+    🚨 **它解的是「多 seed 扫描结构上做不了」那个欠账**：
+    在此之前种子硬编码，任何「换一批票会怎样」都问不出来，
+    而基准抽样偏差的方向**不是系统性的**（`docs/TODO_nav_vs_excess_caliber_2026-10-15.md`
+    G5：150 只等权日均 0.0510% vs 全池 0.0471%，换种子会变）
+    ⇒ 不测就只能引用**一次**抽样的结果。
+
+    ⚠️ **`seed` 不等于「可复现」**：`rng.sample(all_codes, …)` 作用在
+    `list(daily_map)` 上，而它的**顺序**由调用方怎么建 `daily_map` 决定
+    ⇒ 同一个 seed 配一个不同顺序的 `daily_map`，抽到的**不是同一批票**。
+    这就是 §18.6 那句「种子 42 不足以复现」的机制；
+    真要复现必须同时固定 **`daily_map` 的键顺序**。
+    ⇒ 守卫只能钉「同一 seed + 同一 `daily_map` ⇒ 逐位相同」，
+    **钉不了**「seed 42 在任何地方都给出同一批票」（那是谎话）。
+    """
+    sample_codes = benchmark_cohort(daily_map, sample_size, seed)
     out = {}
     for day in dates:
         market = _next_bars(daily_map, sample_codes, day, entry_lag=entry_lag,

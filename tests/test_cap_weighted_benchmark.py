@@ -159,10 +159,8 @@ def test_market_by_day_with_cap_table_off_is_bitwise_unchanged():
 
     got = _market_by_day(dm, dates, entry_lag=1)
 
-    import random as _random
-    from aplus.backtest import _next_bars
-    rng = _random.Random(42)
-    codes = rng.sample(list(dm), min(150, len(dm)))
+    from aplus.backtest import _next_bars, benchmark_cohort
+    codes = benchmark_cohort(dm)
     want = {}
     for day in dates:
         m = _next_bars(dm, codes, day, entry_lag=1)
@@ -336,10 +334,8 @@ def test_market_by_day_cap_weighted_matches_the_hand_computed_weighted_mean():
     dates = list(dm["A"]["date"])
     ctx = CapContext(CapTable(dm))
 
-    import random as _random
-    from aplus.backtest import _next_bars
-    rng = _random.Random(42)
-    codes = rng.sample(list(dm), min(150, len(dm)))
+    from aplus.backtest import _next_bars, benchmark_cohort
+    codes = benchmark_cohort(dm)
     cap = {}
 
     got = _market_by_day(dm, dates, entry_lag=1, cap_ctx=ctx, cap_sink=cap)

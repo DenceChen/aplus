@@ -341,8 +341,8 @@ def test_fast_path_equals_original_slow_path(tmp_path):
     from aplus.verify import verify_predictions
 
     def slow_path(store, start, end, weights, top_n=3, bottom_n=3):
-        import random as _r
         from aplus.adjust import attach_factor
+        from aplus.backtest import benchmark_cohort as _benchmark_cohort
         from aplus.snapshot import load_factors_map
 
         fm = load_factors_map(store)
@@ -353,8 +353,7 @@ def test_fast_path_equals_original_slow_path(tmp_path):
               for c, df in dm.items()}
         ref = max(dm.values(), key=len)
         dates = [d for d in sorted(ref["date"].unique()) if start <= d < end]
-        rng = _r.Random(42)
-        sample = rng.sample(list(dm), min(150, len(dm)))
+        sample = _benchmark_cohort(dm)
         out = []
         prev_up = []
         for day in dates:

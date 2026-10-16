@@ -46,15 +46,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from aplus.backtest import MARKET_SAMPLE  # noqa: E402
+from aplus.backtest import BENCH_SEED, MARKET_SAMPLE, benchmark_cohort  # noqa: E402
 from aplus.panel import CARRY_COLUMNS  # noqa: E402
 from scripts.head_bucket_probe import (  # noqa: E402
     DAYS_PER_YEAR, _next_bars, _paired_t,
 )
 
-# `_market_by_day` 写死的种子。必须复用同一个，否则抽到的不是同一批票，
-# 「raw vs filtered」就成了两次独立抽样之间的比较，配对失效。
-MARKET_SEED = 42
+# ★ 基准抽样种子。**必须与 `_market_by_day` 是同一个数**，否则抽到的不是同一批票，
+#   「raw vs filtered」就成了两次独立抽样之间的比较，配对失效。
+# 🚨 2026-10-16：此前这里是**独立写死的 `42` 字面量**（本文件的第二份副本）——
+#   改 `BENCH_SEED` 而不动这里，两边就静默错开，且**没有任何东西会红**。
+#   现在它是 `BENCH_SEED` 的**别名**而非副本 ⇒ 单一真相源。
+# ⚠️ 别名保留是为了不动下游 `MARKET_SEED` 的 3 处引用
+#   （`audit_window` 的 RNG 实参 / 产物 `market_seed` / 本文件守卫的 import）。
+MARKET_SEED = BENCH_SEED
 
 
 def gate_row(daily_map: dict, code: str, day: str) -> dict | None:
@@ -131,16 +136,12 @@ def passes_filters(row, min_listed_days: int = 60) -> bool:
 
 def audit_window(xs: dict, dates: list, sample_size: int = MARKET_SAMPLE) -> list[dict]:
     """逐日记录 raw / filtered 两个日均收益。"""
-    import random as _random
-
     daily_map = xs.get("_daily_map") or {}
     entry_lag = xs.get("_entry_lag", 1)
     factors_map = xs.get("_factors_map") or {}
     adj_cache = xs.setdefault("_adj_cache", {})
 
-    all_codes = list(daily_map)
-    sample_codes = _random.Random(MARKET_SEED).sample(
-        all_codes, min(sample_size, len(all_codes)))
+    sample_codes = benchmark_cohort(daily_map, sample_size, MARKET_SEED)
 
     rows = []
     for day in dates:

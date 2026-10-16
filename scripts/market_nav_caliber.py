@@ -59,7 +59,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import numpy as np
 import pandas as pd
 
-from aplus.backtest import (ENTRY_LAG, MARKET_SAMPLE, _market_by_day)
+from aplus.backtest import (BENCH_SEED, ENTRY_LAG, MARKET_SAMPLE, _market_by_day)
 from aplus.capweight import CapContext, CapTable
 from aplus.panel import market_date_axis
 from aplus.snapshot import load_factors_map
@@ -212,7 +212,8 @@ def main(argv=None) -> int:
         "window_actual": [dates[0], dates[-1]],
         "n_days": len(dates),
         "sample": {"size": MARKET_SAMPLE, "pool": len(pool),
-                   "seed": 42, "sampler": "random.Random(42).sample"},
+                   "seed": BENCH_SEED,
+                   "sampler": f"random.Random({BENCH_SEED}).sample"},
         "entry_lag": ENTRY_LAG,
         "factors_adjusted": True,
         "equal_weight": equal_s,

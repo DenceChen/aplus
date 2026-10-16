@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 
 from aplus.predict import filter_universe
-from scripts.market_benchmark_audit import MARKET_SEED, passes_filters
+from scripts.market_benchmark_audit import MARKET_SEED, audit_window, passes_filters
 
 
 def _row(**kw):
@@ -149,28 +149,101 @@ def test_production_filter_actually_reindexes_its_output():
 
 # ── 口径 ──────────────────────────────────────────────────────────────
 
-def test_market_seed_matches_the_one_hardcoded_in_backtest():
-    """抽样种子必须与 `_market_by_day` 里写死的 42 一致。
+def test_the_audit_and_production_pick_the_identical_cohort():
+    """审计与生产**必须抽到同一批票**。
 
     对不上就不是同一批票，`raw vs filtered` 从「配对」退化成
     「两次独立抽样的比较」，噪声不减反增——而结论会被照常打印出来。
+
+    🚨 **2026-10-16 换掉了判据形态**。旧判据是
+
+        assert f"Random({MARKET_SEED})" in inspect.getsource(_market_by_day)
+
+    即「源码里出现过 `Random(42)` 这个**串**」（第 13 层：子串锚可被注释满足）。
+    它连自己都不是可靠的：`_market_by_day` 一旦接受 `seed` 参数，
+    源码里**合法地**不再有 `Random(42)` ⇒ 守卫对着一次正确改动变红
+    ⇒ 后人会把它改松成「只要有 `Random(` 就算过」，而那恒真（第 112 层）。
+
+    ⇒ 换成**行为判据**：审计用的 (规模, 种子) 与生产默认值产出**同一个列表**。
+    这既不依赖源码文本，也不依赖「谁写的那个函数」。
     """
+    from aplus.backtest import MARKET_SAMPLE, benchmark_cohort
+
+    codes = [f"{i:06d}.SZ" for i in range(400)]
+    dm = {c: None for c in codes}          # 抽样只用到键，值不参与
+
+    assert (benchmark_cohort(dm, MARKET_SAMPLE, MARKET_SEED)
+            == benchmark_cohort(dm)), (
+        "审计传的 (规模, 种子) 与生产默认值产出了不同的票群——配对已失效")
+
+    # 规模也必须一致（否则比的是两件事）
+    assert (benchmark_cohort(dm, MARKET_SAMPLE, MARKET_SEED)
+            == benchmark_cohort(dm, MARKET_SAMPLE))
+
+
+def test_the_seed_argument_is_actually_live():
+    """反向正控：`seed` 参数必须真的改变结果。
+
+    🚨 没有这条，上面那条守卫可以在 `seed` **被完全忽略**的实现上永远绿
+    （两支都返回同一个硬编码列表）⇒ 它守的是「两个常量相等」，
+    不是「抽样对同一批票」。
+    ⇒ 第 120 层：**产出判决的函数，第一条测试必须是能力/反控守卫。**
+    """
+    from aplus.backtest import BENCH_SEED, benchmark_cohort
+
+    codes = [f"{i:06d}.SZ" for i in range(400)]
+    dm = {c: None for c in codes}
+
+    assert benchmark_cohort(dm, seed=BENCH_SEED) \
+        != benchmark_cohort(dm, seed=BENCH_SEED + 1), (
+        "换种子抽到的还是同一批票 ⇒ seed 参数被忽略了")
+
+
+def test_the_audit_calls_the_single_sampler_implementation():
+    """接线守卫（AST，**不是子串**）：`audit_window` 必须调 `benchmark_cohort`。
+
+    🚨 上一条验的是「两个常量相等」，本条验的是「**它们是不是同一段代码**」。
+      两者不可互换——审计完全可以自己重写一遍 `rng.sample`，
+      而上一条照样全绿（第 22 层：两台测量仪之间的差永远查不出来）。
+    """
+    import ast
     import inspect
 
-    from aplus.backtest import _market_by_day
-    src = inspect.getsource(_market_by_day)
-    assert f"Random({MARKET_SEED})" in src, (
-        f"_market_by_day 里找不到 Random({MARKET_SEED})——"
-        f"基准种子被改过，本审计的配对已失效")
+    tree = ast.parse(inspect.getsource(audit_window))
+    called = {n.func.id for n in ast.walk(tree)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    assert "benchmark_cohort" in called, (
+        "audit_window 没有调 benchmark_cohort ⇒ 它自己抽了一份，"
+        "而两个抽样实现之间的差没有任何东西会查")
+
+    # 反向正控：探测器看得见别的调用名（否则上面那句是恒真）
+    assert "_market_by_day" not in called and "benchmark_cohort" in called
 
 
 def test_sample_size_matches_production():
-    """抽样规模也必须对齐，否则比的是两件事。"""
+    """抽样规模必须对齐，否则比的是两件事。
+
+    🚨 旧判据是 `f"sample_size: int = MARKET_SAMPLE = {N}" or "MARKET_SAMPLE" in src`
+      —— 前半支**恒假**（那个串从来不会出现在源码里）、后半支**恒真**
+      （它是默认实参，永远在）⇒ 那是一条装饰守卫。
+    ⇒ 换成行为判据。
+    """
     import inspect
 
-    from aplus.backtest import MARKET_SAMPLE, _market_by_day
-    assert f"sample_size: int = MARKET_SAMPLE = {MARKET_SAMPLE}" \
-        or "MARKET_SAMPLE" in inspect.getsource(_market_by_day)
+    from aplus.backtest import MARKET_SAMPLE, _market_by_day, benchmark_cohort
+
+    default = inspect.signature(_market_by_day).parameters["sample_size"].default
+    assert default == MARKET_SAMPLE, (
+        f"_market_by_day 的 sample_size 默认值是 {default}，"
+        f"而单一真相源是 {MARKET_SAMPLE}")
+
+    codes = [f"{i:06d}.SZ" for i in range(400)]
+    dm = {c: None for c in codes}
+    assert len(benchmark_cohort(dm)) == MARKET_SAMPLE, (
+        "不传 sample_size 时抽中的数量 ≠ MARKET_SAMPLE")
+
+    # 反向正控：规模参数真的生效
+    assert len(benchmark_cohort(dm, sample_size=7)) == 7
 
 
 # ── gate_row：闸门列必须从**原始帧**现取，因为 `_next_bars` 根本没有 ────

@@ -1,0 +1,47 @@
+S1 种子写成字面量（单一真相源被旁路掉）	aplus/backtest.py
+    rng = _random.Random(BENCH_SEED if seed is None else seed)
+=== 变异体 ===
+    rng = _random.Random(42)
+
+S2 seed 参数被完全忽略（两条守卫会一起绿）	aplus/backtest.py
+    rng = _random.Random(BENCH_SEED if seed is None else seed)
+=== 变异体 ===
+    rng = _random.Random(BENCH_SEED)
+
+S3 _market_by_day 自己抽一份（共享实现被绕开）	aplus/backtest.py
+    sample_codes = benchmark_cohort(daily_map, sample_size, seed)
+=== 变异体 ===
+    sample_codes = __import__("random").Random(BENCH_SEED).sample(list(daily_map), sample_size)
+
+S4 抽样落在 daily_map 的值上而不是键上（顺序语义被换掉）	aplus/backtest.py
+    return rng.sample(list(all_codes), min(sample_size, len(all_codes)))
+=== 变异体 ===
+    return rng.sample(sorted(str(v) for v in all_codes.values()), min(sample_size, len(all_codes)))
+
+S5 规模与池子取小的判据反了（池大时抽不满）	aplus/backtest.py
+    return rng.sample(list(all_codes), min(sample_size, len(all_codes)))
+=== 变异体 ===
+    return rng.sample(list(all_codes), max(sample_size, len(all_codes)))
+
+S6 生成器把种子写回字面量（自报与代码脱钩，第 182 层）	scripts/market_nav_caliber.py
+                   "seed": BENCH_SEED,
+=== 变异体 ===
+                   "seed": 42,
+
+S7 f 字符串留着但去掉插值（伪装成模板的常量文本）	scripts/market_nav_caliber.py
+                   "sampler": f"random.Random({BENCH_SEED}).sample"},
+=== 变异体 ===
+                   "sampler": f"random.Random(BENCH_SEED).sample"},
+
+S8 sample 里多加一个装饰性的自报字段（漂移面凭空 +1）	scripts/market_nav_caliber.py
+                   "seed": BENCH_SEED,
+=== 变异体 ===
+                   "seed": BENCH_SEED,
+                   "seed_source": "aplus.backtest::BENCH_SEED",
+
+S9 顶层多加一个自报字段（外层字典同样没有钉住）	scripts/market_nav_caliber.py
+        "entry_lag": ENTRY_LAG,
+=== 变异体 ===
+        "entry_lag": ENTRY_LAG,
+        "seed_source": "aplus.backtest::BENCH_SEED",
+
