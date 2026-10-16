@@ -1,0 +1,511 @@
+{
+  "generated_at": "2026-10-16T08:19:15",
+  "what_this_is": "IC 序列自相关半衰期（Kahn 1999 定义）；**不是**前瞻收益衰减半衰期",
+  "source": "data/reports/ic_matrices.parquet",
+  "source_window": "lag1_real = FWD_WINDOWS[(0,1)]（1 交易日前瞻）",
+  "n_dates": 1655,
+  "date_range": [
+    "2019-12-06",
+    "2026-10-08"
+  ],
+  "caliber_note": "sf__ = 两端排名的 Spearman IC（进判决口径）；sfP__ = 原始值 Pearson，仅对照，未用于本测量",
+  "preregistered_criterion": {
+    "external_anchors": {
+      "LIVE_REBALANCE_EVERY": 21,
+      "k_sweep_grid": [
+        5,
+        10,
+        21,
+        42,
+        63
+      ]
+    },
+    "A_in_[21,63]": "与现生产相容；不构成改动理由（赢家诅咒警告不被推翻）",
+    "B_below_21": "现有频率已超信息寿命；仍不授权上调 k",
+    "C_above_63": "与 k=63 相容；须另起独立设计再检，不得本文件改 k",
+    "D_unmeasurable": "判据不适用；结论=日频 IC 近似白噪声",
+    "contradiction_policy": "与「k=63 有机制」相反时只加对照臂，不改判据臂"
+  },
+  "does_not_change_live_rebalance": "本脚本不写 weights.json、不改 LIVE_REBALANCE_EVERY。tests/test_live_rebalance_frequency.py:81 的断言仍然成立且未被本测量推翻。",
+  "live_factors": [
+    "mom20",
+    "rev5",
+    "vol20",
+    "vsur"
+  ],
+  "live_weights": {
+    "mom20": -1.0,
+    "rev5": 0.3,
+    "vol20": -0.5,
+    "vsur": -0.5
+  },
+  "composite": {
+    "signed_production": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0216,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.1031
+        },
+        {
+          "lag": 2,
+          "rho": 0.0156
+        },
+        {
+          "lag": 5,
+          "rho": 0.0046
+        },
+        {
+          "lag": 10,
+          "rho": -0.0138
+        },
+        {
+          "lag": 21,
+          "rho": -0.015
+        },
+        {
+          "lag": 30,
+          "rho": 0.018
+        },
+        {
+          "lag": 42,
+          "rho": 0.012
+        },
+        {
+          "lag": 63,
+          "rho": -0.0145
+        },
+        {
+          "lag": 126,
+          "rho": -0.0216
+        }
+      ],
+      "mean_daily_ic": 0.08155,
+      "n_obs": 1655
+    },
+    "abs_weight_CONTROL": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0352,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0901
+        },
+        {
+          "lag": 2,
+          "rho": 0.0102
+        },
+        {
+          "lag": 5,
+          "rho": 0.0111
+        },
+        {
+          "lag": 10,
+          "rho": -0.0122
+        },
+        {
+          "lag": 21,
+          "rho": -0.0162
+        },
+        {
+          "lag": 30,
+          "rho": 0.0073
+        },
+        {
+          "lag": 42,
+          "rho": -0.0037
+        },
+        {
+          "lag": 63,
+          "rho": -0.0178
+        },
+        {
+          "lag": 126,
+          "rho": -0.0352
+        }
+      ],
+      "mean_daily_ic": -0.06629,
+      "n_obs": 1655
+    },
+    "control_arm_surrogate": {
+      "n_permutations": 200,
+      "median_rho_lag1": 0.0001,
+      "max_rho_lag1": 0.0627,
+      "fraction_measurable": 0.0,
+      "note": "全 False/0 才是实现正确的样子；非零 ⇒ ACF 实现有 bug，本测量作废"
+    }
+  },
+  "per_factor": {
+    "mom20": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0336,
+      "mean_daily_ic": -0.03475,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0198
+        },
+        {
+          "lag": 2,
+          "rho": 0.0414
+        },
+        {
+          "lag": 5,
+          "rho": -0.0163
+        },
+        {
+          "lag": 10,
+          "rho": -0.0231
+        },
+        {
+          "lag": 21,
+          "rho": 0.0001
+        },
+        {
+          "lag": 30,
+          "rho": 0.01
+        },
+        {
+          "lag": 42,
+          "rho": 0.0112
+        },
+        {
+          "lag": 63,
+          "rho": -0.0283
+        },
+        {
+          "lag": 126,
+          "rho": -0.0336
+        }
+      ],
+      "in_live_weights": true
+    },
+    "rev5": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": 0.0226,
+      "mean_daily_ic": 0.02544,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0188
+        },
+        {
+          "lag": 2,
+          "rho": 0.0272
+        },
+        {
+          "lag": 5,
+          "rho": 0.0074
+        },
+        {
+          "lag": 10,
+          "rho": 0.0173
+        },
+        {
+          "lag": 21,
+          "rho": -0.0125
+        },
+        {
+          "lag": 30,
+          "rho": 0.0031
+        },
+        {
+          "lag": 42,
+          "rho": 0.0111
+        },
+        {
+          "lag": 63,
+          "rho": 0.0018
+        },
+        {
+          "lag": 126,
+          "rho": 0.0226
+        }
+      ],
+      "in_live_weights": true
+    },
+    "vol20": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0237,
+      "mean_daily_ic": -0.05139,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": 0.0048
+        },
+        {
+          "lag": 2,
+          "rho": 0.0308
+        },
+        {
+          "lag": 5,
+          "rho": 0.0238
+        },
+        {
+          "lag": 10,
+          "rho": 0.0067
+        },
+        {
+          "lag": 21,
+          "rho": -0.0586
+        },
+        {
+          "lag": 30,
+          "rho": -0.0165
+        },
+        {
+          "lag": 42,
+          "rho": 0.0105
+        },
+        {
+          "lag": 63,
+          "rho": -0.0075
+        },
+        {
+          "lag": 126,
+          "rho": -0.0237
+        }
+      ],
+      "in_live_weights": true
+    },
+    "vsur": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": 0.0417,
+      "mean_daily_ic": -0.02695,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0273
+        },
+        {
+          "lag": 2,
+          "rho": 0.0119
+        },
+        {
+          "lag": 5,
+          "rho": 0.0057
+        },
+        {
+          "lag": 10,
+          "rho": 0.0097
+        },
+        {
+          "lag": 21,
+          "rho": -0.0069
+        },
+        {
+          "lag": 30,
+          "rho": 0.0147
+        },
+        {
+          "lag": 42,
+          "rho": -0.0009
+        },
+        {
+          "lag": 63,
+          "rho": -0.0092
+        },
+        {
+          "lag": 126,
+          "rho": 0.0417
+        }
+      ],
+      "in_live_weights": true
+    },
+    "turn20": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0338,
+      "mean_daily_ic": -0.04258,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0146
+        },
+        {
+          "lag": 2,
+          "rho": 0.0252
+        },
+        {
+          "lag": 5,
+          "rho": 0.0282
+        },
+        {
+          "lag": 10,
+          "rho": 0.015
+        },
+        {
+          "lag": 21,
+          "rho": -0.0551
+        },
+        {
+          "lag": 30,
+          "rho": 0.008
+        },
+        {
+          "lag": 42,
+          "rho": -0.0076
+        },
+        {
+          "lag": 63,
+          "rho": 0.0021
+        },
+        {
+          "lag": 126,
+          "rho": -0.0338
+        }
+      ],
+      "in_live_weights": false
+    },
+    "turnratio": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0023,
+      "mean_daily_ic": -0.03726,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0139
+        },
+        {
+          "lag": 2,
+          "rho": 0.0147
+        },
+        {
+          "lag": 5,
+          "rho": 0.0427
+        },
+        {
+          "lag": 10,
+          "rho": 0.0053
+        },
+        {
+          "lag": 21,
+          "rho": -0.0083
+        },
+        {
+          "lag": 30,
+          "rho": -0.0245
+        },
+        {
+          "lag": 42,
+          "rho": 0.0048
+        },
+        {
+          "lag": 63,
+          "rho": -0.0027
+        },
+        {
+          "lag": 126,
+          "rho": -0.0023
+        }
+      ],
+      "in_live_weights": false
+    },
+    "ivol": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0109,
+      "mean_daily_ic": -0.05906,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0183
+        },
+        {
+          "lag": 2,
+          "rho": 0.0224
+        },
+        {
+          "lag": 5,
+          "rho": 0.0403
+        },
+        {
+          "lag": 10,
+          "rho": 0.0177
+        },
+        {
+          "lag": 21,
+          "rho": -0.0489
+        },
+        {
+          "lag": 30,
+          "rho": -0.0127
+        },
+        {
+          "lag": 42,
+          "rho": -0.0102
+        },
+        {
+          "lag": 63,
+          "rho": -0.0112
+        },
+        {
+          "lag": 126,
+          "rho": -0.0109
+        }
+      ],
+      "in_live_weights": false
+    },
+    "rsi": {
+      "halflife_lag": 1,
+      "status": "IMMEDIATE_DECAY",
+      "rho_at_maxlag": -0.0202,
+      "mean_daily_ic": -0.0357,
+      "n_obs": 1655,
+      "acf_table": [
+        {
+          "lag": 1,
+          "rho": -0.0388
+        },
+        {
+          "lag": 2,
+          "rho": 0.0228
+        },
+        {
+          "lag": 5,
+          "rho": -0.0094
+        },
+        {
+          "lag": 10,
+          "rho": -0.031
+        },
+        {
+          "lag": 21,
+          "rho": 0.0133
+        },
+        {
+          "lag": 30,
+          "rho": 0.0099
+        },
+        {
+          "lag": 42,
+          "rho": 0.0049
+        },
+        {
+          "lag": 63,
+          "rho": -0.035
+        },
+        {
+          "lag": 126,
+          "rho": -0.0202
+        }
+      ],
+      "in_live_weights": false
+    }
+  }
+}
