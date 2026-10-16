@@ -95,6 +95,155 @@ def test_every_block_in_the_landed_artifact_carries_both_calibers():
             f"{b['half_width_row_level']} ⇒ 这份产物不是按成交窗口算的")
 
 
+# ══════════════ 端点判据：合法集合由**真值源 + 落盘精度**推导 ══════════════
+#
+# 🚨 手调的容差在没有推导时会同时犯两个错（第 112 / 136 层）：
+#   太窄 ⇒ 守现实中不会发生的方向，把人推向「改本来正确的产物」；
+#   太宽 ⇒ 变成 2 倍误差的假绿，而**它看起来一直绿**。
+# ⇒ 下面三个常数全部由 `scripts/diagnose_hit_rate.py` 的 `round(·, N)` 逐字推导。
+_Q_RATE = 1e-4   # `rate`（`:254`）与两个 `ci95`（`:206`/`:230`）都落 4 位
+_Q_HW = 1e-6     # `half_width`（`:209`）与 `half_width_row_level`（`:279`）都落 6 位
+
+#: 端点的合法偏差 = **半宽的显示误差**，即 `round(hw_exact, 6)` 相对 `hw_exact`
+#: 的最大偏移（半个末位）。
+#:
+#: ★ **两个口径同值，而这不是偷懒** —— 它们的误差结构逐项相同：
+#: 点估计 `p = hits/n`（`_two_sided_p` `:133` 与 `_cluster_fields` `:194` 逐字同源）
+#: ⇒ **无显示误差**；半宽都只落 **6 位** ⇒ 误差 ≤ `_Q_HW/2`。
+#:
+#: 🚨 **我第一版断言「簇口径残差恒为 0、容差 5e-7，行级需要 1.005e-4」，
+#: 而那个断言的证据是「实测五个块的残差都是 0」—— 它被本块自己证伪了**：
+#: `with_market.逆大盘` 的 `ci95` 上界真值 `0.8411500526315789` 距 4 位网格中点
+#: `0.84115` 只有 **5.26e-8** < 5e-7 ⇒ 落盘的 `0.8411` 与回代的 `0.8412` **都对**
+#: （同一块的 `ci95_row_level` 上界真值 `0.4936500526315789` 同因）。
+#: ⇒ 「实测若干点成立」不构成「恒成立」（第 137 层），而**据此写下的守卫会过严**。
+#: 两处同因的原因是 `p = 21/57 = 7/19`，小数部分恒为 `…0526315789…`。
+_TOL_ENDPOINT = _Q_HW / 2
+
+
+def _grid_index(v: float) -> int:
+    """4 位小数落盘值 → 整数格号。
+
+    ⚠️ **为什么绕这一圈**：两个相邻的 4 位网格点，其**差**在浮点上不一定恰为 `_Q_RATE`。
+    实测 `0.0558 − 0.0557 == 0.00010000000000000286 > 1e-4` ⇒
+    `math.isclose(0.0557, 0.0558, abs_tol=1e-4)` 为**假**
+    ⇒ 「差整整一格」在差值比较里表现为「**不等**」，于是**越界半格**会假红，
+    而真正的容差语义（一个带 ±5e-7 不确定度的真值）无处安放。
+    （加法方向反而是精确的：`0.0557 + 1e-4 == 0.0558` 逐位为真 ——
+    所以这个坑只在**减法**上出现，写注释时若照抄成加法就是一句假话。）
+
+    换算到整数格号把比较变成**整数**比较，两个轴（差值方向、累加方向）都不再参与。
+    """
+    return round(v / _Q_RATE)
+
+
+def _legal_grid_span(x: float, tol: float = _TOL_ENDPOINT) -> range:
+    """端点真值 `x` 经 `tol` 扰动后，落盘值**允许**落在哪几格。
+
+    产物内部算的是 `round(p ± hw_exact, 4)`，而守卫手里只有
+    `round(hw_exact, 6)` ⇒ 端点真值带 ±`_TOL_ENDPOINT` 的不确定度
+    ⇒ 合法落盘值是 `round(x ± tol, 4)`，**至多两格**（因为 `tol < _Q_RATE`）。
+
+    ★ **这不是「差 ≤ 容差」**，而是「必须是这几个格之一」——
+    `abs_tol=1e-4` 会把**整整一格**的任何错误一起放过去（第 137 层：
+    容差类判据的判别力只能来自能力守卫，而这个写法把 20 个端点里的 20 个
+    都变成了「差一格照样绿」）。
+    """
+    return range(_grid_index(x - tol), _grid_index(x + tol) + 1)
+
+
+def _p_exact(b: dict) -> float:
+    """产物内部那个**未舍入**的点估计 —— `ci95` 的真身。
+
+    🚨 落盘的 `rate` 是 `round(p, 4)`（`scripts/diagnose_hit_rate.py:254`），
+    而 `ci95` 出自**全精度 `p`**（`:194` `p = hits / n` → `:202` `lo = max(0, p − hw)`
+    → `:206` `round(lo, 4)`）⇒ **拿 `rate` 回代等于用显示精度冒充内部精度**，
+    差 ≤ 5e-5；而 `lo` 距离 4 位舍入边界不足 4e-5 时就整格翻掉。
+
+    ★ **2026-10-16 实测**（这条红是守卫的错，不是产物的错）：
+    `by_direction.down` 的 `p = 31/57 = 0.5438596491…`、`hw = 0.4881111640…`
+    ⇒ `lo = 0.05574…` ⇒ `round(…,4) = 0.0557` = **产物真值**；
+    而用落盘 `rate = 0.5439` 回代得 `0.0558` ⇒ **差整一个末位单位**。
+
+    🚨 **旧判据 `abs_tol = 1e-4` 在这个差上**两侧都错**，方向相反：
+    ① **过严**：实测 `0.0558 − 0.0557 == 0.00010000000000000286 > 1e-4`
+       ⇒ `math.isclose(..., abs_tol=1e-4)` 为**假** ⇒ 一份**完全正确**的产物被判红；
+    ② **过松**：这同一行**也**说明容差就卡在「差一格」的边上，
+       换成 `0.0559`（两格）它照样绿 ⇒ 它守着的是「误差 < 2 格」，
+       而**它想守的是「误差 ≤ 0 格」**（第 137 层：容差判据的判别力
+       只能来自能力守卫，「实测通过」对它零信息量）。
+    ⇒ 一个字面量同时犯两个错，是因为**两个错各自需要一个不同的抽象**：
+    ① 要求的是「逐位相等」，② 要求的是「只能落在这几格里」。
+
+    ⇒ 处置是**换锚 + 换抽象**：锚从 `rate` 换到 `hits/n`（病根），
+    判据从 `abs_tol` 换到「合法落盘值集合的成员资格」（上半条过严）；
+    两者都做才闭合，**只改一个会把过严变成恒真**
+    （第 112 层：过严与恒真同害，两者都会把人推向改本来正确的东西）。
+    """
+    # 承重墙（第 143 层）：缺项必须 KeyError 崩掉，不许回落成「用 rate 顶替」。
+    # 悄悄回落 = 把上面那条错口径又请回来，而报错文案会指向别处。
+    return b["hits"] / b["n"]
+
+
+def test_the_landed_point_estimate_is_the_one_the_intervals_were_built_from():
+    """🚨 `rate` 必须是**同一个** `p` 的显示精度，且**当前至少有一处不是恒等**。
+
+    第一句钉住同源（`rate == round(p, 4)`），第二句钉住**这条守卫锚的不是同一个数**。
+
+    🚨 第二句是承重的，不是装饰：若哪天 `p` 恰好能被 `round(p,4)` 表示，
+    `_p_exact(b)` 与 `b["rate"]` 就**逐位相等** ⇒ 主守卫的合法集合退化成
+    「用 `rate` 自己算的那一格」⇒ 「用显示精度冒充内部精度」这个缺陷
+    被整个吃掉，而守卫**恒绿且看不出来**（第 146 层：「口径一致」≠「恰好落进缝里」）。
+
+    ⇒ 判据问的是「我锚的两个量真的不同吗」，而不是「它们这次算出来一样吗」。
+
+    ★ 2026-10-16 实测：当前产物上**不需要**这条兜底 —— 把主守卫的锚换回
+    `b["rate"]`，新判据在 20 个端点里抓出 **4 处**
+    （`by_direction.down.ci95[0]` / `by_direction.up.ci95[1]` /
+    `with_market.顺大盘.ci95[0]` / `with_market.顺大盘.ci95_row_level[1]`），
+    而旧的 `abs_tol=1e-4` 抓出 **0 处**。⇒ 这句话现在守的是**未来那种形态**
+    （`p` 恰好可被 4 位精确表示），不是当前这道红。
+    """
+    saw_differs = False
+    for name, b in _blocks(_artifact()).items():
+        p = _p_exact(b)
+        assert b["rate"] == round(p, 4), (
+            f"{name}: 落盘 rate {b['rate']} ≠ round(hits/n, 4) {round(p, 4)} "
+            "⇒ rate 与 ci95 不是同一个点估计的两种显示")
+        if b["rate"] != p:
+            saw_differs = True
+    assert saw_differs, (
+        "全部块的 `hits/n` 都能被 round(·,4) 精确表示 ⇒ 全精度 p 与落盘 rate "
+        "逐位相同 ⇒ 主守卫的容差会吃掉「显示精度冒充内部精度」这个缺陷，"
+        "它现在恒绿。**这是夹具/产物形态变了，不是守卫变严了。**")
+
+
+def _endpoint_matches(x: float, landed: float, tol: float = _TOL_ENDPOINT) -> bool:
+    """落盘端点 `landed` 是否是端点真值 `x` 的**合法显示**。
+
+    ★ **唯一实现** —— 主守卫与下面三条能力守卫全部调它。
+      两处各写一遍的话，能力守卫验的就不是主守卫在用的那个判据
+      （本仓第 137 层：能力守卫量的是「判据有牙」，判据换实现它就变成空气）。
+    """
+    return _grid_index(landed) in _legal_grid_span(x, tol)
+
+
+def _legal_str(x: float, tol: float = _TOL_ENDPOINT) -> str:
+    span = _legal_grid_span(x, tol)
+    return "{" + ", ".join(f"{i * _Q_RATE:.4f}" for i in span) + "}"
+
+
+def _endpoints_of(name: str, b: dict) -> list[tuple[str, float, float]]:
+    """把一个块摊成 `(标签, 端点真值, 落盘值)` 列表（截断与守卫同款）。"""
+    p = _p_exact(b)
+    return [
+        ("ci95[0]", max(0.0, p - b["half_width"]), b["ci95"][0]),
+        ("ci95[1]", min(1.0, p + b["half_width"]), b["ci95"][1]),
+        ("ci95_row_level[0]", max(0.0, p - b["half_width_row_level"]), b["ci95_row_level"][0]),
+        ("ci95_row_level[1]", min(1.0, p + b["half_width_row_level"]), b["ci95_row_level"][1]),
+    ]
+
+
 def test_every_landed_interval_is_exactly_its_own_point_estimate_plus_its_half_width():
     """🚨 `ci95` 与 `half_width` 必须在产物里**互为对账**。
 
@@ -103,27 +252,120 @@ def test_every_landed_interval_is_exactly_its_own_point_estimate_plus_its_half_w
     ⇒ 「两个字段都在」不等于「它们说的是同一件事」。
 
     截断规则写在这里：区间必须落在 [0,1]，且 `ci95_clipped` 必须如实说它截没截。
+
+    ★ 点估计锚在 `_p_exact(b)`（`hits/n`）而**不是** `b["rate"]` —— 理由与实测
+    见 `_p_exact` 的 docstring。
+
+    ★ 判据形式是**合法集合的成员资格**（`_endpoint_matches`），不是 `abs_tol`：
+      端点真值只带 ±`_TOL_ENDPOINT` 的不确定度，而「合法落盘值」是一张**至多两格**的清单。
+      `abs_tol = 1e-4` 等于把**整整一格**的任何错误一起放过去 ——
+      2026-10-16 实测：拿落盘 `rate` 回代（显示精度冒充内部精度）时
+      新判据抓出 **4 处**，而 `abs_tol=1e-4` 抓出 **0 处**。
     """
     for name, b in _blocks(_artifact()).items():
-        for ci, hw, key, clipped_key in (
-                ("ci95", "half_width", "ci95_caliber", "ci95_clipped"),
-                ("ci95_row_level", "half_width_row_level",
-                 "ci95_row_level_caliber", None)):
+        for ci, hw, clipped_key in (
+                ("ci95", "half_width", "ci95_clipped"),
+                ("ci95_row_level", "half_width_row_level", None)):
             if b[ci] is None:
                 assert b[hw] is None, f"{name}: {ci} 是 None 而 {hw} 不是 ⇒ 半个口径"
                 continue
             assert hw is not None, name
-            lo = max(0.0, b["rate"] - b[hw])
-            hi = min(1.0, b["rate"] + b[hw])
-            assert math.isclose(b[ci][0], round(lo, 4), abs_tol=1e-4), \
-                f"{name}.{ci} 下界 {b[ci][0]} 与 rate-half_width {round(lo, 4)} 对不上"
-            assert math.isclose(b[ci][1], round(hi, 4), abs_tol=1e-4), \
-                f"{name}.{ci} 上界 {b[ci][1]} 与 rate+half_width {round(hi, 4)} 对不上"
+            p = _p_exact(b)
+            lo = max(0.0, p - b[hw])
+            hi = min(1.0, p + b[hw])
+            for side, x, landed in (("下界", lo, b[ci][0]), ("上界", hi, b[ci][1])):
+                assert _endpoint_matches(x, landed), (
+                    f"{name}.{ci} {side} {landed:.4f} 不是端点真值 {x!r} 的合法显示"
+                    f"（合法 {_legal_str(x)}；真值距 4 位网格中点 "
+                    f"{abs(x * 2 - round(x * 2)) / 2:.3e}）")
             if clipped_key is not None:
-                assert b[clipped_key] is bool(lo != b["rate"] - b[hw]
-                                              or hi != b["rate"] + b[hw]), \
+                assert b[clipped_key] is bool(lo != p - b[hw]
+                                              or hi != p + b[hw]), \
                     f"{name}.{clipped_key} 与实际截断情况不符"
                 assert b[ci][1] <= 1.0 and b[ci][0] >= 0.0, f"{name}.{ci} 越出 [0,1]"
+
+
+def test_the_endpoint_tolerance_cannot_span_more_than_two_grid_cells():
+    """🚨 守的是**容差本身** —— 合法集合必须窄于「一个显示量子」。
+
+    `_TOL_ENDPOINT < _Q_RATE` 是**结构性**的（由真值源推出，不看数据）：
+    端点真值的全部不确定度就是半宽那 6 位的半个末位，而 4 位小数的相邻格相距 `_Q_RATE`
+    ⇒ 合法集合至多含 2 格 ⇒ 判据不是「差多少」，是「是不是那一格」。
+
+    🚨 **旧版本守的是「簇口径容差 < 行级容差」，而那个前提已被证伪**：
+    实测 `with_market.逆大盘` 的**簇**上界真值 `0.8411500526315789` 距网格中点
+    `0.84115` 只有 5.26e-8 < 5e-7 ⇒ 落盘的 `0.8411` 与回代的 `0.8412` **都是合法的**
+    ⇒ 两个口径的残差由**同一个机制**支配 ⇒ 同容差。
+    而按旧守卫去「修」它，唯一的路径是**把推导改成手调的宽值** ——
+    那正是第 112 层（过严守卫把人推向改本来正确的东西）的教科书形态。
+    """
+    assert _TOL_ENDPOINT < _Q_RATE, (
+        f"端点容差 {_TOL_ENDPOINT} 已经 ≥ 一个显示量子 {_Q_RATE} "
+        "⇒ 合法集合不再窄于「两格」⇒ 对账退化成 `abs_tol ≈ 2×显示误差` 的假绿")
+
+
+def test_most_landed_endpoints_still_demand_exactly_one_grid_cell():
+    """🚨 反退化：`tol < _Q_RATE` 只是**上界**，真判别力是**实际集合有多窄**。
+
+    只钉 `_TOL_ENDPOINT < _Q_RATE` 挡不住「有人把它调到 `0.9 × _Q_RATE`」——
+    那仍然过上一条，而**每个端点的合法集合都变成两格** ⇒ 判据悄悄退化成
+    `abs_tol ≈ 1.8e-4`，比它声称守着的显示误差宽 180 倍。
+
+    ⇒ 这条钉的是**实测形状**：绝大多数端点只允许一格（要求逐位相等）。
+    2026-10-16 实测 20 个端点里 **18 个** `n=1`、**2 个** `n=2`，
+    那 2 个同在 `with_market.逆大盘` 且同因（`p = 21/57 = 7/19` ⇒ 小数部分恒为 `…0526…`）。
+    门槛取 80%：**它是一条退化探测器，不是判决** —— 真掉到 50% 时它喊，
+    掉到 70% 时它不喊但报告仍可被读，**不许把它当「唯一防线」**。
+    """
+    spans = []
+    for name, b in _blocks(_artifact()).items():
+        if b["ci95"] is None:
+            continue
+        for label, x, _landed in _endpoints_of(name, b):
+            spans.append(len(_legal_grid_span(x)))
+    assert spans, "🚨 一个端点都没量到 ⇒ 产物形态变了，本守卫已失效（不是守卫变严了）"
+    one_cell = sum(1 for n in spans if n == 1)
+    assert one_cell / len(spans) >= 0.80, (
+        f"只有 {one_cell}/{len(spans)} 个端点只允许一格 ⇒ 判据已退化成容差比较；"
+        f"集合大小分布 {sorted(set(spans))} ⇒ 检查 _TOL_ENDPOINT 与 _Q_HW 是否被改过")
+
+
+def test_one_grid_cell_of_error_is_rejected_far_from_a_boundary():
+    """🚨 能力守卫（正向）：**距网格中点远**的端点，注入一格误差必须被拒。
+
+    第 137 层：**容差类判据的判别力只能来自合成夹具**，「实测通过」对它零信息量 ——
+    真实偏差 0.95pp vs 判决间隙 12.51pp 时，`bias/slack` 改成 `bias*slack` 照样全绿。
+    ⇒ 只有构造出「离容差边界恰一个量子」的缺陷，才知道判据还咬得动。
+
+    真值取 `0.5`（**恰在格点上**，距中点 `0.5e-4`，是容差的 200 倍）
+    ⇒ 合法集合必须**只有一格**；`0.5001` 是整整一格 ⇒ 必须被拒。
+    """
+    x, ok, bad = 0.5, 0.5, 0.5001
+    assert len(_legal_grid_span(x)) == 1, (
+        f"真值 {x} 距最近的网格中点 5e-5 ≫ 容差 {_TOL_ENDPOINT}，"
+        f"合法集合应当只有一格，实测 {len(_legal_grid_span(x))} 格")
+    assert _endpoint_matches(x, ok), "正控失败：合法的落盘值被拒 ⇒ 判据过严"
+    assert not _endpoint_matches(x, bad), (
+        "🚨 一格误差被放过了 ⇒ 判据退化成 `abs_tol ≥ 1e-4`（本守卫存在之前就是这样）")
+
+
+def test_both_neighbours_are_legal_exactly_within_half_a_quantum_of_a_boundary():
+    """🚨 能力守卫（反向正控）：真值**恰好落在网格中点**上时，两侧都必须合法。
+
+    为什么必须有这条：上一条钉「远端点拒一格」，若有人把 `_TOL_ENDPOINT` 直接
+    归零（`round` 的边界情形本来就该同分），上一条照样绿而**本条会红** ——
+    于是两个方向都被钉住，判据不能被单边削。
+
+    机理见 `_TOL_ENDPOINT` 的推导：`with_market.逆大盘` 的上界真值
+    `0.8411500526315789` 距中点 5.26e-8，`round` 的结果**取决于 6 位半宽的显示误差**
+    ⇒ 两侧都是产物可能落下的值 ⇒ **判据必须承认**（这正是旧守卫红的原因）。
+    """
+    x = 0.50005  # 4 位网格的中点
+    assert _endpoint_matches(x, 0.5000), (
+        "中点真值的两侧都必须合法 ⇒ 若这条红，说明容差被削到 0，"
+        "而真实产物 `with_market.逆大盘` 会当场判红（那是产物对、守卫错）")
+    assert _endpoint_matches(x, 0.5001), "同上，另一侧"
+    assert not _endpoint_matches(x, 0.5002), "两格之外必须仍然被拒（否则容差失控）"
 
 
 def test_the_landed_difference_between_calibers_is_purely_the_window_stacking():

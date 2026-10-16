@@ -50,6 +50,7 @@ E2E（`tests/e2e/`，playwright，别人建的）已经用真浏览器覆盖了�
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -1330,3 +1331,148 @@ def test_every_guarded_function_still_has_the_shape_this_file_assumes():
         body = _code_block(_body(src, header))
         assert marker in body, \
             f"{header!r} 的函数体里找不到 {marker!r} —— 结构变了，这条守卫在盯别的东西"
+
+
+# ── ⑳ D1 交付形态：渲染层必须渲染出与产物同数的行 ─────────────────────
+#
+# 🚨 这条守卫是被**一次真的交付物缺陷**逼出来的（2026-10-16 浏览器实测）：
+#   `renderRows($('pred-rows-up'), pred.up.slice(1), 'up')` —— 只有 up 侧 slice，
+#   down 侧没 slice ⇒ 表格 up 9 行 / down 10 行，
+#   而 `up-count` 打的是 `pred.up.length` = 10
+#   ⇒ **「标题写 10 只、表格只有 9 行」而 HTTP 200、前端无报错、零告警。**
+#
+# 为什么此前没抓到：`head(10)` / `slice(1)` 这类形状**不是异常**，
+# 它照常返回一串 HTML。而四层里落盘层（`rows=20`）、读回层（API `10/10`）
+# 今天都实读通过了 —— **只有渲染层从没被量过**，
+# 而它恰好是用户唯一会直接看到的那一层。
+#
+# ⇒ 判据不是「源码里没有 slice」（子串会被注释与 docstring 满足，第 13 层），
+#   是**真跑 renderRows 并数它产出的 `<tr>` 行数**：
+#   喂 N 行 ⇒ 必须渲染 N 行。少一行、多一行都红。
+
+_ROWS_N = 10          # 与 DELIVERABLE_N 同值，但**不许 import 生产常量**：那条 import 会让
+                      # 「产品改了交付形态」时守卫跟着改，永远判不出退化。
+_ROWS_MARK = "ZZROWZZ"
+
+
+def _probe_render_rows_count(src: str, n: int) -> str:
+    """真跑 `renderPredBoard(pred)`，返回它**渲染出来的**两张表的行数与两个标题计数。
+
+    ⚠️⚠️ 第一版探针跑的是 `renderRows` 的**函数体**、由测试自己调用 ——
+    而真正的缺陷（`.slice(1)`）长在**调用点**，两者之间零通路
+    ⇒ 变异存活、守卫全绿（第 21 层：承重逻辑不可测 = 判据不存在）。
+    ⇒ 现在探针跑的是**承重函数本身**，`renderRows` / `renderHeroes`
+    都是从文件里抠出来的**原文**，不是副本。
+
+    ⚠️ 数的是**渲染出来的 HTML**，不是传进去的数组 ——
+    这两件事只有在真执行时才会分开，而缺陷只发生在它们分开的地方。
+    `_DOM_STUB` 的 `querySelectorAll` 恒返 `[]`，所以只能数字符串里的 `<tr`。
+    """
+    board = _code_block(_fn(_body(src, "function renderPredBoard(")))
+    heroes = _code_block(_fn(_body(src, "function renderHeroes(")))
+    rows = _code_block(_fn(_body(src, "function renderRows(")))
+    prelude = (
+        "const $ = id => global.document.getElementById(id);\n"
+        "const esc = s => String(s ?? '').replace(/[&<>\"']/g, c =>\n"
+        "  ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\n"
+        "const fmtPct = (v, d = 1) => v == null ? '\\u2014'\n"
+        "  : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%';\n"
+        "const newsChip = r => String(r.name ?? '');\n"
+        + heroes + "\n" + rows + "\n" + board + "\n"
+    )
+    up_js = "[" + ",".join(
+        "{code:'%sUP%d', name:'UP%d', mom20:0.01, score:1.0, news_sentiment:0}"
+        % (_ROWS_MARK, i, i) for i in range(n)
+    ) + "]"
+    down_js = "[" + ",".join(
+        "{code:'%sDN%d', name:'DN%d', mom20:-0.01, score:-1.0, news_sentiment:0}"
+        % (_ROWS_MARK, i, i) for i in range(n)
+    ) + "]"
+    return prelude + (
+        "renderPredBoard({up: " + up_js + ", down: " + down_js + "});\n"
+        "const hu = global.__html('pred-rows-up');\n"
+        "const hd = global.__html('pred-rows-down');\n"
+        "const cnt = h => (String(h).match(/\\d+/g) || []).join('');\n"
+        "console.log(JSON.stringify({\n"
+        "  up_tr: (hu.match(/<tr/g) || []).length,\n"
+        "  down_tr: (hd.match(/<tr/g) || []).length,\n"
+        "  up_codes: (hu.match(/ZZROWZZ/g) || []).length,\n"
+        "  down_codes: (hd.match(/ZZROWZZ/g) || []).length,\n"
+        "  up_label: cnt(global.__text('up-count')),\n"
+        "  down_label: cnt(global.__text('down-count')),\n"
+        "  hero_has_top: global.__html('heroes').includes('ZZROWZZUP0'),\n"
+        "}));\n"
+    )
+
+
+def test_render_rows_paints_exactly_one_row_per_row_it_is_given(tmp_path):
+    """★ 能力守卫：**喂 N 行 ⇒ 必须渲染 N 行，且标题计数与之同源。**
+
+    这条不是「源码里不许有 slice」——那是子串断言，会被注释满足（第 13 层）。
+    它真跑**承重函数** `renderPredBoard`、数它产出的 `<tr>`：
+
+    - 少渲染 ⇒ 表格比产物小，而 HTTP 200、零告警、**标题仍写着全数**
+    - 多渲染 ⇒ 表格里有从未被选中的票
+
+    两条失效方向**对称地**被这一条覆盖 ⇒ 探针不偏袒任何一侧（第 20 层那条通则：
+    选探针时要问「缺陷在两侧是否对称」）。
+
+    ⚠️ 断言的是**两侧都测**：真实缺陷只出现在 up 侧（down 侧当时没写 slice），
+    只测一侧的守卫会让「down 侧也开始 slice」这类新退化完全隐形。
+    """
+    out = _run_js(tmp_path, _probe_render_rows_count(_html(), _ROWS_N))
+    got = json.loads(out.strip().splitlines()[-1])
+    for side in ("up", "down"):
+        assert got[f"{side}_tr"] == _ROWS_N, (
+            f"喂了 {_ROWS_N} 行，renderPredBoard 在 {side} 侧只渲染出 "
+            f"{got[f'{side}_tr']} 个 <tr> ⇒ **表格与产物不同数**，"
+            f"而标题仍按产物长度渲染 ⇒ 交付形态在页面上变形"
+        )
+        # 正控：行数对了还不够，**每只票都得真的画出来**。
+        #   一条「渲染 N 个空壳 <tr>」的实现能骗过 tr 计数 ⇒ 必须再数票。
+        assert got[f"{side}_codes"] == _ROWS_N, (
+            f"{got[f'{side}_tr']} 个 <tr> 里只画出了 {got[f'{side}_codes']} 只票 ⇒ "
+            f"渲染层造了空行，或行与票的对应关系断了"
+        )
+    # ★ 这才是今天那条缺陷本身：**标题上的数与表格里的行数走了两个不同的量**。
+    #   曾经 up 侧渲染 `pred.up.slice(1)`（9 行）而 `up-count` 打 `pred.up.length`（10）。
+    assert got["up_label"] == str(_ROWS_N), (
+        f"标题写「{got['up_label']} 只」而 up 表格有 {got['up_tr']} 行 ⇒ "
+        f"**计数与行数不同源**，用户在页面上看到的形状与产品交付的形状不一致"
+    )
+    assert got["down_label"] == str(_ROWS_N), (
+        f"标题写「{got['down_label']} 只」而 down 表格有 {got['down_tr']} 行 ⇒ 同上"
+    )
+    # 正控（钉住上面两条不是恒真）：hero 卡确实拿到了首行 ⇒
+    #   「榜单第 1 只」这条通路是通的，row 数据没在传参处就断掉。
+    assert got["hero_has_top"] is True, (
+        "hero 卡里看不到榜单首只 ⇒ 探针的输入构造坏了（这是夹具失效，不是产品失效）"
+    )
+
+
+def test_the_row_probe_would_notice_if_it_stopped_counting(tmp_path):
+    """★ 探针健康度 —— 守的是守卫自己，不是产品（第 20 层那条通则的第 4 步）。
+
+    `*_codes` 断言里嵌着「每只票都画出来了」的正控，
+    而那个正控与主断言**用的是同一个探针**。
+    ⇒ 探针哪天坏成「只数 `<tr>`、数不到票」时，正控会**跟着一起失效**，
+    主守卫仍然全绿 —— 两条检查共享同一个失效路径。
+
+    ⇒ 这里造一个**只渲染 1 行**的输入：真探针必须给出每侧 `tr=1`（≠ 10）。
+    如果连这个都「渲染出 10 行」，说明探针根本没在数行数。
+
+    ⚠️ 同时钉住「标题计数真的跟着变」：喂 1 行必须打「1 只」，
+    否则 `up_label` 那个键有可能只是被硬编码在探针里（恒真）。
+    """
+    out = _run_js(tmp_path, _probe_render_rows_count(_html(), 1))
+    got = json.loads(out.strip().splitlines()[-1])
+    for side in ("up", "down"):
+        assert got[f"{side}_tr"] == 1 and got[f"{side}_codes"] == 1, (
+            f"喂 1 行却在 {side} 侧量到 tr={got[f'{side}_tr']} / "
+            f"codes={got[f'{side}_codes']} ⇒ 探针没有真的在数行数"
+            f"（或是 _DOM_STUB 的 innerHTML 收集坏了）"
+        )
+        assert got[f"{side}_label"] == "1", (
+            f"喂 1 行时 {side} 标题打「{got[f'{side}_label']}」⇒ "
+            f"标题计数没有跟着输入走，可能是探针里写死的 ⇒ 主守卫的 label 断言是恒真的"
+        )
