@@ -876,11 +876,7 @@ async function loadOverview() {
     const boardDay = parseTradingDay(pred.date);
     $('pred-title').textContent = boardDay ? nextTradingDayLabel(boardDay) + '预测' : '预测日期未知';
     $('pred-sub').textContent = `${pred.date} 收盘后生成`;
-    renderHeroes(pred.up[0], pred.down[0]);
-    renderRows($('pred-rows-up'), pred.up.slice(1), 'up');
-    renderRows($('pred-rows-down'), pred.down, 'down');
-    $('up-count').textContent = `${pred.up.length} 只`;
-    $('down-count').textContent = `${pred.down.length} 只`;
+    renderPredBoard(pred);
     renderDocket(status.stats, evo, weights, pred);
   } catch (e) { $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`; }
   try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
@@ -1030,6 +1026,23 @@ function renderRows(tbody, rows, dir) {
       <td class="num"><span class="bar-cell"><span class="track"><i style="width:${Math.min(100, Math.abs(r.score ?? 0) / maxScore * 100)}%"></i></span>${r.score?.toFixed(2) ?? '—'}</span></td>
       <td>${newsChip(r)}</td>
     </tr>`).join('');
+}
+
+// ⚠️ D1 交付形态的**唯一承重点**：标题上的「N 只」与表格里的 N 行必须同源。
+// 这四行曾经长在 `load()` 的 async 闭包里，而守卫测的是 `renderRows` 的函数体
+// ⇒ 两者之间零通路，把 `pred.up` 改成 `pred.up.slice(1)` 守卫照样全绿（第 21 层：
+// 承重逻辑不可测 = 判据不存在）。提到模块级后探针能真跑它。
+//
+// 两侧都**不** slice：hero 卡是**摘要**，表格是**明细**，同一只票出现在两处是设计。
+// 曾经只有 up 侧写了 `.slice(1)`（理由「第 1 只已在 hero 卡里」）、down 侧没写
+// ⇒ up 表格 9 行 / down 表格 10 行，而 `up-count` 打的是 `pred.up.length` = 10
+// ⇒ 「标题写 10 只、表格只有 9 行」而 HTTP 200、零告警。
+function renderPredBoard(pred) {
+  renderHeroes(pred.up[0], pred.down[0]);
+  renderRows($('pred-rows-up'), pred.up, 'up');
+  renderRows($('pred-rows-down'), pred.down, 'down');
+  $('up-count').textContent = `${pred.up.length} 只`;
+  $('down-count').textContent = `${pred.down.length} 只`;
 }
 
 function renderAlloc(a) {

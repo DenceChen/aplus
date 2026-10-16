@@ -432,6 +432,14 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   `ic_matrices.parquet` 的 1 天前瞻窗口并列比较 ——
     #   那不是同一个量（记忆 `ic-autocorrelation-is-not-halflife`）。
     "ic_halflife.json": "scripts/measure_ic_halflife.py",
+    # ⑤ 前瞻 D2 的第一个实测判决（判「超额腿能不能定出符号」，
+    #   **不判**「年化够不够 20%」—— 那需要 n ≥ 174 个独立观测，
+    #   而底稿的独立观测上限实测是 **4** 个 `entry_date`）。
+    #   判据逐字在 docs/PREREG_FORWARD_D2_2026-10-16.md §3 R1~R5（写死在跑产物之前）。
+    #   🚨 它的独立观测单位是 **`entry_date` 而不是 `pred_date`**：
+    #   实测 6 个 `pred_date` 只对应 4 个 `entry_date`，10-09/10-10/10-11
+    #   三天的单**全部 entry 到 2026-10-12** ⇒ 持有同一批 bar ⇒ 不是 3 个观测。
+    "forward_d2_verdict.json": "scripts/forward_d2_verdict.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；
