@@ -1,11 +1,11 @@
 {
-  "code_sha": "aeb5e1c47b3e3f5b8d65a36c61429f56e4431924",
+  "code_sha": "2d43b35526b0f3050afdcadd2c1fa31fad0bd788",
   "code_dirty": true,
   "code_file_sha256": "5ee8de8a8007d5f2f18a8fac28f429e24d82a36223d34a77a476c44e03548730",
   "data_fp": "5460:1792062762.291641",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_portfolio_exec.py",
-  "stamped_at": "2026-10-15T18:59:15+00:00",
-  "source_parquet_sha256": "321a326363a85491c4842a46c5df03d3650355741c2e43114cbd05ac4f63b872",
+  "stamped_at": "2026-10-16T09:10:31+00:00",
+  "source_parquet_sha256": "77c3fb47acace17af9f87415284df6b0d863d86d8daef1e24c051529198c9ea8",
   "n_days_measured": 3
 }

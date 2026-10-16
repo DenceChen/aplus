@@ -51,9 +51,9 @@
               0.4444444444444444
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.4671373744344339,
+            "point_biserial_rho": -0.46713737443443404,
             "permutation_p_two_sided": 0.8188090595470227,
-            "null_abs_rho_q95_power_floor": 0.5448222906956627,
+            "null_abs_rho_q95_power_floor": 0.5448222906956628,
             "detectable_at_alpha05": false
           }
         },
@@ -84,7 +84,7 @@
             "monotone_nondecreasing": false,
             "point_biserial_rho": -0.11711969392302517,
             "permutation_p_two_sided": 0.4871256437178141,
-            "null_abs_rho_q95_power_floor": 0.29438539738964653,
+            "null_abs_rho_q95_power_floor": 0.2943853973896465,
             "detectable_at_alpha05": false
           }
         }
