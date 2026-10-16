@@ -606,8 +606,13 @@ def create_app(data_root, llm=None) -> FastAPI:
             # `avg_down_return = +0.126%/日`，它推的「10 跌」平均每天在涨。
             # 半年下来用户每天收 10 只「会跌」的股票，判决板一字未提。
             # unknown 时前端什么都不渲染。
+            # ★ 传 `running` 而不是上面那行 `live_weights`：后者在
+            # `weights.json` 不存在时是 **None**（9 轮赛马 0 次晋级），
+            # 而 `running` 缺失时字面回落同一个 `load_weights()`，
+            # 与 `run_daily.py` 出单用的是同一个量（第 7 种形状）。
             "down_leg_check": live_down_leg(reports_dir, (execution or {}).get(
-                "rebalance_every", 1)),
+                "rebalance_every", 1), running,
+                (execution or {}).get("buffer_multiple")),
         }
 
     def _live_oos(reports_dir, live_weights, execution=None):

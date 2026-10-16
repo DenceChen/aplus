@@ -1,0 +1,26 @@
+L1 现任身份丢掉权重维（同一 K 下全池都算现任）	aplus/champion_health.py
+                and _norm_weights(r.get("weights")) == want
+=== 变异体 ===
+                and True
+
+L2 现任身份丢掉缓冲维（退回二元组 (权重, K)）	aplus/champion_health.py
+                and _norm_buffer(r.get("buffer_multiple")) == want_buf
+=== 变异体 ===
+                and True
+
+L3 现任身份丢掉 K 维（退回二元组 (权重, 缓冲)）	aplus/champion_health.py
+and r.get("rebalance_every") == rebalance_every
+                and _norm_buffer(r.get("buffer_multiple")) == want_buf
+=== 变异体 ===
+and True
+                and _norm_buffer(r.get("buffer_multiple")) == want_buf
+
+L4 hit_rate_down 改成扫全表取 max（两字段不同源）	aplus/champion_health.py
+        rate = st.get("hit_rate_down")
+=== 变异体 ===
+        rate = max((r["test_stats"]["hit_rate_down"] for r in table if isinstance(r.get("test_stats"), dict) and isinstance(r["test_stats"].get("hit_rate_down"), (int, float))), default=None)
+
+L5 找不到现任时返回 known=True + 0（「没测过」冒充「测过了」）	aplus/champion_health.py
+    return _miss(f"现有赛马报告里没有现任（{ident}）那一行的跌腿数据（未测过）")
+=== 变异体 ===
+    return {"known": True, "avg_down_return": 0.0, "hit_rate_down": 0.0, "rebalance_every": rebalance_every, "note": "未测过（变异体 L5：把 unknown 当成测过的 0）"}

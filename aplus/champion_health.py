@@ -177,18 +177,67 @@ def live_cost_share(reports_dir, rebalance_every: int) -> dict:
     return _miss(f"现有赛马报告里都没有 K={rebalance_every} 的成本占比（未测过）")
 
 
-def live_down_leg(reports_dir, rebalance_every: int) -> dict:
-    """线上这个**调仓频率**下，跌腿（产品承诺的「10 跌」那一半）到底跌不跌。
+def _norm_weights(w):
+    """权重正规化。🚨 **必须与 `collect_windows` 逐字同一条**（第 117 层）。
 
-    ## 为什么问这个
+    两处各写一份 ⇒ 两处会漂 ⇒ 「现任是谁」在两处得到两个答案，
+    而两处都不报错。
+    """
+    if not isinstance(w, dict):
+        return None
+    try:
+        return tuple(sorted((k, float(v)) for k, v in w.items() if v))
+    except (TypeError, ValueError):
+        return None
 
-    产品每天推「10 涨 10 跌」。涨腿那一半由 `oos_decision` 的超额闸看着，
-    跌腿那一半此前**没有任何闸、也没有任何展示**——
-    而实测现任权重的 `avg_down_return = +0.126%/日`：
-    它推的「10 只会跌」平均每天**在涨**。
 
-    半年下来用户每天收到 10 只「会跌」的股票，看到的却是它们在涨，
-    而判决板上一个字都没说。这不是统计问题，是**承诺没兑现还没人喊**。
+def _norm_buffer(v):
+    """`buffer_multiple` 正规化：缺键与 `None` 同义（都读作「没有缓冲」）。
+
+    老报告整个键都没有 ⇒ `.get` 给出 `None`，而 `load_weights` 的回落路径
+    写的也正是 `buffer_multiple: None` ⇒ 在生产侧它们是**同一个身份**。
+    数字统一成 `float`，免得 `3` 与 `3.0` 因为 JSON 写法不同被当成两套配置。
+    """
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return v
+
+
+def live_down_leg(reports_dir, rebalance_every: int, champion_weights: dict,
+                  buffer_multiple) -> dict:
+    """线上这套**执行配置**下，跌腿（产品承诺的「10 跌」那一半）到底跌不跌。
+
+    ## 报告的是**现任那一行**，不是候选池的极值
+
+    产品承诺是「每天 10 涨 10 跌」，而用户今天拿到的名单由
+    `run_daily.py` 的 `load_weights()["weights"]` 出单、按
+    `execution["rebalance_every"]` 调仓、用 `execution["buffer_multiple"]`
+    决定哪些旧持仓留在带内 ⇒ 「兑现了吗」问的是**那一行**。
+
+    🚨 **现任是三元组（权重, K, 缓冲），不是二元组。** 这不是我发明的：
+    `aplus/live_rebalance.py::is_due` 的 docstring 第 4 条逐字写着
+    「配置变了（频率或**缓冲**不同）——旧持仓是按旧配置挑的，
+    继续拿着就是**拿一套策略的仓位去跑另一套策略**」。
+    ⇒ 生产自己早就把缓冲算进身份；只按 (权重, K) 匹配，
+    会把**另一套策略的跌腿**报成「你今天拿到的这 10 跌」。
+    先量后判的探针也独立得到同一结论：incumbent 的权重在 K=1 上命中 **2 行**
+    且数值不同，差异字段就是 `buffer_multiple`（`3.0` vs `None`）。
+    ⚠️ 若忽略这一维而坚持「非唯一 ⇒ `known=False`」，
+    **任何跑日频的人会静默失去这条检查**，而「静默」与「今天没警报」
+    在判决板上逐位同形（第 119 层）。
+
+    🚨 三个实参**都不许有默认值**：有默认值则「现任是谁」
+    会被某次调用悄悄抹掉（第 119 层），而症状与「一切正常」逐位同形。
+
+    旧版取 `max(avg_down_return)`（最坏候选），理由抄自 `live_cost_share`
+    的「报告里未必有线上那组权重的行」—— 🚨 **该前提今天已不成立**
+    （`load_weights` 有回落路径）。换臂预注册：
+    `docs/PREREG_LIVE_DOWN_LEG_INCUMBENT_2026-10-16.md` §2。
+    ⚠️ `live_cost_share` 不改：它问「最坏能有多糟」，与本函数不是同一个问题
+    （同一个 `max` 手法套在两个问题上，一个对一个错）。
 
     ## 判据用绝对收益，不用「跑输大盘」
 
@@ -197,47 +246,62 @@ def live_down_leg(reports_dir, rebalance_every: int) -> dict:
     `down_excess_vs_market > 0` 只有 45/97 ≈ 随机——
     按那个设标准，等于拿一个约等于随机的量当合格线。
 
-    ## 取最差而不是最好
-
-    与 `live_cost_share` 同理：问的是「线上这套执行方式最坏能有多糟」，
-    不是「最好的一组候选表现如何」。
-
     没有数据就说没有，返回 `known=False` —— 返回 0 会被读成
     「跌腿不跌不涨」，而实际是**没测过**。
     """
+    if not isinstance(champion_weights, dict):
+        raise TypeError("champion_weights 必须是那组现行权重的 dict")
+    want = _norm_weights(champion_weights)
+    want_buf = _norm_buffer(buffer_multiple)
     files = [p for pat in ("race_composite*.json", "ic_guided_race*.json")
              for p in Path(reports_dir).glob(pat)]
     if not files:
         return {"known": False, "avg_down_return": None,
                 "hit_rate_down": None, "rebalance_every": rebalance_every,
                 "note": "没有赛马报告，跌腿表现未测过（不等于不跌）"}
+    # 按修改时间从新到旧：与 live_cost_share 同一策略（逐份回退而不是只看最新一份）。
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
 
     def _miss(note):
         return {"known": False, "avg_down_return": None, "hit_rate_down": None,
                 "rebalance_every": rebalance_every, "note": note}
 
+    ident = (f"权重 {dict(champion_weights)}，K={rebalance_every}，"
+             f"缓冲 {buffer_multiple if buffer_multiple is not None else '无'}")
     for path in files:
         try:
             table = json.loads(path.read_text(encoding="utf-8")).get("table") or []
         except (OSError, ValueError, AttributeError):
             continue
-        rows = [r["test_stats"] for r in table
+        hits = [r for r in table
                 if isinstance(r, dict)
                 and r.get("rebalance_every") == rebalance_every
+                and _norm_buffer(r.get("buffer_multiple")) == want_buf
+                and _norm_weights(r.get("weights")) == want
                 and isinstance(r.get("test_stats"), dict)
                 and isinstance(r["test_stats"].get("avg_down_return"), (int, float))]
-        if not rows:
+        if not hits:
             continue
-        worst = max(float(r["avg_down_return"]) for r in rows)
-        rates = [r["hit_rate_down"] for r in rows
-                 if isinstance(r.get("hit_rate_down"), (int, float))]
-        best_rate = max(rates) if rates else None
-        note = (f"K={rebalance_every} 下跌腿日均收益最坏 {worst:+.2%}"
-                f"（{len(rows)} 组候选，取最差；来源 {path.name}）")
-        if worst >= 0:
-            note += "——最坏的一组里，「10 跌」那篮子平均每天**在涨**，产品承诺未兑现"
-        return {"known": True, "avg_down_return": worst,
-                "hit_rate_down": best_rate, "report": path.name,
-                "rebalance_every": rebalance_every, "n": len(rows), "note": note}
-    return _miss(f"现有赛马报告里都没有 K={rebalance_every} 的跌腿数据（未测过）")
+        if len(hits) > 1:
+            # ⚠️ 这里**故意不给数**，理由要写明，否则日后会被读成「守卫过严」：
+            # 同一份报告里同一个身份出现多行且数值不同 ⇒ 报告内部就有歧义，
+            # 挑任何一行都是**编一个数出来**。保守方向是宁可沉默不可给错数。
+            return {"known": False, "avg_down_return": None, "hit_rate_down": None,
+                    "rebalance_every": rebalance_every, "n": len(hits),
+                    "report": path.name,
+                    "note": (f"现任（{ident}）在 {path.name} 里有 **{len(hits)} 行**且数值不同"
+                             " ⇒ 身份不唯一，不给数（宁可沉默不可给错数）")}
+        st = hits[0]["test_stats"]
+        avg = float(st["avg_down_return"])
+        rate = st.get("hit_rate_down")
+        rate = float(rate) if isinstance(rate, (int, float)) else None
+        hit_txt = f"，命中率 {rate:.1%}" if rate is not None else ""
+        note = (f"现任（{ident}）的「10 跌」篮子日均收益 {avg:+.2%}{hit_txt}"
+                f"（来源 {path.name}）")
+        if avg >= 0:
+            note += "——现任这一行里，「10 跌」那篮子平均每天**在涨**，产品承诺未兑现"
+        return {"known": True, "avg_down_return": avg,
+                "hit_rate_down": rate, "report": path.name,
+                "rebalance_every": rebalance_every, "n": 1, "note": note}
+    return _miss(f"现有赛马报告里没有现任（{ident}）那一行的跌腿数据（未测过）")
+

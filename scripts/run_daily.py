@@ -687,7 +687,7 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     # 测不出来时不打（known=False），因为 None 会被读成「跌腿不跌不涨」。
     try:
         from aplus.champion_health import live_down_leg
-        dl = live_down_leg(reports_dir, every)
+        dl = live_down_leg(reports_dir, every, weights, buf)
         if dl.get("known"):
             flag = " ⚠️ 承诺未兑现" if dl["avg_down_return"] >= 0 else ""
             print(f"[down] {dl['note']}{flag}")
