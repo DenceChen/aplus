@@ -229,6 +229,38 @@ def build_predictions(cross_section: pd.DataFrame, top_n: int = 10, bottom_n: in
     守卫：`tests/test_placebo_control.py::test_none_transform_is_bitwise_identical_to_pre_hook`。
 
     `as_of` 只在 `score_transform` 非 None 时被读到（见 `ScoreTransform` 注释）。
+
+    ## 🚨 三段形态：两腿必须「完全相同」**或**「完全不相交」（2026-10-16）
+
+    修之前这里是 `up = ranked.head(top_n)` 与 `down = ranked.tail(bottom_n)`
+    两个**独立截断**，两者之间没有任何互斥检查 ⇒ 池子落在
+    `[min(top_n, bottom_n)+1, top_n+bottom_n-1]` 时存在**第三种形态**：
+    两腿**部分重叠**，同一只票被同时推荐「明天会涨」与「明天会跌」。
+    `top_n = bottom_n = 10` 时那是池 **11~19**；实测池 19 交叠 1、池 11 交叠 9。
+    而 `save_predictions` 把两腿 `concat(ignore_index=True)`
+    ⇒ **文件结构无法表达重叠**，产出侧零告警。
+
+    判据（**先于修法预注册**，`tests/test_predict.py` 钉着）：
+    任意池子下两腿必须满足「完全相同」**或**「完全不相交」之一。
+    该判据**不锁机制** —— 「强制不相交」与「短池全对称」都满足它。
+    实测两条候选在池 ≥ 20 时都与修前**逐位相同**（影响半径 = 0），
+    且都保住池 ≤ 10 的既有语义（`test_..._small_universe_returns_all`）。
+
+    ★ **选「强制不相交」而不是「短池全对称」，理由是交付形态**：
+    D1 的承诺是「**10 涨**」，10 跌是对照侧。
+    - 强制不相交：池 ≥ `top_n` 时**永远精确交付 `top_n` 只涨**，
+      池不足时缩的是**跌腿**（池 15 ⇒ 涨 10 / 跌 5），
+      而 `verify.py::MIN_BASKET = 3` 会把不足成篮的那天整段丢弃
+      ⇒ 不成篮那天**不出结论**，而不是硬凑。
+    - 短池全对称：池 19 时交付 **19 涨 19 跌** ⇒ 把交付物本身改成了别的形状。
+
+    三段语义：
+
+    | 池子 | 两腿 | 归属 |
+    |---|---|---|
+    | ≤ `top_n` | **完全相同**（全部双向参考） | 既有设计，`test_..._small_universe_returns_all` 逐字钉着 |
+    | `top_n+1 ~ top+bottom_n-1` | **完全不相交**（跌腿缩短） | 本次新增，旧代码这里是部分重叠 |
+    | ≥ `top_n + bottom_n` | 完全不相交（各 `top_n` / `bottom_n` 只） | D1 承诺 |
     """
     df = cross_section.copy()
     df["score"] = composite_score(df, weights)
@@ -238,9 +270,22 @@ def build_predictions(cross_section: pd.DataFrame, top_n: int = 10, bottom_n: in
     df = df[df["score"].notna()].reset_index(drop=True)  # 因子不完整者剔除
     ranked = df.sort_values("score", ascending=False).reset_index(drop=True)
 
-    up = ranked.head(top_n).copy()
+    pool = len(ranked)
+    if pool >= top_n + bottom_n:
+        # 池子填得满两条腿 ⇒ D1 承诺形态。
+        up_src, down_src = ranked.head(top_n), ranked.tail(bottom_n)
+    elif pool <= top_n:
+        # 池子连一条腿都填不满 ⇒ 既有语义：同批股票双向参考。
+        up_src, down_src = ranked, ranked
+    else:
+        # 🚨 中间那一段：池子只够填满涨腿。跌腿**只从涨腿没拿走的那一段里取**
+        # ⇒ 两腿恒不相交，而不是让同一批票同时出现在「会涨」与「会跌」两份名单里。
+        up_src, down_src = ranked.head(top_n), ranked.iloc[top_n:]
+
+    up = up_src.copy()
     up["direction"] = "up"
-    down = ranked.tail(bottom_n).iloc[::-1].copy()
+    # `down_src` 三支都是「分数降序的后缀」，反转即「最看空在前」（旧语义一致）。
+    down = down_src.iloc[::-1].copy()
     down["direction"] = "down"
 
     # 注意：只有因子列才按「df 里有没有」过滤。`direction` 是在 up/down 上

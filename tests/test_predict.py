@@ -2,7 +2,11 @@
 
 设计（PLATFORM.md §2）：
 - 股票池过滤：非 ST、上市 > 60 交易日、当日有成交（volume>0）
-- 合成分 Top10 = 预测涨，Bottom10 = 预测跌（不足 10 取全部）
+- 合成分 Top10 = 预测涨，Bottom10 = 预测跌。**短池三段**（2026-10-16 改）：
+  池 ≤ 10 → 两腿都给全部（同批双向参考）；池 11~19 → 涨 10 只、跌腿**缩短**且
+  **与涨腿不相交**；池 ≥ 20 → 各 10 只不相交。
+  🚨 原文此处写的是「不足 10 取全部」，而那只描述了第一段 ——
+  中间那一段（部分重叠）**两条都不是**，见下面那条判据测试。
 - 每条预测带方向、分数、因子快照（可解释性）
 """
 import pandas as pd
@@ -95,6 +99,101 @@ def test_build_predictions_small_universe_returns_all():
     up, down = build_predictions(df, top_n=10, bottom_n=10)
     assert len(up) == 6 and len(down) == 6
     assert set(up["code"]) == set(down["code"])  # 小池子时同批股票双向参考
+
+
+def _overlap_count(up: pd.DataFrame, down: pd.DataFrame) -> int:
+    """两腿的公共代码数。判据的唯一量具，两条守卫共用同一个实现。"""
+    return len(set(up["code"]) & set(down["code"]))
+
+
+def test_the_two_legs_are_either_identical_or_disjoint_but_never_partly_overlapping():
+    """🚨 D1 交付形态的第三条缝（2026-10-16）。
+
+    `build_predictions` 里 `up = ranked.head(top_n)` 与 `down = ranked.tail(bottom_n)`
+    是**两个独立截断**，两者之间没有任何互斥检查 ⇒ 有第三种形态存在：
+
+    | 池子（分数非 NaN 的票数） | 两腿 | 归属 |
+    |---|---|---|
+    | ≤ `min(top_n, bottom_n)` | **完全相同** | 既有设计，`test_..._small_universe_returns_all` 逐字钉着 |
+    | **`min+1 ~ top+bottom-1`** | **部分重叠** | 🚨 **两条都不是它** |
+    | ≥ `top_n + bottom_n` | 完全不相交 | D1 承诺（每天 10 涨 10 跌） |
+
+    中间那一段（`top_n = bottom_n = 10` 时是池 11~19）在池 19 上实测：
+    9 只只在涨腿、9 只只在跌腿、**1 只同时在两条腿里且排名不同** ——
+    那一只被同时推荐「明天会涨」和「明天会跌」。
+    它既不是「小池子时同批股票双向参考」（那种形态两腿完全相同），
+    也不是「各 10 只不相交」；而 `save_predictions` 把两腿
+    `concat(ignore_index=True)` ⇒ **文件结构无法表达这件事**，产出侧零告警。
+
+    **判据（先于修法写下，不指定修法）**：任意池子下，两腿必须满足
+    「完全相同」**或**「完全不相交」二者之一，**不许第三种部分重叠**。
+    修法可以是「短池子时两腿强制不相交」，也可以是「短池子时退化成全对称」
+    —— 两者都满足，故本条不锁机制。既有那条池 6 的守卫**一个字不许动**。
+
+    ⚠️ **正控在验探测器、不验生产函数**（第 131 层）：合成一个 5 重叠的
+    两腿，断言探测器确实看得见它 —— 否则上面那条 `all()` 可能在探测器
+    坏掉时恒真（第 87 层：野自助守卫只有零假设臂没有正控臂）。
+    「生产函数这边有没有牙」由变异台回答，不由正控回答。
+    """
+    top_n = bottom_n = 10
+    partial = []
+    for n in range(0, 41):
+        up, down = build_predictions(_cross_section(n),
+                                     top_n=top_n, bottom_n=bottom_n)
+        ov = _overlap_count(up, down)
+        identical = set(up["code"]) == set(down["code"])
+        if not (identical or ov == 0):
+            partial.append({"pool": n, "len_up": len(up), "len_down": len(down),
+                            "overlap": ov})
+    assert not partial, (
+        f"池 11~19 出现了第三种形态（部分重叠）：{partial}\n"
+        f"  ⇒ 同一只票被同时推荐「会涨」与「会跌」，而产物侧零告警"
+    )
+
+    # 正控：探测器必须看得见「部分重叠」，否则上面那条可能恒真。
+    up = pd.DataFrame({"code": [f"A{i}" for i in range(10)]})
+    down = pd.DataFrame({"code": [f"A{i}" for i in range(5, 15)]})
+    ov = _overlap_count(up, down)
+    assert ov == 5 and not (set(up["code"]) == set(down["code"])), (
+        f"探测器坏了：5 重叠的合成两腿被判成 overlap={ov}，"
+        f"identical={set(up['code']) == set(down['code'])}"
+    )
+
+
+def test_the_up_leg_always_delivers_exactly_top_n_whenever_the_pool_allows():
+    """上面那条判据**分不出**两种修法：短池「强制不相交」与短池「全对称」
+    都满足「相同 或 不相交」。⇒ 若不把选它的**理由**钉成可测性质，
+    任何人把机制换成全对称，全部守卫照样绿，而**交付物形状被改了**。
+
+    ★ 这里的外部锚不是本仓的散文，是**交付契约本身**：
+    D1 = 每天推荐「会涨的 10 只」。所以只要池子够 10 只，
+    涨腿就必须**恰好 10 只** —— 短池时该缩短的是**跌腿**（对照侧），
+    绝不是涨腿。
+
+    实测两条候选在池 19 处的分野：
+
+    | 机制 | 涨腿 | 跌腿 |
+    |---|---|---|
+    | 强制不相交（本仓采用） | **10** | 9 |
+    | 短池全对称 | **19** | 19 |
+
+    ⇒ 后者把「10 涨」变成了「19 涨」。
+
+    ⚠️ 正控仍只验探测器（第 131 层）：断言夹具里池 19 **确实够 10 只**，
+    否则上面那条 `len(up) == top_n` 在池不足时会**假绿**。
+    """
+    top_n = bottom_n = 10
+    shrunk = []
+    for n in range(top_n, 41):
+        up, _ = build_predictions(_cross_section(n), top_n=top_n, bottom_n=bottom_n)
+        if len(up) != top_n:
+            shrunk.append({"pool": n, "len_up": len(up)})
+    assert not shrunk, (
+        f"池 ≥ {top_n} 时涨腿没有恰好 {top_n} 只：{shrunk}\n"
+        f"  ⇒ D1 的承诺是「10 涨」，短池时该缩的是跌腿而不是涨腿"
+    )
+    # 正控：池 19 确实够 10 只（否则上面那条在池不足时恒真）。
+    assert len(_cross_section(19)) >= top_n
 
 
 def test_build_predictions_carries_factor_snapshot():
