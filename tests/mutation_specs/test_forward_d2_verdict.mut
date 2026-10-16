@@ -1,0 +1,31 @@
+M1_group_by_pred_date_instead_of_entry_date	scripts/forward_d2_verdict.py
+    out = (work.groupby("entry_date", as_index=False)
+=== 变异体 ===
+    out = (work.groupby("pred_date", as_index=False)
+
+M2_strict_lt_becomes_le_on_the_ratio_gate	scripts/forward_d2_verdict.py
+    if n < MIN_BLOCKS_FOR_ANY_SIGN or abs(point) < mde:
+=== 变异体 ===
+    if n < MIN_BLOCKS_FOR_ANY_SIGN or abs(point) <= mde:
+
+M3_drop_the_market_subtraction_entirely	scripts/forward_d2_verdict.py
+    work = leg.assign(excess=leg["gross_pct"] - leg["market_pct"])
+=== 变异体 ===
+    work = leg.assign(excess=leg["gross_pct"])
+
+M4_reverse_the_verdict_branch_order	scripts/forward_d2_verdict.py
+if n < MIN_BLOCKS_FOR_ANY_SIGN or abs(point) < mde:
+        return VERDICT_POWERLESS
+    if hi < 0:
+        return VERDICT_NEGATIVE
+    if lo > 0:
+        return VERDICT_POSITIVE
+    return VERDICT_NOT_MEASURABLE
+=== 变异体 ===
+if hi < 0:
+        return VERDICT_NEGATIVE
+    if lo > 0:
+        return VERDICT_POSITIVE
+    if n < MIN_BLOCKS_FOR_ANY_SIGN or abs(point) < mde:
+        return VERDICT_POWERLESS
+    return VERDICT_NOT_MEASURABLE
