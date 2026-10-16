@@ -127,6 +127,10 @@ def _extra_tier_cost(tag: str) -> float:
 # ── 分位网格（§10.5 Y5-Q1）──────────────────────────────────────────────
 QUANTILES = (0.0, 5.0, 25.0, 50.0, 75.0, 95.0, 100.0)
 QUANTILE_KEYS = ("min", "p5", "p25", "median", "p75", "p95", "max")
+#: 诊断用：单个 rep 的日期清单最多落盘多少个（总数另存，不截断总数）。
+#: 🚨 只截断**明细**，不截断**计数** —— 截断计数会让「16/100」这类数
+#: 在产物里变得不可核对，而那正是本诊断要回答的东西。
+DIAG_MAX_DATES = 40
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -206,6 +210,122 @@ def branch_conditions(rec: dict) -> dict:
         "E-上": bool(s > float(rec["p95"])),
         "E-下": bool(s < float(rec["p5"])),
         "E-内": bool(not (s > float(rec["p95"]) or s < float(rec["p5"]))),
+    }
+
+
+def date_axis_diff(tb_keys, strat_keys) -> dict:
+    """**为什么** `same_date_axis` 为 False —— 纯诊断，**不进任何判决**。
+
+    ★ 2026-10-16 新增（预注册 `PREREG_7Y_NET_NAV` §21.3 的欠账：
+      「让脚本把『哪一天、哪几只票没 bar』落盘，而不是继续想」）。
+
+    🚨 `same_date_axis` 用的是 `list == list` ⇒ **对顺序敏感**。
+      所以「日期轴不同」至少有两类成因，而**它们的修法完全不同**：
+
+      | 类别 | `same_set` | 含义 | 机理 |
+      |---|---|---|---|
+      | ① 集合不同 | `False` | 真的有日子不在随机臂的日期轴上 | 成分下限（`count < MIN_BASKET` ⇒ 整天消失） |
+      | ② 仅顺序不同 | `True` | 集合相同、只是次序不同 | 跨年 chunk 拼接次序，**与成分无关** |
+
+      只记 `not same_axis` 会把这两类压成同一个 `True` ——
+      症状相同、方向相反（第 12 层的「断言对、成因错」）。
+
+    ⚠️ **本函数不回答「成分下限是不是成因」**：机理已证，**成因未找到**
+      （实测 16% 的 rep 触发，而按机理需要 10 只里 8 只以上无下一根 bar，
+      差 8 倍以上 ⇒ 必有一个未识别通道）。
+      ⇒ 拿到本函数的输出**不等于**拿到了成因。
+    """
+    tb_keys = list(tb_keys)
+    strat_keys = list(strat_keys)
+    s_set, t_set = set(strat_keys), set(tb_keys)
+    missing = [d for d in strat_keys if d not in t_set]
+    extra = [d for d in tb_keys if d not in s_set]
+    same_len = len(tb_keys) == len(strat_keys)
+    n_pos = sum(1 for a, b in zip(strat_keys, tb_keys) if a != b) if same_len else None
+    return {
+        "same_set": bool(s_set == t_set),
+        "n_missing_from_random": len(missing),
+        "n_extra_in_random": len(extra),
+        "n_len_diff": len(tb_keys) - len(strat_keys),
+        "n_positions_differ": n_pos,
+        "n_positions_why_null": (
+            None if same_len else
+            "两轴长度不等 ⇒ `zip` 只截到公共前缀，位置差会少算 ⇒ "
+            "宁可给 None 也不给一个读起来可比、实际不可比的数（第 18 层）"),
+        "missing_dates_head": missing[:DIAG_MAX_DATES],
+        "extra_dates_head": extra[:DIAG_MAX_DATES],
+        "why_heads_only": (f"明细只留前 {DIAG_MAX_DATES} 个；总数在汇总的 *_total 字段里"),
+    }
+
+
+def market_identity(tb_market, strat_market) -> dict:
+    """两臂 `market` 的**逐位身份** —— 纯观测，**不进任何分支**。
+
+    ★ 2026-10-16 从逐 rep 循环里的 `if rep == 0:` 提取到模块级。
+      此前 100 个 rep 只量了第 0 个，其余 99 个在产物里是 **`None`** ——
+      而 `None` 与「量过、结果是 False」**逐位同形**（第 7 层）。
+
+    🚨 **`max_abs_diff == 0` 不蕴含 `identical == True`**：
+      `nanmax` 跳过 NaN 位置，而 `array_equal` 对 NaN 判不等
+      ⇒ 两臂同位置都是 NaN 时，差为 `0.0` 而 `identical` 为 `False`。
+      **两个各自正确的数在这里指向不同的东西** ⇒ 两者都落盘，**不许合并**。
+
+    🚨 **长度不等一律 `raise`**，不返回 `inf`。
+      长度耦合是**可证的**：`chunk_to_daily` 的 `market` 由 `keys` 逐项生成
+      ⇒ `len(market) ≡ len(keys)`；调用点又先判过 `same_date_axis`
+      （即 `tb["keys"] == strat_keys`）⇒ 等长恒成立。
+      ⇒ 旧代码那条 `else float("inf")` **结构上不可达**；
+      而它一旦可达，落盘的会是一个「看起来很正常、实际代表无穷大」的数。
+
+    ⚠️ **本函数不回答「为什么会差」**：差**是多少**是观测，
+      差**来自浮点加法次序还是某条数据路径**是另一件事，这里看不见。
+    """
+    a = np.asarray(tb_market, float)
+    b = np.asarray(strat_market, float)
+    if len(a) != len(b):
+        raise ValueError(
+            f"market 长度不等（随机臂 {len(a)} vs 策略臂 {len(b)}）⇒ 逐位比较无定义。"
+            "调用点必须先判 same_date_axis（true ⇒ len(market) ≡ len(keys) "
+            "≡ len(strat['market'])）")
+    d = np.abs(a - b)
+    finite = d[np.isfinite(d)]
+    return {
+        "identical": bool(np.array_equal(a, b)),
+        "max_abs_diff": float(finite.max()) if finite.size else float("nan"),
+    }
+
+
+def summarize_market_identity(per_rep: list) -> dict:
+    """把逐 rep 的 `market` 身份**数**成一个汇总块（§10.8 落盘契约）。
+
+    ★ 2026-10-16 新增。此前这块写的是 `checked_on: "rep 0"` ＋ 两处
+      `per_rep[0].get(...)` ⇒ ① 一个**键的内建值在替覆盖范围作保证**
+      （第 179 层：改成 `"all reps"` 仍是内建保证 ⇒ **删键优于改值**，
+      缺键是响亮的、撒谎的键是安静的）② 汇总与逐 rep 记录是
+      **两份副本口径**（第 112 层）⇒ 现在三个计数全部数出来，
+      **产物里不许写死任何数字**（第 73 层：写死的数会被底稿漂移打脸）。
+
+    🚨 **「不可比」与「不一样」是两个计数，不许合并**（第 7 层）：
+      未比较的 rep **不进入** `n_reps_bitwise_different`
+      ⇒ 前者是窗口没对齐，后者是两臂连基准都变了，处置完全不同。
+    """
+    rows = [r for r in per_rep if "market_identical_to_strategy" in r]
+    same = [r for r in rows if r["market_identical_to_strategy"]]
+    diff = [r for r in rows if not r["market_identical_to_strategy"]]
+    diffs = [float(r["market_max_abs_diff"]) for r in rows
+             if r.get("market_max_abs_diff") is not None]
+    return {
+        "n_reps_total": int(len(per_rep)),
+        "n_reps_compared": int(len(rows)),
+        "n_reps_not_compared": int(len(per_rep) - len(rows)),
+        "n_reps_bitwise_identical": int(len(same)),
+        "n_reps_bitwise_different": int(len(diff)),
+        "max_abs_diff_over_compared_reps": max(diffs) if diffs else None,
+        "why_not_compared": (
+            "日期轴与策略臂不同的 rep **未被比较**（不是「比较了且不同」）："
+            "两个数组逐位比的是**不同的日子**，那个差不是「基准变了」的量（第 7 层）"),
+        "why_it_matters": ("随机臂只置换 score、不改 market ⇒ 若为假，"
+                           "两臂差的不只是选股（连基准都变了）"),
     }
 
 
@@ -578,16 +698,24 @@ def _run(args) -> int:
             rec = {"rep": rep, "seed": int(seed),
                    "dates_identical_to_strategy": bool(same_axis),
                    "n_days": int(len(tb["keys"]))}
+            if not same_axis:
+                # ★ 2026-10-16 加的**纯观测**（不改任何判据臂）。判据逻辑**不得**
+                #   内联在 `_run()` 里：内联 ⇒ 守卫 import 不到 ⇒ 等于零守卫
+                #   （`code-a-guard-cannot-import-is-effectively-unguarded`）。
+                #   所以真正的计算在模块级 `date_axis_diff()`，这里只负责调用。
+                rec["date_axis_diff"] = date_axis_diff(tb["keys"], strat_keys)
             for tag in table:
                 a = annualize(account_daily(tb, tag))
                 rec[tag] = a
-            if rep == 0:
-                rec["market_identical_to_strategy"] = bool(
-                    same_axis and np.array_equal(tb["market"], strat["market"]))
-                rec["market_max_abs_diff"] = float(
-                    np.nanmax(np.abs(tb["market"] - strat["market"]))
-                    if same_axis and len(tb["market"]) == len(strat["market"])
-                    else float("inf"))
+            if same_axis:
+                mi = market_identity(tb["market"], strat["market"])
+                rec["market_identical_to_strategy"] = mi["identical"]
+                rec["market_max_abs_diff"] = mi["max_abs_diff"]
+            else:
+                # 🚨 **不写 False**：不可比 ≠ 不一样（第 7 层）。
+                #    留白 + 说清理由，比冒充「比较了且不一致」诚实。
+                rec["market_not_compared"] = (
+                    "日期轴与策略臂不同 ⇒ 逐位比较无意义（比的是不同的日子）")
             per_rep.append(rec)
             reps.append(rec[JUDGE_TAG]["cagr"])
             print(f"  rep {rep:3d} seed={seed} 判决档 CAGR "
@@ -604,6 +732,31 @@ def _run(args) -> int:
     strat_cagr = strat_arms[JUDGE_TAG]["cagr"]
     #: 逐 rep 的「日期轴与策略臂逐位相同」。🚨 这是 `Y5-A3` 的**独立**判据。
     axes_all_same = bool(dates_ok) and all(dates_ok)
+    # ★ 2026-10-16 加的**纯观测**（预注册 `PREREG_7Y_NET_NAV` §21.3 登记的欠账：
+    #   「让脚本把『哪一天、哪几只票没 bar』落盘，而不是继续想」）。
+    #: 把逐 rep 的 `date_axis_diff` 汇总成一句**可核对的形状陈述**。
+    #: ⚠️ 这一块**不参与任何判决** —— `_BRANCH_ORDER` 与四条分支条件一个字未动。
+    bad = [r["date_axis_diff"] for r in per_rep if r.get("date_axis_diff")]
+    axis_diag = {
+        "n_reps_bad": len(bad),
+        "n_reps_same_set_only_reordered": sum(1 for d in bad if d["same_set"]),
+        "n_reps_set_differs": sum(1 for d in bad if not d["same_set"]),
+        "missing_dates_total": int(sum(d["n_missing_from_random"] for d in bad)),
+        "extra_dates_total": int(sum(d["n_extra_in_random"] for d in bad)),
+        "len_diff_total": int(sum(d["n_len_diff"] for d in bad)),
+        "worst_rep_missing": (max(d["n_missing_from_random"] for d in bad)
+                              if bad else 0),
+        "verdict_relevant": False,
+        "why_not_in_verdict": (
+            "本块是**诊断**，不是判据。加它的时候 `_BRANCH_ORDER` 与四条分支条件"
+            "一个字未动；它只回答「日期轴为什么不一致」，不回答「策略臂年化够不够 20%」。"
+            "⚠️ 在成因查清之前，它连「成分下限过滤」这个机理都**不能**当成已确认 —— "
+            "机理（`count < MIN_BASKET` ⇒ 整天消失）已证，**成因未找到**。"),
+        "reads": (
+            "`n_reps_set_differs > 0` ⇒ 有日子真的不在随机臂的日期轴上；"
+            "`n_reps_same_set_only_reordered > 0` ⇒ 集合相同、只是顺序不同 "
+            "⇒ 那与成分无关，是拼接次序，机理完全不同。两者混为一谈会让修法跑偏。"),
+    }
     # ── 对拍外部锚（§10.3）：逐位相等才算口径一致 ---------------------
     anchor_path = ROOT / "data/reports/basket_nav_01_2026-10-16.json"
     anchor = json.loads(anchor_path.read_text(encoding="utf-8"))
@@ -700,6 +853,7 @@ def _run(args) -> int:
                 "逐日明细不落盘（1395 行 × 2 会让产物读不下去）；"
                 "落盘的是汇总 + 判定布尔。明细要复现请重跑 --smoke。"),
         },
+        "date_axis_diagnosis": axis_diag,
         "window_identity_across_arms": {
             "rule": "Y5-A3：每个随机臂的**日期轴**必须与策略臂逐位相同",
             "all_reps_dates_identical": axes_all_same,
@@ -709,14 +863,7 @@ def _run(args) -> int:
                 "日期**部分重叠**时两表长度可以**恰好相同**而内容不同 ⇒ "
                 "『market 逐位相等』证明不了『同一天』，必须单比日期轴（第 7 种形状）"),
         },
-        "market_identical_across_arms": {
-            "checked_on": "rep 0",
-            "random_vs_strategy_bitwise_equal": per_rep[0].get("market_identical_to_strategy")
-            if per_rep else None,
-            "max_abs_diff": per_rep[0].get("market_max_abs_diff") if per_rep else None,
-            "why_it_matters": ("随机臂只置换 score、不改 market ⇒ 若为假，"
-                               "两臂差的不只是选股（连基准都变了）"),
-        },
+        "market_identical_across_arms": summarize_market_identity(per_rep),
         "annualization": {
             "primary": "compounded",
             "function": "measure_basket_nav_01.tier（import，不重写）",

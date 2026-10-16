@@ -897,3 +897,160 @@ def test_the_np_attribute_scanner_is_not_satisfied_by_prose() -> None:
     assert not bad_calls, (
         "本文件里居然有一处真实的 np.<坏名字> 调用 ⇒ "
         "G3 应当报它；这说明本正控的前提变了")
+
+
+# ─────────────────────────────────────────────────────────────
+# §21.4：market 身份必须**逐 rep** 落盘（2026-10-16）
+#
+# 🚨 旧代码在逐 rep 循环里写的是 `if rep == 0:` ⇒ 只有第 0 个 rep
+#   被量过，其余 99 个在产物里是 **`None`**。而 `None` 与「算过、
+#   结果是 False」**逐位同形**（第 7 层）⇒ 那 99 个 `None` 读起来
+#   像「量过了，都没问题」，而真实是**根本没量**。
+#   而汇总层的 `checked_on: "rep 0"` 正是把这个事实**写进键名里**，
+#   却与产物里那一列 `None` 并排出现 ⇒ **两份副本之间没有守卫**。
+#
+# 本节守三件事，全部靠**构造出来的分岔夹具**：
+#   ① `market_identity` 真能给判决（能力守卫，第 131 层）
+#   ② 「不可比」**不许**被压成「不一样」（第 7 层）
+#   ③ 汇总层**不许**有一句内建覆盖范围的声称（第 179 层）
+# ─────────────────────────────────────────────────────────────
+
+
+def _mi_fixture() -> list:
+    """四个 rep，其中**最大差值不在 rep 0** —— 这是本夹具的全部意义。
+
+    ⇒ 任何「取 `per_rep[0]`」的写法都会读到 rep 0 的
+      `market_max_abs_diff` **缺失**，于是汇总值变成 `None` 而非 `5e-18`
+      ⇒ 这条夹具直接杀掉第 112 层（两份副本口径）。
+    """
+    return [
+        # rep 0：**日期轴不同 ⇒ 未被比较**（不是「比较了且不同」）
+        {"rep": 0, "dates_identical_to_strategy": False,
+         "market_not_compared": "日期轴与策略臂不同 ⇒ 不可比"},
+        # rep 1：比了，逐位相同
+        {"rep": 1, "dates_identical_to_strategy": True,
+         "market_identical_to_strategy": True, "market_max_abs_diff": 0.0},
+        # rep 2：比了，**逐位不同**，且这是全局最大差值
+        {"rep": 2, "dates_identical_to_strategy": True,
+         "market_identical_to_strategy": False, "market_max_abs_diff": 5e-18},
+        # rep 3：比了，逐位相同
+        {"rep": 3, "dates_identical_to_strategy": True,
+         "market_identical_to_strategy": True, "market_max_abs_diff": 0.0},
+    ]
+
+
+def test_market_identity_gives_a_verdict_on_equal_series() -> None:
+    """能力守卫（第 131 层）：证明它**能**给出判决，而不是恒返 `None`。"""
+    a = np.array([0.001, -0.002, 0.0])
+    out = M.market_identity(a, a.copy())
+    assert out["identical"] is True, "逐位相同的序列必须判 True"
+    assert out["max_abs_diff"] == 0.0, "逐位相同 ⇒ 差恒为 0"
+
+
+def test_market_identity_detects_a_single_ulp_difference() -> None:
+    """反向正控：只差**最后一位**也必须看得见（不许用容差把它抹掉）。"""
+    a = np.array([0.001, 0.002])
+    b = a.copy()
+    b[1] = float(np.nextafter(b[1], np.inf))          # 1 ulp
+    out = M.market_identity(a, b)
+    assert out["identical"] is False, "差 1 ulp 就不许说 identical"
+    assert out["max_abs_diff"] > 0.0, "差必须被报成一个正数，而不是四舍五入成 0"
+
+
+def test_market_identity_reports_nan_as_a_difference_not_as_equality() -> None:
+    """🚨 `max_abs_diff == 0` **不蕴含** `identical=True`。
+
+    `nanmax` 会跳过 NaN 位置，而 `array_equal` 对 NaN 判不等
+    ⇒ 两臂若在同一位置都是 NaN，最大差值仍是 0.0 而 `identical` 为 False。
+    ⇒ **「两个各自正确的数在这里指向不同的东西」**；
+    若有人把 `identical` 写成 `max_abs_diff == 0`，这条当场变红。
+    """
+    a = np.array([0.001, np.nan])
+    b = np.array([0.001, np.nan])
+    out = M.market_identity(a, b)
+    assert out["identical"] is False, "含 NaN ⇒ 逐位相等为假（array_equal 的口径）"
+    assert out["max_abs_diff"] == 0.0, "NaN 位置被 nanmax 跳过 ⇒ 差确为 0"
+
+
+def test_market_identity_refuses_unequal_lengths_loudly() -> None:
+    """两臂不等长 ⇒ **报错**，不许返回 `inf`。
+
+    🚨 旧代码那条 `else float("inf")` 在 `same_axis` 为真时**结构上不可达**
+    （`chunk_to_daily` 的 `market` 由 `keys` 逐项生成 ⇒ `len(market) ≡ len(keys)`，
+    而 `same_date_axis` 就是 `tb["keys"] == strat_keys`）⇒ 它是一段**死代码**。
+    而它一旦可达，落盘的会是一个「看起来很正常、实际代表无穷大」的数。
+    ⇒ 长度不等是**调用点的 bug**，必须响亮，不许降级成一个可读的数。
+    """
+    with pytest.raises(ValueError):
+        M.market_identity(np.array([1.0, 2.0, 3.0]), np.array([1.0, 2.0]))
+
+
+def test_the_market_identity_check_runs_on_every_rep_not_only_the_first() -> None:
+    """接线守卫：逐 rep 循环里**必须**调 `market_identity`。
+
+    🚨 判据落到**语法位置**上（`_run` 的可执行语句里出现该调用），
+    不落全文子串 —— 否则函数名出现在本文档里就能满足它（第 13 层）。
+    🚨 同时钉住**旧闸门必须消失**：全仓 `rep == 0` 原本只有一处（`scripts` 第 639 行），
+    本守卫是它唯一的对手；留着它 ⇒ 产物里那 99 个 `None` 会被重新造出来。
+    """
+    assert "market_identity(" in _func_code(SRC.read_text(encoding="utf-8"), "_run"), (
+        "_run 的可执行语句里没有 market_identity( 调用 ⇒ "
+        "逐 rep 循环根本没在量 market（剥了 docstring 才查，避免文档满足）")
+    stale = [n for n in ast.walk(ast.parse(_func_code(SRC.read_text(encoding="utf-8"), "_run")))
+             if isinstance(n, ast.Compare)
+             and isinstance(n.left, ast.Name) and n.left.id == "rep"
+             and any(isinstance(c, ast.Constant) and c.value == 0
+                     for c in n.comparators)]
+    assert not stale, (
+        "_run 里仍有 `rep == 0` 形式的闸门 ⇒ 只有第 0 个 rep 被量过，"
+        "其余全部落成 None（第 7 层：None 与 False 逐位同形）")
+
+
+def test_reps_with_different_dates_are_never_counted_as_market_mismatch() -> None:
+    """★ 本节的核心判据：**不可比 ≠ 不一样**（第 7 层）。
+
+    夹具里 rep 0 的日期轴不同 ⇒ 它**根本没被比较**。
+    ⇒ 它必须落在 `n_reps_not_compared`，而**不许**进 `n_reps_bitwise_different`。
+    🚨 旧写法 `same_axis and np.array_equal(...)` 把两者压成同一个 `False`
+      ⇒ 这条守卫对那行代码是红的。
+    """
+    s = M.summarize_market_identity(_mi_fixture())
+    assert s["n_reps_total"] == 4
+    assert s["n_reps_compared"] == 3, "只有日期轴相同的 3 个 rep 进入了比较"
+    assert s["n_reps_not_compared"] == 1, "日期轴不同的那 1 个必须单列"
+    assert s["n_reps_bitwise_identical"] == 2
+    assert s["n_reps_bitwise_different"] == 1, (
+        "「没法比」的 rep 不许混进「不一样」—— 两者的处置完全不同："
+        "前者是窗口没对齐，后者是两臂连基准都变了")
+
+
+def test_the_summary_max_is_over_every_compared_rep_not_just_the_first() -> None:
+    """🚨 夹具把全局最大差值放在 **rep 2**，rep 0 是未比较的那一个。
+
+    ⇒ 任何退回 `per_rep[0]` 的写法都会取到 `None`（rep 0 没有那个键）
+    ⇒ 这条守卫直接杀掉「汇总层回指 per_rep[0]」这条副本口径（第 112 层）。
+    """
+    s = M.summarize_market_identity(_mi_fixture())
+    assert s["max_abs_diff_over_compared_reps"] == 5e-18, (
+        "最大差值必须取遍**所有**已比较的 rep；夹具里它不在 rep 0，"
+        "所以「取第一个」会读成 None")
+
+
+def test_coverage_is_reported_by_counting_not_by_asserting() -> None:
+    """第 179 层：**键名不许内建一个关于覆盖范围的判断**。
+
+    旧键 `checked_on: "rep 0"` 是一个**值在替覆盖范围作保证**的键
+    ⇒ 改成 `"all reps"` 仍然是内建保证 ⇒ **删键优于改值**
+    （缺键是响亮的，撒谎的键是安静的）。
+    ⇒ 覆盖范围改由三个**数出来的**计数承担。
+    ⚠️ 两条守恒式是**兜底不是判别力**（在同一份过滤上恒真）；
+      本节的判别力在上面两条夹具守卫上。
+    """
+    s = M.summarize_market_identity(_mi_fixture())
+    boastful = [k for k in s if k in {"checked_on", "verified_on", "checked_rep"}]
+    assert not boastful, (
+        f"汇总层不许有内建覆盖范围声称的键：{boastful} —— "
+        "删键优于改值；覆盖范围由计数承担")
+    assert s["n_reps_compared"] + s["n_reps_not_compared"] == s["n_reps_total"]
+    assert (s["n_reps_bitwise_identical"] + s["n_reps_bitwise_different"]
+            == s["n_reps_compared"])

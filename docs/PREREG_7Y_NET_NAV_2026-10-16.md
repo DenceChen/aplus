@@ -1954,3 +1954,70 @@ if not args.smoke and int(args.reps) < N_RANDOM_REPS:
 4. 🚨 **变异台 10/10 只说明「这 10 个变异体被杀了」**，它**不**说明守卫覆盖完整
    —— 台子的输出里**没有任何一栏**能回答「这条变异抓的是不是它该抓的那个东西」
    （第 148 层）。编排层欠账照旧。
+
+---
+
+## §21 补记于跑完之后（2026-10-16）—— 🚨 **不是事前登记**
+
+> 🚨 **本节明写「补记」，且它记的是「§8.8 的 Y5 已经跑过了」这件事实。**
+> §11.6 第 3 条与 §19 开头那两句「本节写完时 Y5 一个 rep 都还没跑」**一字不改** ——
+> 它们写下时为真，改它就是**伪造历史**（第 91 层「跑过数据后不可辨」的另一个入口）。
+> **补记不能冒充预注册；原文不能被补记改写。**
+
+### 21.1 身份确认（不是靠产物自证）
+
+| 来源 | 值 |
+|---|---|
+| `data/reports/random_arm_nav.json::generator` | **`None`** —— 产物**自身不带**该字段 |
+| **sidecar `generator`** | **`scripts/measure_random_arm_nav.py`** |
+| 该脚本 docstring 首行 | 「**Y5** —— **净值口径**的随机臂：账户年化 +10.5563% 在 100 次随机抽样里排第几」 |
+| `::reps` / `::smoke` | **100** / **`false`** |
+| `::verdict` / `::branch` | **`None`** / **`None`** |
+
+⇒ **这就是 §8.8 的 Y5，且 100 个 rep 真跑了。**
+⚠️ 身份是**两条外部来源**钉死的（sidecar + 脚本 docstring），**不是产物自证**。
+若只读产物 ⇒ 撞上「产物不带 `generator`」，轻则「不知道这是什么」，
+重则按 `unknown = 不许引用` 判成不可引用（第 25 层的反面：**登记不存在的债**）。
+
+### 21.2 为什么 `verdict` 是 `None`（判决被压住，不是「没跑」）
+
+| 字段（产物实读） | 值 |
+|---|---|
+| `::verdict_suppressed_reasons[0]` | 🚨 **16/100 个随机臂的日期轴与策略臂不同**（Y5-A3 窗口逐日相同被破坏 ⇒ 分位数跨样本不可比） |
+| `::window_identity_across_arms.n_reps_dates_identical` / `::n_reps` | **84** / **100** |
+| `::branch_computed_but_not_adopted.code` | **`E-内`** |
+| `::domain_check.comparison.all_identical` / `.max_gap` | **`True`** / **`0`**（`n_days_domains_identical = 1395`） |
+| `::market_identical_across_arms.checked_on` | **`rep 0`** —— ⚠️ **只验了 1 个 rep**（🚨 **该键已从代码删除，但本产物尚未重跑** ⇒ 上面这行描述的是**旧产物**，不是当前代码的行为。补记于 2026-10-16 19:2x，`fresh` 与 `trustworthy` 是两条轴，此处**只登记键已删**、**不预登记重跑后的数**。）
+
+⇒ **域规则（`make_shuffle_score`）是对的**：分域逐日相同 ⇒ 池子非空
+⇒ 排除「整年不 append」那条路径。
+⇒ 🚨 **`quantiles` 整块不可引用**（含 `rank_of_strategy_percent = 25.0`、`n_ge_strategy = 25`）：
+产物**自己**写了「分位数跨样本不可比」，而 **16 个臂的日期轴与策略臂不同**
+⇒ 「25/100」「75% 随机臂更优」**不是结论，是被抑制判决的残骸**。
+
+### 21.3 🚨 成因**未找到**（机理已证，阈值对不上）
+
+**机理（最小复现已证实，不加载面板）**：
+`aplus/evolve_race.py::_daily_series` 的 `daily = daily.where(count >= MIN_BASKET).dropna()`
+⇒ 涨腿某天可判定行数 `< 3` ⇒ 那天从 `gross.index` 消失；
+`scripts/backtest_walk_forward_weights.py::run_year` 的 `days = list(gross.index)`
+⇒ **该批次的 `ch["dates"]` 是「涨腿幸存日集合」，不是日历** ⇒ 日期轴不一致。
+
+⚠️ **`MIN_BASKET` 嫌疑已排除**：`verify.py::MIN_BASKET = 3`，而
+`scaled_min_basket(10)` 在 `TOP_N=10 < 50` 时**返回 3** ⇒ 策略臂与 100 个随机臂
+**逐位相同**（三者同在 `verify_mod.MIN_BASKET = scaled_min_basket(TOP_N)` 的 `try` 内）。
+
+🚨 **但阈值反常**：触发上述过滤需「10 只里 8 只以上无下一根 bar」，
+而实测 **16% 的 rep 触发** ⇒ **差 8 倍以上对不上** ⇒ 必有一个**未识别的通道**：
+`execution_gate=True` 的可成交性拦截 / `_next_bars` 的 `merge(how="left")` 对齐 / panel 数据洞。
+⇒ 按 systematic-debugging Phase 3 纪律，**此处停止推理**。
+⇒ **正确动作是让脚本把「哪一天、哪几只票没 bar」落盘，而不是继续想。**
+
+### 21.4 本节**不**声称什么
+
+1. 🚨 **本节不声称「根因已找到」** —— 机理证到了 `count < 3`，阈值反差未解释。
+2. 🚨 **本节不声称 `market` 在 100 个臂上逐位相等** —— 只验过 `rep 0`。
+3. 🚨 **本节不构成判据变更**：`_BRANCH_ORDER` 与四条分支条件**一个字未动**；
+   四条判决原文与阈值也未动 ⇒ 不构成第 91 层的「换判据臂」。
+4. ⚠️ **重跑是 90 分钟 / GB 级**，🚨 必须与 `run_daily` **串行**（并发会 OOM，内核杀 RSS 最大者）。
+5. 🚨 **记忆里的「2/100」与本次实测「16/100」不得当成同一件事照抄** —— 比例变化本身未解释。
