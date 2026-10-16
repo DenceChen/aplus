@@ -1,0 +1,72 @@
+{
+  "verdict": "POWERLESS",
+  "n_blocks": 4,
+  "n_pred_dates": 6,
+  "mean_excess_pct_per_block": 0.00715735587541434,
+  "sd_pct": 0.017926546287290845,
+  "se_pct": 0.008963273143645423,
+  "t_stat": 0.7985203352291678,
+  "mde_pct": 0.01756801536154503,
+  "abs_mean_over_mde": 0.4074083343005958,
+  "ci95_low_pct": -0.01041065948613069,
+  "ci95_high_pct": 0.024725371236959368,
+  "ci_method": "normal_approx_z=1.96",
+  "sensitivity_student_t": {
+    "role": "sensitivity",
+    "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；判决仍用 1.96",
+    "t_crit_95": 3.182,
+    "ci95_low_pct": -0.021363779267665396,
+    "ci95_high_pct": 0.035678491018494074
+  },
+  "blocks": [
+    {
+      "entry_date": "2026-10-12",
+      "excess_mean_pct": -0.007267569766114709,
+      "n_legs": 29,
+      "n_pred_dates": 3
+    },
+    {
+      "entry_date": "2026-10-13",
+      "excess_mean_pct": 0.01996494469871295,
+      "n_legs": 10,
+      "n_pred_dates": 1
+    },
+    {
+      "entry_date": "2026-10-14",
+      "excess_mean_pct": 0.025151228457727732,
+      "n_legs": 10,
+      "n_pred_dates": 1
+    },
+    {
+      "entry_date": "2026-10-15",
+      "excess_mean_pct": -0.009219179888668614,
+      "n_legs": 10,
+      "n_pred_dates": 1
+    }
+  ],
+  "caliber": {
+    "observation_unit": "entry_date（R1：持有哪些 bar，而不是哪天下单）",
+    "observation_unit_why": "实测 6 个 pred_date 只对应 4 个 entry_date；10-09/10-10/10-11 三天的单全部 entry 到 2026-10-12 ⇒ 持有同一批 bar ⇒ 不是 3 个观测。10-10/10-11 是周末，出单对独立证据零新增。",
+    "leg": "direction == 'up' 且 gross_pct 非 NaN 的行，10 只等权",
+    "excess_is": "逐行 (gross_pct − market_pct) 的块均值（毛口径）",
+    "market_pct_is": "逐信号日抽样的市场腿；同一 entry_date 内实测有 3 个不同值（2026-10-12 那块是 0.004265/0.002688/0.005592）⇒ 块均值两种减法顺序逐位相同（线性映射）",
+    "market_pct_merge_order": "🚨 实测**不承重**：减法挪到合并之后，判决层逐字段 0 处变化；而 market_pct:=0（干脆不减）⇒ 9 个字段全变。⇒ 承重的是「减不减」不是「什么时候减」。⚠️ 「行级 sd 差 4.68e-04」是真的，但那个量在本仓**零消费者**（sd 的输入是块均值的 sd）⇒ 别拿它当承重墙",
+    "dead_branches": [
+      "NOT_MEASURABLE_AT_THIS_N"
+    ],
+    "market_pct_is_not": "不是被选中的那 10 只自身收益（那是恒等式，定不了语义）",
+    "market_sample_caveat": "MARKET_SAMPLE=150 是抽样池，实测 market_n_used 约 285；单种子 seed=42 在回测侧实测偏高约 0.95pp/年 ⇒ 用它当分母会压低超额，本判决的失效方向不利于平台目标",
+    "cost_caliber": "毛口径；净口径需另一次年化，混用即口径错配",
+    "ci_method_is": "正态近似（1.96）；n 小时偏窄，t 临界值版本作敏感性臂并排",
+    "verdict_branch_order": [
+      "POWERLESS",
+      "NEGATIVE",
+      "POSITIVE",
+      "NOT_MEASURABLE_AT_THIS_N"
+    ],
+    "this_answers": "「前瞻超额腿能不能定出符号」",
+    "this_does_not_answer": "「年化够不够 20%」——本样本量下任何外推年化都是无源之水；产物里刻意没有任何外推年化字段（R5）"
+  },
+  "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
+  "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037"
+}
