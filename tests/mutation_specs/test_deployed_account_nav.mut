@@ -1,0 +1,25 @@
+N1 缺口三条分支里中间那条被摘成死代码	scripts/deployed_account_nav.py
+if max(gapm_full, gapm_half) < 1:
+        return "两档都小于"
+=== 变异体 ===
+if False and max(gapm_full, gapm_half) < 1:
+        return "两档都小于"
+
+N2 效应量分支被摘成死代码	scripts/deployed_account_nav.py
+if max(eff_full, eff_half) > 1:
+=== 变异体 ===
+if False and max(eff_full, eff_half) > 1:
+
+N3 两个比值被合并成一句	scripts/deployed_account_nav.py
+        f"⚠️ ① 与 ② 不是同一个量：① 说「c 是否异于 0」，"
+=== 变异体 ===
+        f"⚠️ ① 与 ② 是同一个量的两种写法：① 说「c 是否异于 0」，"
+
+N4 CI 上端的方向被写反	scripts/deployed_account_nav.py
+if ci_hi_full > target:
+        return f"不许说达不到 {target:.0%}（也不许说接近）"
+    return f"可以说达不到 {target:.0%}"
+=== 变异体 ===
+if ci_hi_full > target:
+        return f"可以说达不到 {target:.0%}"
+    return f"不许说达不到 {target:.0%}（也不许说接近）"

@@ -1,11 +1,11 @@
 {
-  "code_sha": "32cfe825ea84e0de7b9b113ae4137a6fbdf751ef",
+  "code_sha": "d808d58002543566e7315ea7356d3ac522fb529a",
   "code_dirty": true,
-  "code_file_sha256": "7601f6419679367a9fce760d6096b67fe98477411d7449a2df4f14cd60bd8b64",
-  "data_fp": "5460:1792002326.672246",
+  "code_file_sha256": "ef727030c2ca3ea0c33b2f5e45d7815a2d9950711ff51050dff9e9cfaa30c5a1",
+  "data_fp": "5460:1792062762.291641",
   "data_dir": "data/master/daily",
   "generator": "/Users/airboom/opencode/aplus/scripts/market_nav_caliber.py",
-  "stamped_at": "2026-10-15T06:29:32+00:00",
+  "stamped_at": "2026-10-16T00:36:03+00:00",
   "window": [
     "2021-01-01",
     "2026-10-12"

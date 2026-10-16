@@ -1,0 +1,142 @@
+{
+  "generated_at": "2026-10-16T09:19:34",
+  "role": "⚠️ 对照臂 / 推算，**不是判决**。依赖下列四条假设。",
+  "question": "实盘半仓敞口下，D2（年化 20%）的读数是多少",
+  "source_daily": "data/reports/wf_weights_backtest_k21.daily.parquet",
+  "leg": "net_excess_bt003",
+  "exposure": {
+    "source": "inspect.signature(aplus.alloc.build_allocation).parameters[...].default",
+    "caller": "scripts/run_daily.py:647  build_allocation(up, capital=capital)",
+    "caller_passes_only": "capital",
+    "max_positions": 5,
+    "per_stock_cap": 0.1,
+    "equity_weight": 0.5,
+    "why_not_hand_typed": "手打 0.5 会在默认值被改后仍然绿 ⇒ 产品改了而仪表指着旧数。这是「只钉存在不钉性质」的形态。"
+  },
+  "assumptions": [
+    "① 敞口 = `build_allocation` 的默认参数之积，而生产只传 `capital`。",
+    "② 半仓摩擦 = parquet 逐日成本 × W。**仅在成本对 notional 严格线性时精确**（该腿费率 net_excess_bt003 的 cost_drag = 换手 × 费率，无固定额 ⇒ 无固定额即线性）。",
+    "③ `W×g` 假设「top-10 里的 5 只子篮子收益 = 10 只篮子收益」——🚨 `daily.parquet` **没有 top-5 子篮子序列** ⇒ **这是建模假设，不是测量**。",
+    "④ 闲置的另外 50% 现金收益按 0 计（未建模货币基金/余额宝利息）。若按 1.5%/年 计，会把账户年化抬高约 0.75pp —— 本文件**未**计入。"
+  ],
+  "friction_route": {
+    "used": "A：parquet 逐日成本 × W",
+    "why_exact_within_its_model": "该腿的成本是 `cost_drag = 换手率 × 费率(0.003)`，**无每笔固定额** ⇒ 成本对 notional 严格线性 ⇒ 缩放 W 是精确的，不是近似。",
+    "annual_cost_on_full_equity_pct": 3.416,
+    "annual_cost_on_deployed_equity_pct": 1.708,
+    "nonzero_cost_days": 69,
+    "n_days": 1395,
+    "excluded_route_B": {
+      "what": "aplus.costs.annual_friction(50000, 0.5, 5, 244/21)",
+      "role": "⚠️ **对照臂，非判决**。它与路线 A **不是同一个模型**。",
+      "why_excluded_from_the_verdict": "`annual_friction` 按**满换手 + 逐笔最低佣金 ¥5** 建模，而 parquet 的成本是**实际换手感知**且**无固定额**。用它配半仓 = **拿上限当实付**（上一版就是这么错的）。",
+      "not_comparable_as_a_second_answer": "两个数不是「两个估计」，是两个模型 ⇒ 并列会制造「半仓摩擦是 X 或 Y」的假分叉（第 7 层）。"
+    }
+  },
+  "two_rulers": {
+    "🚨_why_two": "CLAUDE.md 称 `compounded_stats` 为「对标年化 20% 的**唯一尺子**」，而判决档用 `measure_basket_nav_01`。二者年数常数不同 ⇒ **「唯一」在年数上不成立**。两个常数都不改（改 = 判据臂，第 91 层）。",
+    "ruler_244_judgement_arm": {
+      "source": "scripts/measure_basket_nav_01.py::tier  (aplus.hurdle.DAYS_PER_YEAR)",
+      "R": 244,
+      "full": {
+        "tier": "判决档·满仓·244",
+        "chan_g_approx": 0.10056526264162635,
+        "chan_gap_pp": 0.49975695276743837,
+        "n_days": 1395,
+        "years": 5.717213,
+        "compounded_total": 0.7749076294493729,
+        "cagr": 0.10556283216930074,
+        "arith_ann": 0.13847618482192353,
+        "vol_drag": 0.032913352652622796,
+        "ann_vol": 0.2753576662462739,
+        "mde_log": 0.0009292521049496949,
+        "mde_as_annual_pct": 0.22673751360772554
+      },
+      "half": {
+        "tier": "对照臂·实盘半仓·244",
+        "chan_g_approx": 0.05976036186588747,
+        "chan_gap_pp": 0.1797595746938982,
+        "n_days": 1395,
+        "years": 5.717213,
+        "compounded_total": 0.40710245347724205,
+        "cagr": 0.06155795761282645,
+        "arith_ann": 0.06923809241096177,
+        "vol_drag": 0.007680134798135313,
+        "ann_vol": 0.13767883312313695,
+        "mde_log": 0.0004633555019334751,
+        "mde_as_annual_pct": 0.11305874247176792
+      }
+    },
+    "ruler_252_named_unique": {
+      "source": "aplus/verify.py::compounded_stats  (TRADING_DAYS_PER_YEAR)",
+      "R": 252,
+      "full": {
+        "total_return": 0.7749076294493729,
+        "cagr": 0.10920647133083383,
+        "n_days": 1395,
+        "years": 5.535714285714286
+      },
+      "half": {
+        "total_return": 0.40710245347724205,
+        "cagr": 0.06363917296320731,
+        "n_days": 1395,
+        "years": 5.535714285714286
+      }
+    },
+    "caliber_conflict_measured": {
+      "years_252": 5.535714285714286,
+      "years_244": 5.717213,
+      "years_ratio": 1.032787,
+      "cagr_252": 0.10920647133083383,
+      "cagr_244": 0.10556283216930074,
+      "cagr_ratio_252_over_244": 1.034516,
+      "reading": "同一条满仓序列：252 口径 cagr=+10.9206%，244 口径 cagr=+10.5563% ⇒ 差 3.45%，全部来自年数常数（252/244 = 1.032787）。",
+      "policy": "两把尺子都印、都带 R 与来源；**不许静默二选一**。"
+    },
+    "synthetic_restore": {
+      "why_needed": "`compounded_stats` 吃**逐笔判定表**（direction/actual_pct/exit_date），不是日收益序列 ⇒ 直接喂 `daily.parquet` 会**静默返回全 None**（缺 `direction` 列 ⇒ `daily_portfolio_returns` 返空 Series）。",
+      "legs_per_day": 10,
+      "MIN_BASKET": 3,
+      "restored_rows": 1395,
+      "source_rows": 1395,
+      "max_abs_diff_vs_series": 1.734723475976807e-18,
+      "bitwise_equal": false,
+      "why_not_bitwise": "还原走 `groupby().mean()`，与原序列的加法顺序不同 ⇒ 差 1.735e-18，**不是 0**。守卫用 allclose 而非 `==`，且这个差是**打印出来的数**不是判据。",
+      "is_exact_not_faked": "每天 N 行同值 ⇒ 组内均值 **≡** 该值（数学上精确）⇒ 还原不丢信息、不造收益，只是**换一种喂法**。"
+    }
+  },
+  "why_half_is_not_simply_half": {
+    "daily_level_identity": "逐日层面半仓**就是**满仓乘 W（见 docstring 推导）—— 🚨 任何「半仓收益要另算一套」的写法都是接缝出错。",
+    "measured_max_abs_diff_vs_W_times_full": 8.673617379884035e-19,
+    "why_not_zero": "两条浮点运算路径不同（W×(mkt+gr)−W×cost vs W×(mkt+net)）。",
+    "compounding_is_the_real_nonlinearity": {
+      "cagr_ratio_half_over_full": 0.58314,
+      "W": 0.5,
+      "deviation_from_W": 0.08314,
+      "mde_ratio_half_over_full": 0.498633,
+      "reading": "CAGR 比 0.5831 ≠ W=0.5（差 +0.0831）⇒ 半仓年化**不是**满仓年化的一半。MDE 比 0.4986≈ W ⇒ 测量尺度基本线性。"
+    },
+    "breadth_is_a_modelling_assumption_not_a_measurement": "W×g 要求「5 只子篮子收益 = 10 只篮子收益」，而 parquet **只有 10 只**的序列。⇒ 这是假设③，**没有任何测量支持它**。"
+  },
+  "gap_to_target": {
+    "target": 0.2,
+    "judgement_arm_full_cagr": 0.10556283216930074,
+    "control_arm_half_cagr": 0.06155795761282645,
+    "gap_full_pp": 9.4437,
+    "gap_half_pp": 13.8442,
+    "gap_over_mde_half": 1.2245,
+    "gap_over_mde_full": 0.4165,
+    "effect_over_mde_half": 0.5445,
+    "effect_over_mde_full": 0.4656,
+    "ci_high_full": 0.3323,
+    "🚨_gap_over_mde_note": "🚨 **两个比值问两个不同的问题，不许合并读**：\n  ① `|c|/M`（效应量比）= 满仓 0.4656 / 半仓 0.5445 ⇒ c 本身两档都测不出符号，连正负都定不了；\n  ② `|T−c|/M`（缺口比）= 满仓 0.4165 / 半仓 1.2245 ⇒ 缺口两档分居 1 的两侧自己的 MDE；\n  ③ CI 上端 `c+M` = 33.2300%，高于目标 20% ⇒ 不许说达不到 20%（也不许说接近）。\n⚠️ ① 与 ② 不是同一个量：① 说「c 是否异于 0」，② 说「c 是否低于 20%」。用 ② 的结论去回答 ① 的问题是第 7 种形状（两个各自正确的数当成同一个量）。本块**不是判决**——判决来自 §18.4 的三条规则，本块只是同一读数按「相对目标」再表述一次；两个 cagr 都是**测不准的点估计**（记忆 `unmeasurable-point-estimate-only-supports-shape-claims`）。",
+    "🚨_not_a_verdict": "满仓档 `|c|/M = 0.4656 < 1 ⇒ **连符号都定不了**；本文件的所有 cagr 都继承这一点。🚨「距 20% 差 X pp」在此**不是判决**，只是两个都测不准的点估计之差（记忆 `unmeasurable-point-estimate-only-supports-shape-claims`）。"
+  },
+  "what_this_is_not": {
+    "is_not_a_verdict": "对照臂 / 推算。四条假设全列在 assumptions。",
+    "does_not_change_any_ruler": "不改 `R=244`，不改 `TRADING_DAYS_PER_YEAR=252`，不改 `TARGET`。两个年数常数的冲突只登记、不裁决。",
+    "does_not_suggest_raising_exposure": "`aplus/alloc.py:1-33` 的 docstring 逐字：「**50% 不是成本优化。** 50% 的真实理由是纸面验证期的风险敞口封顶」（`excess_breadth −4.65` 仍为负），**与成本模型完全正交**。本文件不提议提到 100%。",
+    "route_B_is_not_a_second_answer": "`annual_friction` 与 parquet 成本不是同一个模型，并列即制造假分叉（第 7 层）。",
+    "contradiction_policy": "若与本文件结论相反，只加对照臂，不改判据臂。"
+  }
+}

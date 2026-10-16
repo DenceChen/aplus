@@ -1,0 +1,9 @@
+{
+  "code_sha": "d808d58002543566e7315ea7356d3ac522fb529a",
+  "code_dirty": true,
+  "code_file_sha256": "f5dece004de524059c6d7a1844f50acf0940289b8104fa64b6787ae17cca6b9b",
+  "data_fp": "5460:1792062762.291641",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/deployed_account_nav.py",
+  "stamped_at": "2026-10-16T01:19:35+00:00"
+}

@@ -156,6 +156,17 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   那份判的是「因子能不能解释超额」，这份判的是「组合有没有市值倾斜」。
     # ⚠️ 它的判决**不能**替换头条毛超额，也不许进 FACTOR_COLS。
     "cap_exposure.json": "scripts/cap_exposure.py",
+    # 2026-10-16 登记：**实盘半仓敞口下的账户年化**。
+    # 🚨 它补的是判决档**从来没覆盖的一列**：`basket_nav_01_*.json` 的判决档
+    #   `c=+10.5563%` 量的是**满仓**账户（10 只等权、权益权重 1.0），
+    #   而 `aplus/alloc.py::build_allocation(max_positions=5, per_stock_cap=0.10)`
+    #   的 `equity_weight = 0.5`，且 `run_daily.py:647` **只传 `capital`** ⇒ 走默认值。
+    #   ⇒ 判决档那个数**不是用户账户会拿到的数**。
+    # ⚠️ 登记它不是给它判决权：产物自带 `role = 对照臂/推算`，
+    #   依赖「5 只子篮子收益 = 10 只篮子收益」这个 daily.parquet **测不出来**的假设。
+    # 🚨 本条**不是**被守卫逼出来的（`basket_nav_01` 至今仍未登记），
+    #   是本轮自查发现的：盖了章却查不到生成器 = `unknown` = 不可引用（形状 16）。
+    "deployed_account_nav.json": "scripts/deployed_account_nav.py",
     "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
