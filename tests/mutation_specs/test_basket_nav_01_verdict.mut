@@ -38,15 +38,15 @@ V8 超额贡献的 MDE 取了毛腿而不是该组合自己的净超额腿	scrip
 === 变异体 ===
     key = "毛超额"
 
-V9 超额贡献从比值口径换成相减（复利年化不可相减）	scripts/measure_basket_nav_01.py
-    val = ((1 + cb) / (1 + cm)) ** (1 / yrs) - 1
+V9 超额贡献从比值口径换成相减（分数减分数得到的差不是比值）	scripts/measure_basket_nav_01.py
+    val = (1 + cb) / (1 + cm) - 1
 === 变异体 ===
     val = cb - cm
 
-V10 「达标所需的超额」漏掉年化（把每期比值标成 /年）	scripts/measure_basket_nav_01.py
-    return ((1.0 + target) / (1.0 + c_mkt)) ** (1.0 / yrs) - 1.0
+V10 「达标所需的超额」把已经是年率的入参**再年化一次**（第二次年化；反向变异，2026-10-16 预注册 §5）	scripts/measure_basket_nav_01.py
+    return (1.0 + target) / (1.0 + c_mkt) - 1.0
 === 变异体 ===
-    return ((1.0 + target) / (1.0 + c_mkt)) - 1.0
+    return ((1.0 + target) / (1.0 + c_mkt)) ** (1.0 / yrs) - 1.0
 
 V11 caliber 基准臂长出默认值（判决臂与敏感性臂的区分被悄悄抹掉）	scripts/measure_basket_nav_01.py
 def caliber_benchmark_fraction(cal: dict, arm: str) -> float:
@@ -62,3 +62,8 @@ V13 判决臂被换成敏感性臂（看了数据之后改判据，第 91 层）
 VERDICT_BENCH_ARM = "equal_weight"
 === 变异体 ===
 VERDICT_BENCH_ARM = "cap_weight"
+
+V14 超额贡献把已经是年率的两条腿再年化一次（V10 的对称 counterpart，2026-10-16 补）	scripts/measure_basket_nav_01.py
+    val = (1 + cb) / (1 + cm) - 1
+=== 变异体 ===
+    val = ((1 + cb) / (1 + cm)) ** (1 / yrs) - 1

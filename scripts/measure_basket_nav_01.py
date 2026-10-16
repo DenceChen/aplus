@@ -115,8 +115,34 @@ def excess_contribution(cb: float, cm: float, yrs: float,
                         legs: dict, nm: str) -> dict:
     """超额贡献（**比值**口径）+ 它自己的 MDE（**必须取同源那条超额腿**）。
 
-    🚨 复利年化**不可相减**：`c_bk − c_mkt` 是「分数减分数」得到的**差**，
-    不是比值的年化（实测差 10 倍量级）。唯一口径是 `((1+c_bk)/(1+c_mkt))^(1/y) − 1`。
+    口径 = `(1 + cb) / (1 + cm) − 1`，即**比值减一**，不是 `cb − cm`。
+    🚨 复利年化**不可相减**：`cb − cm` 是「分数减分数」得到的**差**，
+    而两者同为**年率**时，年率的「和」不成闭包 ⇒ 只有比值口径是量纲正确的。
+
+    🚨🚨 **`yrs` 不许进公式。** 它只被校验、不被使用。理由是**入参口径**：
+      ① `cb` 的来源由生成器自己钉死 —— `rows[i]["cagr"]`，
+         而 `tier()` 的 `cagr = (1 + total) ** (1 / years) − 1`（`:60-91`）
+         ⇒ **它已经是年率**，不是整段累计；
+      ② `cm` 有两个来源，**都是年率**：
+         `:309 mc = rows[0]["cagr"]`（同上）；
+         `:346 c_mkt = caliber_benchmark_fraction(cal, arm)`，
+         而那个臂的字段名是 `geometric_annual_pct`（**annual**），
+         经 `CALIBER_PCT_SCALE` 换算成**分数**；
+      ⇒ 对**已经是年率**的两个量再取 `**(1/yrs)`，是把年量再年化一次。
+      书：`data/books/chan_lines.txt:4389`「the geometric mean of a set of numbers
+      … gives the average **compounded** rate」—— 年化的合法对象是
+      **一个期间的收益率集合**，不是一个已经是几何均值的数。
+
+    ⇒ **外部锚（充分性，与实现路径无关）**：`cb` 是账户、`cm` 是市场，
+      实测超额 `m` 必须满足 `(1 + cb) == (1 + cm) · (1 + m)`。
+      带幂的那个式子代入得 `(1+cm)·((1+cb)/(1+cm))^(1/y)`，只有 `y == 1` 才还原。
+      2026-10-16 实测（诊断脚本侧，产物字段为准）在 `y=5.717` 上差 **−8.36pp**。
+      详见 `docs/PREREG_REQUIRED_EXCESS_2026-10-16.md` §1/§4
+      —— 那个幂是 2026-10-16 05:14 为修「比值口径不一致」这个**真实症状**
+      而加的，代价是把绝对量级做错 **5.93×**（`required_excess` 侧 5.73× 在此侧）。
+
+    ⇒ ⚠️ **非判决量**：`abs_over_mde` / `sign_determinable` 两个下游量的**数值会变**
+      （`val` 变大约 5.7×），但**只支持形状陈述** —— `cb`、`cm` 都继承了各自的不可测性。
 
     ⚠️ `mde_of_the_underlying_excess_leg` 取的是**该组合自己那条净超额腿**的 MDE，
     不是账户 MDE、也不是市场腿 MDE —— 把 MDE 取成别的腿，`|x|/M` 就变成另一个量，
@@ -127,7 +153,7 @@ def excess_contribution(cb: float, cm: float, yrs: float,
     if key not in legs:
         raise KeyError(f"没有 {key} 这条超额腿；现有腿 = {sorted(legs)}")
     Mx = legs[key]["mde_as_annual_pct"]
-    val = ((1 + cb) / (1 + cm)) ** (1 / yrs) - 1
+    val = (1 + cb) / (1 + cm) - 1
     return {"annual_pct": val, "mde_of_the_underlying_excess_leg": Mx,
             "excess_leg_key": key,
             "abs_over_mde": abs(val) / Mx,
@@ -155,14 +181,33 @@ def caliber_benchmark_fraction(cal: dict, arm: str) -> float:
 
 
 def required_excess(target: float, c_mkt: float, yrs: float) -> float:
-    """达标所需的**超额贡献**（**年化**，比值口径，与 `excess_contribution()` 同口径）。
+    """达标所需的**超额贡献**（**年率**，比值口径，与 `excess_contribution()` 同口径）。
 
-    🚨🚨 **必须年化**。未年化的 `(1+T)/(1+c_mkt) − 1` 是**每期**比值，
-    把它标成「/年」就会与年化的实测混在一个比值里 ——
-    2026-10-16 实测这个错让「实测/需要」从 **6.27%** 变成 **1.06%**（差 5.93×），
-    而错的那个数被写进了预注册文档。
-    ⇒ 判据（不是注释）：年化后必然满足 `(1 + 本函数) ** yrs == (1+target)/(1+c_mkt)`，
-      这是几何均值的**定义**（与本函数实现路径无关 ⇒ 不是第 109 层的「用公式重算」）。
+    🚨🚨 **`yrs` 不许进公式。** 它只被校验、不被使用。
+    理由是**入参口径**，不是偏好 —— `target` 与 `c_mkt` **两个都是年率**：
+      ① `c_mkt` 的来源由产物自报：`gap_to_target_by_benchmark.*.c_mkt_source`
+         = `market_nav_caliber.json:equal_weight.geometric_annual_pct / 100.0`
+         ⇒ 除以 100 就是「它是百分数」的声明，而字段名里的 `geometric_annual_pct`
+         声明它是**年率**；
+      ② `target` 是年目标（`0.20`）；
+      ③ 本仓的「年率」有权威定义：`tier()` 的 `cagr = (1+total)**(1/years) − 1`，
+         而 `:290 mc = rows[0]["cagr"]` 就是这条腿；
+      ④ `bench_seed_sweep.py:146` 传的 `c_mkts[k]` 同为年化分数
+         （`geometric_annual()` 返回的第二项）。
+    ⇒ 对**已经是年率**的两个量再取 `**(1/yrs)`，是把年量再年化一次。
+
+    ⇒ **外部锚（充分性，与实现路径无关）**：本函数回答「若市场腿是 `c_mkt`，
+      账户还差多少超额」，那么它必须**恰好**够：
+      `(1 + c_mkt) · (1 + 本函数) == 1 + target`。
+      带幂的那个式子代入得 `(1+cm)·((1+T)/(1+cm))**(1/y)`，只有 `y == 1` 才等于 `1+T`
+      ⇒ 2026-10-16 实测它在 `y=5.717` 上差 **−8.3574pp**（账户隐含年化 11.6426% vs 20%），
+      无幂式恰好给出 `1.2`。
+
+    🚨 **这份 docstring 曾经是下一次「修复」的种子**（见
+    `docs/PREREG_REQUIRED_EXCESS_2026-10-16.md` §4）：旧版写「未年化的是**每期**比值」，
+    那个**前提是假的**（被 ① 的 `/100.0` 杀死），而据此加上的幂把绝对量级做错 5.93×。
+    ⇒ 所以这里写的是**入参的来源**，不是「为什么必须/不必年化」的结论 ——
+    **结论会过期，来源不会**。
 
     ⚠️ 这个量**不是**判决量：达标判决用 `judge(c_account, M_account, …)`，
        账户净值本身**基准无关**（`market + net_excess ≡ 篮子净`）⇒ 不需要基准。
@@ -171,7 +216,7 @@ def required_excess(target: float, c_mkt: float, yrs: float) -> float:
     """
     if yrs <= 0.0:
         raise ValueError(f"years 必须为正，实得 {yrs!r}")
-    return ((1.0 + target) / (1.0 + c_mkt)) ** (1.0 / yrs) - 1.0
+    return (1.0 + target) / (1.0 + c_mkt) - 1.0
 
 
 def judge(cc: float, MM: float, label: str) -> tuple[list[str], float]:
@@ -294,7 +339,7 @@ def main() -> int:
         cb = rows[{"bt003": 1, "real": 2}[nm]]["cagr"]
         xc[nm] = excess_contribution(cb, mc, yrs, excess_legs, nm)
         val, Mx = xc[nm]["annual_pct"], xc[nm]["mde_of_the_underlying_excess_leg"]
-        print(f"  {nm:6s} ((1+{cb:.6f})/(1+{mc:.6f}))^(1/{yrs:.4f}) − 1 = {val:+.4%}/年"
+        print(f"  {nm:6s} (1+{cb:.6f})/(1+{mc:.6f}) − 1 = {val:+.4%}/年"
               f"   |x|/M = {abs(val) / Mx:.4f}  ⇒ "
               f"{'符号可定' if xc[nm]['sign_determinable'] else '🚨 连符号都定不了'}")
     print("   ⚠️ 分母 = 抽样面板等权（随机 150 只，单 seed），不是中证全指。")

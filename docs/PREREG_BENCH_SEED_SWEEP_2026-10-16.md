@@ -259,7 +259,7 @@ D1 是**布尔**、D2 是**集合报告**、D3 是**纯描述** ⇒ 混不成一
 |---|---|
 | `tests/test_benchmark_seed_single_source.py`（10 条） | 钉「种子单一真相源 + `seed` 参数真生效」；**它是本扫描能成立的前提**（§2.3） |
 | `tests/test_market_benchmark_audit.py::test_the_seed_argument_is_actually_live` | 审计侧的反向正控 |
-| `tests/test_basket_nav_01_verdict.py`（11 条 + 变异 13/13） | 钉 A 族判决规则与 `required_excess()` 的年化；⚠️ **产物层守卫对当前代码零覆盖**（第 96 层） |
+| `tests/test_basket_nav_01_verdict.py`（11 条 + 变异 **14/14**） | 钉 A 族判决规则 + `required_excess()` 的**充分性锚**（🚨 **不是「年化」** —— 入参 `c_mkt` 自报 `geometric_annual_pct / 100.0` 已是年率，幂是第二次年化，见 `PREREG_REQUIRED_EXCESS_2026-10-16.md`）；⚠️ **产物层守卫对当前代码零覆盖**（第 96 层） |
 
 ✅ **补记（2026-10-16）：「判据不可问」那笔欠账已还。**
 `tests/test_bench_seed_sweep.py`（**27 条**，门禁 `28 passed`，多出的 1 条是

@@ -214,20 +214,39 @@ def _matches_its_own_reported_identity(out: dict, target: float,
                                        c_mkts: dict, yrs: float) -> bool:
     """主守卫与其**反向正控共用**的判定函数（第 131 层）。
 
-    锚是 `required_excess` **docstring 逐字自报**的恒等式：
-      「年化后必然满足 `(1 + 本函数) ** yrs == (1+target)/(1+c_mkt)`，
-        这是几何均值的**定义**（与本函数实现路径无关 ⇒ 不是第 109 层的用公式重算）」
+    锚是 `required_excess` **docstring 现在逐字自报**的**充分性**恒等式：
+      「**外部锚（充分性，与实现路径无关）**：本函数回答「若市场腿是 `c_mkt`，
+        账户还差多少超额」，那么它必须**恰好**够：
+        `(1 + c_mkt) · (1 + 本函数) == 1 + target`。」
 
     ⇒ 权威取自**被测对象自己的自报**（第 159 层：产物/docstring → 函数 → 书），
       不是「我想要某个值」。
     ⚠️ 它验的是**接线**（实参有没有真传进生产函数），**不是**重写 `required_excess`
       的实现 —— 那正是 §7 约束 1「只换输入、不重写公式」要的东西。
+
+    🚨🚨 **本函数的第一版锚的是「带幂」那个式子，2026-10-16 撤回**（`[[181]]`）：
+      它验 `(1 + v) ** yrs == (1+target)/(1+c_mkt)`，逐字理由是「这是几何均值的
+      **定义**」。而生产 docstring 现在**逐字写着相反的话**：「🚨🚨 **`yrs` 不许进公式。**
+      它只被校验、不被使用」—— 理由是**入参口径**：`c_mkt` 的来源由产物自报
+      `…geometric_annual_pct / 100.0`，它**已经是年率**，再 `**(1/yrs)`
+      是把年量**第二次年化**（实测 `y=5.717` 上差 **−8.3574pp**）。
+
+      ⇒ **失效方向是假红**：源头改了、副本没跟 ⇒ 正控在**正确夹具**上就红
+        （`正控前提失效：判定函数在正确夹具上就不通过`）
+        ⇒ 它会把我推向「把 `required_excess` 改回带幂」
+        ⇒ 那正是 `[[181]]` **已证伪并撤回**的错（绝对量级 ×5.93）。
+
+    ⇒ 本条**不是**改判据，是**改副本**：判据在 `[[181]]` 已经预注册，
+      生产侧由 `tests/test_basket_nav_01_verdict.py` N9 钉着。
+    ⚠️ `yrs` **仍然必须传进来**（签名与调用点一字不动）：它证明
+      「入参全是年率时输出本就不该随 `yrs` 变」这条**不变性**由主守卫之外的东西管，
+      而本条的正控靠「改夹具」而非「挪指数」制造分岔。
     """
     by_k = out.get("required_excess_by_k")
     if not isinstance(by_k, dict) or set(by_k) != set(c_mkts):
         return False
-    return all(math.isclose((1.0 + v) ** yrs,
-                            (1.0 + target) / (1.0 + c_mkts[k]),
+    return all(math.isclose((1.0 + c_mkts[k]) * (1.0 + v),
+                            1.0 + target,
                             rel_tol=1e-12)
                for k, v in by_k.items())
 
@@ -297,6 +316,61 @@ def test_the_required_excess_identity_check_is_not_tautological():
     assert not _matches_its_own_reported_identity(fake, _T_TARGET, tampered, 5.7), (
         "把夹具一格改掉后判定函数仍通过 ⇒ 它比的是恒等式本身而非**实参绑定** "
         "⇒ 对「实参被换掉」零信息量（第 176 层）")
+
+
+def test_the_test_files_own_copy_of_the_anchor_still_matches_the_production_docstring():
+    """🚨🚨 元守卫：**本文件这份判据副本不许与生产 docstring 脱钩**。
+
+    2026-10-16 的那次漂移**没有任何东西会喊**：生产 `required_excess` 从
+    「带幂」改成「无幂」（`[[181]]`，2026-10-16 实测带幂式在 `y=5.717` 上差
+    **−8.3574pp**），而本文件的 `_matches_its_own_reported_identity` 仍锚带幂
+    ⇒ 正控在**正确夹具**上就红 ⇒ 全仓门禁 2 条红，**而两条红的方向是错的**：
+    它把我推向「把生产改回带幂」，那正是已证伪并撤回的那一版。
+
+    ⇒ 病根是第 97 层：**判据有两份副本，中间没有守卫**。
+    ⇒ 本条把「副本」变成**可问的**：生产 docstring 是权威，本文件是消费者，
+    两者不一致时**必须**响。
+
+    ⚠️ 三条分别独立，缺一则本条退化：
+      ① 权威侧存在：docstring **逐字**自报充分性锚；
+      ② 权威侧**不再**自报已撤回的带幂式（否则 ① 是从一堆话里挑一句）；
+      ③ **消费者侧有牙**：判定函数**必须拒绝**一个合成的带幂实现 ——
+         这是 ①③ 之间唯一的通路；少了 ③，本条只验「散文里有这句话」，
+         而第 142 层逐字写着**逐字引用是最强的锚，也是最容易过期的锚**。
+    """
+    import inspect
+
+    from scripts import measure_basket_nav_01 as P
+
+    doc = inspect.getdoc(P.required_excess) or ""
+    sufficiency = "(1 + c_mkt) · (1 + 本函数) == 1 + target"
+    withdrawn = "(1 + 本函数) ** yrs"
+
+    assert sufficiency in doc, (
+        "生产 `required_excess` 的 docstring 不再逐字自报充分性锚 "
+        f"{sufficiency!r} ⇒ 本文件锚的是一份**已不存在**的权威（[[168]]）。\n"
+        f"docstring 实得：\n{doc}")
+    assert withdrawn not in doc, (
+        f"生产 docstring 又自报了已撤回的带幂式 {withdrawn!r} ⇒ "
+        "要么生产被改回带幂（错，那是 ×5.93 那一版），要么权威锚又变了，"
+        "而本文件那份副本必须跟着走")
+
+    # ③ 消费者侧有牙：合成的**带幂**实现必须被拒绝。
+    c = {0: 0.09, 1: 0.11, 2: 0.34}
+    yrs = 5.7
+    with_power = {"required_excess_by_k": {
+        k: ((1.0 + _T_TARGET) / (1.0 + c[k])) ** (1.0 / yrs) - 1.0
+        for k in sorted(c)}}
+    assert not _matches_its_own_reported_identity(with_power, _T_TARGET, c, yrs), (
+        "判定函数接受了合成的**带幂**实现 ⇒ 它锚的仍是被撤回的那个式子 ⇒ "
+        "本条 ①② 只验了散文，③ 才是通路（[[142]]）")
+
+    # 同一组实参下，**无幂**实现必须被接受 —— 证明 ③ 不是恒假。
+    no_power = {"required_excess_by_k": {
+        k: (1.0 + _T_TARGET) / (1.0 + c[k]) - 1.0
+        for k in sorted(c)}}
+    assert _matches_its_own_reported_identity(no_power, _T_TARGET, c, yrs), (
+        "判定函数连无幂实现都拒绝 ⇒ 它锚的既不是带幂也不是无幂，而是别的东西")
 
 
 def test_d2_boundary_is_inclusive_at_exactly_one_mde():
