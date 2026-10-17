@@ -81,6 +81,65 @@ def _safe_last_date(df) -> str | None:
     return last
 
 
+# ── 步骤状态的三态分类（P0，2026-10-17）────────────────────────────────────
+#
+# 事故形状：`step_predict_and_allocate` 遇 `bootstrap.lock` 裸 `return`
+# ⇒ `run_step` 记 `"ok"` ⇒ `_pipeline` 归约 `status="ok"`
+# ⇒ `guard_daily.py:37` 打「已成功执行，无需补跑」，
+# 而 D1 当日名单**一个字节都没落盘**。链条四环全部在位。
+#
+# ⚠️ 诚实标注：这是「地雷已埋」，不是「事故已发生」——
+# `data/guard.log` 里 `跳过预测` 出现 2 次（10-13 / 10-14），
+# 但 `pred_2026-10-09..10-16` 全部存在 ⇒ D1 迄今没有真的丢单。
+# 那两天守卫之所以补跑，是因为 `status.date` 陈旧，不是被这个 ok 骗过。
+#
+# 🚨 为什么**不能**写成「`fn()` 有返回值就当状态」：
+# `step_factor_audit` 返回真值三元组 `(len(bad), len(usable), bad)`
+# ⇒ `steps["factor_audit"]` 会变成字符串 `"(0, 0, [])"`。
+# 那是**静默故障**：状态字段变成元组字符串，`all(v == "ok")` 仍判 False，
+# 看不出哪里错。⇒ 必须用**类型化异常**，返回值约定作废。
+
+class StepSkipped(RuntimeError):
+    """这一步**没交出它欠的交付物**，而原因不是崩溃。
+
+    与「合法空转」的区别只有一条，且这条就是全部：
+    `verify` 无待判定日 / `bond-paper` 等首个交易日 ——
+    那两步把它们该做的事做完了（确认过确实没东西可做），`ok` 是**真的**；
+    锁被占 / 库为空这类，交付物确实没落盘，`ok` 是**假的**。
+    ⇒ 判据是「交付物有没有落」，不是「函数有没有正常返回」。
+    """
+
+
+def classify_step(exc: BaseException | None) -> str:
+    """步骤状态字段的三态映射。**必须是可 import 的模块级纯函数**——
+    `run_step` 是 `_pipeline` 内的闭包，判决逻辑若 import 不到，
+    就没有任何东西能挡它（tests/test_run_daily_step_status.py）。
+    """
+    if exc is None:
+        return "ok"
+    if isinstance(exc, StepSkipped):
+        return f"skipped: {exc}"
+    return f"failed: {exc!r}"
+
+
+def reduce_run_status(steps: dict[str, str]) -> str:
+    """`steps` → 落进 `run_status.json` 的 `status`。**同样必须是可 import 的纯函数**。
+
+    🚨 为什么要提出来：`all(v == "ok" ...)` 这一行原先**内联在 `_pipeline` 里**，
+    而测试为了能问它，在**测试文件里重写了一遍**——
+    ⇒ 那条守卫钉的是一份**副本**：生产那一份改成 `all(v.startswith("ok"))`
+    （`"skipped: …".startswith("ok")` 为假，所以这一改还是绿的；
+    改成 `all(v in ("ok", "skipped"))` 之类才会漏）时它照样全绿。
+    ⇒ 「测试里重写生产逻辑」是第 96/137/192 层的同族：
+    **证明的是「这个表达式在这个文件里成立」，不是「生产用的那个还对」。**
+
+    ⚠️ 归约**只认精确的 `"ok"`**：`"skipped: …"` 与 `"failed: …"` 都让整轮变
+    `partial`，而 `guard_daily.py` 的唯一成功判据就是 `status == "ok"`
+    ⇒ 少交一样交付物 ⇒ 19:30 自动补跑。这条缝是本修复的接收面。
+    """
+    return "ok" if all(v == "ok" for v in steps.values()) else "partial"
+
+
 def step_incremental_update(store, sources, today, data_root):
     # **真正持锁**，不是 exists() 预检查。这个函数自己要写 5460 个 parquet，
     # 而检查与写入之间隔着整个网络往返——回填在那个窗口里拿到锁并开始
@@ -91,9 +150,11 @@ def step_incremental_update(store, sources, today, data_root):
     try:
         lock.acquire()
     except LockBusy as exc:
-        print(f"[update] 全市场回填进行中（{exc}），"
-              f"跳过增量以免并发打 baostock——明日自动恢复")
-        return
+        msg = f"全市场回填进行中（{exc}），跳过增量以免并发打 baostock——明日自动恢复"
+        print(f"[update] {msg}")
+        # 🚨 不是裸 return：明天的增量没做，而裸 return 会被 run_step 记成
+        # "ok" ⇒ status="ok" ⇒ 守卫打「已成功执行，无需补跑」。
+        raise StepSkipped(msg)
     try:
         _incremental_update_locked(store, sources, today)
     finally:
@@ -390,6 +451,12 @@ def step_verify_yesterday(store, reports_dir, today):
     pending = pending_prediction_dates(reports_dir)
     if not pending:
         print("[verify] 无待判定的预测日")
+        # 🚨 这里**故意保留裸 return**，且 `ok` 在这一处是真的：
+        # verify 的交付物是「把每一个待判定的预测日都判掉」，
+        # 而它刚刚**确认过待判定集合为空** ⇒ 交付物已交（空集），
+        # 不是「没交」。判据是「交付物有没有落」，不是「有没有 return」。
+        # ⇒ 与 step_predict_and_allocate 的锁路径**语义相反**，
+        #   那里是交付物真的没落，所以那里 raise。这里 raise 就是假话。
         return
     print(f"[verify] 待判定 {len(pending)} 个预测日：{pending[0]} ~ {pending[-1]}")
     done = 0
@@ -399,20 +466,39 @@ def step_verify_yesterday(store, reports_dir, today):
     print(f"[verify] 本轮补判完成 {done}/{len(pending)} 天")
 
 
+def predict_block_reason(store_root) -> str | None:
+    """出单前的阻断判据。**纯函数、模块级、可 import** ⇒ 可问、可变异。
+
+    返回阻断原因字符串，或 `None` 表示「不阻断」。
+    判别力**只**来自构造成员不同：锁在场 vs 不在场。
+    空池 / 数据不全那些格子**不在这里判** —— 它们各有各的语义
+    （例如空池意味着「池子建不起来」，与「此刻数据不可信」不是一件事），
+    混进同一个判据会让对照臂分不清是哪一条在起作用。
+    """
+    # 预测只读不写，所以这里用「锁在不在」的预检查即可：读到一个正在被
+    # 改写的文件会得到不可信的横截面，宁可跳过。但判定走同一份 WriteLock，
+    # 免得「锁」这个词在两个地方指两件事。
+    if WriteLock(Path(store_root) / "bootstrap.lock").path.exists():
+        return ("全市场回填进行中（bootstrap.lock），跳过预测——"
+                "数据文件正在改写，此刻的横截面不可信")
+    return None
+
+
 def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     """出当日预测与配置方案。
 
     **回填持锁时一律不出名单**：`LocalStore._upsert` 是 `to_parquet` 直写，
     不是原子替换——并发读可能读到写了一半的文件。与其让预测崩在一个
     半截 parquet 上，不如明确不发布，并在日志里说明原因。
+
+    🚨 阻断走 `raise StepSkipped` 而不是裸 `return`：D1 当日名单没落盘，
+    而裸 return 会被 `run_step` 记成 `"ok"` ⇒ `status="ok"`
+    ⇒ `guard_daily.py:37` 打「已成功执行，无需补跑」。
     """
-    # 预测只读不写，所以这里用「锁在不在」的预检查即可：读到一个正在被
-    # 改写的文件会得到不可信的横截面，宁可跳过。但判定走同一份 WriteLock，
-    # 免得「锁」这个词在两个地方指两件事。
-    if WriteLock(Path(store.root) / "bootstrap.lock").path.exists():
-        print(f"[predict] 全市场回填进行中（bootstrap.lock），跳过预测——"
-              f"数据文件正在改写，此刻的横截面不可信")
-        return
+    reason = predict_block_reason(store.root)
+    if reason:
+        print(f"[predict] {reason}")
+        raise StepSkipped(reason)
 
     from aplus.evolve import live_execution_status, load_weights
     from aplus.factor import composite_score
@@ -902,8 +988,12 @@ def step_bond_update(data_root):
     try:
         res = sync_bond_daily(data_root)
     except Exception as exc:  # noqa: BLE001 — 转债侧故障不得拖垮股票侧主流程
-        print(f"[bond-update] 异常跳过：{exc!r}")
-        return
+        msg = f"转债日线增量异常：{exc!r}"
+        print(f"[bond-update] {msg}")
+        # 「不拖垮主流程」由 run_step 的单步隔离保证（下一步照跑），
+        # 不靠在这里裸 return —— 裸 return 会让 status 变成 "ok"，
+        # 而这一步其实一步都没做。
+        raise StepSkipped(msg)
     status = res.get("status")
     if status == "ok":
         print(f"[bond-update] {res['latest']} → {res['new_latest']}：更新 {res['saved']} 只"
@@ -965,8 +1055,9 @@ def step_bond_paper(data_root, reports_dir, today):
 
     bond_map = load_bond_map(data_root)
     if not bond_map:
-        print("[bond-paper] 转债库为空，跳过（先跑 scripts/bond_bootstrap.py）")
-        return
+        msg = "转债库为空（先跑 scripts/bond_bootstrap.py）"
+        print(f"[bond-paper] {msg}")
+        raise StepSkipped(msg)
     # 日历来源钉进 state：参考债一旦停牌日历就会少一天，调仓网格整体偏移，
     # 相位锚点当场失效。钉死并复用，摘牌时才回退并打 error 提醒重新钉定。
     cache = build_horizon_cache(bond_map, ref_code=state.get("calendar_ref"))
@@ -978,8 +1069,9 @@ def step_bond_paper(data_root, reports_dir, today):
     state["calendar_ref"] = cache["calendar_ref"]
     write_bond_paper_state(reports_dir, state)
     if not cal:
-        print("[bond-paper] 无交易日历，跳过")
-        return
+        msg = f"无交易日历（锚点 {state.get('calendar_ref')} 与回退候选都没问出日历）"
+        print(f"[bond-paper] {msg}")
+        raise StepSkipped(msg)
 
     acct = BondPaperAccount(
         hold_days=state["hold_days"], top_n=state["top_n"], cost=state["cost"],
@@ -995,6 +1087,10 @@ def step_bond_paper(data_root, reports_dir, today):
     if rows.empty:
         print(f"[bond-paper] 数据最新 {cal[-1]}，尚无 ≥{state['start']} 的交易日——"
               f"非交易日或等待首个交易日，账户保持待命")
+        # 🚨 这里**故意保留裸 return**，且 `ok` 在这一处是真的：
+        # 上面的 `write_bond_paper_summary(reports_dir, summary)` 已经落了盘，
+        # 这一步的交付物（账户状态 + 摘要）**已经交了**，只是净值序列为空。
+        # ⇒ 与上面两格（库为空 / 无日历）语义相反：那里**一个字节都没写**。
         return
     head = summary["headline"]
     print(f"[bond-paper] 数据截至 {summary['as_of']}｜{summary['n_days']} 个交易日")
@@ -1090,20 +1186,33 @@ def _pipeline(args, run):
     steps = {}
 
     def run_step(name, fn):
-        """单步失败不拖垮全流程（照常出预测），但必须留下完整证据。"""
+        """单步失败不拖垮全流程（照常出预测），但必须留下完整证据。
+
+        🚨 `StepSkipped` 必须在 `Exception` **之前**分支，否则它会被
+        记成 `failed:` —— 而锁占用是**条件不满足**（良性、每日可见），
+        记成 error 级失败是把一个正常事件报成告警，那是错分类不是风格问题。
+        三态映射本身在模块级 `classify_step`（可 import ⇒ 有东西能挡）。
+        """
         import time as _t
         t0 = _t.time()
         log.event("step_start", step=name)
         try:
             fn()
-            steps[name] = "ok"
-            log.event("step_done", step=name, elapsed=round(_t.time() - t0, 1))
+        except StepSkipped as exc:
+            steps[name] = classify_step(exc)
+            log.event("step_skipped", level="warn", step=name,
+                      elapsed=round(_t.time() - t0, 1), detail=str(exc))
+            run.log(f"步骤跳过：{name}", level="warn", step=name, detail=str(exc))
+            print(f"[{name}] 步骤跳过：{exc}")
         except Exception as exc:  # noqa: BLE001
-            steps[name] = f"failed: {exc!r}"
+            steps[name] = classify_step(exc)
             log.event("step_failed", level="error", step=name,
                       elapsed=round(_t.time() - t0, 1), detail=repr(exc))
             run.log(f"步骤失败：{name}", level="error", step=name, detail=repr(exc))
             print(f"[{name}] 步骤失败：{exc!r}")
+        else:
+            steps[name] = classify_step(None)
+            log.event("step_done", step=name, elapsed=round(_t.time() - t0, 1))
 
     if not args.skip_update:
         run_step("update", lambda: step_incremental_update(store, default_sources(), today, args.data_root))
@@ -1138,7 +1247,7 @@ def _pipeline(args, run):
         run_step("bond_paper", lambda: step_bond_paper(args.data_root, reports_dir, today))
     run_step("stats", lambda: step_stats(reports_dir, today))
 
-    status = "ok" if all(v == "ok" for v in steps.values()) else "partial"
+    status = reduce_run_status(steps)
     write_run_status(reports_dir, {"date": today, "status": status, "steps": steps,
                                    "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")})
     run.log("流水线完成", level="info" if status == "ok" else "error",

@@ -192,6 +192,24 @@ def test_predict_skips_while_backfill_holds_the_lock(tmp_path):
 
     `LocalStore._upsert` 用 `to_parquet` 直写（**非原子替换**），并发读
     可能命中半截文件。崩在一个坏文件上不如明确不发布，但必须留下日志。
+
+    🚨 **2026-10-17：本条断言的表达方式在 P0 修复当日被改写过，理由必须留在原地。**
+    修复前 `step_predict_and_allocate` 遇锁是**裸 `return`** ——
+    而「调用正常返回、不抛异常」恰好就是裸 `return` 的行为
+    ⇒ **这条守卫当时在钉住缺陷、同时看起来在守东西**
+    （`run_step` 收到正常返回 ⇒ `steps["predict"] = "ok"`
+    ⇒ `status` 归约成 `"ok"` ⇒ `guard_daily` 打「已成功执行，无需补跑」，
+    而 D1 当日名单一个字节都没落盘）。
+
+    它想守的性质**一个字都没变**，而且现在**更强**了：
+    裸 `return` 只保证「不崩」，而 `raise StepSkipped` 同时保证
+    ① 不出名单 ② 说清为什么 ③ 会被归约成 `partial` ⇒ 守卫会去补跑。
+
+    ⚠️ **两条断言必须在 `with` 块之外**：`pytest.raises` 是**正常**退出
+    ⇒ 块内 `raises` 之后的代码全部跳过 ⇒ 断言写在块内则**永不执行**，
+    而门禁印 `passed` 与「断言真跑了且通过」**逐位同形**
+    （`tests/test_run_daily_step_status.py::test_lock_busy_is_classified_as_skipped_not_failed`
+    是同一条纪律的另一个实例）。
     """
     import scripts.run_daily as rd
     from aplus.store import LocalStore
@@ -216,10 +234,15 @@ def test_predict_skips_while_backfill_holds_the_lock(tmp_path):
         return empty
     rd.build_cross_section = _stub
     try:
-        rd.step_predict_and_allocate(store, reports, "2026-10-11", 50000, {})
+        with pytest.raises(rd.StepSkipped) as ei:
+            rd.step_predict_and_allocate(store, reports, "2026-10-11", 50000, {})
     finally:
         rd.build_cross_section = orig
 
+    # ↓↓↓ 三条断言全部在 with / try 之外 —— 见上面 docstring 的形状说明 ↓↓↓
+    assert "回填" in str(ei.value), (
+        "跳过必须自带原因：裸 raise 不带信息的异常会让日志里留一行没有内容的话，"
+        f"而它正是当初那条静默 ok 的同一种病 —— 原因：{ei.value!r}")
     assert not called, "回填进行中却仍然构建了横截面"
     assert not list(reports.glob("*.parquet")), "回填进行中却写了预测文件"
 

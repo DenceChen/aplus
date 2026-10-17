@@ -77,7 +77,16 @@ def test_update_step_holds_lock_while_syncing(tmp_path, monkeypatch):
 
 
 def test_update_step_declines_when_lock_busy(tmp_path, monkeypatch):
-    """锁被别人占着时不许开跑，也不许崩——安静跳过并说明原因。"""
+    """锁被别人占着时不许开跑，也不许崩——安静跳过并说明原因。
+
+    ⚠️ P0（2026-10-17）：锁占用现在是 `raise StepSkipped` 而不是裸 `return`。
+    裸 return 会被 `run_step` 记成 `"ok"` ⇒ `status="ok"`
+    ⇒ 守卫打「已成功执行，无需补跑」，而增量一步都没做。
+    ⇒ 三态语义见 `tests/test_run_daily_step_status.py`。
+
+    ⚠️ 断言**必须在 `with` 之外**：放进去就永远不执行，
+    而「测试通过」与「测试什么都没测」在门禁输出里长得一模一样。
+    """
     _seed(tmp_path)
     lock_path = tmp_path / "bootstrap.lock"
     lock_path.write_text("999999")
@@ -92,7 +101,8 @@ def test_update_step_declines_when_lock_busy(tmp_path, monkeypatch):
             return type("R", (), {"status": "ok", "reason": ""})()
 
     monkeypatch.setattr(rd, "SyncPipeline", FakePipeline)
-    rd.step_incremental_update(_FakeStore(tmp_path), [], "2026-10-12", tmp_path)
+    with pytest.raises(rd.StepSkipped):
+        rd.step_incremental_update(_FakeStore(tmp_path), [], "2026-10-12", tmp_path)
     assert called == [], "锁被占还照样写库"
     assert lock_path.read_text() == "999999", "不许动别人的锁"
 
@@ -101,11 +111,17 @@ def test_predict_step_skips_when_lock_busy(tmp_path, capsys):
     """预测只读，但锁被占时同样要跳过——正在改写的文件横截面不可信。
 
     `load_weights` 是在 `step_predict` 函数体内 import 的，模块上没有这个名字，
-    没法 monkeypatch（第一版就这么写错了）。改为断言「早退 + 说明原因」。
+    没法 monkeypatch（第一版就这么写错了）。
+
+    ⚠️ P0（2026-10-17）：这里原来是 `is None` —— **那条断言钉住的正是缺陷**：
+    裸 return ⇒ `run_step` 记 `"ok"` ⇒ `status="ok"` ⇒ 19:30 的守卫打
+    「已成功执行，无需补跑」，而 D1 当日名单一个字节都没落盘。
+    ⇒ 现在是 `raise StepSkipped`，断言改成「抛且被分类成 skipped」。
     """
     (tmp_path / "bootstrap.lock").write_text("999999")
-    assert rd.step_predict_and_allocate(_FakeStore(tmp_path), tmp_path,
-                                        "2026-10-12", 50000, {}) is None
+    with pytest.raises(rd.StepSkipped):
+        rd.step_predict_and_allocate(_FakeStore(tmp_path), tmp_path,
+                                     "2026-10-12", 50000, {})
     assert "回填" in capsys.readouterr().out, "跳过必须说明原因，不能静默"
 
 
