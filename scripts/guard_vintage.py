@@ -67,19 +67,16 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import pandas as pd
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# 🚨 `trading_days` 的**唯一实现**住在 `aplus/trading_calendar.py`，本模块只 import。
+# 2026-10-17 之前它长在这里，而 `run_daily.py` 的出单闸需要**同一份**判据。
+# 两处各写一份就是 CLAUDE.md 形状 17（同一语义被处理 N−1 次）⇒ 搬进包里让两边共用。
+from aplus.trading_calendar import (  # noqa: E402
+    CALENDAR_SAMPLE, DAILY_DIR, trading_days,
+)
 from aplus.vintage import VINTAGE_ROOT, span  # noqa: E402
-
-#: 交易日历从日线数据的日期并集反推。
-DAILY_DIR = ROOT / "data" / "master" / "daily"
-
-#: 取前 N 只取并集。实测 5 只就收敛到 1884 天、400 只仍是 1884，
-#: 40 只是安全余量，代价 0.26 秒。
-CALENDAR_SAMPLE = 40
 
 # ── 采集作业的实测耗时与由此推出的超时 ───────────────────────────────
 #: **实测单跑耗时 68.3 分钟**，出处：`data/vintage.log` 2026-10-15 那次跑
@@ -98,44 +95,6 @@ COLLECT_MEASURED_S = 68.3 * 60
 #:   3× 覆盖「双实例 + 常规争抢」。它是**兜底**，不是判据——
 #:   双实例本身是缺陷，见 `docs/TODO_vintage_double_collection_2026-10-15.md`。
 COLLECT_TIMEOUT_S = 3 * COLLECT_MEASURED_S
-
-_CAL: dict[str, set[str]] = {}
-
-
-def trading_days(daily_dir: Path = DAILY_DIR,
-                 sample: int = CALENDAR_SAMPLE,
-                 refresh: bool = False) -> set[str]:
-    """交易日历 = 日线日期的**并集**（不是单只股票的日期集）。
-
-    ## 为什么必须取并集
-
-    单只股票有停牌和上市时间。实测 000005.SZ 只有 1290 天，
-    而全市场是 1884 天。只看一只，上市前的日子会被误判成「没采集」。
-
-    ## 为什么样本 40 只就够
-
-    实测并集从 5 只起就不再增长（5/40/400 只全是 1884 天）——
-    因为**只要有一只票在交易，那天就是交易日**。
-    40 只是余量，不是精度需求。
-
-    ## 缓存按**路径**分键
-
-    首版只有一个全局槽位，于是 `trading_days(daily_dir=X)`
-    会返回由 `Y` 建出来的日历——参数形同虚设，
-    而测试替身与真实目录会互相污染。
-    """
-    key = str(Path(daily_dir).resolve())
-    if key in _CAL and not refresh:
-        return _CAL[key]
-    out: set[str] = set()
-    for p in sorted(Path(daily_dir).glob("*.parquet"))[:sample]:
-        try:
-            d = pd.read_parquet(p, columns=["date"])["date"].astype(str)
-        except Exception:
-            continue
-        out |= set(d)
-    _CAL[key] = out
-    return out
 
 
 def is_gap_day(day: str, cal: set[str] | None = None) -> bool:

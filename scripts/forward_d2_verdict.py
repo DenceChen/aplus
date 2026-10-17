@@ -114,6 +114,30 @@ def leg_rows(frame: pd.DataFrame) -> pd.DataFrame:
     return up[up["gross_pct"].notna() & up["entry_date"].notna()]
 
 
+def _blocks_by(leg: pd.DataFrame, key: str) -> pd.DataFrame:
+    """分块求超额均值 —— **R1 判决臂与对照臂的唯一实现**。
+
+    🚨 `key` 承重，而两个取值数的是**不同的东西**：
+    `"entry_date"` 数「持有哪些 bar」（预注册 R1，判决臂），
+    `"pred_date"` 数「哪天下单」（**未注册**的对照臂）。
+    ⇒ 这里**不许**「顺手统一成一个键」，也不许把减法挪走。
+
+    ⚠️ 空分支返回的列名跟着 `key` 走 ⇒ 对照臂的输出列叫 `pred_date`，
+       不叫 `entry_date`（第 177 层：列名不承诺语义，所以列名必须是真的）。
+    ⚠️ `n_pred_dates` 在对照臂里**逐块恒等于 1** —— 那不是缺陷，
+       块本身就是按 `pred_date` 切的；对照臂真正 informative 的计数在顶层。
+    """
+    if leg.empty:
+        return pd.DataFrame(columns=[key, "excess_mean", "n_legs"])
+    work = leg.assign(excess=leg["gross_pct"] - leg["market_pct"])
+    out = (work.groupby(key, as_index=False)
+                .agg(excess_mean=("excess", "mean"), n_legs=("excess", "size"),
+                     n_pred_dates=("pred_date", "nunique"))
+                .sort_values(key)
+                .reset_index(drop=True))
+    return out
+
+
 def blocks(leg: pd.DataFrame) -> pd.DataFrame:
     """按 `entry_date` 分块求超额均值（R1）。
 
@@ -137,16 +161,13 @@ def blocks(leg: pd.DataFrame) -> pd.DataFrame:
 
     ⇒ 改这段顺序**改不出任何判决差异**；要改判决只能动「减不减」，
        而那属于口径变更，必须先改预注册（第 91 层）。
+
+    ⚠️ 本函数是**薄壳**：分块体在 `_blocks_by`，减法在那里**恰好一份**。
+       这里**不许**把分块体复制回来 —— 那会让减法出现两份，
+       而 `tests/mutation_specs/test_forward_d2_verdict.mut` 的 M3
+       要求旧串全文命中 **1 处**，复制会让台子**响亮拒收**（不是静默放过）。
     """
-    if leg.empty:
-        return pd.DataFrame(columns=["entry_date", "excess_mean", "n_legs"])
-    work = leg.assign(excess=leg["gross_pct"] - leg["market_pct"])
-    out = (work.groupby("entry_date", as_index=False)
-                .agg(excess_mean=("excess", "mean"), n_legs=("excess", "size"),
-                     n_pred_dates=("pred_date", "nunique"))
-                .sort_values("entry_date")
-                .reset_index(drop=True))
-    return out
+    return _blocks_by(leg, "entry_date")
 
 
 def verdict_of(n: int, point: float, mde: float,
@@ -166,19 +187,21 @@ def verdict_of(n: int, point: float, mde: float,
     return VERDICT_NOT_MEASURABLE
 
 
-def measure(leg: pd.DataFrame) -> dict:
-    """执行 R1–R5，产出可核对、可盖章的判决块。"""
-    blk = blocks(leg)
-    n = len(blk)
-    if n == 0:
-        return {
-            "verdict": VERDICT_NO_DATA,
-            "n_blocks": 0,
-            "n_pred_dates": 0,
-            "blocks": [],
-        }
+def stats_of(series: list) -> dict:
+    """块均值序列 → 判决用到的全部统计量（R2 / R4 的输入）。
 
-    series = blk["excess_mean"].tolist()
+    🚨 **判决臂与对照臂共用的唯一实现**（形状 17：同一语义不许处理 N 次）。
+       两臂的差别**只在观测单位**（哪一天切块），统计量必须**逐位同算**；
+       若两臂各写一份而其中一份抄错，判决与对照会静悄悄地不可比。
+
+    ⚠️ **不许传空序列**：`point = sum(series) / n` 在 n=0 时是 `ZeroDivisionError`，
+       而 `ZeroDivisionError` 在 pytest 里给 `rc=1` ⇒ 看起来像「被守卫杀掉了」，
+       实际上守卫一条都没跑（第 121 层）⇒ 两个调用方都必须**自己先处理 `n == 0`**。
+
+    ⚠️ `mde` 是 **1.96 × SE**（正态近似），不是 1.96 × SD —— 这一层
+       与 `factor_width_mde.py::power_floor` 同构，n 小时偏窄、方向乐观。
+    """
+    n = len(series)
     point = sum(series) / n
     if n >= 2:
         var = sum((v - point) ** 2 for v in series) / (n - 1)
@@ -192,7 +215,6 @@ def measure(leg: pd.DataFrame) -> dict:
     ratio = abs(point) / mde if mde == mde and mde > 0 else float("nan")
     lo = point - mde if mde == mde else float("nan")
     hi = point + mde if mde == mde else float("nan")
-    v = verdict_of(n, point, mde, lo, hi) if mde == mde else VERDICT_POWERLESS
 
     # 🚨 敏感性臂：n 小时正态近似低估临界值 ⇒ CI 被画窄（失效方向：乐观）。
     #   它**不参与**判决，只与判决并排，让读的人看见这条偏差。
@@ -202,28 +224,130 @@ def measure(leg: pd.DataFrame) -> dict:
     else:
         sens_lo, sens_hi = point - t_crit * se, point + t_crit * se
 
+    return {"n": n, "point": point, "sd": sd, "se": se, "t_stat": t_stat,
+            "mde": mde, "ratio": ratio, "lo": lo, "hi": hi,
+            "t_crit": t_crit, "sens_lo": sens_lo, "sens_hi": sens_hi}
+
+
+def measure(leg: pd.DataFrame) -> dict:
+    """执行 R1–R5，产出可核对、可盖章的判决块。"""
+    blk = blocks(leg)                      # 🚨 必须继续是模块级调用（被 monkeypatch）
+    n = len(blk)
+    if n == 0:
+        return {
+            "verdict": VERDICT_NO_DATA,
+            "n_blocks": 0,
+            "n_pred_dates": 0,
+            "blocks": [],
+        }
+
+    st = stats_of(blk["excess_mean"].tolist())
+    v = verdict_of(n, st["point"], st["mde"], st["lo"], st["hi"]) \
+        if st["mde"] == st["mde"] else VERDICT_POWERLESS
+
     return {
         "verdict": v,
         "n_blocks": n,
         "n_pred_dates": int(leg["pred_date"].nunique()),
-        "mean_excess_pct_per_block": point,
-        "sd_pct": sd,
-        "se_pct": se,
-        "t_stat": t_stat,
-        "mde_pct": mde,
-        "abs_mean_over_mde": ratio,
-        "ci95_low_pct": lo,
-        "ci95_high_pct": hi,
+        "mean_excess_pct_per_block": st["point"],
+        "sd_pct": st["sd"],
+        "se_pct": st["se"],
+        "t_stat": st["t_stat"],
+        "mde_pct": st["mde"],
+        "abs_mean_over_mde": st["ratio"],
+        "ci95_low_pct": st["lo"],
+        "ci95_high_pct": st["hi"],
         "ci_method": f"normal_approx_z={Z_95}",
         "sensitivity_student_t": {
             "role": "sensitivity",
             "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；判决仍用 1.96",
-            "t_crit_95": t_crit,
-            "ci95_low_pct": sens_lo,
-            "ci95_high_pct": sens_hi,
+            "t_crit_95": st["t_crit"],
+            "ci95_low_pct": st["sens_lo"],
+            "ci95_high_pct": st["sens_hi"],
         },
+        "sensitivity_observation_unit": control_arm_observation_unit(leg),
         "blocks": [
             {"entry_date": str(row.entry_date),
+             "excess_mean_pct": row.excess_mean,
+             "n_legs": int(row.n_legs),
+             "n_pred_dates": int(row.n_pred_dates)}
+            for row in blk.itertuples()
+        ],
+    }
+
+
+def control_arm_observation_unit(leg: pd.DataFrame) -> dict:
+    """🚨 **对照臂，不是判决臂**（第 183 层：加对照臂，不换判据臂）。
+
+    预注册 R1 的观测单位是 `entry_date`。本臂把观测单位换成 `pred_date`，
+    其余口径（逐行算术超额、正态 1.96、四档判决、门槛）**一字不改**，
+    只重跑 `stats_of`。
+
+    ## 为什么是「加臂」而不是「换臂」
+
+    「`n_blocks=4` 是被 `entry_date` 压出来的，还是本来就只有 4」——
+    这是**同一个问题的两个答案**，而把判决臂直接换成 `pred_date` 就只能得到一个。
+    更贵的是：`pred_date` 口径的 `n_blocks` 能越过 `MIN_BLOCKS_FOR_ANY_SIGN=6`
+    ⇒ 换臂会让判决**第一次跨过结构闸门**，读起来像「进展」，
+    而实测两臂 `|c|/MDE` **都 < 1** ⇒ 连符号都定不了（第 16 层）。
+    ⇒ 那会是**假进展**，方向还是乐观的那一侧。
+
+    ## 两条臂的方向相反，所以「哪个更宽松」不能一句话回答
+
+    `entry_date` 给出**更少**的独立观测（块更大 ⇒ 块间 sd 更小 ⇒ MDE 更小），
+    `pred_date` 给出**更多**的观测但块更细 ⇒ 块间 sd 更大 ⇒ 方差效应压倒 n 效应。
+    ⇒ 任何一臂都不许被称作「更宽松」；**判决一律用预注册的 R1。**
+
+    🚨 本臂的守卫覆盖**为零**（会静默腐烂）—— 登记为欠账，本轮不补。
+    """
+    blk = _blocks_by(leg, "pred_date")
+    n = len(blk)
+    if n == 0:
+        return {
+            "role": "sensitivity",
+            "role_note": "观测单位换成 pred_date；判决臂仍是预注册的 entry_date（R1）",
+            "observation_unit": "pred_date",
+            "verdict": VERDICT_NO_DATA,
+            "n_blocks": 0,
+            "n_pred_dates": 0,
+            "n_entry_dates": 0,
+            "blocks": [],
+        }
+
+    st = stats_of(blk["excess_mean"].tolist())
+    v = verdict_of(n, st["point"], st["mde"], st["lo"], st["hi"]) \
+        if st["mde"] == st["mde"] else VERDICT_POWERLESS
+
+    return {
+        "role": "sensitivity",
+        "role_note": ("观测单位换成 pred_date；判决臂仍是预注册的 entry_date（R1）"
+                      "⇒ 本臂只作对照，不参与判决，也不许被引用成 D2 结论"),
+        "observation_unit": "pred_date",
+        "observation_unit_vs_main": ("entry_date 给更少的块但块间 sd 更小；"
+                                     "pred_date 给更多的块但块间 sd 更大"
+                                     "⇒ 「哪个更宽松」不能一句话回答，判决只用 R1"),
+        "verdict": v,
+        "n_blocks": n,
+        "n_pred_dates": int(leg["pred_date"].nunique()),
+        "n_entry_dates": int(leg["entry_date"].nunique()),
+        "mean_excess_pct_per_block": st["point"],
+        "sd_pct": st["sd"],
+        "se_pct": st["se"],
+        "t_stat": st["t_stat"],
+        "mde_pct": st["mde"],
+        "abs_mean_over_mde": st["ratio"],
+        "ci95_low_pct": st["lo"],
+        "ci95_high_pct": st["hi"],
+        "ci_method": f"normal_approx_z={Z_95}",
+        "sensitivity_student_t": {
+            "role": "sensitivity",
+            "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；本臂同样不用它判决",
+            "t_crit_95": st["t_crit"],
+            "ci95_low_pct": st["sens_lo"],
+            "ci95_high_pct": st["sens_hi"],
+        },
+        "blocks": [
+            {"pred_date": str(row.pred_date),
              "excess_mean_pct": row.excess_mean,
              "n_legs": int(row.n_legs),
              "n_pred_dates": int(row.n_pred_dates)}
@@ -254,6 +378,12 @@ def caliber() -> dict:
     """口径随数字一起离开脚本（第 159 层：字段名不是语义）。"""
     return {
         "observation_unit": "entry_date（R1：持有哪些 bar，而不是哪天下单）",
+        "observation_unit_control_arm": (
+            "产物里的 sensitivity_observation_unit 是**对照臂**（观测单位换成 "
+            "pred_date），**不参与判决**。两臂的方向相反：entry_date 给出**更少**的"
+            "独立观测但块间 sd 更小，pred_date 给出**更多**的观测但块间 sd 更大"
+            "⇒ 「哪个更宽松」不能一句话回答，判决一律用预注册的 R1。"
+            "🚨 别把它读成「换口径就多拿证据」"),
         "observation_unit_why": (
             "实测 6 个 pred_date 只对应 4 个 entry_date；10-09/10-10/10-11 "
             "三天的单全部 entry 到 2026-10-12 ⇒ 持有同一批 bar ⇒ 不是 3 个观测。"
@@ -333,6 +463,11 @@ def main(argv=None) -> int:
                   f"[{s['ci95_low_pct']:+.4f}%, {s['ci95_high_pct']:+.4f}%]")
     if v == VERDICT_POWERLESS:
         print("  ⇒ 连符号都定不了；这不等于「没有超额」，只等于「测不到」")
+    c = out.get("sensitivity_observation_unit")
+    if c and c["verdict"] != VERDICT_NO_DATA:
+        print(f"  对照臂（观测单位=pred_date，**不参与判决**）："
+              f"块 {c['n_blocks']}，|c|/MDE = {c['abs_mean_over_mde']:.4f}"
+              f"，判决 {c['verdict']}")
     return 0
 
 

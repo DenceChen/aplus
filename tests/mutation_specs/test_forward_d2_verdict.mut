@@ -1,7 +1,7 @@
 M1_group_by_pred_date_instead_of_entry_date	scripts/forward_d2_verdict.py
-    out = (work.groupby("entry_date", as_index=False)
+    return _blocks_by(leg, "entry_date")
 === 变异体 ===
-    out = (work.groupby("pred_date", as_index=False)
+    return _blocks_by(leg, "pred_date")
 
 M2_strict_lt_becomes_le_on_the_ratio_gate	scripts/forward_d2_verdict.py
     if n < MIN_BLOCKS_FOR_ANY_SIGN or abs(point) < mde:

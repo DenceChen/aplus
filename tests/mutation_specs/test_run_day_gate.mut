@@ -1,0 +1,45 @@
+M1-gate-moved-before-update	scripts/run_daily.py
+if not args.skip_update:
+        run_step("update", lambda: step_incremental_update(store, default_sources(), today, args.data_root))
+=== 变异体 ===
+_gated = run_day_gate(today, args.data_root, run)
+    if _gated is not None:
+        raise SystemExit(_gated[0])
+    if not args.skip_update:
+        run_step("update", lambda: step_incremental_update(store, default_sources(), today, args.data_root))
+
+M2-gate-removed-entirely	scripts/run_daily.py
+# 🚨 闸必须在 update **之后**、verify **之前**（理由见 run_day_gate 的 docstring）
+    _gated = run_day_gate(today, args.data_root, run)
+    if _gated is not None:
+        raise SystemExit(_gated[0])
+=== 变异体 ===
+# 🚨 闸必须在 update **之后**、verify **之前**（理由见 run_day_gate 的 docstring）
+
+M3-gate-connected-but-not-blocking	scripts/run_daily.py
+if _gated is not None:
+=== 变异体 ===
+if False and _gated is not None:
+
+M4-rc-always-zero	scripts/run_daily.py
+rc = 0 if verdict == RUN_DAY_WEEKEND else 2
+=== 变异体 ===
+    rc = 0
+
+M5-three-states-collapse-to-two	aplus/trading_calendar.py
+if day.weekday() >= 5:
+=== 变异体 ===
+    if True:
+
+M6-1930-guard-gate-removed	scripts/guard_daily.py
+verdict = classify_run_day(date.today(), trading_days())
+    if verdict == RUN_DAY_WEEKEND:
+        print(f"今天 {today} 是周末（非交易日）⇒ 不补跑")
+        return
+=== 变异体 ===
+# 闸被摘掉
+
+M7-1930-skips-every-non-trading-day	scripts/guard_daily.py
+if verdict == RUN_DAY_WEEKEND:
+=== 变异体 ===
+    if verdict != "TRADING_DAY":

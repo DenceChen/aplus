@@ -32,6 +32,10 @@ from aplus.backtest import STOCK_COST_DEFAULT
 from aplus.snapshot import build_cross_section
 from aplus.sources import default_sources
 from aplus.store import LocalStore
+from aplus.trading_calendar import (
+    RUN_DAY_LABELS, RUN_DAY_TRADING, RUN_DAY_WEEKEND,
+    classify_run_day, trading_days,
+)
 from aplus.verify import (
     UNJUDGEABLE_REASON,
     last_two_bars,
@@ -1032,6 +1036,50 @@ def main():
         _pipeline(args, run)
 
 
+def run_day_gate(today, data_root, run):
+    """**交易日闸**：非交易日一个字都不发布。
+
+    返回 `None` ⇒ 照常发布；返回 `(rc, verdict)` ⇒ 已写好 `run_status`，该退出。
+
+    ## 🚨 调用点必须排在 `step_incremental_update` **之后**
+    更新正是让「今天」成为仓里交易日的那一步。若闸在更新**之前**，
+    每个真正的交易日（例：周一，库最新停在上周五）都会得到
+    「工作日不在库里」⇒ **合法交易日反而被 rc=2 挡住，一天都不出单**。
+
+    ## 为什么是模块级而不是 `_pipeline` 里的一段
+    判据埋在一条 20 分钟的流水线后面就等于没有守卫（CLAUDE.md 第 124 层）。
+    抽出来之后，守卫能 monkeypatch `trading_days` 与 `write_run_status`，
+    在 1 毫秒内断言「周末 ⇒ rc=0 且不碰 predictions」——
+    **绝不跑 `run_daily.py::main()` 来验证**。
+
+    ## 退出码为什么是 2 而不是 1
+    `WORKDAY_NOT_IN_STORE` 是「仓里没有这一天，而仓里**没有任何东西**能
+    区分法定节假日与采集失败」⇒ 必须有人来看。rc=2 与「留空 `--end`
+    拒绝运行」那几处一致（同一个意思：要求人来裁决）。
+    """
+    from aplus.reports import write_run_status
+
+    verdict = classify_run_day(date.fromisoformat(today), trading_days())
+    if verdict == RUN_DAY_TRADING:
+        print(f"[gate] {today} 是交易日，正常发布")
+        return None
+
+    reports_dir = Path(data_root) / "reports"
+    write_run_status(reports_dir, {
+        "date": today, "status": "skipped",
+        "steps": {"run_day_gate": verdict},
+        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    })
+    reason = RUN_DAY_LABELS[verdict]
+    print(f"[gate] {today} 判定为 {verdict} ⇒ 不发布任何名单。{reason}")
+    run.log(f"交易日闸拦下发布：{verdict}", level="info", date=today,
+            verdict=verdict, reason=reason)
+    # 周末是**正常**的一天（不是失败），所以 rc=0；
+    # 「工作日不在仓里」是**必须有人来看**，rc=2。
+    rc = 0 if verdict == RUN_DAY_WEEKEND else 2
+    return rc, verdict
+
+
 def _pipeline(args, run):
     from aplus.log import get_logger
     from aplus.reports import write_run_status
@@ -1059,6 +1107,12 @@ def _pipeline(args, run):
 
     if not args.skip_update:
         run_step("update", lambda: step_incremental_update(store, default_sources(), today, args.data_root))
+
+    # 🚨 闸必须在 update **之后**、verify **之前**（理由见 run_day_gate 的 docstring）
+    _gated = run_day_gate(today, args.data_root, run)
+    if _gated is not None:
+        raise SystemExit(_gated[0])
+
     if not args.skip_bonds:
         run_step("bond_update", lambda: step_bond_update(args.data_root))
     run_step("verify", lambda: step_verify_yesterday(store, reports_dir, today))

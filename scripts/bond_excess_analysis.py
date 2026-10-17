@@ -47,8 +47,19 @@ from aplus.bond_excess import (  # noqa: E402
     split_segments,
 )
 from aplus.bond_horizon import build_horizon_cache  # noqa: E402
+from aplus import provenance  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# 🚨 `DEFAULT_GENERATORS` 按这个字符串反查生成器 ⇒ 改了名就解析不出（形状 6：
+#   盖一个解析不出生成器的章比不盖更坏，读者无从判断它出自哪份代码）。
+GENERATOR = "scripts/bond_excess_analysis.py"
+
+# 🚨 第 156 层：`stamp()` 默认 `daily_subdir="master/daily"` ⇒ 指纹会去数
+#   **股票的 5460 个 parquet**，而本脚本读的是 `aplus.bond_sync.load_bond_map`
+#   里的 `Path(data_root)/"bonds"/"master"/"daily"`（实测 1087 只）。
+#   ⇒ 章上写着「数据 fresh」而它指的是本脚本从没读过的目录（第 156 层同形）。
+DAILY_SUBDIR = "bonds/master/daily"
 
 SEG_ORDER = ("train", "test", "full")
 SEG_LABEL = {"train": "训练段", "test": "测试段", "full": "全窗口"}
@@ -105,6 +116,12 @@ def main():
                     help="仅作背景的参照股票，不是判据基准")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+
+    # 🚨 第 125 层：盖章那一刻盘上的字节 ≠ 这一跑真正跑的那些字节。
+    #   抓在**跑之前**，比对在**盖章时**；不一致就拒绝盖章（反向的错误证据）。
+    # 🚨 第 131 层：必须落在**第一个昂贵步骤之前**（`load_bond_map` 读 1087 个
+    #   parquet）—— 放在长跑之后抛错，等于「跑了 10 分钟才告诉你白跑」。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
 
     t0 = time.time()
     from aplus.bond_sync import load_bond_map
@@ -188,6 +205,13 @@ def main():
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str),
                     encoding="utf-8")
+    # 🚨 写在 `write_text` **之后**（章落在报告旁边，不污染报告 schema），
+    #   但比对 `expect_bytes` 是它存在的全部理由（第 125 层）。
+    provenance.stamp(path, GENERATOR, root=ROOT,
+                     data_root=args.data_root, daily_subdir=DAILY_SUBDIR,
+                     expect_bytes=expect_bytes,
+                     extra={"segments": list(SEG_ORDER),
+                            "params": out["params"]})
     print(f"\n总耗时 {time.time() - t0:.0f}s → {path}")
 
 

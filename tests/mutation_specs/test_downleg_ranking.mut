@@ -1,0 +1,45 @@
+D1_spread_sign_flips	scripts/measure_downleg_ranking.py
+float(highest["gross_pct"].mean() - lowest["gross_pct"].mean()),
+=== 变异体 ===
+float(lowest["gross_pct"].mean() - highest["gross_pct"].mean()),
+
+D2_sort_descending_instead_of_ascending	scripts/measure_downleg_ranking.py
+g.sort_values("score", ascending=True)
+=== 变异体 ===
+g.sort_values("score", ascending=False)
+
+D3_group_the_excess_arm_by_pred_date	scripts/measure_downleg_ranking.py
+.groupby("entry_date", as_index=False)
+=== 变异体 ===
+.groupby("pred_date", as_index=False)
+
+D4_judge_grows_a_years_gate	scripts/measure_downleg_ranking.py
+return verdict_of(stats["n"], stats["point"], stats["mde"],
+                      stats["lo"], stats["hi"])
+=== 变异体 ===
+if stats.get("years", 0.0) < MIN_HALF:
+        return VERDICT_POWERLESS
+    return verdict_of(stats["n"], stats["point"], stats["mde"],
+                      stats["lo"], stats["hi"])
+
+D5_drop_the_score_presence_check	scripts/measure_downleg_ranking.py
+if "score" not in frame.columns:
+        raise KeyError(
+=== 变异体 ===
+if False and "score" not in frame.columns:
+        raise KeyError(
+
+D6_stop_filtering_non_finite_excess	scripts/measure_downleg_ranking.py
+work = work[np.isfinite(work["excess"])]
+=== 变异体 ===
+work = work[work["entry_date"].notna()]
+
+D7_the_production_half_becomes_the_control_half	scripts/measure_downleg_ranking.py
+lowest = ordered.head(half)          # 生产实际发出的那一半
+=== 变异体 ===
+lowest = ordered.tail(half)
+
+D8_min_half_becomes_zero	scripts/measure_downleg_ranking.py
+MIN_HALF = 2  # 每半至少这么多行，否则这个窗口给不出排序力
+=== 变异体 ===
+MIN_HALF = 0  # 每半至少这么多行，否则这个窗口给不出排序力
