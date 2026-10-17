@@ -152,6 +152,17 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   症状**（第 25 层的反面：把不可引用的东西登记成永久债）。
     "random_arm_nav.json": "scripts/measure_random_arm_nav.py",
     "random_arm_nav_smoke.json": "scripts/measure_random_arm_nav.py",
+    # 2026-10-17 登记：转债低价轮动的**样本外超额**判决（train/test/full 三段）。
+    # 🚨 这是 `bond` 系列在 `DEFAULT_GENERATORS` 里的**第一条**登记 —— 此前
+    #   `grep -c bond aplus/provenance.py` 实测 **0**，而 `data/reports/` 下
+    #   44 份 sidecar 里 `bond*.provenance.json` 零份
+    #   ⇒ 按本模块自己的规矩 `freshness()` 判 `unknown` = **不许引用**，
+    #   而「可转债线已样本外失败」这条**已写进 `docs/PLATFORM.md` §7.5 的判决表**
+    #   —— 即一份不可引用的判决被引用着。
+    # ⚠️ 与股票线**不是同一个量**（第 7 层）：`bond_paper.json` 是纸面账户
+    #   （5 天、`verdict=null`、`cost_paid=0.0`、`calendar_ref=110076.SH`），
+    #   本文件是历史三段（`calendar_ref=110075.SH`）⇒ 两个数不可混引。
+    "bond_excess_analysis.json": "scripts/bond_excess_analysis.py",
     # 2026-10-16 登记：§18 ① **组合账户净值**判决档（c=+10.5563%、M=±22.6738%、
     # 判「测不出」）。🚨 这是**对着 D2 本身**的一次测量，产物却**既没章也没登记**
     # ⇒ 交付物最该被引用的那份产物，恰好是引用链上唯一断掉的一环。
@@ -187,6 +198,16 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 🚨 它**只读三份已有产物**、不重跑回测 ⇒ 产物不比输入更新，
     #   上游 stale 则本产物继承同一 staleness（预注册 §4.5）。
     "d2_signal_requirement.json": "scripts/d2_signal_requirement.py",
+    # 2026-10-17 登记：D2 缺口陈述的**口径对照表**（`the_only_citable_d2_gap`）。
+    # 🚨 它存在的唯一理由是**防止第 7 层**：同一个「还差多少」在
+    #   `equal_weight` 与 `cap_weight` 两个基准下读数差约 7.94 倍，
+    #   而**这两个都是真数、都不是同一个量** ⇒ 谁把它们相除谁就是在
+    #   报告一个量纲错误。
+    # ⚠️ **它不是 D2 判决**：判决在 `basket_nav_01_*.json::verdict_rule`
+    #   且早已出了；本产物只把「各口径各自的数」并排放好，**不出判决**。
+    # 🚨 同样只读已有产物、不重跑回测 ⇒ 产物不比输入更新，
+    #   上游 stale 则本产物继承同一 staleness（与 `d2_signal_requirement` 同条纪律）。
+    "d2_gap_calibers_2026-10-17.json": "scripts/d2_gap_calibers.py",
     "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
@@ -440,10 +461,26 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   实测 6 个 `pred_date` 只对应 4 个 `entry_date`，10-09/10-10/10-11
     #   三天的单**全部 entry 到 2026-10-12** ⇒ 持有同一批 bar ⇒ 不是 3 个观测。
     "forward_d2_verdict.json": "scripts/forward_d2_verdict.py",
+    # ⑥ 前瞻 D2 的**时间账**（2026-10-17 登记）：回答「还要攒多少 `entry_date` 块、
+    #   还要等多少个日历日」，而 `forward_d2_verdict.json` 只答「现在能不能定出符号」。
+    #   🚨 **它的观测单位与 Bailey 的外部锚不可比**：书里那个「数据点」是**日频观测**
+    #   （681 点 = 2.71 年日频），而本产物的观测单位是 **`entry_date` 块**
+    #   ⇒ 两个 n 不是同一个量，只各自成表（第 7 层）。
+    "forward_d2_horizon.json": "scripts/forward_d2_horizon.py",
     #   D1 的**真实交付形态**（次日买、次日卖、5 万、10 只）下的年摩擦判决。
     #   🚨 它与仓里其余全部 D2 读数**不是同一个量**：那些出自 K=21 回测，
     #   而本项量的是**日频**形态的**成本算术**（不需要 MDE，见预注册 §3 D1）。
     "delivery_caliber_friction.json": "scripts/measure_delivery_caliber_friction.py",
+    #   D1 的**另一半**（每天 10 只跌股）的判决臂，2026-10-17 登记。
+    #   🚨 判别臂是 `score_ranking_power.py`（`GATE_ARM="up"`）；**本条是对照臂**
+    #      （产物 `role` 字段自报 `CONTROL_ARM_NOT_THE_VERDICT_ARM`），
+    #      它判的是 D1 交付物的另一半，此前从未被判决过。
+    #   ⚠️ 登记 ≠ 可引用：还要有 sidecar。本脚本自己 `stamp(..., expect_bytes=)`
+    #      且 `extra` 自报 `source_parquet_sha256`（第 156 层：**章里的 `data_fp`
+    #      指的是 `master/daily` 目录，而本脚本只读一个 parquet**，
+    #      判断输入有没有变只认 `source_parquet_sha256`）。
+    #   ⚠️ `code_dirty=True` 时 `trustworthy` 恒 `False`，引用时两句都要带。
+    "downleg_ranking.json": "scripts/measure_downleg_ranking.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；

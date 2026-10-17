@@ -1,0 +1,21 @@
+{
+  "code_sha": "e118dc72eff3055eb2109e27456284f06dfd9fa0",
+  "code_dirty": true,
+  "code_file_sha256": "db00760e1be32ce8e3ea0686aec637f44b15a6ee5376c643319051c9c679f28c",
+  "data_fp": "1087:1792149557.222850",
+  "data_dir": "data/bonds/master/daily",
+  "generator": "scripts/bond_excess_analysis.py",
+  "stamped_at": "2026-10-16T22:59:18+00:00",
+  "segments": [
+    "train",
+    "test",
+    "full"
+  ],
+  "params": {
+    "top_n": 10,
+    "hold_days": 5,
+    "cost": 0.003,
+    "train_ratio": 0.6,
+    "embargo_days": 5
+  }
+}

@@ -1,0 +1,554 @@
+{
+  "generated_at": "2026-10-17 07:44:43",
+  "prereg": "docs/PREREG_MARKET_TIMING_2026-10-17.md",
+  "target_annual": 0.2,
+  "upstream": {
+    "parquet": "data/reports/wf_weights_backtest_k21.daily.parquet",
+    "parquet_sha256": "785d1aaf20f1dfcec4dfdfd4acd64357384378454ac265178a150422e6b5d995",
+    "meta_json": "data/reports/wf_weights_backtest_k21.json",
+    "n_days": 1395,
+    "date_first": "2021-01-04",
+    "date_last": "2026-10-09",
+    "caliber": "🚨 日期轴是「涨腿幸存日」的轴（MIN_BASKET 过滤后），不是交易日历；「持有 X 天」按这个轴的行数计。🚨 market_return 是 5460 池抽 150 只的等权日收益，不是全池，不可与 market_nav_caliber.json::equal_weight.geometric_annual_pct 并列引用。⚠️ 上游判 fresh + byte_evidence=true 但 trustworthy=false（dirty_at_stamp）。"
+  },
+  "cost": {
+    "tier_used_for_verdict": "real",
+    "tier_cost": 0.005500000000000005,
+    "source": "scripts.market_timing_ceiling.cost_tiers(df)（实测反推，非字面量）",
+    "model": "cost_t = |e_t − e_{t−1}| · tier_cost，e_{−1}=1.0",
+    "note": "0/1 仓位切换不换股 ⇒ 这是上界式成本（把仓位变动当满换手），对本文件不利 ⇒ 判决单向安全。",
+    "all_tiers_measured": {
+      "bt003": {
+        "full_turnover_single_day_cost": 0.003000000000000006,
+        "median_day_cost": 0.0,
+        "frac_days_above_90pct_of_max": 0.03870967741935484,
+        "n_days_at_max": 54
+      },
+      "real": {
+        "full_turnover_single_day_cost": 0.005500000000000005,
+        "median_day_cost": 0.0,
+        "frac_days_above_90pct_of_max": 0.03870967741935484,
+        "n_days_at_max": 54
+      },
+      "caliber": "「满换手单日成本」= 逐日 |gross−net| 的最大值，即调仓日换掉整篮要付的钱。0/1 仓位切换**不换股**（只卖不买回股票代码），真实成本**低于**此值 ⇒ 本脚本取的是**偏贵**的一侧，这是刻意的不利方向。"
+    }
+  },
+  "annualization_calibers": {
+    "arith_mean_times_244": "PREREG §5 判决臂口径",
+    "compound_cumprod_annualized": "与 ceiling 同口径，用于交叉对拍",
+    "why_two": "两个各自正确的数，引用必须带 role（第 7 层）。"
+  },
+  "sigma_target_variants": {
+    "V1_verdict": {
+      "value": 0.011106643287080815,
+      "calib_days": 252,
+      "calib_range": [
+        "2021-01-04",
+        "2022-01-14"
+      ],
+      "role": "判决臂"
+    },
+    "V1prime_sensitivity": {
+      "value": 0.01555168302973996,
+      "role": "敏感性臂",
+      "known_defect": "用全序列（含未来）校准 ⇒ 不能算前瞻验证通过"
+    }
+  },
+  "arms": [
+    {
+      "name": "trend21",
+      "role": "判决臂",
+      "definition": "前 21 行复利累计收益 > 0 ⇒ 敞口 1，否则 0",
+      "block": 21,
+      "warmup_days": 21,
+      "n_days": 1395,
+      "exposure_mean": 0.5655913978494623,
+      "n_switches": 131,
+      "arith_annual_pct": 0.01524201138613421,
+      "arith_annual_compound_pct": 0.002723216715853738,
+      "nominal_cost_pct_sum": 0.7205000000000006,
+      "excess_over_control_pp": -0.10928661423530364,
+      "excess_definition": "臂逐日收益 − 对照臂逐日收益（同一个量上取差，MDE 才成立）",
+      "mde": {
+        "block": 21,
+        "block_why": "块长 = 该臂信号窗口长度（事前写死，不可从数据反推）",
+        "n_obs": 66,
+        "n_obs_unit": "块数（一次调仓 = 一个独立观测），不是天数",
+        "sd_block_annual_pct": 0.0512581979371707,
+        "se_of_daily_mean_annual_pct": 0.09855672853488583,
+        "t_crit_bonferroni": 2.457515063914288,
+        "t_crit_uncorrected": 1.997137908392003,
+        "alpha_used": 0.016666666666666666,
+        "n_candidates": 3,
+        "mde_annual_pct": 0.24220464502459305,
+        "t_blocked": -1.1123423855966128,
+        "self_check": {
+          "t_from_tstat": -1.1123423855966128,
+          "t_from_aligned_mean_over_se": -1.1123423855966128,
+          "agree": true
+        },
+        "caliber_note": "MDE = t_crit × sd_block/√n_obs × 244。sd_block/√n_obs **就是**分块下的逐日均值标准误（sd_daily = sd_block·√k、n = n_obs·k ⇒ 两者相消）。🚨 这**不是** factor_attribution.power_floor 的 MDE —— 后者用 t_power≈2.80（80% 检出力）且按天口径，是**另一个量**，只可作带标签的并排敏感性。"
+      }
+    },
+    {
+      "name": "reversal5",
+      "role": "判决臂",
+      "definition": "前 5 行累计收益 < 0 ⇒ 敞口 1，否则 0",
+      "block": 5,
+      "warmup_days": 5,
+      "n_days": 1395,
+      "exposure_mean": 0.4551971326164875,
+      "n_switches": 256,
+      "arith_annual_pct": -0.24085742482004904,
+      "arith_annual_compound_pct": -0.2280489619539665,
+      "nominal_cost_pct_sum": 1.4080000000000013,
+      "excess_over_control_pp": -0.3653860504414869,
+      "excess_definition": "臂逐日收益 − 对照臂逐日收益（同一个量上取差，MDE 才成立）",
+      "mde": {
+        "block": 5,
+        "block_why": "块长 = 该臂信号窗口长度（事前写死，不可从数据反推）",
+        "n_obs": 279,
+        "n_obs_unit": "块数（一次调仓 = 一个独立观测），不是天数",
+        "sd_block_annual_pct": 0.06932899872169741,
+        "se_of_daily_mean_annual_pct": 0.06483473491466085,
+        "t_crit_bonferroni": 2.4085549157376427,
+        "t_crit_uncorrected": 1.968533974640783,
+        "alpha_used": 0.016666666666666666,
+        "n_candidates": 3,
+        "mde_annual_pct": 0.15615801948925337,
+        "t_blocked": -5.635652724152087,
+        "self_check": {
+          "t_from_tstat": -5.635652724152087,
+          "t_from_aligned_mean_over_se": -5.635652724152087,
+          "agree": true
+        },
+        "caliber_note": "MDE = t_crit × sd_block/√n_obs × 244。sd_block/√n_obs **就是**分块下的逐日均值标准误（sd_daily = sd_block·√k、n = n_obs·k ⇒ 两者相消）。🚨 这**不是** factor_attribution.power_floor 的 MDE —— 后者用 t_power≈2.80（80% 检出力）且按天口径，是**另一个量**，只可作带标签的并排敏感性。"
+      }
+    },
+    {
+      "name": "vol_target_V1",
+      "role": "判决臂",
+      "definition": "clip(σ_target/σ̂_t,0,1)，σ̂_t=前 252 行日 sd；σ_target = 开头 252 行实测 sd",
+      "block": 252,
+      "warmup_days": 252,
+      "n_days": 1395,
+      "exposure_mean": 0.6097515545451162,
+      "n_switches": 1016,
+      "arith_annual_pct": 0.011433959757668592,
+      "arith_annual_compound_pct": -0.003420391811814416,
+      "nominal_cost_pct_sum": 0.025074439869069123,
+      "excess_over_control_pp": -0.11309466586376926,
+      "excess_definition": "臂逐日收益 − 对照臂逐日收益（同一个量上取差，MDE 才成立）",
+      "mde": {
+        "block": 252,
+        "block_why": "块长 = 该臂信号窗口长度（事前写死，不可从数据反推）",
+        "n_obs": 5,
+        "n_obs_unit": "块数（一次调仓 = 一个独立观测），不是天数",
+        "sd_block_annual_pct": 0.004836328255536215,
+        "se_of_daily_mean_annual_pct": 0.03378513674044462,
+        "t_crit_bonferroni": 3.960786482770179,
+        "t_crit_uncorrected": 2.7764451051977943,
+        "alpha_used": 0.016666666666666666,
+        "n_candidates": 3,
+        "mde_annual_pct": 0.13381571292009523,
+        "t_blocked": -3.588535632114964,
+        "self_check": {
+          "t_from_tstat": -3.588535632114964,
+          "t_from_aligned_mean_over_se": -3.588535632114964,
+          "agree": true
+        },
+        "caliber_note": "MDE = t_crit × sd_block/√n_obs × 244。sd_block/√n_obs **就是**分块下的逐日均值标准误（sd_daily = sd_block·√k、n = n_obs·k ⇒ 两者相消）。🚨 这**不是** factor_attribution.power_floor 的 MDE —— 后者用 t_power≈2.80（80% 检出力）且按天口径，是**另一个量**，只可作带标签的并排敏感性。"
+      }
+    },
+    {
+      "name": "vol_target_V1prime",
+      "role": "敏感性臂",
+      "definition": "σ_target = 全序列 sd（PREREG §4 V1'，已知方法论缺陷）",
+      "block": 252,
+      "warmup_days": 252,
+      "n_days": 1395,
+      "exposure_mean": 0.7606733576787414,
+      "n_switches": 472,
+      "arith_annual_pct": 0.05795816260622265,
+      "arith_annual_compound_pct": 0.03592053645678339,
+      "nominal_cost_pct_sum": 0.016634630026072957,
+      "excess_over_control_pp": -0.0665704630152152,
+      "excess_definition": "臂逐日收益 − 对照臂逐日收益（同一个量上取差，MDE 才成立）",
+      "mde": {
+        "block": 252,
+        "block_why": "块长 = 该臂信号窗口长度（事前写死，不可从数据反推）",
+        "n_obs": 5,
+        "n_obs_unit": "块数（一次调仓 = 一个独立观测），不是天数",
+        "sd_block_annual_pct": 0.005475803240167796,
+        "se_of_daily_mean_annual_pct": 0.038252316935076865,
+        "t_crit_bonferroni": 3.960786482770179,
+        "t_crit_uncorrected": 2.7764451051977943,
+        "alpha_used": 0.016666666666666666,
+        "n_candidates": 3,
+        "mde_annual_pct": 0.15150925985109323,
+        "t_blocked": -1.9267594365350347,
+        "self_check": {
+          "t_from_tstat": -1.9267594365350347,
+          "t_from_aligned_mean_over_se": -1.9267594365350347,
+          "agree": true
+        },
+        "caliber_note": "MDE = t_crit × sd_block/√n_obs × 244。sd_block/√n_obs **就是**分块下的逐日均值标准误（sd_daily = sd_block·√k、n = n_obs·k ⇒ 两者相消）。🚨 这**不是** factor_attribution.power_floor 的 MDE —— 后者用 t_power≈2.80（80% 检出力）且按天口径，是**另一个量**，只可作带标签的并排敏感性。"
+      }
+    },
+    {
+      "name": "always_full",
+      "role": "对照臂",
+      "definition": "敞口恒 1（基线，不是候选）",
+      "block": 1,
+      "warmup_days": 0,
+      "n_days": 1395,
+      "exposure_mean": 1.0,
+      "n_switches": 0,
+      "arith_annual_pct": 0.12452862562143784,
+      "arith_annual_compound_pct": 0.0994710351459831,
+      "nominal_cost_pct_sum": 0.0,
+      "excess_over_control_pp": 0.0,
+      "excess_definition": "臂逐日收益 − 对照臂逐日收益（同一个量上取差，MDE 才成立）",
+      "mde": {
+        "block": 1,
+        "block_why": "块长 = 该臂信号窗口长度（事前写死，不可从数据反推）",
+        "n_obs": 1395,
+        "n_obs_unit": "块数（一次调仓 = 一个独立观测），不是天数",
+        "sd_block_annual_pct": 0.0,
+        "se_of_daily_mean_annual_pct": 0.0,
+        "t_crit_bonferroni": 2.396873048682523,
+        "t_crit_uncorrected": 1.961667210719539,
+        "alpha_used": 0.016666666666666666,
+        "n_candidates": 3,
+        "mde_annual_pct": 0.0,
+        "t_blocked": null,
+        "self_check": null,
+        "caliber_note": "MDE = t_crit × sd_block/√n_obs × 244。sd_block/√n_obs **就是**分块下的逐日均值标准误（sd_daily = sd_block·√k、n = n_obs·k ⇒ 两者相消）。🚨 这**不是** factor_attribution.power_floor 的 MDE —— 后者用 t_power≈2.80（80% 检出力）且按天口径，是**另一个量**，只可作带标签的并排敏感性。"
+      }
+    }
+  ],
+  "placebo": {
+    "trend21": {
+      "role": "安慰剂臂",
+      "matched_arm": "trend21",
+      "warmup_days": 21,
+      "n_reps": 100,
+      "seed_rule": "20261017 + r, r=0..99",
+      "null_shape": "i.i.d. Bernoulli(0.5) 逐日敞口",
+      "arm_value": 0.01524201138613421,
+      "p_above_placebo": 1.0,
+      "p_below_placebo": 0.009900990099009901,
+      "p_two_sided": 0.019801980198019802,
+      "placebo_min": -0.7238813990500368,
+      "placebo_p5": -0.6702014989273564,
+      "placebo_p25": -0.620102894723379,
+      "placebo_p50": -0.5949785129426731,
+      "placebo_p75": -0.5551469418972437,
+      "placebo_p95": -0.5134121819947802,
+      "placebo_max": -0.4809869091791562,
+      "placebo_band_width_p95_minus_p5": 0.15678931693257614,
+      "band_narrower_than_mde": true,
+      "reading": "与随机不可区分（[p5,p95] 带宽 < MDE）⇒ 不许报任何方向"
+    },
+    "reversal5": {
+      "role": "安慰剂臂",
+      "matched_arm": "reversal5",
+      "warmup_days": 5,
+      "n_reps": 100,
+      "seed_rule": "20261017 + r, r=0..99",
+      "null_shape": "i.i.d. Bernoulli(0.5) 逐日敞口",
+      "arm_value": -0.24085742482004904,
+      "p_above_placebo": 1.0,
+      "p_below_placebo": 0.009900990099009901,
+      "p_two_sided": 0.019801980198019802,
+      "placebo_min": -0.741539841645591,
+      "placebo_p5": -0.6812533877362065,
+      "placebo_p25": -0.6330259014958869,
+      "placebo_p50": -0.5987090173333685,
+      "placebo_p75": -0.5573659800911919,
+      "placebo_p95": -0.4982450444518469,
+      "placebo_max": -0.4340567171795167,
+      "placebo_band_width_p95_minus_p5": 0.18300834328435955,
+      "band_narrower_than_mde": false,
+      "reading": "带宽 ≥ MDE ⇒ 分布本身能分辨这个读数"
+    },
+    "vol_target_V1": {
+      "role": "安慰剂臂",
+      "matched_arm": "vol_target_V1",
+      "warmup_days": 252,
+      "n_reps": 100,
+      "seed_rule": "20261017 + r, r=0..99",
+      "null_shape": "i.i.d. Bernoulli(0.5) 逐日敞口",
+      "arm_value": 0.011433959757668592,
+      "p_above_placebo": 1.0,
+      "p_below_placebo": 0.009900990099009901,
+      "p_two_sided": 0.019801980198019802,
+      "placebo_min": -0.5976590536834586,
+      "placebo_p5": -0.5755326947121059,
+      "placebo_p25": -0.5405250158043687,
+      "placebo_p50": -0.5061592748567094,
+      "placebo_p75": -0.4677588754011521,
+      "placebo_p95": -0.43297301772469654,
+      "placebo_max": -0.41690683566298226,
+      "placebo_band_width_p95_minus_p5": 0.14255967698740935,
+      "band_narrower_than_mde": false,
+      "reading": "带宽 ≥ MDE ⇒ 分布本身能分辨这个读数"
+    }
+  },
+  "lookahead_probe": {
+    "cuts_tested": 8,
+    "full_series_comparison": "全序列逐位比较，不抽样（PREREG §3 / 第 20 层）",
+    "all_ok": true,
+    "positive_control_present": true,
+    "rows": [
+      {
+        "cut_index": 300,
+        "cut_date": "2022-03-31",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 1095,
+        "n_poisoned_neg": 1094,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 414,
+        "cut_date": "2022-09-16",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 981,
+        "n_poisoned_neg": 980,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 527,
+        "cut_date": "2023-03-09",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 868,
+        "n_poisoned_neg": 867,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 641,
+        "cut_date": "2023-08-24",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 754,
+        "n_poisoned_neg": 753,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 754,
+        "cut_date": "2024-02-08",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 641,
+        "n_poisoned_neg": 640,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 868,
+        "cut_date": "2024-08-02",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 527,
+        "n_poisoned_neg": 526,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 981,
+        "cut_date": "2025-01-20",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 414,
+        "n_poisoned_neg": 413,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      },
+      {
+        "cut_index": 1095,
+        "cut_date": "2025-07-14",
+        "poison_value": 1000000000.0,
+        "n_poisoned_pos": 300,
+        "n_poisoned_neg": 299,
+        "poison_actually_present": true,
+        "arms": {
+          "trend21": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "reversal5": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          },
+          "vol_target_V1": {
+            "prefix_bitwise_identical": true,
+            "positive_control_tail_changed": true,
+            "ok": true
+          }
+        }
+      }
+    ]
+  },
+  "verdict": {
+    "verdict": "POWERLESS",
+    "arm": null,
+    "why": "没有主臂超对照 MDE ⇒ 不存在 D1/D2。但 reversal5 的超额落在 −MDE 之外（reversal5 -36.5386pp vs MDE 15.6158pp，t=-5.635652724152087）⇒ 这些臂**被测到**比『一直满仓』更差；trend21、vol_target_V1则是测不到。测不到 ≠ 没有 —— 但那句话只适用于测不到的臂，不适用于上面这些。",
+    "order": "D4 → D1 → D2 → D3（顺序本身是判据）",
+    "d4_caliber_conflict": null,
+    "control_annual_pct": 0.12452862562143784,
+    "control_annual_compound_pct": 0.0994710351459831,
+    "per_arm_excess_class": {
+      "trend21": "UNMEASURABLE",
+      "reversal5": "RESOLVED_NEGATIVE",
+      "vol_target_V1": "UNMEASURABLE"
+    },
+    "resolved_negative_arms": [
+      "reversal5"
+    ],
+    "unmeasurable_arms": [
+      "trend21",
+      "vol_target_V1"
+    ],
+    "d3_substate": "RESOLVED_NEGATIVE_PRESENT",
+    "d3_substate_note": "D3 名叫 POWERLESS，但它覆盖两格：|Δ|>MDE 且为负 = **测到了更差**，|Δ|<MDE = 测不到。本字段说的是这次落在哪一格，verdict 字段两个子态同名。加第五个判决态会是跑过数据后换判据（第 91 层）⇒ 不加，改成必报子态。"
+  },
+  "what_this_cannot_prove": [
+    "这不是「市场择时在 A 股行不行」的判决——它只回答：在 1395 行的 150 只抽样等权market_return 序列上，这 3 个自研臂里有没有一个能到 20%/年。",
+    "它不回答别的市场、别的样本期、别的抽样种子。",
+    "它不是前瞻验证：全部数据都在判决窗口内；vol_target 的 σ_target 更是用到了未来（开头 252 行做校准，属 PREREG §4 事前声明的已知缺陷）。⇒ 任何「通过了」都必须附这句话。",
+    "它与 market_timing_ceiling.json 是两个不同的对象：上界用块内未来函数，本文件一个未来函数都不许有。184.50%/年是上界不是判决。",
+    "测不到 ≠ 没有。若判决是 POWERLESS，那只说明在这个样本量下分辨不出来，出路是加前瞻数据，不是换臂、不是改门槛。"
+  ],
+  "powerless_wording_check": {
+    "rule": "D3 落到 ALL_UNMEASURABLE 时 `why` 必含「测不到 ≠ 没有」；D3 落到 RESOLVED_NEGATIVE_PRESENT 时 `why` 必**不许**说「都落在 MDE 之内」，且必点名为哪几个臂测到了更差",
+    "d3_substate": "RESOLVED_NEGATIVE_PRESENT",
+    "why_text": "没有主臂超对照 MDE ⇒ 不存在 D1/D2。但 reversal5 的超额落在 −MDE 之外（reversal5 -36.5386pp vs MDE 15.6158pp，t=-5.635652724152087）⇒ 这些臂**被测到**比『一直满仓』更差；trend21、vol_target_V1则是测不到。测不到 ≠ 没有 —— 但那句话只适用于测不到的臂，不适用于上面这些。",
+    "contains_lock_phrase": true,
+    "claims_all_inside_mde": false,
+    "actually_all_inside_mde": false,
+    "names_the_resolved_negative_arms": true
+  },
+  "cross_check_vs_ceiling": {
+    "compared_to": "data/reports/market_timing_ceiling.json",
+    "ceiling_field": "ceiling.best_hold_annual_pct",
+    "ceiling_best_hold_annual_pct": 0.10857160776015884,
+    "this_run_control_compound_annual_pct": 0.0994710351459831,
+    "abs_diff_pp": 0.9100572614175739,
+    "note": "只报差值不做等值断言。🚨 原先这里写「成因是块聚合 vs 逐日」——那是一句**未经验证的成因**，已撤回。实测到的只有三件事：① `abs_diff_pp` 的两个操作数**都是分数**（0.10857 vs 0.09947）⇒ 那个 ×100 算术是对的，0.9101 是真 pp；② 本文件的对照臂与 `market_nav_caliber.json::equal_weight.geometric_annual_pct` **逐位同一**（0.0994710351459831 × 100 = 9.94710351459831）⇒ 它们是**同一个量**，只差量纲存法，不是在拿两个东西比；③ ceiling 的 hold 档 10.8572%/年**是另一个数**，与 ② 的 9.9471% 差 0.9101pp。⚠️ ③ 的成因**本文件未验出** ⇒ 不许把 0.9101pp 读成「会计误差」，也不许沿用撤回的那句成因。"
+  },
+  "runtime_seconds": 0.29
+}

@@ -1,0 +1,214 @@
+{
+  "what_this_is": "D2 缺口陈述的**口径对照表** —— **不是 D2 判决**。D2 判决在 basket_nav_01 的 verdict_rule，且**已经出了**。",
+  "verdict_benchmark_arm": "equal_weight",
+  "verdict_k": 21,
+  "the_only_citable_d2_gap": {
+    "c": {
+      "value": 0.10556283216930074,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_reading"
+    },
+    "m": {
+      "value": 0.22673751360772554,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_mde_annual"
+    },
+    "u_upper_one_sided_95": {
+      "value": 0.3323003457770263,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_upper_one_sided_95"
+    },
+    "t": {
+      "value": 0.2,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: target"
+    },
+    "gap_pp": {
+      "value": 9.443716783069927,
+      "derived_by": "scripts/d2_gap_calibers.py :: account_gap",
+      "why": "`target − verdict_reading`，**不是产物字段**"
+    },
+    "account_sign_determinable": false,
+    "account_sign_determinable_why": "`abs(c) >= m`。为假时**连符号都定不了**：既不许说「达不到」，也不许说「接近」⇒ **这是 D2 唯一可引用的缺口陈述。**",
+    "verdict_rule_verbatim": "预注册 §16（对 §15.3 的修正）：U=c+M<T 才可说「不可达」；c<T≤U 只能说「测不出」；|c|<M 连符号都定不了"
+  },
+  "required_gross_excess_by_caliber": {
+    "equal_weight": {
+      "role": "判决臂",
+      "c_mkt_fraction": 0.09947103514598311,
+      "required_excess_annual": 0.09143393653900955,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: gap_to_target_by_benchmark.equal_weight",
+      "note": "🚨 **判决臂是预注册且被守卫钉着的**（第 91 层：看过数据不许换判据）⇒ 读数难看**不是**换臂的理由 ⇒ **加对照臂并显式标 role**（第 183 层）。"
+    },
+    "cap_weight": {
+      "role": "⚠️ 敏感性臂（非判决）",
+      "c_mkt_fraction": 0.01808663656249898,
+      "required_excess_annual": 0.17868161402424376,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: gap_to_target_by_benchmark.cap_weight",
+      "note": "⚠️ 敏感性臂。**不是判决臂** ⇒ 不许拿它的读数去说「差 N 倍」。"
+    },
+    "hurdle_rate_default_benchmark_0": {
+      "role": "⚠️ **不是基准口径，是「基准=0」的加性口径**（`hurdle_rate` 的签名默认值 `benchmark_annual=0.0`）",
+      "required_excess_annual": 1.5419999999999998,
+      "source": "aplus/hurdle.py :: hurdle_rate()（**代码**，不是产物）",
+      "note": "🚨 **这个默认值量纲是错的** ⇒ 见 `hurdle_rate_signature_trap`。"
+    },
+    "spread_between_the_two_benchmark_arms_x": {
+      "value": 1.9542154782760632,
+      "derived_by": "scripts/d2_gap_calibers.py :: required_by_benchmark.spread_between_the_two_benchmark_arms_x",
+      "why": "两个**基准口径**下的 `required_excess_annual` 相除 ⇒ ⇒ **同一个「年化 20%」目标，所需毛超额随基准而变**（第 183 层）。🚨 **这个比值不许被当成「有一个错了」** —— 是问的问题不同。"
+    },
+    "note": "⇒ 但**达标判决本身不需要基准**：账户 `market + net_excess ≡ 篮子净`（依据是生成器 caliber 两句原文，**不是**恒等式推理）。"
+  },
+  "measured_gross_excess_by_caliber": {
+    "arith_mean_times_R": {
+      "annual": 0.048107559200486205,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: excess_legs_own_mde.毛超额.arith_ann",
+      "role_verbatim": "算术 mean×R **只作敏感性**，不许用它下判决",
+      "usable_for_verdict": false
+    },
+    "excess_contribution_ratio": {
+      "annual": 0.005540661671463498,
+      "source": "data/reports/basket_nav_01_2026-10-16.json :: excess_contribution_ratio.bt003.annual_pct",
+      "role": "★ **判决链在用的那一个**（`caliber.verdict_tier_is` = `market_return + net_excess_bt003`）",
+      "usable_for_verdict": true
+    },
+    "one_number_two_copies_no_guard": {
+      "arith_ann": 0.048107559200486205,
+      "factor_width_mde_widths_10_gross_annual_pct": 0.048107559200486205,
+      "bit_identical": true,
+      "relative_diff": 0.0,
+      "note": "🚨 **两份产物各存同一个数，而两份副本之间没有任何守卫**（第 112 层单点依赖）。**判据是逐位相等，不是「差不多」。**"
+    },
+    "naming_debt_annual_pct_holds_a_fraction": {
+      "field": "data/reports/basket_nav_01_2026-10-16.json :: excess_contribution_ratio.bt003.annual_pct",
+      "name_says": "百分数",
+      "value_is": "**分数**（与 `arith_ann` / `required_excess_annual` 同尺度）",
+      "how_we_know_same_scale": "该字段 ÷ 判决臂 `required_excess_annual` = `per_combo.bt003.measured_over_required`，而后者是**无量纲比值**⇒ 分子分母必同尺度",
+      "note": "🚨 **第 97 层复发**（字段名带 `pct` 而值是分数）。**本轮不改名** —— 改名波及所有下游复制点而**不修任何东西**⇒ 登记为债。⚠️ 消费者照名字当百分数读会**差 100 倍**。"
+    },
+    "arith_over_ratio": {
+      "value": 8.682637932624242,
+      "derived_by": "scripts/d2_gap_calibers.py :: measured_by_caliber.arith_over_ratio",
+      "why": "**算术口径 ÷ 比值口径**（第 7 层：两个各自正确的数**不是同一个量**）。🚨 而产物 `caliber.arith_role` **逐字声明算术口径不许下判决**⇒ **判决链里引的 4.81% 是算术口径，而产物自己说算术不许下判决。**"
+    },
+    "measured_over_required": {
+      "value": 0.06059743112011391,
+      "measured_sign_determinable": false,
+      "measured_abs_over_mde": 0.051747376121327904,
+      "neither_side_is_a_point_estimate": true,
+      "note": "🚨🚨 **不许把 6.06% 说成「离目标还有多远」**：分子分母**都不是点估计**（`neither_side_is_a_point_estimate=True`）⇒ **最远只能说「差一个数量级以上」的形状陈述**（第 160 层）。"
+    }
+  },
+  "docs_reconciliation": {
+    "claim_in_claude_md": {
+      "text": "毛超额上限 11%/年 vs 门槛 26.39%/年 ⇒ 差 3.9 倍，不是差一个数量级。",
+      "operands_are_PROSE_not_artifact": {
+        "ceiling_pct": 11.0,
+        "ceiling_source": "CLAUDE.md 判决节散文 ⇒ 其真实出处是 `bridge_error.json`（🚨 无 sidecar ⇒ 不可引用）",
+        "k21_gross_pct": 6.78,
+        "k21_gross_source": "CLAUDE.md K 扫描表 K=21 行 ⇒ 其真实出处是 `data/reports/k_sweep_summary.json`（⚠️ 带章但 `code_dirty=true`）",
+        "stated_ratio": 3.9
+      },
+      "hurdle_here_is_computed_not_typed": "aplus.hurdle.hurdle_rate(rounds_per_year=rounds_per_year(21))"
+    },
+    "ratio_of_the_stated_operands": {
+      "value": 2.3991341991341995,
+      "derived_by": "scripts/d2_gap_calibers.py :: docs_reconciliation.ratio_of_the_stated_operands",
+      "why": "门槛 ÷ 11%。**11% 是散文值，不是产物值** ⇒ 这个比值带的是「散文里的 11」的口径，不许当测量结果引用。"
+    },
+    "ratio_stated_claims": 3.9,
+    "self_consistent": false,
+    "where_3_9_actually_comes_from": {
+      "value": 3.892400618064335,
+      "derived_by": "scripts/d2_gap_calibers.py :: docs_reconciliation.where_3_9_actually_comes_from",
+      "why": "门槛 ÷ K=21 毛超额。**6.78% 同样来自散文。**"
+    },
+    "conclusion": "🚨 **被比的两个数（11 / 26.39）与比值的两个操作数（26.39 / 6.78）来自两个不同的量对。** ⇒ 不是笔误，是**三个口径被并成了一句话**（第 7 种形状）。**该句作为判决依据不成立。**",
+    "why_11_and_11_6_collide": {
+      "rounds_per_year_at_verdict_k": {
+        "value": 11.619047619047619,
+        "derived_by": "scripts/d2_gap_calibers.py :: docs_reconciliation.rounds_per_year_at_verdict_k",
+        "why": "aplus.hurdle.rounds_per_year(21) —— K → 年调仓次数走 `aplus.hurdle` 唯一入口，不许手打（244/21 不取整）"
+      },
+      "note": "⇒ K 扫描表 K=21 那行的「次/年」= **11.6**，而判决节散文写「11%/年毛超额」。**两个不同的量，形状上只差一个小数点，相隔约 60 行。**⇒ 且 `26.39% = 目标 + 次/年 × 单边成本` ⇒ **11.6 正是这个门槛的乘数本身** ⇒ 同一行里「11.6」与门槛**互为因果，不是两条独立证据**。"
+    },
+    "disposition": "按第 25 层：**标注作废，不抹掉。**撤回理由就是本块 —— 那句要被改成带口径标签的对照表。"
+  },
+  "hurdle_rate_signature_trap": {
+    "default_rounds_per_year": 244,
+    "hurdle_with_default": 1.5419999999999998,
+    "hurdle_with_verdict_arm": 0.2639047619047619,
+    "default_over_verdict_arm": 5.84301696138578,
+    "dimensionally_wrong_because": "`DAYS_PER_YEAR` 是**交易日数**，而这个参数要的是**年调仓次数**（= DAYS_PER_YEAR / K）",
+    "call_site_census": {
+      "n_prod_explicit_rounds_per_year": 18,
+      "n_prod_silently_taking_the_default": 0,
+      "silently_taking_the_default_sites": [],
+      "n_test_explicit": 34,
+      "test_silently_taking_the_default": [],
+      "exempted_on_purpose": {
+        "file": "scripts/d2_gap_calibers.py",
+        "n_sites": 2,
+        "sites": [
+          {
+            "at": "scripts/d2_gap_calibers.py:260",
+            "explicit": false
+          },
+          {
+            "at": "scripts/d2_gap_calibers.py:424",
+            "explicit": false
+          }
+        ],
+        "why": "本文件**刻意**不传 `rounds_per_year`，目的正是测出那个默认值的量纲。豁免按**文件名**、不是按注释。"
+      },
+      "method": "AST 遍历 `ast.Call`（grep 会被注释/字符串满足，第 13 层）",
+      "verdict": "生产调用点全部显式传参，零处静默回落"
+    },
+    "consequence": "🚨 生产上**没有一处**吃过这个默认值（18 处生产调用点**全部显式传参**，0 处静默回落）⇒ **它从未被走过，但它活着、错的、且无守卫。**⇒ **下一个省略它的调用点会静默拿到 5.8430 倍的门槛。**",
+    "why_not_changed_this_round": "🚨 **不改默认值、不改签名**：`aplus/evolve_race.py:534` 用**三个位置参数**调用 ⇒ 把 `rounds_per_year` 往中间插会**静默改语义**（第 182 层）。⇒ 处置是**加守卫**（钉「生产调用点必须显式传参」，并豁免本文件的探针），不是改默认值。"
+  },
+  "citable_status": {
+    "data/reports/basket_nav_01_2026-10-16.json": {
+      "citable": false,
+      "state": "STAMPED_BUT_DIRTY",
+      "generator": "scripts/measure_basket_nav_01.py",
+      "stamped_at": "2026-10-16T10:34:01+00:00",
+      "code_dirty": true,
+      "why": "带章，但 `code_dirty=true` ⇒ 按本仓规矩 `trustworthy` 恒 `False`，引用时章与脏两句都要带"
+    },
+    "data/reports/factor_width_mde.json": {
+      "citable": false,
+      "state": "STAMPED_BUT_DIRTY",
+      "generator": "scripts/factor_width_mde.py",
+      "stamped_at": "2026-10-15T13:14:36+00:00",
+      "code_dirty": true,
+      "why": "带章，但 `code_dirty=true` ⇒ 按本仓规矩 `trustworthy` 恒 `False`，引用时章与脏两句都要带"
+    },
+    "data/reports/k_sweep_summary.json": {
+      "citable": false,
+      "state": "STAMPED_BUT_DIRTY",
+      "generator": "scripts/k_sweep_extract.py",
+      "stamped_at": "2026-10-15T02:21:16+00:00",
+      "code_dirty": true,
+      "why": "带章，但 `code_dirty=true` ⇒ 按本仓规矩 `trustworthy` 恒 `False`，引用时章与脏两句都要带"
+    },
+    "data/reports/bridge_error.json": {
+      "citable": false,
+      "state": "NO_SIDECAR",
+      "why": "无 sidecar ⇒ 按 aplus/provenance.py 自己的规矩，`unknown`（解析不出生成器）= **不许引用**"
+    }
+  },
+  "what_this_cannot_prove": [
+    "🚨 **不许把任何两个口径下的数相除当「差 N 倍」** —— 第 7 层：两个各自正确的数不是同一个量。本块存在的**全部意义**就是防止这件事。",
+    "🚨 **不许把 `measured_over_required` 说成量化结论** —— 分子分母**都不是点估计**（产物自己禁止）。最远只能说「差一个数量级以上」的**形状**陈述。",
+    "🚨 **不许引用 `bridge_error.json` 的任何数** —— 无 sidecar。",
+    "🚨 **引用 `factor_width_mde.json` / `k_sweep_summary.json` 时，必须同时说「带章」与「`code_dirty=true`」两句。**",
+    "🚨 **本表不换判据臂** —— 判决臂是预注册的，敏感性臂的读数差很多倍是**要报告的事实**，不是缺陷（第 183 层）。",
+    "⚠️ **本表只做口径对照，不出 D2 判决**，也不重跑任何回测；所有产物字段**只读不重算**（第 109 层）。"
+  ],
+  "caliber": {
+    "R_days_per_year": 244,
+    "R_source": "aplus.hurdle.DAYS_PER_YEAR",
+    "cost_per_round": 0.0055,
+    "target_net": 0.2,
+    "single_entry_for_hurdle": "门槛走 `aplus.hurdle.hurdle_rate` 唯一入口，**不许手打**（第 144 层）。",
+    "no_hand_typed_prose_numbers": "所有比值由本脚本算；唯二手抄的 `ceiling` / `k21_gross` **在产物里逐字标为散文值**，因为它们正是被质疑的对象（第 142 层）。"
+  }
+}

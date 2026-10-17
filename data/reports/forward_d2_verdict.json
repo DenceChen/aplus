@@ -18,6 +18,70 @@
     "ci95_low_pct": -0.021363779267665396,
     "ci95_high_pct": 0.035678491018494074
   },
+  "sensitivity_observation_unit": {
+    "role": "sensitivity",
+    "role_note": "观测单位换成 pred_date；判决臂仍是预注册的 entry_date（R1）⇒ 本臂只作对照，不参与判决，也不许被引用成 D2 结论",
+    "observation_unit": "pred_date",
+    "observation_unit_vs_main": "entry_date 给更少的块但块间 sd 更小；pred_date 给更多的块但块间 sd 更大⇒ 「哪个更宽松」不能一句话回答，判决只用 R1",
+    "verdict": "POWERLESS",
+    "n_blocks": 6,
+    "n_pred_dates": 6,
+    "n_entry_dates": 4,
+    "mean_excess_pct_per_block": 0.0025407895755066704,
+    "sd_pct": 0.024930604873619682,
+    "se_pct": 0.010177876819885287,
+    "t_stat": 0.24963846787205538,
+    "mde_pct": 0.019948638566975162,
+    "abs_mean_over_mde": 0.12736656524084458,
+    "ci95_low_pct": -0.01740784899146849,
+    "ci95_high_pct": 0.022489428142481834,
+    "ci_method": "normal_approx_z=1.96",
+    "sensitivity_student_t": {
+      "role": "sensitivity",
+      "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；本臂同样不用它判决",
+      "t_crit_95": 2.571,
+      "ci95_low_pct": -0.023626531728418405,
+      "ci95_high_pct": 0.028708110879431748
+    },
+    "blocks": [
+      {
+        "pred_date": "2026-10-09",
+        "excess_mean_pct": 0.016731954195372,
+        "n_legs": 10,
+        "n_pred_dates": 1
+      },
+      {
+        "pred_date": "2026-10-10",
+        "excess_mean_pct": 0.004236965070006049,
+        "n_legs": 9,
+        "n_pred_dates": 1
+      },
+      {
+        "pred_date": "2026-10-11",
+        "excess_mean_pct": -0.041621175080110095,
+        "n_legs": 10,
+        "n_pred_dates": 1
+      },
+      {
+        "pred_date": "2026-10-12",
+        "excess_mean_pct": 0.01996494469871295,
+        "n_legs": 10,
+        "n_pred_dates": 1
+      },
+      {
+        "pred_date": "2026-10-13",
+        "excess_mean_pct": 0.025151228457727732,
+        "n_legs": 10,
+        "n_pred_dates": 1
+      },
+      {
+        "pred_date": "2026-10-14",
+        "excess_mean_pct": -0.009219179888668614,
+        "n_legs": 10,
+        "n_pred_dates": 1
+      }
+    ]
+  },
   "blocks": [
     {
       "entry_date": "2026-10-12",
@@ -46,6 +110,7 @@
   ],
   "caliber": {
     "observation_unit": "entry_date（R1：持有哪些 bar，而不是哪天下单）",
+    "observation_unit_control_arm": "产物里的 sensitivity_observation_unit 是**对照臂**（观测单位换成 pred_date），**不参与判决**。两臂的方向相反：entry_date 给出**更少**的独立观测但块间 sd 更小，pred_date 给出**更多**的观测但块间 sd 更大⇒ 「哪个更宽松」不能一句话回答，判决一律用预注册的 R1。🚨 别把它读成「换口径就多拿证据」",
     "observation_unit_why": "实测 6 个 pred_date 只对应 4 个 entry_date；10-09/10-10/10-11 三天的单全部 entry 到 2026-10-12 ⇒ 持有同一批 bar ⇒ 不是 3 个观测。10-10/10-11 是周末，出单对独立证据零新增。",
     "leg": "direction == 'up' 且 gross_pct 非 NaN 的行，10 只等权",
     "excess_is": "逐行 (gross_pct − market_pct) 的块均值（毛口径）",

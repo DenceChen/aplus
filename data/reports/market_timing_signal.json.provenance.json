@@ -1,0 +1,12 @@
+{
+  "code_sha": "e118dc72eff3055eb2109e27456284f06dfd9fa0",
+  "code_dirty": true,
+  "code_file_sha256": "5849b001882d91e3bb9e6251c09d285dc75cc79715e5acf06de77c697eef07c3",
+  "data_fp": "5460:1792149148.049984",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/market_timing_signal.py",
+  "stamped_at": "2026-10-16T23:44:43+00:00",
+  "source_parquet": "data/reports/wf_weights_backtest_k21.daily.parquet",
+  "source_parquet_sha256": "785d1aaf20f1dfcec4dfdfd4acd64357384378454ac265178a150422e6b5d995",
+  "verdict": "POWERLESS"
+}

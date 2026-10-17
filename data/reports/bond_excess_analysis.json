@@ -13,235 +13,235 @@
   },
   "universe": {
     "n_bonds": 1087,
-    "calendar_start": "2024-02-19",
-    "calendar_end": "2026-10-09",
+    "calendar_start": "2024-02-26",
+    "calendar_end": "2026-10-16",
     "n_calendar_days": 640,
-    "calendar_ref": "110075.SH"
+    "calendar_ref": "110076.SH"
   },
   "windows": {
     "train": [
-      "2024-02-19",
-      "2025-09-05"
+      "2024-02-26",
+      "2025-09-12"
     ],
     "test": [
-      "2025-09-12",
-      "2026-10-10"
+      "2025-09-19",
+      "2026-10-17"
     ],
     "full": [
-      "2024-02-19",
-      "2026-10-10"
+      "2024-02-26",
+      "2026-10-17"
     ]
   },
   "segments": {
     "train": {
-      "excess_total": 0.3730192028965298,
-      "excess_ann": 0.23533403663496544,
-      "excess_per_period": 0.0053394251016227355,
-      "strategy_total": 0.6290168558152114,
-      "benchmark_total": 0.1864487054358943,
-      "strategy_ann": 0.38447053950291243,
-      "benchmark_ann": 0.1207256486465742,
+      "excess_total": 0.39184988886294203,
+      "excess_ann": 0.24660328234184048,
+      "excess_per_period": 0.005522887145444124,
+      "strategy_total": 0.6193631937844195,
+      "benchmark_total": 0.16346109357190963,
+      "strategy_ann": 0.378995480096604,
+      "benchmark_ann": 0.1062023497211193,
       "n_days": 375,
       "n_periods": 75,
       "benchmark_n_periods": 75,
       "verdict": "超额为正（跑赢市场）",
       "window": [
-        "2024-02-19",
-        "2025-09-05"
+        "2024-02-26",
+        "2025-09-12"
       ],
       "strategy": {
         "n_periods": 75,
         "n_days": 375,
-        "total_return": 0.6290168558152114,
-        "annualized_return": 0.38447053950291243,
-        "max_drawdown": 0.26393557085817543,
-        "gross_per_period": 0.009284779836734858,
-        "net_per_period": 0.007884779836734858,
-        "cost_per_period": 0.0014,
-        "avg_turnover_names": 4.662162162162162,
+        "total_return": 0.6193631937844195,
+        "annualized_return": 0.378995480096604,
+        "max_drawdown": 0.2639355708581756,
+        "gross_per_period": 0.009198904868286244,
+        "net_per_period": 0.007802904868286244,
+        "cost_per_period": 0.0013959999999999999,
+        "avg_turnover_names": 4.648648648648648,
         "mean_n_picks": 10.0
       },
       "benchmark": {
         "n_periods": 75,
         "n_days": 375,
-        "total_return": 0.1864487054358943,
-        "annualized_return": 0.1207256486465742,
-        "max_drawdown": 0.15622182604049095,
-        "gross_per_period": 0.0033832117847700616,
-        "net_per_period": 0.0025453547351121228,
-        "cost_per_period": 0.000837857049657939,
-        "mean_n_picks": 169.74666666666667
+        "total_return": 0.16346109357190963,
+        "annualized_return": 0.1062023497211193,
+        "max_drawdown": 0.15622182604049098,
+        "gross_per_period": 0.003116472281904546,
+        "net_per_period": 0.0022800177228421204,
+        "cost_per_period": 0.0008364545590624252,
+        "mean_n_picks": 171.78666666666666
       },
       "selection_skill_gross": {
         "n_periods": 75,
-        "mean_pool_size": 169.74666666666667,
-        "pool_max_per_period": 0.31103189505178913,
+        "mean_pool_size": 171.78666666666666,
+        "pool_max_per_period": 0.3082682199887988,
         "vs_pool_mean": {
-          "per_period": 0.005901568051964794,
-          "t_stat": 1.1496163415334557,
-          "win_rate": 0.5466666666666666
+          "per_period": 0.006082432586381698,
+          "t_stat": 1.185792317830959,
+          "win_rate": 0.56
         },
         "vs_pool_median": {
-          "per_period": 0.00939422538273759,
-          "t_stat": 1.7585712450550524,
-          "win_rate": 0.6533333333333333
+          "per_period": 0.009362535690422006,
+          "t_stat": 1.7526529433713685,
+          "win_rate": 0.64
         },
         "note": "费前事后统计；t 绝对值 <2 视为与 0 不可区分"
       },
       "equity_ref_background": {
-        "start_close": 7.12,
-        "end_close": 13.77,
-        "total_return": 0.9339887640449438,
+        "start_close": 7.1,
+        "end_close": 14.12,
+        "total_return": 0.9887323943661972,
         "n_days": 379,
-        "first": "2024-02-19",
-        "last": "2025-09-04"
+        "first": "2024-02-26",
+        "last": "2025-09-11"
       }
     },
     "test": {
-      "excess_total": -0.059766004945383866,
-      "excess_ann": -0.05862917443073157,
-      "excess_per_period": -0.0012507544401098723,
-      "strategy_total": -0.13126329217788935,
-      "benchmark_total": -0.07604201465652427,
-      "strategy_ann": -0.12886303250581133,
-      "benchmark_ann": -0.07460806747713655,
+      "excess_total": -0.0386315391100337,
+      "excess_ann": -0.03788859449306081,
+      "excess_per_period": -0.0008337481224650256,
+      "strategy_total": -0.14499782310998932,
+      "benchmark_total": -0.11064049667438569,
+      "strategy_ann": -0.1423675665854357,
+      "benchmark_ann": -0.10859342431069574,
       "n_days": 255,
       "n_periods": 51,
       "benchmark_n_periods": 51,
       "verdict": "超额为负（真实失效）",
       "window": [
-        "2025-09-12",
-        "2026-10-10"
+        "2025-09-19",
+        "2026-10-17"
       ],
       "strategy": {
         "n_periods": 51,
         "n_days": 255,
-        "total_return": -0.13126329217788935,
-        "annualized_return": -0.12886303250581133,
-        "max_drawdown": 0.1928717785554812,
-        "gross_per_period": -0.001615289637296562,
-        "net_per_period": -0.002544701402002445,
-        "cost_per_period": 0.0009294117647058822,
+        "total_return": -0.14499782310998932,
+        "annualized_return": -0.1423675665854357,
+        "max_drawdown": 0.18634410321387124,
+        "gross_per_period": -0.001921682829398899,
+        "net_per_period": -0.0028510945941047816,
+        "cost_per_period": 0.0009294117647058823,
         "avg_turnover_names": 3.06,
         "mean_n_picks": 10.0
       },
       "benchmark": {
         "n_periods": 51,
         "n_days": 255,
-        "total_return": -0.07604201465652427,
-        "annualized_return": -0.07460806747713655,
-        "max_drawdown": 0.17355763975247235,
-        "gross_per_period": -0.0007896238986829439,
-        "net_per_period": -0.0012939469618925728,
-        "cost_per_period": 0.0005043230632096288,
-        "mean_n_picks": 196.1764705882353
+        "total_return": -0.11064049667438569,
+        "annualized_return": -0.10859342431069574,
+        "max_drawdown": 0.21667526215838556,
+        "gross_per_period": -0.0015102631215105071,
+        "net_per_period": -0.002017346471639756,
+        "cost_per_period": 0.0005070833501292487,
+        "mean_n_picks": 194.2549019607843
       },
       "selection_skill_gross": {
         "n_periods": 51,
-        "mean_pool_size": 196.1764705882353,
-        "pool_max_per_period": 0.28345766395071165,
+        "mean_pool_size": 194.2549019607843,
+        "pool_max_per_period": 0.28426427003812266,
         "vs_pool_mean": {
-          "per_period": -0.0008256657386136184,
-          "t_stat": -0.22919486058722638,
+          "per_period": -0.00041141970788839243,
+          "t_stat": -0.1130869232571958,
           "win_rate": 0.4117647058823529
         },
         "vs_pool_median": {
-          "per_period": 0.0013169397295839252,
-          "t_stat": 0.4682072919351399,
+          "per_period": 0.0014105903116907138,
+          "t_stat": 0.500224649642056,
           "win_rate": 0.5294117647058824
         },
         "note": "费前事后统计；t 绝对值 <2 视为与 0 不可区分"
       },
       "equity_ref_background": {
-        "start_close": 13.6,
-        "end_close": 9.54,
-        "total_return": -0.29852941176470593,
+        "start_close": 12.81,
+        "end_close": 9.73,
+        "total_return": -0.2404371584699454,
         "n_days": 256,
-        "first": "2025-09-12",
-        "last": "2026-10-09"
+        "first": "2025-09-19",
+        "last": "2026-10-16"
       }
     },
     "full": {
-      "excess_total": 0.3152300928226264,
-      "excess_ann": 0.11391250024126132,
-      "excess_per_period": 0.0027719647149944235,
-      "strategy_total": 0.4924325677641008,
-      "benchmark_total": 0.13473115913975087,
-      "strategy_ann": 0.17074547329434608,
-      "benchmark_ann": 0.05102103894226473,
+      "excess_total": 0.37370883164805857,
+      "excess_ann": 0.13315481407309782,
+      "excess_per_period": 0.0031105266701708946,
+      "strategy_total": 0.4571851905446964,
+      "benchmark_total": 0.060767141459293184,
+      "strategy_ann": 0.1597807214251763,
+      "benchmark_ann": 0.023497148863862893,
       "n_days": 635,
       "n_periods": 127,
       "benchmark_n_periods": 127,
       "verdict": "超额为正（跑赢市场）",
       "window": [
-        "2024-02-19",
-        "2026-10-10"
+        "2024-02-26",
+        "2026-10-17"
       ],
       "strategy": {
         "n_periods": 127,
         "n_days": 635,
-        "total_return": 0.4924325677641008,
-        "annualized_return": 0.17074547329434608,
-        "max_drawdown": 0.26393557085817543,
-        "gross_per_period": 0.00526425778623477,
-        "net_per_period": 0.004035911329541857,
-        "cost_per_period": 0.001228346456692914,
-        "avg_turnover_names": 4.087301587301587,
+        "total_return": 0.4571851905446964,
+        "annualized_return": 0.1597807214251763,
+        "max_drawdown": 0.2639355708581756,
+        "gross_per_period": 0.00506200721124429,
+        "net_per_period": 0.0038454717781734246,
+        "cost_per_period": 0.0012165354330708666,
+        "avg_turnover_names": 4.0476190476190474,
         "mean_n_picks": 10.0
       },
       "benchmark": {
         "n_periods": 127,
         "n_days": 635,
-        "total_return": 0.13473115913975087,
-        "annualized_return": 0.05102103894226473,
-        "max_drawdown": 0.15622182604049095,
-        "gross_per_period": 0.0019568009829919607,
-        "net_per_period": 0.0012639466145474335,
-        "cost_per_period": 0.0006928543684445275,
-        "mean_n_picks": 181.3464566929134
+        "total_return": 0.060767141459293184,
+        "annualized_return": 0.023497148863862893,
+        "max_drawdown": 0.18281707016530832,
+        "gross_per_period": 0.0014290865816989806,
+        "net_per_period": 0.0007349451080025301,
+        "cost_per_period": 0.0006941414736964501,
+        "mean_n_picks": 181.11811023622047
       },
       "selection_skill_gross": {
         "n_periods": 127,
-        "mean_pool_size": 181.3464566929134,
-        "pool_max_per_period": 0.2895565567201491,
+        "mean_pool_size": 181.11811023622047,
+        "pool_max_per_period": 0.28741379272491163,
         "vs_pool_mean": {
-          "per_period": 0.003307456803242807,
-          "t_stat": 1.0044728098787077,
-          "win_rate": 0.5196850393700787
+          "per_period": 0.0036329206295453087,
+          "t_stat": 1.101391531668884,
+          "win_rate": 0.5275590551181102
         },
         "vs_pool_median": {
-          "per_period": 0.006339345957457555,
-          "t_stat": 1.9134753142310719,
+          "per_period": 0.006422427100542565,
+          "t_stat": 1.9390951613313985,
           "win_rate": 0.6141732283464567
         },
         "note": "费前事后统计；t 绝对值 <2 视为与 0 不可区分"
       },
       "equity_ref_background": {
-        "start_close": 7.12,
-        "end_close": 9.54,
-        "total_return": 0.339887640449438,
+        "start_close": 7.1,
+        "end_close": 9.73,
+        "total_return": 0.3704225352112678,
         "n_days": 640,
-        "first": "2024-02-19",
-        "last": "2026-10-09"
+        "first": "2024-02-26",
+        "last": "2026-10-16"
       }
     }
   },
   "pool_distribution_test": {
-    "n_obs": 10005,
-    "mean": -5.754376969321921e-05,
-    "median": -0.0013480794897418047,
-    "std": 0.06046208435718311,
-    "p10": -0.05721085760137598,
-    "p25": -0.02434431333242204,
-    "p75": 0.0190050706639473,
-    "p90": 0.05610101743121226,
-    "p99": 0.20614573220868287,
+    "n_obs": 9907,
+    "mean": -0.000461039744814946,
+    "median": -0.0013288019843442633,
+    "std": 0.0611028038791187,
+    "p10": -0.05903477402878809,
+    "p25": -0.024622172784575458,
+    "p75": 0.018945236406082255,
+    "p90": 0.056081334126069256,
+    "p99": 0.20757478113423633,
     "max": 0.8469118718135467,
-    "frac_negative": 0.5254372813593203,
+    "frac_negative": 0.5251842131825981,
     "note": "事后市场环境描述，不进入任何决策"
   },
   "equity_ref": "600000.SH",
-  "verdict": "测试段超额为负（-5.98%，费前对池均值 t=-0.23 （统计上与 0 不可区分））：策略未跑赢转债市场，「样本外失败」结论成立——但性质是「没有可测量的 alpha」，不是「显著跑输 beta」。",
+  "verdict": "测试段超额为负（-3.86%，费前对池均值 t=-0.11 （统计上与 0 不可区分））：策略未跑赢转债市场，「样本外失败」结论成立——但性质是「没有可测量的 alpha」，不是「显著跑输 beta」。",
   "no_lookahead": "信号仅用信号日 D 收盘的 cheap 点值，成交一律 D+1；本模块不做任何横截面标准化，全窗口统计量不进入决策",
-  "elapsed_s": 10.2
+  "elapsed_s": 11.8
 }

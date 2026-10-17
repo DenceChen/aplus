@@ -1,11 +1,11 @@
 {
-  "code_sha": "1ca74bdb782aca8f02fb6ef4a9c8df4fd7ca0961",
+  "code_sha": "e118dc72eff3055eb2109e27456284f06dfd9fa0",
   "code_dirty": true,
-  "code_file_sha256": "202d95590ef7d2db2d386941a38cc4290166e15e96841bf91136d4c512d86080",
+  "code_file_sha256": "85d7828d34f897de71b84a6d22e92b189b41c6ece85de6ddd029edd116716d76",
   "data_fp": "5460:1792149148.049984",
   "data_dir": "data/master/daily",
   "generator": "scripts/forward_d2_verdict.py",
-  "stamped_at": "2026-10-16T16:23:26+00:00",
+  "stamped_at": "2026-10-16T18:04:37+00:00",
   "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037",
   "observation_unit": "entry_date"
 }

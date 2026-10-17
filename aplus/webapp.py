@@ -19,8 +19,9 @@ from pydantic import BaseModel
 # 现任健康度的判定逻辑住在 `aplus.champion_health` 而不是这里——
 # `scripts/run_daily.py` 要用同一份，不能各写一套（2026-10-11 21:35 抽出）。
 from .champion_health import champion_health, live_down_leg
-from .evolve import candidate_key
+from .evolve import candidate_key, live_execution_status
 from .factor_ic import weight_sign_conflicts
+from .live_rebalance import load_state
 from .provenance import report_jsons
 from .reports import (
     latest_prediction_date,
@@ -59,6 +60,63 @@ def _stats_with_compounded(history: pd.DataFrame) -> dict:
     """
     out = dict(rolling_stats(history))
     out.update(compounded_stats(history))
+    return out
+
+
+def _live_holdings_payload(reports_dir) -> dict:
+    """**你现在持有的那 10 只** + 「还有几个交易日才换仓」+ 执行口径是不是声明的那个。
+
+    ## 为什么必须有它（2026-10-17 实测缺口）
+
+    `/api/status` 原本只递 5 个键，`holdings.json`（实盘成交流的唯一真值）
+    与 `live_execution_status`（K 与缓冲区**是否真的被执行**的那道闸）
+    **全仓零个消费点**。于是用户每天打开平台看到的是一张新的 10 涨 10 跌，
+    而实盘是 `every=21`（`holdings.json` 实读）、**每 21 个交易日才换一次仓**。
+
+    ⇒ 照着每天的新名单全买，年摩擦 **80.81%**（`delivery_caliber_friction::at_min`）；
+       照 K=21 换一次是 **6.41%**（同产物 `friction_by_holding_period.K=21`）。
+       **差 74.4pp/year，且与信号好坏无关。**
+    ⇒ 这不是「优化」，是**交付 D1 时必须一起说清的口径**：
+       名单每天出 ≠ 仓位每天换。
+
+    ## 坏状态不许静默变成「空仓」
+
+    `load_state` 任何异常都返回 `None`（= 首次建仓）。这里**原样递出 `None`**，
+    不造一个空的 `{"up": [], "down": []}`——后者在界面上渲染成
+    「你现在持有 0 只」，那是**一个看起来正常的假状态**，
+    而真相是「状态读不出来，明天会按首次建仓重新买一遍」（形状 23 的方向）。
+    ⇒ 前端必须把 `None` 渲染成「状态读不出来」，不是「空仓」。
+
+    ## `days_to_rebalance` 由 `every` 现算，不落盘
+
+    它是 `every − days_since_rebalance`，两个入参都在 `holdings.json` 里。
+    自己再存一份就是第 137 层的手抄件，第二天就会漂。
+    """
+    state = load_state(reports_dir)
+    status = live_execution_status(reports_dir)
+    out = {
+        # `None` = 状态读不出来（或还没建仓）。**与空仓严格不同。**
+        "state": state,
+        "as_of": (state or {}).get("as_of"),
+        "up": (state or {}).get("up") or [],
+        "down": (state or {}).get("down") or [],
+        "up_names": (state or {}).get("up_names") or [],
+        "down_names": (state or {}).get("down_names") or [],
+        "every": (state or {}).get("every"),
+        "days_since_rebalance": (state or {}).get("days_since_rebalance"),
+        # `honored=False` 时 `reason` 逐字带着「回落默认权重未经赛马验证 /
+        # 上一版排 81/87 名、t=−3.03」——前端必须把它显示出来，不是压成布尔。
+        "execution_status": status,
+        # `honored` 单独提出来，方便前端决定横幅的颜色；**不代替** `reason`。
+        "honored": bool(status.get("honored")),
+        "reason": status.get("reason"),
+    }
+    every = out["every"]
+    days = out["days_since_rebalance"]
+    out["days_to_rebalance"] = (
+        None if not isinstance(every, int) or not isinstance(days, int) or every < 1
+        else max(int(every) - int(days), 0)
+    )
     return out
 
 
@@ -221,6 +279,10 @@ def create_app(data_root, llm=None) -> FastAPI:
             "universe_size": universe,
             "stats": _stats_with_compounded(load_verification_history(reports_dir)),
             "paper_mode": True,
+            # 2026-10-17 接上。此前 `holdings.json` 与 `live_execution_status`
+            # **零消费点**：用户看到每天 10 涨 10 跌，却看不到「实盘每 21 个
+            # 交易日换一次仓」。差 74.4pp/年摩擦，且与信号好坏无关。
+            "live": _live_holdings_payload(reports_dir),
         }
 
     @app.get("/api/predictions/latest")
