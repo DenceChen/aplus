@@ -15,12 +15,55 @@
 
 ## 为什么必须把**独立事件数**和**条目数**分开报（第 80 层）
 
+🚨 **本节原文的两个数已作废**（写于 2026-10-16 实测之前）：
+它写「`verification.parquet` 有 **80 行**」「**4 个预测日**」，
+而底稿是**追加式**的，实测已走到 **120 行 / 6 个 `pred_date`**。
+**原样保留在下面（不抹掉，第 25 层）** —— 但它对不上任何产物，
+这正是它自己警告的形状：**散文字数与正文脱钩，且无守卫**。
+⚠️ 更贵的是它的**结论方向**：它写「独立事件是 4 个**交易日**」，
+而它数的其实是 `pred_date` —— **出单日 ≠ 成交日**，见下一节。
+
 `verification.parquet` 有 80 行，但它是
 
     4 个预测日 × 2 个臂 × 每日 10 只
 
 ⇒ **独立事件是 4 个交易日，不是 80 条观测。**
 把 80 当 n 会把检出力虚报 20 倍。
+
+## 🚨「出单日」与「成交日」是两个量，而独立单元是后者（2026-10-16 实测）
+
+上面那句「4 个交易日」当年数的是 `pred_date` —— **它是出单日**。
+实测 `pred_date → entry_date` 映射：
+
+    pred 2026-10-09(五) ┐
+         2026-10-10(六) ├─→ entry 2026-10-12 / exit 2026-10-13
+         2026-10-11(日) ┘   ← 三张名单押**同一个**成交窗口
+         2026-10-12 → entry 10-13    2026-10-13 → entry 10-14    2026-10-14 → entry 10-15
+
+（`10-10` / `10-11` 实测**不在主库交易日历内**。）
+⇒ **6 个 `pred_date` 只对应 4 个独立成交窗口** ⇒
+「一天一个独立事件」这句话**对周末重影不成立**。
+
+🚨🚨 **「分组越粗 ⇒ `q95` 越高 ⇒ 更保守」这句话本身被实测打回了**（2026-10-17）。
+方向由**组大小的具体分布**决定，**不是组数的单调函数** ——
+两臂的 `q95` 比值**方向相反**，下表读的是产物字段（`data/reports/score_ranking_power.json`
+:: `arms.<arm>._stats.{null_abs_rho_q95_power_floor, control_arm_entry_date.*}`）：
+
+| 臂 | 判据臂（`pred_date`）q95 | 对照臂（`entry_date`）q95 | `q95_over_verdict_arm_q95` | 判决 |
+|---|---|---|---|---|
+| **`up`（闸门臂）** | **0.2347996969293442** | **0.25074433865530515** | **1.0679074203863177** | 两边都 `detectable=False` |
+| `down`（并列报告） | 0.06898822396247543 | 0.0686509164413614 | **0.9951106507496481** | 两边都 `detectable=False` |
+
+⇒ **`up` 臂更保守（+6.79%），`down` 臂反而略低（−0.49%）** ——
+**方向相反** ⇒ 「按 `pred_date` 分组一定偏乐观」这句话**不成立**，
+不许写成定律（第 16 层：两点观测被写成保证）。
+⇒ **不变的那半句**：两条臂、两种分组，判决**都不翻**。
+⚠️ 幅度只有几个百分点而非数量级，因为置换自由度按 `log(n!)` 走：
+`log(29!)≈71.3` vs `3×log(10!)≈62.6`，只多 **14%**。
+
+⇒ 所以本脚本**保留 `pred_date` 作判据臂**（预注册的 G4 口径一个字不改，第 91 层），
+**另加一条 `entry_date` 对照臂**并显式标 `role`（第 183 层）。
+代价不是高估能力，而是**「攒够还差多久」的 ETA 用了一个偏松的数**。
 
 ## 分位怎么切：组内切，不全局切
 
@@ -119,6 +162,69 @@ def _permutation_p(values: np.ndarray, hits: np.ndarray,
     return p, float(np.quantile(null, 0.95))
 
 
+def _groups_by(a: pd.DataFrame, col: str) -> list[np.ndarray]:
+    """把某列的取值变成置换分组（`col` 相同的行必须在同一组内）。
+
+    抽成函数是为了让**分组口径**成为**唯一真相源**：判据臂与对照臂调同一个它，
+    否则两份副本之间没有守卫（第 97 层的加强版 —— 两处各写一遍 `groupby(...).indices`）。
+    """
+    return [np.asarray(idx) for idx in a.groupby(col).indices.values()]
+
+
+def _independence_caliber(df: pd.DataFrame) -> dict:
+    """**判据臂的独立单元（`pred_date`）与真实独立成交窗口（`entry_date`）的对照**。
+
+    🚨 **为什么这两个不是一个量**：`pred_date` 是**出单日**，`entry_date` 是**成交日**。
+    周末 / 节假日照常出单，而那些单子全部押**同一个**下一个交易日
+    ⇒ 多个 `pred_date` 映射到同一 `entry_date` 时，**它们不是独立事件**。
+
+    ⇒ 实测 6 个 `pred_date` 只对应 **4** 个独立成交窗口。
+    ⇒ 🚨 **误差方向不能当定律**：分组变粗 ⇒ 组内置换自由度**大体**变大
+      ⇒ `q95` 变高，**但方向由组大小的具体分布决定，不是组数的单调函数**
+      （实测 `up` 臂比值 **1.0679**、`down` 臂 **0.9951**，**方向相反**）。
+      ⇒ 因此只报**实测比值**（`q95_over_verdict_arm_q95`），
+      **不许**写「按 `pred_date` 分组不会高估能力」这种无条件的话。
+
+    ⚠️ `entry_date` 缺失时**显式返回 `None` 并说明**，绝不回落成 `pred_date`
+    （回落 = 造一个与真相同形、看不出差别的数，第 6 种形状）。
+    """
+    n_pred = int(df["pred_date"].nunique())
+    if "entry_date" not in df.columns:
+        return {"verdict_arm_unit": "pred_date（判决臂，预注册 G4 口径）",
+                "control_arm_unit": "entry_date（**对照臂，不是判决臂**）",
+                "n_pred_dates": n_pred, "n_entry_dates": None,
+                "pred_to_entry_dates": None,
+                "n_entry_dates_claimed_by_several_pred_dates": None,
+                "unavailable_reason": (
+                    "输入没有 `entry_date` 列 ⇒ 独立成交窗口数无法计算。"
+                    "**这是显式缺失，不是回落** —— 判决臂不受影响，"
+                    "但产物里不许凭空补一个数字。"),
+                "note": "缺失 `entry_date` ⇒ 对照臂不可算；判决臂照旧。"}
+    pred_to_entry = {
+        str(p): sorted({str(e) for e in df.loc[df["pred_date"] == p, "entry_date"]
+                        .dropna().tolist()})
+        for p in sorted(df["pred_date"].dropna().unique())}
+    claimed: dict = {}
+    for es in pred_to_entry.values():
+        for e in es:
+            claimed[e] = claimed.get(e, 0) + 1
+    return {
+        "verdict_arm_unit": "pred_date（判决臂，预注册 G4 口径，一个字未改）",
+        "control_arm_unit": "entry_date（**对照臂，不是判决臂**：更接近「独立成交窗口」的真身）",
+        "n_pred_dates": n_pred,
+        "n_entry_dates": int(df["entry_date"].nunique()),
+        "pred_to_entry_dates": pred_to_entry,
+        "n_entry_dates_claimed_by_several_pred_dates":
+            int(sum(1 for c in claimed.values() if c > 1)),
+        "note": (
+            "⚠️ 同一个 `entry_date` 出现在多个 `pred_date` 下 ⇒ 那些天的名单"
+            "押的是**同一个成交窗口**，按 `pred_date` 数会**虚高独立事件数**。"
+            "误差方向**不是定律**：分组变粗 ⇒ 置换自由度**大体**更大 ⇒ `q95` 更高，"
+            "**但方向由组大小分布决定，不是组数的单调函数**（实测两臂比值方向相反）"
+            "⇒ 逐臂实测比值见 `_stats.control_arm_entry_date.q95_over_verdict_arm_q95`。"),
+    }
+
+
 def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
             seed: int = SEED) -> dict:
     """一个 score 列上的完整测量。**两个口径一起报**（`score` 与 `adjusted_score`）。
@@ -142,7 +248,16 @@ def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
         "n_rows_score_missing": n_missing_score,
         "n_rows_scored": int(len(scored)),
         "n_independent_pred_dates": int(df["pred_date"].nunique()),
-        "independent_unit": "pred_date（一天一个独立事件；条目数不是独立观测数）",
+        # 🚨 **这里原来逐字写着「pred_date（一天一个独立事件）」** ——
+        # 而 10-10(六) / 10-11(日) 两张名单与 10-09(五) **押同一个成交窗口** ⇒
+        # 那句话对周末重影**不成立**，而它被当外部锚用（第 22 层的散文化石）。
+        # 现在它**不再断言独立性**，只指向口径块与对照臂。
+        "independent_unit": (
+            "⚠️ 判决臂按 **pred_date** 分组，而 `pred_date` 是**出单日**不是**成交日**："
+            "多个 `pred_date` 可映射到同一 `entry_date`（周末/节假日出单），"
+            "此时它们**不是独立事件**。独立成交窗口数与逐条映射见 "
+            "`independence_caliber`。**不变的那半句**：条目数不是独立观测数。"),
+        "independence_caliber": _independence_caliber(df),
         "quartile_rule": "组内（pred_date × direction）按 score 名次切 4 段",
         # ⚠️ 「四分位」这个词会让人默认「等分四份」——**实测不是**。
         # n=10（生产组大小）切出 **3/2/3/2**；只有 n 能被 4 整除才均衡
@@ -177,10 +292,48 @@ def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
         monotone = all(seq[i] <= seq[i + 1] for i in range(len(seq) - 1))
         x = a[score_col].to_numpy(dtype=float)
         y = (a["result"] == "hit").to_numpy(dtype=float)
-        groups = [np.asarray(idx) for idx in a.groupby("pred_date").indices.values()]
         rho = _point_biserial(x, y)
-        p, q95 = _permutation_p(x, y, groups,
-                                lambda u, v: _point_biserial(u, v), n_perm, seed)
+        stat = lambda u, v: _point_biserial(u, v)
+        # 🚨 **加对照臂，不换判据臂**（第 183 层）：
+        # 判决臂（按 `pred_date` 分组）的字段名与取值路径**一个字不动**
+        # （`monotone_nondecreasing` / `permutation_p_two_sided` /
+        #   `null_abs_rho_q95_power_floor` / `detectable_at_alpha05`）
+        # —— `verdict()` 只读这四个。`entry_date` 那条是**另报**的对照臂，
+        # `role` 显式写明它不参与判决。
+        p, q95 = _permutation_p(x, y, _groups_by(a, "pred_date"), stat,
+                                n_perm, seed)
+        if "entry_date" in a.columns:
+            g_ctl = _groups_by(a, "entry_date")
+            p_ctl, q95_ctl = _permutation_p(x, y, g_ctl, stat, n_perm, seed)
+            ctl = {
+                "role": "control_only_not_the_verdict_arm",
+                "available": True,
+                "group_by": "entry_date（独立**成交窗口**；判决臂按 pred_date）",
+                "n_groups": len(g_ctl),
+                # 组外行不会被置换 ⇒ 它们的分数原样进统计量。
+                # 实测生产上为 0（judgeable 行 `entry_date` 无 NaN），但**报出来**
+                # 而不是假设 —— 假设就是第 98 层。
+                "n_rows_unassigned": int(len(a) - sum(len(g) for g in g_ctl)),
+                "permutation_p_two_sided": p_ctl,
+                "null_abs_rho_q95_power_floor": q95_ctl,
+                "detectable_at_alpha05": bool(abs(rho) >= q95_ctl),
+                "q95_over_verdict_arm_q95": (q95_ctl / q95) if q95 else None,
+                "note": (
+                    "分组变粗 ⇒ 组内置换自由度**大体**更大 ⇒ `q95` 更高 ⇒ "
+                    "更容易判 `POWERLESS`。⚠️ **但这不是定律**：方向由组大小分布"
+                    "决定，不是组数的单调函数（实测两臂比值方向相反：`up` 1.0679 "
+                    "/ `down` 0.9951）⇒ 读这一个数要看同臂的 "
+                    "`q95_over_verdict_arm_q95`，不许当成单向保证。"),
+            }
+        else:
+            ctl = {
+                "role": "control_only_not_the_verdict_arm",
+                "available": False,
+                "unavailable_reason": (
+                    "本臂没有 `entry_date` 列 ⇒ 独立成交窗口数无法计算。"
+                    "**显式缺失，不是回落**：判决臂不受影响，"
+                    "而产物里不许凭空补一个与真相同形的数字。"),
+            }
         sub["_stats"] = {
             "hit_rate_sequence_q1_to_q4": seq,
             "monotone_nondecreasing": bool(monotone),
@@ -188,6 +341,7 @@ def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
             "permutation_p_two_sided": p,
             "null_abs_rho_q95_power_floor": q95,
             "detectable_at_alpha05": bool(abs(rho) >= q95),
+            "control_arm_entry_date": ctl,
         }
         arms[str(arm)] = sub
     out["arms"] = arms
@@ -248,7 +402,8 @@ def verdict(res: dict) -> tuple[str, str]:
         + ("；" + "；".join(others) if others else ""))
 
 
-def _cannot_prove_lines(kind: str, n_dates: int, n_rows: int) -> list[str]:
+def _cannot_prove_lines(kind: str, n_pred_dates: int, n_entry_dates,
+                        n_rows: int) -> list[str]:
     """产物里那段「本产物**不能**证明什么」。
 
     🚨 里面的数**必须**由本次运行算出来（第 73 层：同一事实被复制到多处）。
@@ -262,12 +417,21 @@ def _cannot_prove_lines(kind: str, n_dates: int, n_rows: int) -> list[str]:
 
     ⚠️ `kind` 一并参数化（预注册 §7.2 的延伸点 E1）：
     判决名与那三个数是同一段散文里的同一个量，写死它等于留下一个漂移源。
+
+    🚨 `n_entry_dates` 允许是 `None`（输入缺 `entry_date` 列）：
+    那时**照实说缺**，不许回落到 `n_pred_dates` 顶替 ——
+    回落 = 一个与真值同形、看不出差别的数（第 6 种形状）。
     """
+    entry_txt = ("**未知**（输入没有 `entry_date` 列）" if n_entry_dates is None
+                 else f"**{n_entry_dates}**")
     return [
         f"**不能**把 {kind} 读成「打分没有排序力」——"
-        f"n={n_dates} 个独立预测日，任何形状都极易出现，包括真的单调的那种；"
+        f"判据臂只有 {n_pred_dates} 个**出单日**，而真实独立成交窗口 "
+        f"{entry_txt} 个（出单日≠成交日，见 `independence_caliber`），"
+        f"任何形状都极易出现，包括真的单调的那种；"
         "「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
-        f"**不能**用条目数 {n_rows} 当独立观测数 —— 它是 {n_dates} 日 × 每臂 10 只",
+        f"**不能**用条目数 {n_rows} 当独立观测数 —— 它是 {n_pred_dates} 个出单日"
+        f"× 每臂 10 只，而那 {n_pred_dates} 个出单日只对应 {entry_txt} 个成交窗口",
         "本脚本只测 G4 一个判据；G1/G2/G3/G5/G6 未测 ⇒ "
         "即使 G4 通过也**不许**据此发布",
     ]
@@ -307,7 +471,9 @@ def main(argv=None) -> int:
         "verdict_reason": why,
         "publish_allowed": kind == "PASS",
         "what_this_cannot_prove": _cannot_prove_lines(
-            kind, primary["n_independent_pred_dates"], primary["n_rows_total"]),
+            kind, primary["n_independent_pred_dates"],
+            primary["independence_caliber"]["n_entry_dates"],
+            primary["n_rows_total"]),
     }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -321,8 +487,10 @@ def main(argv=None) -> int:
                             "source_parquet_sha256": _sha256_of(src)})
 
     for col, res in results.items():
+        cal = res["independence_caliber"]
         print(f"\n=== 口径 {col}（{res['n_rows_judgeable']}/{res['n_rows_total']} 条可判定，"
-              f"{res['n_independent_pred_dates']} 个独立预测日）===")
+              f"{cal['n_pred_dates']} 个出单日 / "
+              f"{cal['n_entry_dates']} 个独立成交窗口）===")
         for arm, sub in res["arms"].items():
             st = sub["_stats"]
             seq = " | ".join(
@@ -334,6 +502,16 @@ def main(argv=None) -> int:
                   f"p={st['permutation_p_two_sided']:.4f} "
                   f"检出力下限|ρ|={st['null_abs_rho_q95_power_floor']:.4f} "
                   f"⇒ 分得出? {st['detectable_at_alpha05']}")
+            ctl = st["control_arm_entry_date"]
+            if ctl["available"]:
+                print(f"        [对照臂·**非判决**] 按 entry_date 分组"
+                      f"（{ctl['n_groups']} 组）: "
+                      f"p={ctl['permutation_p_two_sided']:.4f} "
+                      f"检出力下限|ρ|={ctl['null_abs_rho_q95_power_floor']:.4f} "
+                      f"⇒ 分得出? {ctl['detectable_at_alpha05']}")
+            else:
+                print(f"        [对照臂·**非判决**] 不可算: "
+                      f"{ctl['unavailable_reason']}")
     print(f"\n判决（G4 / {DEFAULT_SCORE_COL} 口径）: {kind}")
     print(f"  {why}")
     print(f"  允许发布: {payload['publish_allowed']}")

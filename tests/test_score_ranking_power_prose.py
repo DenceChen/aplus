@@ -58,22 +58,31 @@ def test_the_prose_is_not_a_hardcoded_literal():
 def test_the_prose_follows_the_sample_size_it_is_given():
     """「数是**对的**」与「数**跟着数据走**」是两个命题（第 142/144 层）。
     静态相等（P1）只保证前者；**本条**才是后者的唯一证据。"""
-    lines = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 7, 140)
+    lines = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 7, 5, 140)
     assert len(lines) == 3, f"文案应有 3 条，实测 {len(lines)}"
 
     # ⚠️ 断言必须锚在**具体句子的捕获组**上，不许用「数字不在集合里」：
     #   文案里本来就有 G1/G2/G3/**G5**/G6、§0、2 臂、10 只 ⇒ 「7 不在集合里」会假红。
-    m1 = re.search(r"n=(\d+) 个独立预测日", lines[0])
-    assert m1, f"第 1 条里找不到日数槽位：{lines[0]!r}"
-    assert m1.group(1) == "7", f"喂了 n_dates=7，文案写的是 {m1.group(1)}：{lines[0]!r}"
+    m1 = re.search(r"只有 (\d+) 个\*\*出单日\*\*", lines[0])
+    assert m1, f"第 1 条里找不到出单日槽位：{lines[0]!r}"
+    assert m1.group(1) == "7", f"喂了 n_pred_dates=7，文案写的是 {m1.group(1)}：{lines[0]!r}"
 
-    m2 = re.search(r"条目数 (\d+) 当独立观测数 —— 它是 (\d+) 日", lines[1])
-    assert m2, f"第 2 条里找不到条目数/日数槽位：{lines[1]!r}"
-    assert (m2.group(1), m2.group(2)) == ("140", "7"), \
-        f"喂了 (140, 7)，文案写的是 {m2.groups()}：{lines[1]!r}"
+    # 🚨 第 2 条**三个**槽位一起钉（条目数 / 出单日 / **成交窗口**）：
+    #   `n_entry_dates` 是后加的第四参，只钉前两个等于放过它写死 ——
+    #   而它恰好是本项目「出单日 ≠ 独立成交窗口」这件事唯一落到散文里的那个数。
+    m2 = re.search(r"条目数 (\d+) 当独立观测数 —— 它是 (\d+) 个出单日"
+                   r".*?只对应 \*\*(\d+)\*\* 个成交窗口", lines[1])
+    assert m2, f"第 2 条里找不到条目数/出单日/成交窗口三个槽位：{lines[1]!r}"
+    assert m2.groups() == ("140", "7", "5"), \
+        f"喂了 (n_rows=140, n_pred_dates=7, n_entry_dates=5)，" \
+        f"文案写的是 {m2.groups()}：{lines[1]!r}"
 
 
-_SLOTS = (r"n=(\d+) 个独立预测日", r"条目数 (\d+) 当独立观测数", r"它是 (\d+) 日")
+_SLOTS = (r"只有 (\d+) 个\*\*出单日\*\*",            # 第 1 条：出单日
+          r"成交窗口 \*\*(\d+)\*\* 个",               # 第 1 条：成交窗口
+          r"条目数 (\d+) 当独立观测数",                # 第 2 条：条目数
+          r"它是 (\d+) 个出单日",                     # 第 2 条：出单日
+          r"只对应 \*\*(\d+)\*\* 个成交窗口")          # 第 2 条：成交窗口
 
 
 def test_every_measured_slot_moves_when_the_numbers_change():
@@ -86,8 +95,11 @@ def test_every_measured_slot_moves_when_the_numbers_change():
 
     「只钉喂 7 得 7」的守卫，与「把 7 写死、只让测试用 7 喂它」的守卫逐位同形；
     唯一能分开它们的是「换一组输入，**每一个**槽位都必须换」。"""
-    a = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 7, 140)
-    b = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 9, 180)
+    # ⚠️ 出单日**与**成交窗口都必须换（7/5 ⇒ 9/6）：
+    #   若只换条目数而让 `n_entry_dates` 两组相同，那个槽位就没人钉 ——
+    #   而「只钉喂 7 得 7」的守卫与「把 7 写死」逐位同形（见本测试 docstring）。
+    a = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 7, 5, 140)
+    b = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 9, 6, 180)
     checked = 0
     for i, (la, lb) in enumerate(zip(a, b)):
         for pat in _SLOTS:
@@ -124,8 +136,8 @@ def test_the_prose_names_the_verdict_it_was_given():
 
     ⚠️ 它必须跟着 `kind` 变 —— 否则判决翻转后，读者会读到
     「不能把 NOT_PASSED_POWERLESS 读成…」而当前判决根本不是它。"""
-    a = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 7, 140)
-    b = M._cannot_prove_lines("PASS", 7, 140)
+    a = M._cannot_prove_lines("NOT_PASSED_POWERLESS", 7, 5, 140)
+    b = M._cannot_prove_lines("PASS", 7, 5, 140)
     assert "NOT_PASSED_POWERLESS" in a[0], a[0]
     assert "NOT_PASSED_POWERLESS" not in b[0], b[0]
     assert "PASS" in b[0], b[0]
