@@ -440,6 +440,47 @@ def test_e2_the_run_dot_says_today_only_when_the_run_date_really_is_today(tmp_pa
     assert cls == "run-dot ok", f"今日已跑应当配绿点，实得 {cls!r}"
 
 
+def test_e2_a_skipped_run_never_says_it_ran_today(tmp_path):
+    """★ 合成对照臂：**同一个日子，没跑成就不能说跑成了**。
+
+    与上一条正控臂严格配对：日期**同样**是「今天」，唯一差别是
+    `status="skipped"`（`steps.run_day_gate="WEEKEND"`，pipeline 合法跳过）。
+    ⇒ 把两条并排读：「今日已跑」由 `status === 'ok'` **和** `age === 0`
+    **两个条件合取**撑起，缺任何一个都不许亮。
+
+    🚨 **这条存在的理由是一次存活的变异**（2026-10-18，预注册 §3）：
+    把 `s.status === 'ok' && ` 从第一条判定摘掉，31 条守卫**全绿**。
+    逐项取证：变异确实落盘（sha256 变了 + 标记串恰好 1 次 + 旧串消失，
+    三项均为真）⇒ 不是空操作；而全部兄弟守卫的 `status` 都是 `"ok"`
+    ⇒ **这一格此前零覆盖**。
+    ⚠️ 真实数据那条（`…real_run_status_on_disk…`）本该杀掉它，
+    但它读盘上载荷，而盘上 `date` 是**昨天** ⇒ 被改的 `age === 0` 分支
+    **根本没进** ⇒ 真实数据守卫只覆盖「盘上状态恰好落在哪一格」，
+    换一天就换一条臂（预注册 §5 自己写下的时间局部性，原样兑现）。
+
+    ⇒ 按 `guards-only-count-after-mutation`：**没被变异杀掉的守卫一条都不算数**，
+    而这条正是把「`status` 那半个合取项」变成**每天都验**而不是「看盘上心情」的地方。
+    """
+    payload = {
+        "date": _TODAY_A,                      # 与正控臂同一个日子
+        "status": "skipped",                   # 唯一的差别
+        "updated_at": f"{_TODAY_A} 18:57:47",
+        "steps": {"run_day_gate": "WEEKEND"},
+    }
+    text, cls = _run_dot(tmp_path, payload, _TODAY_A)
+    assert "今日已跑" not in text, (
+        f"运行日期就是今天（{_TODAY_A}）而 status={payload['status']!r}"
+        f"（不是 ok，steps={payload['steps']!r}）—— 今天没有出新名单，"
+        f"界面却显示 {text!r}。"
+        "『跑的是哪天』不等于『跑成了』；不许为此改生产，去看 loadRunDot 的 "
+        "`status === 'ok' && age === 0`"
+    )
+    assert cls != "run-dot ok", (
+        f"status={payload['status']!r} 不是 ok，界面却配了绿点 {cls!r} —— "
+        "绿灯在说「正常」，而今天没有出单"
+    )
+
+
 @pytest.mark.parametrize("bad_date", [None, "", "not-a-date", "2026-02-30"],
                          ids=["缺失", "空串", "非日期", "日历上不存在的日子"])
 def test_e2_an_unreadable_run_date_never_renders_as_today(tmp_path, bad_date):
@@ -486,10 +527,24 @@ def test_e2_never_run_still_says_never_run(tmp_path):
 def test_e2_the_real_run_status_on_disk_agrees_with_what_the_dot_would_render(tmp_path):
     """★ 真实数据守卫：盘上那份 `run_status.json` 与渲染结果必须自洽。
 
-    判据是**不变式**而不是某个具体日期：
-    「若 `s.date` ≠ 今天，则界面上不许出现『今日已跑』」。
-    ⇒ 明天跑过之后这条自动变成「今天确实跑过了」，依然是绿的；
-    而任何时候只要文件是陈旧的，它就会红。
+    判据是**两条不变式**而不是某个具体日期，各自可空：
+    ① 「若 `s.date` ≠ 今天，则界面上不许出现『今日已跑』」；
+    ② 「若 `s.status ≠ 'ok'`，则界面上不许出现『今日已跑』」。
+
+    🚨 ② 曾经被**反向**断言（`date == today ⇒ 必出现「今日已跑」），
+    而那个方向在**每个周末必红**：pipeline 合法跳过时
+    （`status="skipped"` / `steps.run_day_gate="WEEKEND"`）
+    `date` 就是今天而 `status` 必然不是 `ok`。
+    实测那次红：`AssertionError: 盘上 date=2026-10-17 就是今天，
+    应当显示「今日已跑」，实得 '部分完成 · 2026-10-17 · run_day_gate'`。
+
+    ⇒ **`loadRunDot` 的真实条件是 `status==='ok' && age===0`**，
+    `date == 今天` **不是**充分条件；把两者当同一个量 ⇒ 要求生产说谎。
+    预注册与逐条依据：`docs/PREREG_RUN_DOT_E2_2026-10-18.md`（**补记，非事前登记**）。
+
+    ⚠️ 失败文案**不许**写「应当显示『今日已跑』」——
+    那会把下一个人推向去改本来正确的生产代码（第 112/140 层）。
+
     这是唯一一条**明天也仍然有效**的 E2 断言（写死「今天是 2026-10-15」
     的断言在明天会变成一个恒真的陪衬）。
     """
@@ -499,12 +554,27 @@ def test_e2_the_real_run_status_on_disk_agrees_with_what_the_dot_would_render(tm
     payload = json.loads(path.read_text(encoding="utf-8"))
     today = datetime.date.today().isoformat()
     text, cls = _run_dot(tmp_path, payload, today)
-    if payload.get("date") == today:
-        assert "今日已跑" in text, f"盘上 date={today} 就是今天，应当显示「今日已跑」，实得 {text!r}"
-    else:
+
+    # ① 陈旧方向：`s.date` 不是今天，就不许说「今日」
+    if payload.get("date") != today:
         assert "今日已跑" not in text, (
             f"盘上 run_status.json 的 date={payload.get('date')!r} 而今天是 {today}，"
             f"界面却显示 {text!r} —— E2 在真实数据上复现了"
+        )
+
+    # ② 没跑成方向：`status` 不是 ok（周末/节假日跳过、失败、部分完成），
+    #    当天**没有新名单**，「今日已跑」+ 绿点就是撒谎。
+    if payload.get("status") != "ok":
+        assert "今日已跑" not in text, (
+            f"盘上 run_status.json 的 status={payload.get('status')!r}（不是 ok）、"
+            f"steps={payload.get('steps')!r}，界面却显示「今日已跑」"
+            f"（实得 {text!r}）—— 『跑的是哪天』不等于『跑成了』，"
+            "跳过的日子 date 可以等于今天；不许为此改生产，去看 loadRunDot 的 "
+            "`status === 'ok' && age === 0`"
+        )
+        assert cls != "run-dot ok", (
+            f"status={payload.get('status')!r} 不是 ok，界面却配了绿点 {cls!r} —— "
+            "绿灯在说「正常」，而今天没有出单"
         )
 
 

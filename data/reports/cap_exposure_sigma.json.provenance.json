@@ -1,0 +1,17 @@
+{
+  "code_sha": "67e574f3b26edeab9a8fc33e054f0e0dc1089f1f",
+  "code_dirty": true,
+  "code_file_sha256": "58e14eb5057190b7e4b757c7bc8f51ad99d7fba4978052cf95368f133fe011d5",
+  "data_fp": "5460:1792234664.723070",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/cap_exposure_sigma_probe.py",
+  "stamped_at": "2026-10-17T17:26:30+00:00",
+  "verdict_criterion_V": "SYMBOL_NOT_DETERMINABLE",
+  "reps": 1000,
+  "n_gt_1": 501,
+  "n_lt_1": 498,
+  "Rs_median_arm_v": 1.0001150473749876,
+  "axis_match": true,
+  "cap_on_parity_mismatch": 0,
+  "arm_W_parity_max_abs_diff": 0.0
+}

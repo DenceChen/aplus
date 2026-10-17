@@ -1,0 +1,20 @@
+M1 调用点摘掉闭/半开翻译（探针被调函数、缺陷在调用点）	scripts/cap_exposure_sigma_probe.py
+                        w_start, axis_end_exclusive(w_end))
+=== 变异体 ===
+                        w_start, w_end)
+
+M2 axis_end_exclusive 退化成恒等（日期轴少一天）	scripts/cap_exposure_sigma_probe.py
+d = datetime.date.fromisoformat(window_end_inclusive)
+    return (d + datetime.timedelta(days=1)).isoformat()
+=== 变异体 ===
+return window_end_inclusive
+
+M3 NaN 一致性被放宽成「恒一致」（首跑 rc=4 想排除的假红）	scripts/cap_exposure_sigma_probe.py
+        return math.isnan(mine) and math.isnan(theirs)
+=== 变异体 ===
+        return True
+
+M4 宽度方向翻面（W 比 V 窄 ⇔ 宽，成对守）	scripts/cap_exposure_sigma_probe.py
+    w_is_narrower = span_w < span_v
+=== 变异体 ===
+    w_is_narrower = span_w > span_v

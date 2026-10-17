@@ -387,6 +387,16 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "factor_width_mde.json": "scripts/factor_width_mde.py",
     "factor_attribution.json": "scripts/factor_attribution.py",
     "cap_weighted_benchmark.json": "scripts/cap_weighted_benchmark.py",
+    # 2026-10-18 登记：`cap_exposure_ratio` 的**分母侧符号**可判性探针。
+    # 🚨 它存在的理由是 `_size_tilt_label` 只剩四支、`1.0173` **必然**落进
+    #   「组合偏大盘」，而那条标签是「C 臂不是伪装成 alpha 的市值押注」
+    #   的唯一依据 ⇒ 用「测不出」去支撑「没有押注」会让**唯一可能推翻
+    #   C 臂的检查**被跳过（失效方向是乐观的）。
+    # ⚠️ 本产物**只量分母**：分子（组合持仓逐日中位市值）在 `CapContext.diag`
+    #   里算完即弃、未落盘 ⇒ 它的判决**不能**推出组合自身暴露的方向。
+    #   判据零阈值（只问符号，符号零点 1.0 本身就是零点）⇒ 预注册
+    #   `docs/PREREG_CAP_EXPOSURE_SIGMA_2026-10-18.md` 写在任何实测之前。
+    "cap_exposure_sigma.json": "scripts/cap_exposure_sigma_probe.py",
     # 2026-10-15 登记：S3/G4 —— **`score` 四分位有没有排序力**。
     # 这不是一份研究报告，是**发布闸门**：`docs/TODO_reverse_scoring_2026-10-15.md`
     # §3 原文「过不了这一关就不许发布」。
@@ -422,6 +432,19 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   ⚠️ **本条只改门槛数字，不改结论**：门槛降低 = 目标降低（第 129 层）。
     #   预注册 `docs/TODO_nav_vs_excess_caliber_2026-10-15.md` §4 G3/G3-bis/G3-quad。
     "market_nav_caliber.json": "scripts/market_nav_caliber.py",
+
+    # 2026-10-17 补登记：择时腿的两份判决地平线产物。它们此前**盖了章但文件名不在册**
+    #   ⇒ `resolve_generator()` 只查这两张表、**从不读 sidecar** ⇒ 返 `None` ⇒ `unknown`
+    #   ⇒ 按本模块自己的规矩「不可引用」。
+    #   ⚠️ **这与「没盖章」是两种状态，修法相反**：没盖章须重跑；盖了章而没登记须补注册表。
+    #     误判成前者会白白重跑两份已经验真的产物。
+    #   🚨 断言给的另一半修法是「删掉那份 sidecar」——**本轮明确拒绝**：
+    #     删章会销毁**已被四个独立布尔验真**的证据（生成器存在 ∧ sha256==章 ∧
+    #     源 parquet 存在 ∧ sha256==章，程序比对、八个布尔全 True），
+    #     而本模块的 `stamp()` 本来就是**自动盖章、不会与真写入者漂移**的那一套。
+    #   ⇒ 四个独立布尔 = 「盖章的可验证性」；`unknown` = 「读者查不到生成器」。二者不同层。
+    "market_timing_ceiling.json": "scripts/market_timing_ceiling.py",
+    "market_timing_signal.json": "scripts/market_timing_signal.py",
 
     # 🚨 2026-10-16 补登记：下面四份此前**既未登记也未盖章** ⇒ `freshness` 报
     #   `unknown`，而按本模块自己的规矩 `unknown` = **不许引用**。

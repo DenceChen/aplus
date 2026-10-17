@@ -1,0 +1,124 @@
+{
+  "arm_V": {
+    "Rs_max": 1.4799733018202017,
+    "Rs_median": 1.0001150473749876,
+    "Rs_min": 0.7732830369451127,
+    "Rs_p2_5": 0.8292506855680861,
+    "Rs_p97_5": 1.2191360680338128,
+    "n_eq_1": 1,
+    "n_gt_1": 501,
+    "n_lt_1": 498,
+    "role": "primary",
+    "sampling": "random.Random(seed).sample(range(n_codes), 150)，无放回",
+    "seed_formula": "20261018 + r, r in [0, 1000)",
+    "shape": "抽 150 个下标一次、跨全部交易日不变（与 benchmark_cohort 逐位同形）"
+  },
+  "arm_W": {
+    "Rs_max": 1.0135150788399303,
+    "Rs_median": 1.0000874431278444,
+    "Rs_min": 0.9903231980927768,
+    "Rs_p2_5": 0.9936908901009412,
+    "Rs_p97_5": 1.0075103354655284,
+    "explicitly_not_the_primary_arm": true,
+    "n_gt_1": 509,
+    "n_lt_1": 471,
+    "role": "sensitivity",
+    "sampling": "有放回（numpy 向量化）；生产的 rng.sample 是无放回 ⇒ 两者**不是同一个分布**",
+    "shape": "每天独立重抽 150 个下标 ⇒ 成分偏移每天都是新抽样 ⇒ 被「对 1395 天取中位数」平均掉 ⇒ 只剩逐日抖动。W 比 V **窄** 28.21 倍（实测 W 宽 0.0138 vs V 宽 0.3899）",
+    "vectorization_parity": {
+      "max_abs_diff": 0.0,
+      "reps_compared": 3,
+      "what_it_checks": "向量化 vs 同一次抽样的逐日循环 —— 两侧共用同一份抽样流⇒ 这个差分**不**可能因「抽样律不同」而恒等于 0",
+      "what_it_does_not_check": "🚨 它**不是**在验有放回 ≈ 无放回"
+    },
+    "with_replacement": true
+  },
+  "arm_width_comparison": {
+    "W_is_narrower_than_V": true,
+    "prereg_correction": "预注册 §2 原预测「W 比 V 宽 ⇒ 保守方向」，**方向被证伪**，已按 append-only 补记；§2 的符号判据本身未改动一个字。",
+    "ratio_W_over_V": 0.035444892232660036,
+    "sampling_law_caveat": "臂 W 是**有放回** ⇒ 有效样本 < 150 ⇒ 逐日方差**更大** ⇒ 这个偏差只会让 W 更宽 ⇒ 量到的窄是**被低估的**。方差膨胀 (N+n−1)/(N−1) ≈ 1.0275 ⇒ sd 仅 +1.4%，远小于实测的 28 倍。",
+    "span_V": 0.3898853824657267,
+    "span_W": 0.013819445364587124,
+    "text": "W 比 V **窄** 28.21 倍（实测 W 宽 0.0138 vs V 宽 0.3899）",
+    "what_is_compared": "两臂各自 R_s 的 p97.5 − p2.5（比值变换不改变宽度的大小关系）",
+    "why": "臂 V 抽一次 150 只、跨全部 1395 天不变 ⇒ 成分偏移是**跨天共模**项 ⇒ 对天数取中位数**压不掉**它 ⇒ V 的宽度**就是**成分偏移的宽度；臂 W 每天重抽 ⇒ 该偏移被平均掉 ⇒ 只剩逐日抖动 ⇒ W 更窄。"
+  },
+  "axis_selfcheck": {
+    "artifact_n_days": 1395,
+    "axis_first": "2021-01-04",
+    "axis_impl": "aplus.panel.market_date_axis（全体并集，唯一实现）→ window_dates 裁 [start, end)",
+    "axis_last": "2026-10-09",
+    "match": true,
+    "n_days_axis": 1395
+  },
+  "cap_on_parity": {
+    "anchor": "aplus.capweight.CapTable.cap_on（本探针的外部锚，不是恒等式）",
+    "codes_checked": [
+      "000001.SZ",
+      "301181.SZ",
+      "601992.SH",
+      "689009.SH"
+    ],
+    "max_rel_diff": 0.0,
+    "mismatch_cells": [],
+    "n_mismatch": 0,
+    "n_values_checked": 16
+  },
+  "criterion_V": {
+    "meaning": "该 150 只的市值中位数相对全池的偏移**符号定不下来** ⇒ `cap_exposure_ratio = 1.0173` 被 `_size_tilt_label` 读成「组合偏大盘」时，那句方向标签**没有噪声依据**。⚠️ 这**不**等于「组合真的没有市值押注」—— 只等于「分母侧测不出」。",
+    "n_seeds_above": 501,
+    "n_seeds_below": 498,
+    "question": "该 150 只池相对全池的市值偏移，符号定得下来吗？",
+    "verdict": "SYMBOL_NOT_DETERMINABLE",
+    "zero_threshold": "符号零点 1.0 是符号本身，不是量出来的门槛 ⇒ 本判据不含任何手打阈值"
+  },
+  "decision_precision": {
+    "note": "🚨 这个数**不能**把判决变成有功效的：判据 V 是**零阈值**的（只看符号零点 1.0 在不在分布里），它不需要把 p̂ 估准。它只说明「实测计数离 0 或 1 有多远」——n_gt_1=0 时上限是 (1−1/REPS)^REPS ≈ 0.37/千，即『一个都没落在 1.0 之上』这句话本身的把握程度。",
+    "p_above_1": 0.501,
+    "p_below_1": 0.498,
+    "se_above_1": 0.015811356678033673,
+    "se_below_1": 0.01581126180922952,
+    "what_it_measures": "判据 V 的分支只读 n_gt_1 / n_lt_1 两个**计数** ⇒ 判决的蒙特卡洛精度是这两个比例的二项标准误，不是分位相对误差。"
+  },
+  "discipline": {
+    "affects_d1": false,
+    "affects_d2": false,
+    "changes_to_size_tilt_label": "无 —— 本次两侧都只写产物",
+    "classification": "手段（把一条承重墙的判据从散文变成可问的）",
+    "expect_bytes_captured_in": "_run() 第一行（不是 main()，不是盖章前）",
+    "green_light_counts": 0,
+    "seed_rule": "seed_r = 20261018 + r，显式写死；🚨 不许 hash(day)"
+  },
+  "full_pool_daily": {
+    "codes_measured": 5459,
+    "note": "停牌沿用 ffill（capweight 同一口径），所以「全池当日中位数」与「当日真在交易的票的中位数」不是同一个量（第 7 层）。预注册 §5.2 要求把它印出来：若 min 远小于全池则本量不可比。",
+    "valid_codes_median": 5214.0,
+    "valid_codes_min": 4168
+  },
+  "mc_relative_error": {
+    "caveat": "⚠️ 这是 **2.5%/97.5% 分位位置**的相对误差，而 R=1000 时 2.5% 分位背后只有 25 个观测 ⇒ 正态近似在那里本就失效，这个数说的是「尾部位置不可测」。🚨 **判据 V 不读分位**，它读的是下面 `decision_precision` 那个二项计数—— 两者不是同一个量，不许互相代替（第 7 层）。",
+    "coefficient_per_sqrt_R": 106.85997753160491,
+    "derivation": "p=0.025、φ(−1.96)=0.058441 ⇒ sqrt((1−p)/p)/φ = 106.8600；R=1000 ⇒ 106.8600/sqrt(1000) = 3.3792",
+    "formula": "sqrt((1-p)/(p*R)) / phi(z_p) = [sqrt((1-p)/p)/phi(z_p)] / sqrt(R), p=0.025, z_p=-1.96",
+    "reps": 1000,
+    "value": 3.3792091971428917
+  },
+  "n_codes": 5460,
+  "prereg": "docs/PREREG_CAP_EXPOSURE_SIGMA_2026-10-18.md（写于任何实测数字之前；§8 是补记不是改写）",
+  "quantity_measured": "denominator side only —— 150 只抽样池的流通市值中位数 ÷ 全池同日的中位数。本探针没有测分子。",
+  "question": "基准抽样池的流通市值中位数相对全池，符号定得下来吗",
+  "what_this_cannot_prove": [
+    "🚨 分子（组合持仓的逐日流通市值中位数）本探针完全没有测 —— 它只在 CapContext.diag 里、算完即弃、未落盘（预注册 §7 第一条待办）。",
+    "🚨 本探针不声称知道生产那一次抽到了哪 150 只（benchmark_cohort 的 docstring 逐字写着「同一 seed 配一个键顺序不同的 daily_map，抽到的不是同一批票」；且产物顶层没有 `sample` 键可供引用）。它只声称「任何一次抽样的读数都落在这个分布里」，而生产那一次是该分布的一次抽样。",
+    "🚨 判据 V 回答的是分母侧的符号，**不能**推出 cap_exposure_ratio=1.0173 的方向标签是对是错 —— 那个比值的分子分母配对噪声至今没测过。",
+    "🚨 本文件**不改** `_size_tilt_label`：第四支需要分子分母配对的噪声带，而分子只在 779s 回测路径里产生 ⇒ 拿半个判据去改判据 = 把测不准的判据装成判据。",
+    "⚠️ C 臂的判决不受本文件任何影响。本文件对 D1 / D2 零影响。"
+  ],
+  "window": {
+    "end": "2026-10-09",
+    "hand_typed_dates_in_code": 0,
+    "source": "data/reports/cap_weighted_benchmark.json::diagnostics.a_shares_arm::{window_start,window_end,n_days}",
+    "start": "2021-01-04"
+  }
+}
