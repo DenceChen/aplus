@@ -1,11 +1,11 @@
 {
-  "code_sha": "fad782092984c0f259592472e45de3dd778ff5d0",
+  "code_sha": "c625e741bef6f7b48c11e0e7f93e955d69afa0f5",
   "code_dirty": true,
-  "code_file_sha256": "3b9e1d08b18cd25e7e87b6001746b75faa56aa11fd9b311be1c1e97da528aa39",
+  "code_file_sha256": "3d895a2f72b92e029d620de1c1926d041c1b3dc3954bf036749e836691895025",
   "data_fp": "5460:1792234664.723070",
   "data_dir": "data/master/daily",
   "generator": "scripts/d2_signal_requirement.py",
-  "stamped_at": "2026-10-17T22:14:29+00:00",
+  "stamped_at": "2026-10-18T00:08:05+00:00",
   "source": [
     "data/reports/factor_width_mde.json",
     "data/reports/basket_nav_01_2026-10-16.json",

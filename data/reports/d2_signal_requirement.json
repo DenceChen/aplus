@@ -161,57 +161,99 @@
     "account_annual_ceiling_by_width": [
       {
         "n": 10,
-        "account_annual_ceiling_pct": 9.970811815599314,
-        "gap_to_target_pp": 10.029188184400688,
+        "is_the_deliverable_width": true,
+        "account_annual_at_infinite_capital_pct": 9.970811815599314,
+        "gap_to_target_at_infinite_capital_pp": 10.029188184400688,
+        "account_annual_at_50k_pct": 8.344145148932647,
+        "gap_to_target_at_50k_pp": 11.655854851067355,
+        "capital_closes_pp_at_50k": 1.6266666666666665,
         "measured_gross_annual_pct": 4.810755920048621,
         "measured_net_at_50k_pct": -1.6029583656656645,
         "friction_at_50k_pct": 6.413714285714285,
-        "abs_gross_over_mde": 0.3142149477950648,
-        "is_the_deliverable_width": true
+        "abs_gross_over_mde": 0.3142149477950648
       },
       {
         "n": 30,
-        "account_annual_ceiling_pct": 10.706475877740958,
-        "gap_to_target_pp": 9.293524122259043,
+        "is_the_deliverable_width": false,
+        "account_annual_at_infinite_capital_pct": 10.706475877740958,
+        "gap_to_target_at_infinite_capital_pp": 9.293524122259043,
+        "account_annual_at_50k_pct": 4.4321901634552425,
+        "gap_to_target_at_50k_pp": 15.567809836544757,
+        "capital_closes_pp_at_50k": 6.274285714285716,
         "measured_gross_annual_pct": 5.546419982190264,
         "measured_net_at_50k_pct": -5.514913351143068,
         "friction_at_50k_pct": 11.061333333333332,
-        "abs_gross_over_mde": 0.45228663951491327,
-        "is_the_deliverable_width": false
+        "abs_gross_over_mde": 0.45228663951491327
       },
       {
         "n": 100,
-        "account_annual_ceiling_pct": 11.333247569413327,
-        "gap_to_target_pp": 8.666752430586675,
+        "is_the_deliverable_width": false,
+        "account_annual_at_infinite_capital_pct": 11.333247569413327,
+        "gap_to_target_at_infinite_capital_pp": 8.666752430586675,
+        "account_annual_at_50k_pct": -11.207704811539056,
+        "gap_to_target_at_50k_pp": 31.207704811539056,
+        "capital_closes_pp_at_50k": 22.540952380952383,
         "measured_gross_annual_pct": 6.173191673862634,
         "measured_net_at_50k_pct": -21.154808326137367,
         "friction_at_50k_pct": 27.328000000000003,
-        "abs_gross_over_mde": 0.5722309902839601,
-        "is_the_deliverable_width": false
+        "abs_gross_over_mde": 0.5722309902839601
       },
       {
         "n": 200,
-        "account_annual_ceiling_pct": 12.106600261831803,
-        "gap_to_target_pp": 7.893399738168198,
+        "is_the_deliverable_width": false,
+        "account_annual_at_infinite_capital_pct": 12.106600261831803,
+        "gap_to_target_at_infinite_capital_pp": 7.893399738168198,
+        "account_annual_at_50k_pct": -33.67244735721581,
+        "gap_to_target_at_50k_pp": 53.672447357215816,
+        "capital_closes_pp_at_50k": 45.77904761904762,
         "measured_gross_annual_pct": 6.94654436628111,
         "measured_net_at_50k_pct": -43.61955087181412,
         "friction_at_50k_pct": 50.56609523809523,
-        "abs_gross_over_mde": 0.6695921936547035,
-        "is_the_deliverable_width": false
+        "abs_gross_over_mde": 0.6695921936547035
       },
       {
         "n": 546,
-        "account_annual_ceiling_pct": 12.728546624590681,
-        "gap_to_target_pp": 7.271453375409321,
+        "is_the_deliverable_width": false,
+        "account_annual_at_infinite_capital_pct": 12.728546624590681,
+        "gap_to_target_at_infinite_capital_pp": 7.271453375409321,
+        "account_annual_at_50k_pct": -113.45431051826647,
+        "gap_to_target_at_50k_pp": 133.45431051826645,
+        "capital_closes_pp_at_50k": 126.18285714285716,
         "measured_gross_annual_pct": 7.568490729039986,
         "measured_net_at_50k_pct": -123.40141403286478,
         "friction_at_50k_pct": 130.96990476190476,
-        "abs_gross_over_mde": 0.8120589525314513,
-        "is_the_deliverable_width": false
+        "abs_gross_over_mde": 0.8120589525314513
       }
     ],
-    "capital_can_close_at_most_pp": 1.6266666666666652,
-    "gap_left_after_infinite_capital_pp": 9.119685352899953
+    "capital_can_close_at_most_pp": {
+      "width": 10,
+      "is_width_dependent": true,
+      "per_width_pp": {
+        "10": 1.6266666666666652,
+        "30": 6.274285714285716,
+        "100": 22.540952380952387,
+        "200": 45.77904761904762,
+        "546": 126.18285714285713
+      },
+      "at_deliverable_width": 1.6266666666666652,
+      "spread_max_over_min": 77.57142857142864,
+      "reading_it_as_width_agnostic_is_wrong_because": "它是**交付档**的数：宽度 546 上本金能关掉 126.1829pp"
+    },
+    "gap_left_after_infinite_capital_pp": {
+      "is_the_supremum_over_widths": true,
+      "width": 10,
+      "deliverable_width": 10,
+      "at_supremum": 9.119685352899953,
+      "at_deliverable_width": 9.119685352899953,
+      "the_supremum_coinciding_with_the_deliverable_width": true,
+      "per_width_pp": {
+        "10": 9.119685352899953,
+        "30": 8.384021290758309,
+        "100": 7.757249599085939,
+        "200": 6.983896906667464,
+        "546": 6.361950543908587
+      }
+    }
   },
   "friction_floor_is_provable_positive": {
     "value": 0.047870476190476186,
@@ -262,7 +304,10 @@
       "market_nav_caliber.geometric_annual_pct": "真百分数",
       "basket_nav_01.required_excess_annual": "分数"
     },
-    "unit_anchor_used": "绝对外部锚「年化收益率不可能低于 −100%」——不用字段名、不用容差"
+    "unit_anchor_used": "绝对外部锚「年化收益率不可能低于 −100%」——不用字段名、不用容差",
+    "the_BY_WIDTH_table_has_TWO_capital_calibers_and_both_are_NAMED": "⚠️ `account_annual_ceiling_by_width` 每一行同时装**两个本金口径**：`*_at_infinite_capital_*`（减 friction_floor，与 N 无关）和 `*_at_50k_*`（减 friction_at_50k，**随 N 变**）。此前表里只有后者带 `_at_50k` 字样、前者叫裸的 `account_annual_ceiling_pct` ⇒ **一个平铺元素两个口径只有一个有名**；失效方向**乐观**：宽度 546 读成账户 12.7285% 而 5 万真读数是 -113.4543%（**符号翻转**），宽度 10 读成 9.9708% 而真值 8.3441%。⇒ 两个口径都进表且**口径名进键名**，不靠邻居暗示（第 168 层）。⚠️ 同理，`capital_can_close_at_most_pp` 与 `gap_left_after_infinite_capital_pp` 也随宽变（前者实测五档极差 ×77.6）⇒ 都改成 dict 带 `width` + `per_width_pp`",
+    "two_capital_calibers_is_not_a_typo": "「本金 → ∞」与「本金 ¥5 万」是**两个问题**，不是同一个数的两个近似；差额随榜宽从 1.63pp 涨到 126.18pp ⇒ 榜越宽、本金越要紧（摩擦按 notional×K 计而毛超额按 N 摊薄）",
+    "units_in_THIS_block_headline": "⚠️ `headline` 里的数**全是真百分数**（`_pct` 结尾的也是），而同一份产物的 `rows[*]` 与 `account_leg` 里同名的量是**分数**（第 168 层：同名字段两个量纲，100 倍差）。具体：`headline.required_gross_at_infinite_capital_*` = 13.9304% vs `rows[0].required_gross_at_infinite_capital` = 0.13930441272948574；`headline.measured_gross_best.*` = 4.8108% vs `rows[0].measured_gross_annual` = 0.048107559200486205。⇒ 唯一无歧义的判法仍是绝对外部锚「年化不可能低于 −100%」，分数读法会让 13.93% 读成 0.1393%/年（第 134 层：1e-14 量级免于被质疑，本例是 100 倍，更容易被放过）"
   },
   "what_this_does_not_prove": [
     "g_obs < g* 不等于「D2 达不到」——只等于「当前配置下交不出门槛要的量」",
