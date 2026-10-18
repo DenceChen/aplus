@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.datastructures import MutableHeaders
 
 # 现任健康度的判定逻辑住在 `aplus.champion_health` 而不是这里——
 # `scripts/run_daily.py` 要用同一份，不能各写一套（2026-10-11 21:35 抽出）。
@@ -320,6 +321,57 @@ def _chain_entry(client) -> dict:
     }
 
 
+# ── 缓存策略（模块级，守卫必须 import 得到 —— 第 96 层）────────────────
+#
+# 🚨 为什么需要它：Starlette 的 `StaticFiles` **不设** `Cache-Control`。
+# 缺这个头时浏览器**必须**走 RFC 9111 §4.2.2 的**启发式新鲜度**，
+# 用 `10% × (Date − Last-Modified)` 当 freshness —— 实测 `index.html` 已改，
+# 而 `<script src="/verdict.js">` 仍在执行提交 `3fdd92a` 的 **14881** 字节旧副本
+# （`performance` 资源计时：`transferSize 0` / `deliveryType "cache"`，
+#  同一次加载里 `fetch(no-store)` 拿到的是盘上的 **21985**）。
+#
+# ⚠️ **`no-cache` 不是 `no-store`**：副本仍然存，只是**每次用前必须回源验证**。
+# 这里要的正是「验证」—— 静态资源带 etag，命中时是 304，代价几十字节。
+#
+# 🚨 范围是**全部 http 响应**而不只是静态资源：`/api/status` 同样**一个
+# `Cache-Control` 都没有**，同样授权浏览器猜新鲜度 ⇒ 仪表盘可能显示陈旧读数。
+# 只修静态会留下「静态修了、API 还猜」的半修状态，那比不修更难查。
+# 预注册：`docs/PREREG_docket_visibility_2026-10-18.md` §3.1
+# （🚨 该节明写「单修甲，卡片仍不上屏，不许事后当成修好了」）。
+
+CACHE_CONTROL_VALUE = "no-cache"
+
+
+class NoCacheMiddleware:
+    """给**没有声明策略**的 http 响应补上 `Cache-Control`（纯 ASGI）。
+
+    ⚠️ 刻意不用 `BaseHTTPMiddleware`：它对流式响应（`/api/chat/stream` 的 SSE）
+    会缓冲整个 body。这里只改 `http.response.start` 那一份头，不碰 body
+    ⇒ 零内存代价、零流式影响。
+
+    ⚠️ 只**填空**不**覆盖**：已声明策略的响应原样保留
+    ⇒ 本中间件是纯增量的，将来任何端点要自己声明 `no-store` 都不会被这里顶掉。
+    """
+
+    def __init__(self, app, value: str = CACHE_CONTROL_VALUE):
+        self.app = app
+        self.value = value
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":          # websocket / lifespan 不碰
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(raw=message["headers"])
+                if "cache-control" not in headers:
+                    headers["cache-control"] = self.value
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
 def create_app(data_root, llm=None) -> FastAPI:
     data_root = Path(data_root)
     reports_dir = data_root / "reports"
@@ -332,6 +384,7 @@ def create_app(data_root, llm=None) -> FastAPI:
 
     app = FastAPI(title="aplus 量化平台")
     app.state.llm = llm
+    app.add_middleware(NoCacheMiddleware)
 
     @app.get("/api/status")
     def status():
@@ -857,6 +910,26 @@ def create_app(data_root, llm=None) -> FastAPI:
             curve = rows[keep].to_dict(orient="records")
             latest = rows[rows["arm"] == "cheap_p0"].iloc[-1].to_dict()
         return {"summary": summary, "curve": curve, "latest": latest}
+
+    @app.get("/api/d2-gap")
+    def d2_gap():
+        """D2（年化 20%）的缺口台账 —— 首屏「达标」判决的天花板闸。
+
+        ⚠️ 这个端点存在的唯一理由是**封一条活的假绿**：
+        `/api/status` 的前瞻单笔底稿只要有 ≥30 个交易日、累计涨幅够，
+        前端第 7 支就会说「年化 X%，达到 20% 目标」——而同一屏的台账逐字说
+        账户年化天花板 **8.34%**（榜宽 10 · ¥5 万），离 20% 差 **11.66pp**。
+        ⇒ 两个数字必须**同时**在屏上，达标支才不是假绿。
+
+        🚨 **返回面只含百分数族**（`read_d2_gap` 里逐字段点名取数）——
+        产物 `rows[*].measured_gross_annual` 是**分数**（0.0481）而
+        `headline.*` 是**百分数**（4.8108），同一个量差 100 倍（第 182 层）。
+        🚨 **缺档时 `status != "ok"` 且数值键为 `None`，绝不回落成 0** ——
+        0 会被读成「缺口 0，已达标」，而「没有台账」与「缺口是 0」是相反的结论。
+        """
+        from .reports import read_d2_gap
+
+        return {"ledger": read_d2_gap(reports_dir)}
 
     static_dir = Path(__file__).parent / "web"
     if static_dir.exists():

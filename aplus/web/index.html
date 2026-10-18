@@ -37,7 +37,9 @@
   /* 焦点环原来写成 `button, a, [tabindex]:focus-visible`——button 后面漏了
      :focus-visible，于是页面上每一个按钮都常驻一圈金色描边，七个 tab 被框成
      七个格子。焦点环只在真的聚焦时才该出现。 */
-  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 3px; }
+  /* `summary` 不是 `button`（抽屉开关是原生 <details>，2026-10-18），
+     不写进来就只剩浏览器默认焦点环 —— 在这套近黑底上对比度不足。 */
+  button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 3px; }
 
   /* ── 顶部品牌条 ── */
   .brand { max-width: 1180px; margin: 0 auto; padding: 20px 24px 0; display: flex; align-items: baseline; gap: 12px; }
@@ -85,6 +87,29 @@
   .docket-warn.ok b { color: var(--down); }
   /* hidden 必须真的藏起来：上面用了 display:flex，会盖过 [hidden] 的默认 display:none */
   .docket-warn[hidden] { display: none; }
+
+  /* 推导抽屉（2026-10-18）。折的是**推导**，不是**判决**：
+     「不许发布」「距 20% 差 11.66pp」必须在首屏，而推导有四段、
+     展开时把交付物整条顶到折叠线以下。
+     🚨 用原生 <details> 而不是 JS 开关：键盘（Enter/Space）、无 JS、
+     读屏器语义、以及「开合状态不与 JS 状态漂移」全部白送；
+     自己维护一个 open 布尔就是再造一个双真相源。
+     🚨 折叠开关是**雪佛龙**（几何状态指示），不是 `→`——
+     箭头是「去某处」的动词，这里要说的是「开合」。 */
+  .fold { flex: 1 1 100%; min-width: 0; margin: 6px 0 0; }
+  .fold > summary {
+    list-style: none; cursor: pointer; width: fit-content;
+    display: flex; align-items: center; gap: 5px;
+    color: var(--faint); font-size: 12px;
+  }
+  .fold > summary::-webkit-details-marker { display: none; }  /* Chrome 的默认三角 */
+  .fold > summary::before { content: '▸'; font-size: 10px; line-height: 1; }
+  .fold[open] > summary::before { content: '▾'; }
+  .fold > summary:hover { color: var(--muted); }
+  /* `caveatDetail` 用 `\n\n` 分段（verdict.js:293），而 HTML 把换行折成空格
+     ⇒ 四段台账在屏上是一坨没断开的字。pre-line 保留这些换行、其余照常折行，
+     零 JS、零字符串改动。 */
+  .fold-body { color: var(--muted); margin-top: 7px; white-space: pre-line; }
 
   /* 「你现在持有的那 10 只」区块（2026-10-17）。
      复用警示条的语义色：红=危险 / 橙=待查 / 绿=按声明执行。
@@ -861,7 +886,7 @@ async function loadChrome() {
        「没测过」与「测过、是坏的」方向完全相反。
 
        取不到时降级为 null（`docketWarning` 会静默）。 */
-    const [status, evo, weights, pred] = await Promise.all([
+    const [status, evo, weights, pred, d2gap] = await Promise.all([
       jget('/api/status'),
       jget('/api/evolution/summary').catch(() => null),
       jget('/api/weights').catch(() => null),
@@ -872,8 +897,18 @@ async function loadChrome() {
          这里也必须取：loadChrome 是**外壳**，深链进任何 tab 都会调它。
          若只有 loadOverview 取，深链进「进化」页时概览顶部看不到警示。 */
       jget('/api/predictions/latest').catch(() => null),
+      /* ★ D2 缺口台账（2026-10-18）。**两个地方都必须取**，理由与上面
+         `evo` / `pred` 完全同一条：`renderDocket` **无条件重写**警示条，
+         漏传一处 ⇒ 那一处把另一处已经渲染好的台账警示**抹掉**
+         （现象：深链进概览时警示消失，切回别的 tab 又出现）。
+         ⚠️ 返回面是 `{"ledger": read_d2_gap(...)}` —— `verdict_input`
+            在 **`ledger` 里面**，不在顶层（第 144 层：形状错一格时，
+            探针的 `null` 与「闸是死的」**逐位同形**）。
+         降级为 null ⇒ `verdict.js:198` 的 `!ceil` 守卫让台账支**干净闭嘴**，
+         不抛、也不假装有台账。 */
+      jget('/api/d2-gap').catch(() => null),
     ]);
-    renderDocket(status.stats, evo, weights, pred, status.publish_gate);
+    renderDocket(status.stats, evo, weights, pred, status.publish_gate, d2gap);
   } catch {
     $('docket-word').textContent = '平台状态未知';
     $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
@@ -891,10 +926,13 @@ async function loadOverview() {
        所以 loadOverview 若只传 stats，会把 loadChrome 已经渲染好的
        警示**抹掉**（表现为：深链进概览时警示消失，回到其它 tab 又出现）。
        两处都传同一个 evo，渲染结果一致且幂等。 */
-    const [st, pred, evo, weights] = await Promise.all([
+    const [st, pred, evo, weights, d2gap] = await Promise.all([
       jget('/api/status'), jget('/api/predictions/latest'),
       jget('/api/evolution/summary').catch(() => null),
       jget('/api/weights').catch(() => null),
+      /* 同 loadChrome：台账警示条也**必须**两个地方都传，否则深链进概览
+         会把外壳已经渲染好的那一条抹掉（同一条纪律，见上面 `evo` 的注释）。 */
+      jget('/api/d2-gap').catch(() => null),
     ]);
     status = st;
     state.predictions = pred;
@@ -915,7 +953,7 @@ async function loadOverview() {
     /* `publish_gate` 与 `evo` 同理**必须传**：本函数无条件重写闸门横幅，
        漏传 ⇒ `gate` 为 undefined ⇒ 横幅被渲染成「上线闸门未接入」，
        而现象是「深链进概览时告示变成未接入、回到其它 tab 又恢复正常」。 */
-    renderDocket(status.stats, evo, weights, pred, status.publish_gate);
+    renderDocket(status.stats, evo, weights, pred, status.publish_gate, d2gap);
   } catch (e) {
     /* 🚨 这行 console.error 是 2026-10-18 实测补的，不是「顺手加的日志」。
        ★ 背景：把 MIN_WINDOWS 变异成未定义的名字后，生产页面真的抛了
@@ -971,6 +1009,22 @@ async function loadOverview() {
    `renderDocket` 被 `loadChrome()` 与 `loadOverview()` **各调一次**
    （后者会无条件抹掉前者渲染的一切，见上面 loadOverview 的注释）。
    ⇒ 本函数是「全量覆写自己那个节点」，不累加、不 append ⇒ 调两次结果一致。 */
+
+/* 判决句 + 可折叠推导（2026-10-18）。
+   🚨 **判决句留在抽屉之外**，不塞进 <summary>。理由是上面那条：
+   `renderPublishGate` 被刻意放在 `renderDocket` 的第一句，它存在的全部意义
+   是「后面任何一段抛异常时，这句话已经在屏幕上」。折进默认关闭的抽屉之后，
+   节点还在、**句子不在** —— 那会在所有守卫全绿的情况下悄悄削掉一条写明的保证。
+   🚨 两个警示条**各自**拥有自己的 <details>：既不合并 DOM 所有权
+   （index.html 的 publish-gate 契约注释），也不引入任何 JS 状态。
+   `headlineHtml` / `bodyHtml` 都要求调用方**已经转义过**（与旧写法同）。 */
+function foldVerdict(headlineHtml, bodyHtml, label) {
+  if (!bodyHtml) return `<b>${headlineHtml}</b>`;
+  return `<b>${headlineHtml}</b>`
+    + `<details class="fold"><summary>${esc(label)}</summary>`
+    + `<div class="fold-body">${bodyHtml}</div></details>`;
+}
+
 function renderPublishGate(gate) {
   const el = $('publish-gate');
   if (!el) return;
@@ -1018,11 +1072,11 @@ function renderPublishGate(gate) {
 
   el.className = 'docket-warn ' + level;
   el.hidden = false;
-  el.innerHTML = `<b>${esc(headline)}</b><span>${detail}</span>`;
+  el.innerHTML = foldVerdict(esc(headline), detail, '推导');
 }
 
 const MIN_WINDOWS = 10;   // 决策四 W≥10 —— 判据值不许在这里另定
-function renderDocket(stats, evo, weights, predictions, gate) {
+function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
   /* ★ 闸门横幅**先渲染**，放在本函数第一句。
      理由是它是首屏唯一说「这份名单不许发布」的地方 ⇒ 后面任何一段
      （命中率分档 / 警示条 / 数字块）抛异常时，它**已经**在屏幕上，
@@ -1085,15 +1139,37 @@ function renderDocket(stats, evo, weights, predictions, gate) {
      测试在 `tests/test_docket_warning.py`。留在这层是为了让每条分支都可测——
      「打开浏览器看一眼」验证不了分支覆盖。 */
   const warn = $('docket-warn');
-  const warnOut = docketWarning(stats, evo, weights, predictions);
+  /* ★ 第 4 参是**袋**，不是「预测面」。`verdict.js` 的 JSDoc 逐字写明
+     **不许另开第 5 参**：两条支各按自己的形状认领同一个槽位 ——
+       · stale-weights 支读 `screen?.weights_check`（缺 → 闭嘴）
+       · D2 台账支读 `screen?.headline?.account_annual_ceiling_pct`（缺 → null）
+     另开槽位会让生产这一处永远传不到台账闸 ⇒「**闸在位而闸后面那条支是死的**」。
+
+     🚨🚨 **合并顺序是承重的，不是排版偏好。**
+     `Object.assign` 是**后者赢**，而台账面的 `rows` 与预测面**可能同名**
+     （本仓真出现过：`read_d2_gap` 的 `rows` 是五档宽度行，
+      `verdict.js:241` 读的正是 `ledger.rows[*].measured_gross_over_mde_abs`）。
+     顺序写反 ⇒ `rows` 变成预测面的行 ⇒ `ratios` 全 `undefined`
+     ⇒ `Math.max(...)` 得 `NaN` ⇒ MDE 那半句走 **NaN 形状而
+     **不崩、不报错、不抛**（第 182 层的近亲：打印出来的东西看着正常）。
+     ⚠️ 实测 `/api/predictions/latest` 今天返回
+       `{date, up, down, weights_check}`，**没有 rows** ⇒ 地雷**尚未**引爆；
+       但那是**巧合不是保证**（键是别人以后加的），所以照样按台账在后写。
+
+     `?.` 两级可选链：缺端点 / 缺 `ledger` / 缺 `verdict_input` 三种情况
+     全落成 `undefined`，而 `Object.assign` **静默忽略 undefined/null**
+     ⇒ 袋子退化成纯预测面 ⇒ 台账支干净闭嘴。 */
+  const docketScreen = Object.assign({}, predictions,
+                                      d2gap?.ledger?.verdict_input);
+  const warnOut = docketWarning(stats, evo, weights, docketScreen);
   warn.hidden = !warnOut;
   if (warnOut) {
     warn.className = 'docket-warn ' + warnOut.level;
     /* `detailHtml` 只在 caveat 分支存在（由 verdict.js 的 renderCaveat 生成：
        先转义 HTML 再还原 `**` 加粗）。其它分支一律走 `esc(detail)`——
        两条路径都在 verdict.js 里由数据本身决定，不接受调用方传入 HTML。 */
-    warn.innerHTML = `<b>${esc(warnOut.headline)}</b>`
-      + `<span>${warnOut.detailHtml ?? esc(warnOut.detail)}</span>`;
+    warn.innerHTML = foldVerdict(esc(warnOut.headline),
+      warnOut.detailHtml ?? esc(warnOut.detail), '推导');
   }
 
   /* 跌篮子与多空价差（2026-10-11 新增）。此前判决板只有涨腿，而平台每天输出的是

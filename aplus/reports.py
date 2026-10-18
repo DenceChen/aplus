@@ -362,3 +362,197 @@ def read_bond_paper_summary(reports_dir):
     if not path.exists():
         return None
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+# ── D2 缺口台账（`d2_signal_requirement.json`）的 API 读面 ──────────────────
+#
+# 🚨 **量纲：本函数只允许把「真百分数族」端出去。**
+# 产物里 `headline.*` 与 `account_annual_ceiling_by_width[*].*_pct` 是**百分数**
+# （`8.3441`），而 `rows[*].measured_gross_annual` 是**分数**（`0.0481`）——
+# 同一个 artifact、同一个量、**差 100 倍**（第 182 层：生产者侧一条换算都没有，
+# 守卫全在产物字段上，而「这字段是分数还是百分数」在**消费那一刻**无人负责）。
+# ⇒ 下面每一行都逐个点名取数，**没有一个数是算出来的**（第 109 层）。
+#
+# 🚨 **`by_width` 一行必须 JOIN 两族，按 `n` 键，不按位置**：
+#   · `account_annual_ceiling_by_width[*]` 有 `abs_gross_over_mde`，**没有** `detectable`
+#   · `rows[*]` 有 `detectable`，**没有** `abs_gross_over_mde`
+# 两族恰好同序，但「恰好同序」是巧合不是契约（第 128 层）。join 不完整时
+# `status` 变成 `malformed`，**绝不**把「查不到」塌成 `False`（第 123 层：
+# 查不到 ≠ 不存在）。
+
+_D2_GAP_NUMERIC_KEYS = (
+    "account_annual_at_50k_pct",
+    "gap_to_target_pp",
+    "account_annual_at_infinite_capital_pct",
+    "gap_to_target_at_infinite_capital_pp",
+    "required_gross_at_50k_pct",
+    "multiple_needed_at_50k",
+)
+
+
+def _d2_verdict_input(head, rows):
+    """投影 `aplus/web/verdict.js::d2LedgerVerdict` **真正读的那几个键**。
+
+    ## 为什么必须多这一层（形状失配，不是命名偏好）
+
+    `d2LedgerVerdict` 吃的是**产物原形**：`headline.account_annual_ceiling_pct.*` /
+    `headline.required_gross_at_50k_deliverable` /
+    `headline.measured_gross_best?.at_deliverable_width` /
+    `headline.multiple_needed_at_50k_deliverable` / `rows[*].measured_gross_over_mde_abs`。
+
+    而本模块对外一律**改名 + 拍平 + 只出百分数**
+    （`account_annual_at_50k_pct` / `gap_to_target_pp` / …）⇒ **两个面形状对不上**。
+
+    ⇒ 直接把 API 载荷喂给判决函数，它走 `head?.account_annual_ceiling_pct`
+      读到 `undefined` ⇒ `return null` ⇒ **换一个原因仍然是死闸**
+      （上一轮的死因是「传了 predictions 没有 headline」；照搬 API 载荷是
+      「传了 API 载荷也没有 headline」——症状一样，根因没动）。
+    ⇒ 改判决函数或改封存测试**都不许**（那是为让实现好过而改判据，第 91 层）
+      ⇒ 只能在这边补一层**窄口投影**。
+
+    ## 三条硬约束
+
+    ① `account_annual_ceiling_pct` **按引用传**（`ceil` 是同一个对象，不是副本）
+       ⇒ 结构上不可能出现「API 那个数与判决读的那个数不是同一个」，
+         也就不可能值漂移（第 109 层：核对只读字段，不许重算）。
+    ② `rows` **收窄成 `{n, measured_gross_over_mde_abs}`**
+       ⇒ **不重新暴露分数组**：`rows[*].measured_gross_annual` = 0.0481（分数），
+         与 `headline` 族的 4.8107（百分数）**差 100 倍**，
+         消费侧混读会把「基准年化 +494%」印出来（第 97/182 层）。
+    ③ **只投影判决真的读的键** ⇒ 这是窄口，不是第二份台账
+       （第二份台账必然漂移，而两份之间没有任何守卫）。
+
+    缺 `headline` / `rows` ⇒ 返回 `None`，调用方按「没有台账」处理，
+    **绝不**返回一个空壳让判决以为有台账（空壳会让 `null` 与「缺口非正」混同）。
+    """
+    if not isinstance(head, dict):
+        return None
+    ceil = head.get("account_annual_ceiling_pct")
+    if not isinstance(ceil, dict):
+        return None
+
+    measured_best = head.get("measured_gross_best")
+    return {
+        "headline": {
+            # 🚨 按引用传，不是 `dict(ceil)`（见约束①）
+            "account_annual_ceiling_pct": ceil,
+            "required_gross_at_50k_deliverable":
+                head.get("required_gross_at_50k_deliverable"),
+            "measured_gross_best": {
+                # 只留判决读的那一个键；`at_infinite_capital` 不进载荷
+                "at_deliverable_width":
+                    (measured_best or {}).get("at_deliverable_width"),
+            },
+            "multiple_needed_at_50k_deliverable":
+                head.get("multiple_needed_at_50k_deliverable"),
+        },
+        # 🚨 收窄成两个键（见约束②）：分数数组不许借这一步回到 API 面
+        "rows": [{"n": r.get("n"),
+                  "measured_gross_over_mde_abs": r.get("measured_gross_over_mde_abs")}
+                 for r in rows if isinstance(r, dict)],
+    }
+
+
+def read_d2_gap(reports_dir):
+    """读 D2 缺口台账，**只读字段、不重算**。
+
+    缺档 / 读不出必需字段 ⇒ `status != "ok"` 且每个数值键为 `None`。
+    ⚠️ **绝不回落成 0**：0 会被读成「缺口 0，已达标」，而「没有档」与
+    「缺口是 0」是相反的结论（第 89 层：拒绝出判决 ≠ 判决为空）。
+    """
+    blank = {k: None for k in _D2_GAP_NUMERIC_KEYS}
+    blank["by_width"] = []
+    # 🚨 四条失败路径也必须带这个键（缺键 vs 显式 None 在 JS 里同形，
+    # 但在守卫里不同形：`.get("verdict_input")` 会把两者都读成 undefined ⇒
+    # 一条「缺档时闸不许假装有台账」的守卫会分不出自己要看的那一格）。
+    # 显式 `None` ⇒ 前端 `Object.assign({}, predictions, null)` 静默忽略 ⇒
+    # 袋子里没有 `headline` ⇒ `d2LedgerVerdict` 返 `null` ⇒ **闸闭嘴**。
+    blank["verdict_input"] = None
+
+    path = Path(reports_dir) / "d2_signal_requirement.json"
+    if not path.exists():
+        return {"status": "missing", "reason": f"没有 {path.name}", **blank}
+
+    try:
+        ledger = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as exc:
+        return {"status": "unreadable", "reason": f"{type(exc).__name__}: {exc}", **blank}
+
+    head = ledger.get("headline")
+    ceil = (head or {}).get("account_annual_ceiling_pct")
+    if not isinstance(ceil, dict) or not isinstance(head, dict):
+        return {"status": "malformed", "reason": "headline / account_annual_ceiling_pct 缺失", **blank}
+
+    # 六个顶层数：全部**直读**。🚨 `gap_to_target_pp` 读的是
+    # `account_annual_ceiling_pct.gap_to_target_at_deliverable_width_and_50k_pp`
+    # （`…353`）而**不是** `by_width[0].gap_to_target_at_50k_pp`（`…355`）——
+    # 两处差 **2 ulp**，而封存测试用 `==` 逐位钉住后者。
+    # ⇒ 读错来源**当场红**，且这是**唯一**能钉住这个 2 ulp 的东西。
+    picked = {
+        "account_annual_at_50k_pct": ceil.get("at_deliverable_width_and_50k"),
+        "gap_to_target_pp": ceil.get("gap_to_target_at_deliverable_width_and_50k_pp"),
+        "account_annual_at_infinite_capital_pct": ceil.get("at_infinite_capital"),
+        "gap_to_target_at_infinite_capital_pp": ceil.get("gap_to_target_at_infinite_capital_pp"),
+        "required_gross_at_50k_pct": head.get("required_gross_at_50k_deliverable"),
+        "multiple_needed_at_50k": head.get("multiple_needed_at_50k_deliverable"),
+    }
+    missing = [k for k, v in picked.items() if not isinstance(v, (int, float))]
+    if missing:
+        return {"status": "malformed", "reason": f"顶层缺字段: {', '.join(missing)}", **blank}
+
+    # ── by_width：JOIN 两族 ──
+    widths = head.get("account_annual_ceiling_by_width")
+    rows = ledger.get("rows")
+    if not isinstance(widths, list) or not isinstance(rows, list):
+        return {"status": "malformed", "reason": "by_width 或 rows 不是列表", **blank}
+
+    detectable_by_n = {}
+    for r in rows:
+        if isinstance(r, dict) and "n" in r:
+            detectable_by_n[r["n"]] = r.get("detectable")
+
+    joined, gaps = [], []
+    for w in widths:
+        if not isinstance(w, dict) or "n" not in w:
+            gaps.append("by_width 里有行缺 n")
+            continue
+        flag = detectable_by_n.get(w["n"])
+        if not isinstance(flag, bool):
+            # 🚨 查不到就报 malformed，**不许** `.get(..., False)`
+            gaps.append(f"n={w['n']} 在 rows 里没有 bool 型 detectable")
+            continue
+        joined.append({
+            "n": w["n"],
+            "is_the_deliverable_width": bool(w.get("is_the_deliverable_width")),
+            "account_annual_at_50k_pct": w.get("account_annual_at_50k_pct"),
+            "gap_to_target_at_50k_pp": w.get("gap_to_target_at_50k_pp"),
+            "account_annual_at_infinite_capital_pct": w.get("account_annual_at_infinite_capital_pct"),
+            "gap_to_target_at_infinite_capital_pp": w.get("gap_to_target_at_infinite_capital_pp"),
+            "measured_gross_annual_pct": w.get("measured_gross_annual_pct"),
+            "measured_net_at_50k_pct": w.get("measured_net_at_50k_pct"),
+            "friction_at_50k_pct": w.get("friction_at_50k_pct"),
+            "abs_gross_over_mde": w.get("abs_gross_over_mde"),
+            # 🚨 改名：`rows[*].detectable` → `is_detectable`。
+            # 同 artifact 内它与 `abs_gross_over_mde` / `measured_gross_over_mde_abs`
+            # 三份键名指向同一个数 ⇒ 命名债已登记，本轮**不改产物**（改了会改产物本身）。
+            "is_detectable": flag,
+        })
+
+    if gaps:
+        return {"status": "malformed", "reason": "；".join(gaps), **blank}
+    if not joined:
+        return {"status": "malformed", "reason": "join 后没有任何一行", **blank}
+
+    # 判据必须自报口径：没跟数字一起离开脚本的口径，下一个人就会拿错宽度去比。
+    caliber = ledger.get("caliber") or {}
+    return {
+        "status": "ok",
+        **picked,
+        "by_width": joined,
+        "verdict_input": _d2_verdict_input(head, rows),
+        "deliverable_width": ceil.get("deliverable_width"),
+        "supremum_width": ceil.get("width"),
+        "equity_weight_is_full_position_judgment_caliber": caliber.get("equity_weight"),
+        "account_leg_arm": (ledger.get("account_leg") or {}).get("arm"),
+        "branch": ledger.get("branch"),
+    }

@@ -159,14 +159,165 @@ function staleWeightsDetail(status, check, date) {
 }
 
 /**
+ * D2 缺口台账的判决 —— 读 `data/reports/d2_signal_requirement.json`，**只读不算**。
+ *
+ * ## 这个函数存在的理由：封一条**活的**假绿
+ *
+ * `docketWarning` 第 7 支在 `cagr >= TARGET_CAGR` 时喊「达到 20% 目标」。
+ * 那个 `cagr` 来自 `nDays >= 30` 的前瞻单笔底稿，而 30 天里 10 只股票涨 20%
+ * **完全正常** ⇒ 这一支现实可期。而同一屏此刻必须能说的真话在台账里：
+ * 宽度 10 / ¥5 万 / 等权下账户年化天花板 **8.34%**，离 20% 差 **11.66pp**；
+ * 即使本金 → ∞ 且榜宽 → 546（该族最宽档）天花板也只有 **12.73%**，仍差 **7.27pp**
+ * ⇒ **没有任何 (榜宽 × 本金) 组合能到 20%**。
+ *
+ * ⇒ 两个数字都在同一屏上时，第 7 支的「达标」是**假绿**，不是过时文案。
+ *
+ * ## 形状守卫为什么写在这里、且只写这一处
+ *
+ * 第 4 参是「袋」（JSDoc 里解释了为什么不能另开第 5 参），
+ * 于是本函数**自己**认领形状：四个数全是 `number` 才继续，否则 `null`。
+ * ⇒ `d2_signal_requirement.json` 没有 `weights_check`（第 1 支认不出它），
+ *   `/api/predictions/latest` 的载荷没有 `headline`（本函数认不出它），
+ *   两者**互不冒充**，所以这不是启发式。
+ *
+ * ## 三态，不是两态
+ *
+ * `null`（不是台账 / 读数不全 / **缺口非正**）⇒ 这条卡不说话。
+ * ⚠️ 缺口非正时也闭嘴：那属于「台账说有缺口」之外的情形，
+ * 让 `docketWarning` 的对照臂去处理，本函数不许抢话。
+ *
+ * ## 禁词：`|毛超额|/MDE < 1` 时不许说「达不到」「接近目标」「只差」
+ *
+ * 五档 `detectable` 全为 `false`、`|g|/MDE` 最大 0.81 ⇒ **连符号都定不了**。
+ * 这种情况下「达不到」与「接近目标」同样是无信息的断言
+ * —— 一个说没到，一个说快到了，而**两者都不可测**。
+ *
+ * ## 🚨 交付口径的两个数必须在 `detail` 里，**只放 `headline` 等于没上屏**
+ *
+ * 生产唯一命中的那一支（支 2，`weights.caveat` 有值）**保留自己的 headline**，
+ * 只把本函数的 `detail` 拼到自己正文末尾 ⇒ **`headline` 在生产里没有通路**。
+ * 实测（真实载荷 + 真实 `weights.caveat`）：改动前屏上（`detailHtml`）有
+ * 12.73 / 15.56 / 3.23 / 0.81，而 **8.34% 与 11.66pp 一个字都没有**，
+ * 而预注册 §1.2 点名要上屏的正是这两行。
+ * ⇒ 交付口径（`c50k` / `gap50k`）**必须**进 `detail`（`detail` 的第 0 段）。
+ * ⚠️ 屏上还有一层：渲染层读的是 `detailHtml ?? esc(detail)`
+ * （`index.html:1131`），而 `detailHtml` 由 `renderCaveat(detail)` 生成 ——
+ * ⇒ 验「上了屏」必须验 `detailHtml`，验 `detail` 不算数（第 13 层）。
+ */
+function d2LedgerVerdict(ledger) {
+  const head = ledger?.headline;
+  const ceil = head?.account_annual_ceiling_pct;
+  if (!ceil || typeof ceil !== 'object') return null;
+
+  // ── 形状守卫：四个数缺一不可，缺一个就闭嘴 ──
+  const c50k = ceil.at_deliverable_width_and_50k;                 // 真百分数
+  const gap50k = ceil.gap_to_target_at_deliverable_width_and_50k_pp;
+  const cInf = ceil.at_infinite_capital;                         // 上确界
+  const gapInf = ceil.gap_to_target_at_infinite_capital_pp;
+  if (![c50k, gap50k, cInf, gapInf].every(v => typeof v === 'number')) return null;
+  // 缺口非正 ⇒ 台账没说「还差多少」⇒ 本条卡无话可说（不许抢对照臂的话）
+  if (!(gap50k > 0)) return null;
+
+  const w = ceil.deliverable_width;
+  const widest = ceil.width;
+
+  // ── 第 1 段：上确界。**必须带「哪个宽度/哪个本金」** ──
+  // 只说「天花板 8.34%」而不说它是宽度 10 + ¥5 万，
+  // 用户会拿它与某个 546 只的数比 —— 而那一档在 ¥5 万 下摩擦 130.97%、
+  // 净 −123.40%，是最不可交付的一档（第 182 层同族：口径不跟着数字走）。
+  const parts = [];
+  // ── 第 0 段（**交付口径，排在最前**）：用户真正关心的那一行 ──
+  //
+  // 🚨 它原来**只在自己的 `headline` 里**，而生产唯一命中的支 2
+  // （`weights.caveat` 有值）保留自己的 headline、只搬 `ledger.detail`
+  // ⇒ 实测屏上（`detailHtml`）有 12.73 / 15.56 / 3.23 / 0.81，而
+  // **8.34% 与 11.66pp 一个字都没有**——而预注册 §1.2 点名要上屏的就是这两行。
+  //
+  // 排在第 1 段之前的另一个理由：第 1 段说的是**榜宽 546 + 本金 → ∞**，
+  // 而那一档在 ¥5 万 下摩擦 130.97%、净 −123.40%，是最不可交付的一档。
+  // 让它当第一句，读者第一眼读到的是「天花板 12.73%」（第 182 层：
+  // 数字不跟着口径走）。
+  parts.push(`交付口径：榜宽 ${w} · 本金 ¥5 万 时，账户年化上限 ${c50k.toFixed(2)}%，`
+    + `距 20% 还差 ${gap50k.toFixed(2)}pp。`);
+
+  parts.push(`上限：榜宽 ${widest} 且本金 → ∞ 时账户年化最多 ${cInf.toFixed(2)}%，`
+    + `距 20% 仍差 ${gapInf.toFixed(2)}pp —— 没有任何（榜宽 × 本金）组合能到 20%，`
+    + '所以「再多攒些样本」不会抬高这个上限。');
+
+  // ── 第 2 段（可选）：所需毛超额 ↔ 实测毛超额。**三个数必须同时是数** ──
+  // 少一个就整段跳过，绝不格式化 undefined（第 168 层：`.get()` 猜键名 + 格式化
+  // 已经在本仓造成过一次 `TypeError: unsupported format string ... NoneType`）。
+  const required = head.required_gross_at_50k_deliverable;
+  const measured = head.measured_gross_best?.at_deliverable_width;
+  const multiple = head.multiple_needed_at_50k_deliverable;
+  if ([required, measured, multiple].every(v => typeof v === 'number')) {
+    parts.push(`要达标，信号在榜宽 ${w} · ¥5 万下须交出毛超额 ${required.toFixed(2)}%`
+      + `（实测 ${measured.toFixed(2)}%，还差 ${multiple.toFixed(2)}×）。`);
+  }
+
+  // ── 第 3 段：为什么「还差多少」这件事本身**测不出来** ──
+  // 无量纲比值，来自 `rows[*].measured_gross_over_mde_abs`。
+  // ⚠️ **不是** `measured_sign_determinable`（那个键名在产物里不存在，是散文里的词）。
+  const ratios = (Array.isArray(ledger.rows) ? ledger.rows : [])
+    .map(r => r?.measured_gross_over_mde_abs)
+    .filter(v => typeof v === 'number');
+  if (ratios.length) {
+    parts.push(`这批读数连符号都定不了：五档 |毛超额|/MDE 最大 `
+      + `${Math.max(...ratios).toFixed(2)} < 1。`);
+  }
+
+  return {
+    // ⚠️ 缺口为正时**绝不为 'ok'** —— 这是本函数唯一不容协商的一条。
+    level: 'warn',
+    headline: `账户年化天花板 ${c50k.toFixed(2)}%（榜宽 ${w} · 本金 5 万），`
+      + `距 20% 差 ${gap50k.toFixed(2)}pp`,
+    detail: parts.join(' '),
+  };
+}
+
+/**
+ * 支 2 的正文 = `weights.caveat` **加上** D2 台账那一段。
+ *
+ * 🚨 **「只取它的 `detail`」这一句是承重的，不是省事**：交付口径的
+ * `8.34%` / `11.66pp` **只在 `detail` 里**（`d2LedgerVerdict` 的 JSDoc 记了
+ * 为什么）。哪天谁觉得「headline 更重要、应该把台账 headline 也搬上来」
+ * 而去改这一支，屏上那两行会**静默消失**，而所有守卫照样全绿
+ * —— 因为字段还在、函数还返回非 null。
+ *
+ * 台账不在袋子里时（`null`）**原样返回** —— 本函数不许把支 2 的正文改短。
+ *
+ * @param {string|null} caveat 生产实际的 `weights.caveat`（逐字透传）
+ * @param {object|null} screen 第 4 袋（`d2LedgerVerdict` 按形状认领它）
+ * @returns {string} 屏上正文
+ */
+function caveatDetail(caveat, screen) {
+  const base = String(caveat ?? '');
+  const ledger = d2LedgerVerdict(screen);
+  if (!ledger || !ledger.detail) return base;
+  return `${base}\n\n${ledger.detail}`;
+}
+
+/**
  * @param {object|null} stats       `/api/status` 的 stats（含 cagr/arith_ann/n_days）
- * @param {object|null} evo         `/api/evolution/summary`（含 champion_falsified/health）
- * @param {object|null} weights     `/api/weights`（含 source/caveat/execution）
- * @param {object|null} predictions `/api/predictions/latest`（含 weights_check）
+ * @param {object|null} evo   `/api/evolution/summary`（含 champion_falsified/health）
+ * @param {object|null} weights `/api/weights`（含 source/caveat/execution）
+ * @param {object|null} screen 第 4 参是「屏上已知的其余读数」这个**袋子**，各项
+ *   按**自己的形状**认领，不按位置认领（理由见下面「为什么第 4 参不许开新位置」）。
  * @returns {{level: string, headline: string, detail: string, detailHtml: string}|null}
  *          null = 无警示，判决板维持原样。
+ *
+ * ── 为什么第 4 参不许开新位置 ──
+ * 这一槽历史上装的是 `predictions`，而**生产与既有守卫都按这个接线**：
+ * `web/index.html` 传 `predictions`、`tests/test_stale_weights_warning.py`
+ * 传 `p.predictions`。所以 D2 台账**不能另开第 5 个参数** ——
+ * 那样生产那一处永远传不到台账闸，闸就在位而闸后面那条支是死的。
+ * ⇒ 两条读法都按**形状**认领，谁也不冒充谁：
+ *   · predictions：`weights_check` 在（出处过期那一支读它）
+ *   · D2 台账：`headline.account_annual_ceiling_pct` 在（`d2LedgerVerdict` 读它）
+ * 真产物里两者互不冒充：`d2_signal_requirement.json` 没有 `weights_check`，
+ * `/api/predictions/latest` 的载荷没有 `headline` ⇒ 形状判据不是启发式。
  */
-function docketWarning(stats, evo, weights, predictions) {
+function docketWarning(stats, evo, weights, screen) {
   const falsified = evo?.champion_falsified === true;
   const cagr = stats?.cagr ?? null;
   const nDays = stats?.n_days ?? 0;
@@ -184,9 +335,13 @@ function docketWarning(stats, evo, weights, predictions) {
   // 再解释当前配置有多没验过，是在回答次要问题——用户先需要知道的是
   // 「这张榜不能照着用」。
   //
-  // `predictions` 整个取不到时不报警：那不是「查出不可知」，
+  // `screen` 这袋里没有 `weights_check` 时不报警：那不是「查出不可知」，
   // 而是「压根没查」。渲染成「出处不可知」等于指控一份可能完全正常的榜单。
-  const check = predictions?.weights_check;
+  //
+  // ⚠️ 形状判据只写在下游函数里（`d2LedgerVerdict` 看 `headline`，
+  // 这里看 `weights_check`），**本支不判**「这袋到底是啥」——
+  // 一袋里两样都有时各支各读各的，缺了哪样哪支就闭嘴。
+  const check = screen?.weights_check;
   if (check) {
     const status = check.status || DEFAULT_STALE_WEIGHTS_STATUS;
     if (status !== 'match') {
@@ -195,7 +350,7 @@ function docketWarning(stats, evo, weights, predictions) {
       return {
         level: 'danger',
         headline: STALE_WEIGHTS_HEADLINES[kind],
-        detail: staleWeightsDetail(kind, check, predictions.date ?? '（日期未知）'),
+        detail: staleWeightsDetail(kind, check, screen.date ?? '（日期未知）'),
       };
     }
   }
@@ -211,11 +366,16 @@ function docketWarning(stats, evo, weights, predictions) {
   // 权重」。用户据此建仓亏钱，责任在配置本身。
   if (weights?.caveat) {
     const kind = weights.caveat_kind || DEFAULT_CAVEAT_KIND;
+    // 🚨 支 2 是**生产唯一命中的那一支**（`weights.caveat` 有值），
+    // 而支 7（唯一调 `d2LedgerVerdict` 的那一支）要求 `cagr >= 0.20`
+    // 而实测 `cagr = -0.7365` ⇒ 台账**只在支 2 上有通路**。
+    // ⇒ 正文必须并进去，否则屏上一个交付口径的字都没有（预注册 §3.2「只加」）。
+    const text = caveatDetail(weights.caveat, screen);
     return {
       level: 'danger',
       headline: CAVEAT_HEADLINES[kind] || CAVEAT_HEADLINES[DEFAULT_CAVEAT_KIND],
-      detail: weights.caveat,
-      detailHtml: renderCaveat(weights.caveat),
+      detail: text,
+      detailHtml: renderCaveat(text),
     };
   }
 
@@ -276,7 +436,15 @@ function docketWarning(stats, evo, weights, predictions) {
   }
 
   // ── 达标 ──
+  // ⚠️ 这一支在**台账有正缺口时不许裸奔**。`cagr` 来自 nDays ≥ 30 的前瞻单笔底稿，
+  // 而 30 天里 10 只股票涨 20% 完全正常 ⇒ 这一支现实可期；
+  // 而同一屏的台账逐字说账户年化天花板 8.34%、缺口 11.66pp ⇒ 两个数字同时在场时
+  // 「达标」是**假绿**。闸在**这一支内部**而不是它前面：第 4 支（样本不足）
+  // 必须先说「不可解读」（那是关于**这个点估计能不能读**的判决，不是关于 D2 的），
+  // 第 6 支也不许被碰（`cagr < 0.20` 与台账一致，闸它=换判据臂，第 183 层）。
   if (cagr != null && cagr >= TARGET_CAGR) {
+    const gate = d2LedgerVerdict(screen);
+    if (gate) return gate;          // 台账说有缺口 → 这一支闭嘴
     return {
       level: 'ok',
       headline: `年化 ${(cagr * 100).toFixed(1)}%，达到 ${(TARGET_CAGR * 100).toFixed(0)}% 目标`,
@@ -312,7 +480,7 @@ if (typeof require !== 'undefined' && require.main === module) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { docketWarning, renderCaveat, CAVEAT_HEADLINES,
+  module.exports = { docketWarning, d2LedgerVerdict, caveatDetail, renderCaveat, CAVEAT_HEADLINES,
                       STALE_WEIGHTS_HEADLINES, DEFAULT_STALE_WEIGHTS_STATUS,
                       MIN_DAYS_FOR_CAGR, TARGET_CAGR };
 }

@@ -495,6 +495,19 @@ DOCKET_BINDINGS = (
     #    深链进概览时 `gate` 为 `undefined` ⇒ 横幅渲染成「上线闸门未接入」，
     #    症状是「告示在别的 tab 正常、在概览里变成未接入」，**不会报错**。
     ("publish_gate", "gate"),
+    # 第 6 位（2026-10-18）：D2 缺口台账（`/api/d2-gap`）。
+    # 实参**同名**（`d2gap`）—— 与第 5 位相反，它是「名字即绑定」那一类。
+    # 🚨 但**同名不等于不用复核**：这正是最容易出事的一类，因为改名/漏传
+    # **都不会报错**。逐点实测（本轮真的 grep 过两个加载函数，不是推理）：
+    #   `loadChrome`   第 34 行 `jget('/api/d2-gap').catch(() => null)`
+    #   `loadOverview` 第 18 行 `jget('/api/d2-gap').catch(() => null)`
+    # 两个调用点都把它作为第 6 实参传给 `renderDocket`。
+    # 🚨 漏一个的后果与第 5 位**同向且更隐蔽**：`Object.assign({}, predictions,
+    #   d2gap?.ledger?.verdict_input)` 对 `undefined` 是静默的 ⇒ 台账四段
+    #   整段闭嘴，**权重那条告示照常在** ⇒ 症状是「权重警告还在、D2 的
+    #   8.34%/11.66pp 没了」，读起来像「台账那一支失效了」，
+    #   而真因在**接线**。不报错 ⇒ 没有任何东西会喊。
+    ("d2gap", "d2gap"),
 )
 
 _DOCKET_DEF = re.compile(r"function\s+renderDocket\s*\(([^)]*)\)\s*\{")
@@ -532,6 +545,55 @@ def _innermost(arg: str) -> str:
     return name.split("[")[0].strip()                   # 去掉下标
 
 
+def _docket_position_defect(args, formals, table):
+    """按位置绑定的三条检查。返回**第一条响起的**，全不响才返回 `None`。
+
+    🚨🚨 **主判据与它的正控必须共用这一个判决**（2026-10-18 才补上）。
+    正控里再写一份「等价」实现 = **两份副本之间没有守卫**：
+    正控会认真地验那份副本，而主判据被改成恒真时它照样绿 ——
+    正是它本该防的那件事。（与「判据被复制到打印层」同族。）
+
+    ⇒ `table` / `formals` 都是**入参**而不是读模块级常量：
+      主判据传真实的（`DOCKET_BINDINGS` + 从 HTML 取到的形参表），
+      正控传**自足的合成夹具**——不读生产 arity，因为那是主判据那条**绊线**的职责，
+      一条正控同时承担两个职责 ⇒ 它在任何一边失效时都给出误导性的红。
+    """
+    if len(args) != len(formals):
+        return {"check": "实参个数", "pos": None,
+                "want": len(formals), "got": len(args)}
+    for pos, ((want_arg, want_formal), got_arg, got_formal) in enumerate(
+            zip(table, args, formals), start=1):
+        got = _innermost(got_arg)
+        if got != want_arg:
+            return {"check": "实参标识符", "pos": pos,
+                    "want": want_arg, "got": got, "raw": got_arg}
+        if got_formal != want_formal:
+            return {"check": "形参名与绑定表不一致", "pos": pos,
+                    "want": want_formal, "got": got_formal}
+    return None
+
+
+def _docket_defect_message(args, formals, defect):
+    """把上一条的返回值渲染成失败消息（三条原文照搬，不重写措辞）。"""
+    call = f"renderDocket({', '.join(args)})"
+    check = defect["check"]
+    if check == "实参个数":
+        return (f"调用点传了 {defect['got']} 个实参，形参有 {defect['want']} 个：{call}\n"
+                f"  ⇒ 少传的形参拿到 `undefined`，而 `renderDocket` 内部"
+                f"**无条件重写判决板**，缺的那一位不会报错，只会渲染错或静默留白。")
+    if check == "实参标识符":
+        return (f"第 {defect['pos']} 位实参是 `{defect['raw']}`"
+                f"（标识符 `{defect['got']}`），而绑定表登记的是 `{defect['want']}`。\n"
+                f"  全量：{call}\n"
+                f"  ⇒ 最常见成因是**实参顺序被调换**：子串判据对调换**完全免疫**"
+                f"（`weights_snapshot, evo, stats` 里三个词一个不少）。")
+    return (f"第 {defect['pos']} 位形参实得 `{defect['got']}`，"
+            f"绑定表登记的是 `{defect['want']}`。\n"
+            f"  形参表：{formals}\n"
+            f"  ⇒ 有人改了 `renderDocket` 的签名，却没同步调用点 —— "
+            f"**所有调用点会静默错位**，而门禁一条都不会红。")
+
+
 def test_every_render_docket_call_site_binds_its_arguments_by_position():
     """每个 `renderDocket` 调用点都必须**按位置**把值喂进正确的形参。
 
@@ -558,55 +620,107 @@ def test_every_render_docket_call_site_binds_its_arguments_by_position():
         f"  ⇒ 判据与代码脱钩了：要么有人加了形参（必须同步绑定表并复核"
         f"新位的实参是谁），要么这条守卫已经不再描述真实的接线。")
 
+    # ⚠️ 下面三条断言的判决在 `_docket_position_defect` 里，**不在这里** ——
+    # 因为正控必须验**同一个判决**，而不是一份「等价」的拷贝
+    # （两份副本之间没有守卫：把这里的实现改成恒真，正控照样绿）。
+    # 唯一留在本函数里的额外判据是上面那条 **arity 绊线**，
+    # 它**刻意**不进那个共用函数：跟着生产 arity 走的是绊线，不是机制测试。
     for args in sites:
-        assert len(args) == len(formals), (
-            f"调用点传了 {len(args)} 个实参，形参有 {len(formals)} 个："
-            f"renderDocket({', '.join(args)})\n"
-            f"  ⇒ 少传的形参拿到 `undefined`，而 `renderDocket` 内部"
-            f"**无条件重写判决板**，缺的那一位不会报错，只会渲染错或静默留白。")
-        for pos, ((want_arg, want_formal), got_arg, got_formal) in enumerate(
-                zip(DOCKET_BINDINGS, args, formals), start=1):
-            assert _innermost(got_arg) == want_arg, (
-                f"第 {pos} 位实参是 `{got_arg}`（标识符 `{_innermost(got_arg)}`），"
-                f"而绑定表登记的是 `{want_arg}`。\n"
-                f"  全量：renderDocket({', '.join(args)})\n"
-                f"  ⇒ 最常见成因是**实参顺序被调换**：子串判据对调换**完全免疫**"
-                f"（`weights_snapshot, evo, stats` 里三个词一个不少）。")
-            assert got_formal == want_formal, (
-                f"第 {pos} 位形参实得 `{got_formal}`，绑定表登记的是 `{want_formal}`。\n"
-                f"  形参表：{formals}\n"
-                f"  ⇒ 有人改了 `renderDocket` 的签名，却没同步调用点 —— "
-                f"**所有调用点会静默错位**，而门禁一条都不会红。")
+        defect = _docket_position_defect(args, formals, DOCKET_BINDINGS)
+        assert defect is None, _docket_defect_message(args, formals, defect)
 
 
 def test_the_position_guard_can_reject_a_shuffled_call_site():
-    """**正控**：上面那条探测器必须认得出「顺序反了」，否则它是装饰。
+    """**正控**：上面那条主判据必须认得出「顺序反了」，否则它是装饰。
 
-    ⚠️ 这条正控钉的是**判决**（`_innermost` 比对）而不是**探测器**
-    ——只测「正则能不能抓到调用点」的话，
+    这条正控钉的是**判决**（`_innermost` 比对）而不是**探测器** ——
+    只测「正则能不能抓到调用点」的话，
     「抓到但比对逻辑恒真」与「比对正确」在输出上**逐位同形**（第 131 层）。
+
+    2026-10-18：本条此前是**空的**，而它在门禁里一直是绿的。
+    成因不是夹具陈旧，是**那个 `or` 恒真**：
+
+        caught = len(bad) != len(formals)
+                 or [_innermost(a) for a in bad] != [w for w, _ in DOCKET_BINDINGS]   # ← 恒真
+                 or …
+
+    绑定表登记第 6 位之后，本地夹具仍是 5 元，而**列表比较在长度不等时恒为不等**
+    ⇒ 第二臂无论输入是什么都为真 ⇒ `or` 短路 ⇒ **四条反例全部「通过」，
+    而没有一条是因为它声称要验的那个缺陷被抓住的。**
+    实测锚点：`caught(一条逐位正确的调用点) == True`。
+
+    这是第 112 层的**镜像形态**：那边是 `all()` 过滤写严退化成装饰，
+    这边是 `or` 写松退化成装饰——**一个恒真的分支就能让整条正控失去全部证明力**，
+    而它**不会变红**，它只是发一张「主判据有牙」的假证书。
+
+    修法三条，缺一不可（少任何一条，下一个签名变更会把它重新变空）：
+      ① 夹具与参照表**自足**，不再取真实 `DOCKET_BINDINGS` 的长度。
+         跟着生产 arity 走的不是机制测试，是**绊线**——而绊线是主判据那条断言的职责，
+         一条正控同时承担两个职责 ⇒ 它在任何一边失效时都给出误导性的红。
+      ② 每条反例**指名该被哪一条检查抓住**（`expect`）。只断言「被抓到」的话，
+         上面那个恒真分支会替它回答，然后什么也没证明。
+      ③ 正臂断言的是「**一条正确的调用点不被抓**」——恒真的谓词无法通过这一条。
+         这才是「恒真与否」的**可测**形式（第 14 层：探针自己失败 ≠ 守卫坏了）。
     """
-    formals = ("stats", "evo", "weights", "predictions", "gate")
-    good = ["status.stats", "evo", "weights", "pred", "status.publish_gate"]
+    # 合成参照表：与真实 `DOCKET_BINDINGS` **刻意解耦**，理由见上面 ①。
+    formals = ("stats", "evo", "weights", "predictions", "gate", "d2gap")
+    table = (("stats", "stats"), ("evo", "evo"), ("weights", "weights"),
+             ("pred", "predictions"), ("publish_gate", "gate"), ("d2gap", "d2gap"))
+    good = ["status.stats", "evo", "weights", "pred", "status.publish_gate", "d2gap"]
 
-    # 真配置逐位通过
-    assert [_innermost(a) for a in good] == [w for w, _ in DOCKET_BINDINGS]
-    assert list(zip([_innermost(a) for a in good], formals)) == list(DOCKET_BINDINGS)
+    def which_check(args, fmls=formals, tbl=table):
+        """薄封装：**判决本身不在这里**，只是把 `_docket_position_defect` 的
+        返回值压成「哪条检查响了」这一个字符串，好让下面的断言逐条指名。
 
-    # 反例必须被抓：顺序反 / 名字像但不是它 / 少一个 / **第 5 位喂错 status 字段**
-    for bad, why in (
-        (["status.stats", "weights", "evo", "pred", "status.publish_gate"], "evo 与 weights 调换"),
-        (["status.stats", "weights_snapshot", "evo", "pred", "status.publish_gate"], "子串像、标识符不是它"),
-        (["status.stats", "weights", "evo"], "少传一个"),
-        # 🚨 第 5 位**特有的**失效形态：`gate` 与 `live`/`publish_allowed` 同为
+        🚨 第一版这里**自己重写了一遍**那三条检查，docstring 还写「不是另写一份
+        更弱的拷贝」—— 那句话越界了：它**不是更弱，但它确实是拷贝**，
+        而两份副本之间没有任何东西连着（与「判据被复制到打印层」同族）。
+        主判据被改成恒真时，那份拷贝照样正确、正控照样绿 ——
+        而那正是这条正控存在的唯一理由。
+        ⇒ 现在两边**调同一个函数**：把上面 `_docket_position_defect` 的实现
+        改成恒真，本条**当场红**（正臂与反臂都会红），这就是「共用」的含义。
+        """
+        defect = _docket_position_defect(args, fmls, tbl)
+        return None if defect is None else defect["check"]
+
+    # 正臂：一条逐位正确的调用点，**任何一条检查都不许响**。
+    # 上文那个恒真 `or` 会让这一条当场红——这就是它能防住「正控变空」的机制。
+    got = which_check(good)
+    assert got is None, (
+        f"正控失效：一条逐位正确的调用点被判成「{got}」⇒ 判决谓词恒真，"
+        f"下面每一条反例都会因为一个与它无关的理由通过，而这条正控仍然绿。\n"
+        f"  （最常见成因：夹具与参照表长度不等 ⇒ 列表比较恒为不等 ⇒ 第二臂恒真。）")
+
+    # 反臂：逐条**指名**抓它的那条检查。顺序反 / 名字像但不是它 / 少传 / 第 5 位喂错字段。
+    for bad, why, expect in (
+        (["status.stats", "weights", "evo", "pred", "status.publish_gate", "d2gap"],
+         "evo 与 weights 调换", "实参标识符"),
+        (["status.stats", "weights_snapshot", "evo", "pred", "status.publish_gate", "d2gap"],
+         "子串像、标识符不是它", "实参标识符"),
+        (["status.stats", "evo", "weights"],
+         "少传一个", "实参个数"),
+        # 第 5 位**特有的**失效形态：`gate` 与 `live`/`publish_allowed` 同为
         # `/api/status` 的字段，接错是**最自然的手误**，而 `renderDocket` 不会报错 ——
         # 它只会把 `live`（持仓）当成闸门判决去渲染。子串判据对这一条完全免疫。
-        (["status.stats", "evo", "weights", "pred", "status.live"], "第 5 位喂了另一个 status 字段"),
+        (["status.stats", "evo", "weights", "pred", "status.live", "d2gap"],
+         "第 5 位喂了另一个 status 字段", "实参标识符"),
     ):
-        caught = (len(bad) != len(formals)
-                  or [_innermost(a) for a in bad] != [w for w, _ in DOCKET_BINDINGS]
-                  or list(zip([_innermost(a) for a in bad], formals)) != list(DOCKET_BINDINGS))
-        assert caught, f"正控失败：{why} 这个反例竟然能通过 ⇒ 主判据恒绿"
+        got = which_check(bad)
+        assert got == expect, (
+            f"正控失败：{why} 这个反例期望被「{expect}」抓住，实得「{got}」。"
+            + ("它**根本没被抓到** ⇒ 主判据恒绿。" if got is None
+               else "它是被一条与该反例无关的检查拒掉的 ⇒ 这条正控在发假证书，"
+                    "而门禁看不出区别。"))
+
+    # 第三条检查的**可达性**：自足夹具下前两条恒不触发它，于是它结构上是死代码
+    # ——一条永不触发的断言和一条恒真的断言，在门禁里是同一种东西（第 120 层）。
+    # 把形参表第 5 位改名成绑定表登记的**实参名**（`publish_gate` 而不是 `gate`）：
+    # 实参逐位正确，所以前两条都不响，只有形参名比对能抓住它。
+    stale_formals = ("stats", "evo", "weights", "predictions", "publish_gate", "d2gap")
+    got = which_check(good, fmls=stale_formals)
+    assert got == "形参名与绑定表不一致", (
+        f"正控失败：形参表第 5 位被改名成 `publish_gate`（绑定表登记的仍是 `gate`）"
+        f"竟然判成「{got}」⇒ 主判据的第 3 条断言是死代码，形参改名无人拦。")
 
 
 def test_the_call_site_probe_excludes_the_function_definition():

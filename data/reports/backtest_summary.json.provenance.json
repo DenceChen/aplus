@@ -1,7 +1,14 @@
 {
-  "code_sha": "9f1ccab80d0653eca4929b3b09d44d3cbe4d0282",
-  "code_dirty": false,
+  "code_sha": "a303984ff099e27b1a03d33ca389aa5d81134a10",
+  "code_dirty": true,
+  "code_file_sha256": "b5328f5c72488afb81a7d3fb09baadbac422d1aa35712fd7b4a6b7319c039db8",
+  "data_fp": "5460:1792319402.222019",
+  "data_dir": "data/master/daily",
   "generator": "aplus/backtest.py",
-  "stamped_at": "2026-10-14T09:45:14+00:00",
-  "test": true
+  "stamped_at": "2026-10-18T12:30:30+00:00",
+  "window": [
+    "2024-10-16",
+    "2026-10-16"
+  ],
+  "rows": 9238
 }
