@@ -124,7 +124,13 @@
     "required_gross_at_infinite_capital_best": 13.930441272948574,
     "required_gross_at_infinite_capital_hardest": 13.930441272948574,
     "required_gross_at_50k_deliverable": 15.55710793961524,
-    "measured_gross_best": 7.568490729039986,
+    "measured_gross_best": {
+      "is_the_supremum_over_widths": true,
+      "width": 546,
+      "at_infinite_capital": 7.568490729039986,
+      "at_deliverable_width": 4.810755920048621,
+      "deliverable_width": 10
+    },
     "multiple_needed_at_infinite_capital": {
       "cheapest_width": 546,
       "cheapest": 1.8405837797353766,
@@ -132,8 +138,78 @@
       "hardest": 2.8956865624576906
     },
     "multiple_needed_at_50k_deliverable": 3.2338177613172294,
-    "account_annual_ceiling_pct": 12.728546624590681,
-    "account_annual_ceiling_is_a_point_estimate": "这个天花板由 |g_obs|/MDE = 0.81 的点估计撑起 ⇒ 连符号都定不了 ⇒ 只支持形状陈述，不支持水平陈述（预注册 §3.1）",
+    "account_annual_ceiling_pct": {
+      "is_the_supremum_over_widths": true,
+      "width": 546,
+      "all_three_ceilings_are_infinite_capital": true,
+      "at_infinite_capital": 12.728546624590681,
+      "at_deliverable_width": 9.970811815599314,
+      "at_deliverable_width_and_50k": 8.344145148932647,
+      "deliverable_width": 10,
+      "gap_to_target_at_infinite_capital_pp": 7.271453375409319,
+      "gap_to_target_at_deliverable_width_pp": 10.029188184400686,
+      "gap_to_target_at_deliverable_width_and_50k_pp": 11.655854851067353,
+      "capital_imported_into_the_infinite_capital_number_pp": 1.626666666666667,
+      "the_bare_number_understated_the_gap_by_pp": 2.7577348089913674,
+      "the_bare_number_understatement_is_in_the_optimistic_direction": true,
+      "that_width_is_undeliverable_at_50k": "宽度 546 在 ¥5万 下年摩擦 130.9699%、净超额 -123.4014%（交付档是 6.4137% / -1.6030%）⇒ 与 20% 对比：**5 万本金**要用 `at_deliverable_width_and_50k`（8.3441%，差 11.6559pp）；`at_deliverable_width` 是**本金 → ∞**，不能当「5 万真能交付的那个」"
+    },
+    "account_annual_ceiling_is_a_point_estimate": {
+      "at_infinite_capital": "这个天花板（宽度 546）由 |g_obs|/MDE = 0.81 的点估计撑起 ⇒ 连符号都定不了 ⇒ 只支持形状陈述，不支持水平陈述（预注册 §3.1）",
+      "at_deliverable_width": "交付档（宽度 10）由 |g_obs|/MDE = 0.31 的点估计撑起 ⇒ 同样连符号都定不了（预注册 §3.1）"
+    },
+    "account_annual_ceiling_by_width": [
+      {
+        "n": 10,
+        "account_annual_ceiling_pct": 9.970811815599314,
+        "gap_to_target_pp": 10.029188184400688,
+        "measured_gross_annual_pct": 4.810755920048621,
+        "measured_net_at_50k_pct": -1.6029583656656645,
+        "friction_at_50k_pct": 6.413714285714285,
+        "abs_gross_over_mde": 0.3142149477950648,
+        "is_the_deliverable_width": true
+      },
+      {
+        "n": 30,
+        "account_annual_ceiling_pct": 10.706475877740958,
+        "gap_to_target_pp": 9.293524122259043,
+        "measured_gross_annual_pct": 5.546419982190264,
+        "measured_net_at_50k_pct": -5.514913351143068,
+        "friction_at_50k_pct": 11.061333333333332,
+        "abs_gross_over_mde": 0.45228663951491327,
+        "is_the_deliverable_width": false
+      },
+      {
+        "n": 100,
+        "account_annual_ceiling_pct": 11.333247569413327,
+        "gap_to_target_pp": 8.666752430586675,
+        "measured_gross_annual_pct": 6.173191673862634,
+        "measured_net_at_50k_pct": -21.154808326137367,
+        "friction_at_50k_pct": 27.328000000000003,
+        "abs_gross_over_mde": 0.5722309902839601,
+        "is_the_deliverable_width": false
+      },
+      {
+        "n": 200,
+        "account_annual_ceiling_pct": 12.106600261831803,
+        "gap_to_target_pp": 7.893399738168198,
+        "measured_gross_annual_pct": 6.94654436628111,
+        "measured_net_at_50k_pct": -43.61955087181412,
+        "friction_at_50k_pct": 50.56609523809523,
+        "abs_gross_over_mde": 0.6695921936547035,
+        "is_the_deliverable_width": false
+      },
+      {
+        "n": 546,
+        "account_annual_ceiling_pct": 12.728546624590681,
+        "gap_to_target_pp": 7.271453375409321,
+        "measured_gross_annual_pct": 7.568490729039986,
+        "measured_net_at_50k_pct": -123.40141403286478,
+        "friction_at_50k_pct": 130.96990476190476,
+        "abs_gross_over_mde": 0.8120589525314513,
+        "is_the_deliverable_width": false
+      }
+    ],
     "capital_can_close_at_most_pp": 1.6266666666666652,
     "gap_left_after_infinite_capital_pp": 9.119685352899953
   },
@@ -180,6 +256,7 @@
     "equity_weight": 1.0,
     "equity_weight_is_the_FULL_POSITION_verdict_caliber_not_live": "⚠️ 本文件的 EQUITY_WEIGHT=1.0 是**满仓判决口径**（预注册 §2.1 C2）。实盘是**半仓**：`aplus/alloc.py::build_allocation(max_positions=5, per_stock_cap=0.10)` ⇒ equity_weight=0.5，`deployed_account_nav.json` 已记此债。⇒ 两个口径下的「所需毛超额」**不可互相代替**：半仓的摩擦正好是满仓的一半（4.787048% → 2.393524%/年，实测比值 0.5000000000），g*(∞) 相应降到 11.536917%。**本文件全部数字是满仓口径**，引用时必须带这一句；不要拿它去论证实盘半仓的可行性，反之亦然（第 7 层：两个各自都对的数放一起比）",
     "friction_calibrated_at_one_width_only": "COST_REAL_50K 是 N=10 标定值；本脚本用逐笔成本链，不用它",
+    "the_ceiling_family_is_WIDTH_DEPENDENT_and_says_which_width": "⚠️ `account_annual_ceiling_pct` / `measured_gross_best` 取的是 max(rows, key=…) ⇒ 跨榜宽**上确界**，落在 n=546；而 `friction_floor` 与 N 无关 ⇒ 该 max ≡ 毛超额最高档，而那正是 5 万下最不可交付的一档（摩擦 130.9699%/年）。⇒ 这两个键的**值是 dict、宽度装在里面**（与相邻的 `multiple_needed_at_infinite_capital` 同一约定）；**与 20% 对比只许用 `at_deliverable_width`（宽度 10）**，逐档全表见 `account_annual_ceiling_by_width`。⚠️ 此前这两个键是**裸 float** 且无宽度标记 ⇒ 读者拿 12.7285% 去比 20% 会得到「只差 7.2715pp」，而交付档的真读数是差 10.0292pp ⇒ **乐观方向低估 2.7577pp**（第 7 层）",
     "upstream_units_differ": {
       "factor_width_mde_*_pct": "分数（字段名带 _pct 但值是分数）",
       "market_nav_caliber.geometric_annual_pct": "真百分数",
@@ -192,6 +269,7 @@
     "五档 detectable 全为 False ⇒ 连「实测毛超额是不是正的」都定不了 ⇒ 本文件的水平陈述全部只支持形状（第 160 层）",
     "不重跑回测 ⇒ 本产物不比上游更新；上游 stale 则本产物继承同一 staleness",
     "不改 LIVE_REBALANCE_EVERY、不写 weights.json、不改任何生产路径",
-    "★ 不改 CLAUDE.md 的 D2 缺口 9.4437pp —— 那是 c 对 20% 的差，本文件是同一件事的毛额口径，两者不可互相代替"
+    "★ 不改 CLAUDE.md 的 D2 缺口 9.4437pp —— 那是 c 对 20% 的差，本文件是同一件事的毛额口径，两者不可互相代替",
+    "★ 不把 `account_annual_ceiling_pct.at_infinite_capital` （宽度 546）当成「策略最多能做到多少」—— 那个宽度在 ¥5万 下年摩擦 130.9699%、净超额 -123.4014%；⚠️ 且 `at_deliverable_width` 也**不是** 5 万读数（它是本金 → ∞）—— 5 万可交付读数是宽度 10 的 `at_deliverable_width_and_50k` = 8.3441%（逐档表见 `account_annual_ceiling_by_width`）"
   ]
 }

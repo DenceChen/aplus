@@ -314,6 +314,53 @@ def main() -> int:
     cheapest = by_multiple_inf[0]     # 最接近门槛的档
     hardest = by_multiple_inf[-1]     # 离门槛最远的档
     best_ceiling = max(rows, key=lambda r: r["measured_net_ceiling"])
+    best_gross = max(rows, key=lambda r: r["measured_gross_annual"])
+
+    # ★ 天花板这一族**依赖榜宽**，而榜宽必须跟着数字一起离开脚本（第 7 层）。
+    #   机制：measured_net_ceiling = 毛超额 − 摩擦下界，而 friction_floor 与 N 无关
+    #   （产物自己的 friction_floor_is_provable_positive 写了闭式 N×(notional/N)×K
+    #   ⇒ N 约掉）⇒ max(net_ceiling) ≡ 毛超额最高那一档。
+    #   🚨 那正是**最不可交付**的一档：5 万本金下年摩擦三位数、账户净为负。
+    #   ⇒ 任何「离 20% 还差 X」都必须说清是哪个宽度下的 X。
+    ceiling_by_width = [
+        {
+            "n": r["n"],
+            "account_annual_ceiling_pct": (c_mkt + r["measured_net_ceiling"]) * 100.0,
+            "gap_to_target_pp": (target - (c_mkt + r["measured_net_ceiling"])) * 100.0,
+            "measured_gross_annual_pct": r["measured_gross_annual"] * 100.0,
+            "measured_net_at_50k_pct": r["measured_net_at_50k"] * 100.0,
+            "friction_at_50k_pct": r["friction_at_50k"] * 100.0,
+            "abs_gross_over_mde": r["measured_gross_over_mde_abs"],
+            "is_the_deliverable_width": r["n"] == DELIVERABLE_N,
+        }
+        for r in sorted(rows, key=lambda r: r["n"])
+    ]
+
+    # ★ 单一真相源：CLI、caliber 散文、产物三处都读这五个值。
+    #   「低估」= 两个缺口之差（不是「离 20% 的差」减掉「离 20% 的差」——
+    #   我第一版就这么写，算出 17.30pp 而真值 2.7577pp，第 181 层第三次复发）。
+    ceiling_infinite_pct = (c_mkt + best_ceiling["measured_net_ceiling"]) * 100.0
+    ceiling_deliverable_pct = (c_mkt + deliverable["measured_net_ceiling"]) * 100.0
+    gap_infinite_pp = target * 100.0 - ceiling_infinite_pct
+    gap_deliverable_pp = target * 100.0 - ceiling_deliverable_pct
+    understatement_pp = gap_deliverable_pp - gap_infinite_pp
+
+    # ★★ 第五个口径（2026-10-18 补）：交付档 N=10 **且本金 ¥5 万**。
+    #   🚨 上面两个 ceiling_* **都是无限本金钱** —— measured_net_ceiling 减的是
+    #      friction_floor，而 friction_floor = friction_at(INFINITE_CAPITAL, N)
+    #      （width-invariant：`notional × K` 把 N 约掉）。
+    #      ⇒ 「交付档」只回答了**宽度**，没回答**本金**；
+    #      而用户是 5 万 ⇒ 把 9.9708% 叫「5 万下真正可交付的那个」是**错标签**
+    #      （第 7 层 / [[names-do-not-promise-semantics]]）。
+    #   5 万口径要减 friction_at_50k ⇒ 用 measured_net_at_50k
+    #   ⚠️ 那个字段是**净超额**（毛超额 − 摩擦），**不是账户收益**；
+    #      账户收益 = c_mkt + 净超额 —— 下面这一行就是那个加法。
+    ceiling_deliverable_50k_pct = (c_mkt + deliverable["measured_net_at_50k"]) * 100.0
+    gap_deliverable_50k_pp = target * 100.0 - ceiling_deliverable_50k_pct
+    #   把 5 万成本扣进 ∞ 本金数，幅度恰是这个差（不是「低估」，是两个口径之差）。
+    capital_imported_into_infinite_number_pp = (
+        ceiling_deliverable_pct - ceiling_deliverable_50k_pct
+    )
 
     max_friction_diff = max(abs(r["friction_diff_vs_upstream"]) for r in rows)
     max_shortfall_inf = max(r["shortfall_at_infinite_capital_pp"] for r in rows)
@@ -352,8 +399,15 @@ def main() -> int:
                 r["required_gross_at_infinite_capital"] for r in rows) * 100.0,
             "required_gross_at_50k_deliverable":
                 deliverable["required_gross_at_50k"] * 100.0,
-            "measured_gross_best": max(
-                r["measured_gross_annual"] for r in rows) * 100.0,
+            "measured_gross_best": {
+                "is_the_supremum_over_widths": True,
+                "width": best_gross["n"],
+                "at_infinite_capital":
+                    best_gross["measured_gross_annual"] * 100.0,
+                "at_deliverable_width":
+                    deliverable["measured_gross_annual"] * 100.0,
+                "deliverable_width": DELIVERABLE_N,
+            },
             "multiple_needed_at_infinite_capital": {
                 "cheapest_width": cheapest["n"],
                 "cheapest": cheapest["multiple_needed_at_infinite_capital"],
@@ -363,12 +417,57 @@ def main() -> int:
             "multiple_needed_at_50k_deliverable":
                 deliverable["multiple_needed_at_50k"],
 
-            "account_annual_ceiling_pct":
-                (c_mkt + best_ceiling["measured_net_ceiling"]) * 100.0,
-            "account_annual_ceiling_is_a_point_estimate":
-                f"这个天花板由 |g_obs|/MDE = "
-                f"{best_ceiling['measured_gross_over_mde_abs']:.2f} 的点估计撑起 "
-                f"⇒ 连符号都定不了 ⇒ 只支持形状陈述，不支持水平陈述（预注册 §3.1）",
+            # 🚨 这三个键以前是**裸数**：`account_annual_ceiling_pct` = 12.7285%
+            #   与 `measured_gross_best` = 7.5685%，而它们的 argmax 都是 n=546
+            #   —— 5 万本金下年摩擦 130.97%、账户净 −113.45% 的那一档。
+            #   裸数被读者拿去和 20% 对比 ⇒ **在乐观方向低估缺口 2.7577pp**。
+            #   修法不是改 max（跨档上确界本身在数学上成立），是**把榜宽装进值里**
+            #   —— 这正是相邻两键 `multiple_needed_at_infinite_capital`
+            #   早就在用的写法（cheapest_width / hardest_width）。
+            "account_annual_ceiling_pct": {
+                "is_the_supremum_over_widths": True,
+                "width": best_ceiling["n"],
+                # 🚨 这三个 ceiling 值**全部是无限本金钱**：
+                #   measured_net_ceiling = 毛超额 − friction_floor，
+                #   而 friction_floor = friction_at(INFINITE_CAPITAL, N)
+                #   （闭式 notional×K 把 N 约掉 ⇒ 实测五档相对极差 1.45e-16）。
+                #   ⇒ 「deliverable_width」只回答**宽度**，不回答**本金**。
+                "all_three_ceilings_are_infinite_capital": True,
+                "at_infinite_capital": ceiling_infinite_pct,
+                "at_deliverable_width": ceiling_deliverable_pct,
+                "at_deliverable_width_and_50k": ceiling_deliverable_50k_pct,
+                "deliverable_width": DELIVERABLE_N,
+                "gap_to_target_at_infinite_capital_pp": gap_infinite_pp,
+                "gap_to_target_at_deliverable_width_pp": gap_deliverable_pp,
+                "gap_to_target_at_deliverable_width_and_50k_pp": gap_deliverable_50k_pp,
+                "capital_imported_into_the_infinite_capital_number_pp":
+                    capital_imported_into_infinite_number_pp,
+                "the_bare_number_understated_the_gap_by_pp": understatement_pp,
+                "the_bare_number_understatement_is_in_the_optimistic_direction": True,
+                "that_width_is_undeliverable_at_50k":
+                    f"宽度 {best_ceiling['n']} 在 ¥5万 下年摩擦 "
+                    f"{best_ceiling['friction_at_50k'] * 100:.4f}%、净超额 "
+                    f"{best_ceiling['measured_net_at_50k'] * 100:.4f}%"
+                    f"（交付档是 {deliverable['friction_at_50k'] * 100:.4f}% / "
+                    f"{deliverable['measured_net_at_50k'] * 100:.4f}%）"
+                    f"⇒ 与 20% 对比：**5 万本金**要用 "
+                    f"`at_deliverable_width_and_50k`"
+                    f"（{ceiling_deliverable_50k_pct:.4f}%，"
+                    f"差 {gap_deliverable_50k_pp:.4f}pp）；"
+                    f"`at_deliverable_width` 是**本金 → ∞**，"
+                    f"不能当「5 万真能交付的那个」",
+            },
+            "account_annual_ceiling_is_a_point_estimate": {
+                "at_infinite_capital":
+                    f"这个天花板（宽度 {best_ceiling['n']}）由 |g_obs|/MDE = "
+                    f"{best_ceiling['measured_gross_over_mde_abs']:.2f} 的点估计撑起 "
+                    f"⇒ 连符号都定不了 ⇒ 只支持形状陈述，不支持水平陈述（预注册 §3.1）",
+                "at_deliverable_width":
+                    f"交付档（宽度 {DELIVERABLE_N}）由 |g_obs|/MDE = "
+                    f"{deliverable['measured_gross_over_mde_abs']:.2f} 的点估计撑起 "
+                    f"⇒ 同样连符号都定不了（预注册 §3.1）",
+            },
+            "account_annual_ceiling_by_width": ceiling_by_width,
 
             "capital_can_close_at_most_pp":
                 deliverable["shortfall_at_50k_pp"]
@@ -448,6 +547,21 @@ def main() -> int:
                 "两个各自都对的数放一起比）",
             "friction_calibrated_at_one_width_only":
                 "COST_REAL_50K 是 N=10 标定值；本脚本用逐笔成本链，不用它",
+            "the_ceiling_family_is_WIDTH_DEPENDENT_and_says_which_width":
+                "⚠️ `account_annual_ceiling_pct` / `measured_gross_best` "
+                "取的是 max(rows, key=…) ⇒ 跨榜宽**上确界**，落在 n="
+                f"{best_gross['n']}；而 `friction_floor` 与 N 无关 ⇒ "
+                "该 max ≡ 毛超额最高档，而那正是 5 万下最不可交付的一档"
+                f"（摩擦 {best_ceiling['friction_at_50k'] * 100:.4f}%/年）。"
+                "⇒ 这两个键的**值是 dict、宽度装在里面**（与相邻的 "
+                "`multiple_needed_at_infinite_capital` 同一约定）；"
+                f"**与 20% 对比只许用 `at_deliverable_width`（宽度 {DELIVERABLE_N}）**，"
+                "逐档全表见 `account_annual_ceiling_by_width`。"
+                "⚠️ 此前这两个键是**裸 float** 且无宽度标记 ⇒ "
+                f"读者拿 {ceiling_infinite_pct:.4f}% 去比 20% 会得到"
+                f"「只差 {gap_infinite_pp:.4f}pp」，"
+                f"而交付档的真读数是差 {gap_deliverable_pp:.4f}pp"
+                f" ⇒ **乐观方向低估 {understatement_pp:.4f}pp**（第 7 层）",
             "upstream_units_differ": {
                 "factor_width_mde_*_pct": "分数（字段名带 _pct 但值是分数）",
                 "market_nav_caliber.geometric_annual_pct": "真百分数",
@@ -465,6 +579,15 @@ def main() -> int:
             "不改 LIVE_REBALANCE_EVERY、不写 weights.json、不改任何生产路径",
             "★ 不改 CLAUDE.md 的 D2 缺口 9.4437pp —— 那是 c 对 20% 的差，"
             "本文件是同一件事的毛额口径，两者不可互相代替",
+            f"★ 不把 `account_annual_ceiling_pct.at_infinite_capital` "
+            f"（宽度 {best_ceiling['n']}）当成「策略最多能做到多少」—— "
+            f"那个宽度在 ¥5万 下年摩擦 {best_ceiling['friction_at_50k'] * 100:.4f}%、"
+            f"净超额 {best_ceiling['measured_net_at_50k'] * 100:.4f}%；"
+            f"⚠️ 且 `at_deliverable_width` 也**不是** 5 万读数（它是本金 → ∞）—— "
+            f"5 万可交付读数是宽度 {DELIVERABLE_N} 的 "
+            f"`at_deliverable_width_and_50k` = "
+            f"{ceiling_deliverable_50k_pct:.4f}%（逐档表见 "
+            f"`account_annual_ceiling_by_width`）",
         ],
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
@@ -486,9 +609,23 @@ def main() -> int:
               f"需 ×{r['multiple_needed_at_50k']:.2f}(5万)/"
               f"×{r['multiple_needed_at_infinite_capital']:.2f}(∞)")
     h = out["headline"]
+    ceil_h = h["account_annual_ceiling_pct"]
     print(f"  本金最多省 {h['capital_can_close_at_most_pp']:.4f}pp；"
-          f"加到 ∞ 还差 {h['gap_left_after_infinite_capital_pp']:.4f}pp；"
-          f"账户天花板 {h['account_annual_ceiling_pct']:.4f}%")
+          f"加到 ∞ 还差 {h['gap_left_after_infinite_capital_pp']:.4f}pp")
+    print(f"  ★ 账户天花板（交付档 N={ceil_h['deliverable_width']}，**本金 ¥5 万**）"
+          f"= {ceil_h['at_deliverable_width_and_50k']:.4f}% "
+          f"⇒ 离 20% 还差 {ceil_h['gap_to_target_at_deliverable_width_and_50k_pp']:.4f}pp"
+          f"　（这才是「5 万下真正可交付的那个」）")
+    print(f"    ⚠️ 同宽度但**本金 → ∞** = {ceil_h['at_deliverable_width']:.4f}%"
+          f"（差 {ceil_h['gap_to_target_at_deliverable_width_pp']:.4f}pp）——"
+          f"∞ 本金少付摩擦 {ceil_h['capital_imported_into_the_infinite_capital_number_pp']:.4f}pp"
+          f"，**不是 5 万能拿到的数**")
+    print(f"  ⚠️ 跨档上确界（宽度 N={ceil_h['width']}，5 万下摩擦 "
+          f"{best_ceiling['friction_at_50k'] * 100:.4f}%、净超额 "
+          f"{best_ceiling['measured_net_at_50k'] * 100:.4f}%）= "
+          f"{ceil_h['at_infinite_capital']:.4f}% ⇒ **不可交付**，"
+          f"裸数引用会把缺口在乐观方向低估 "
+          f"{ceil_h['the_bare_number_understated_the_gap_by_pp']:.4f}pp")
     return 0
 
 
