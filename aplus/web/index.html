@@ -404,6 +404,13 @@
     </div>
     <div class="tally" id="docket-tally"><i style="width:0%"></i></div>
     <div class="docket-warn" id="docket-warn" hidden></div>
+    <!-- 2026-10-18 新增。**独立元素**，不并进上面那条 `#docket-warn`：
+         那条由 `docketWarning()`（四参三态，`tests/test_docket_warning.py` 守着）
+         独占，问的是「照着名单建仓赚不赚钱」；这条问的是「**这份名单能不能发布**」。
+         两者可同时真可同时假（命中率够高也可能因排序力测不出被闸门拦住）⇒ 并进
+         同一个节点会把两个独立判决塌成一个，并让既有守卫失去它守的东西。
+         CSS 复用 `.docket-warn` 的档位（danger/warn/ok），DOM 所有权分开。 -->
+    <div class="docket-warn" id="publish-gate" hidden></div>
     <div class="figures" id="docket-figures"></div>
   </div>
 </div>
@@ -866,7 +873,7 @@ async function loadChrome() {
          若只有 loadOverview 取，深链进「进化」页时概览顶部看不到警示。 */
       jget('/api/predictions/latest').catch(() => null),
     ]);
-    renderDocket(status.stats, evo, weights, pred);
+    renderDocket(status.stats, evo, weights, pred, status.publish_gate);
   } catch {
     $('docket-word').textContent = '平台状态未知';
     $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
@@ -905,32 +912,142 @@ async function loadOverview() {
     $('pred-title').textContent = boardDay ? nextTradingDayLabel(boardDay) + '预测' : '预测日期未知';
     $('pred-sub').textContent = `${pred.date} 收盘后生成`;
     renderPredBoard(pred);
-    renderDocket(status.stats, evo, weights, pred);
-  } catch (e) { $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`; }
+    /* `publish_gate` 与 `evo` 同理**必须传**：本函数无条件重写闸门横幅，
+       漏传 ⇒ `gate` 为 undefined ⇒ 横幅被渲染成「上线闸门未接入」，
+       而现象是「深链进概览时告示变成未接入、回到其它 tab 又恢复正常」。 */
+    renderDocket(status.stats, evo, weights, pred, status.publish_gate);
+  } catch (e) {
+    /* 🚨 这行 console.error 是 2026-10-18 实测补的，不是「顺手加的日志」。
+       ★ 背景：把 MIN_WINDOWS 变异成未定义的名字后，生产页面真的抛了
+         `ReferenceError`，而 tests/e2e/test_page_boots.py 的两条守卫**全绿**
+         （2 passed, 3 deselected）—— 真产品坏了，唯一该抓它的守卫是绿的。
+       ★ 三条判据同时被绕过，且是**结构性**的：
+         ① 异常被 catch ⇒ 不是 pageerror（守卫只收**未捕获**异常）；
+         ② 这里原来没有 console.error ⇒ console 干净；
+         ③ catch 把 #heroes 的 innerHTML 换成错误文案，**恰好替掉了守卫
+            盯着的「加载预测数据」占位符** ⇒ 「离开骨架态」被满足。
+       ⇒ 「有容错、没旁路」的 catch 就是完美的沉默层。**容错要留**
+         （下面那段注释说明了它为什么刻意存在），补的是**观测**，不是删容错。 */
+    console.error('[名册] 加载失败', e);
+    $('heroes').innerHTML = `<div class="empty">预测数据加载失败：${esc(e.message)}</div>`;
+  }
   /* ⚠️ 单独一个 try，且**必须**单独：上面那个 catch 会把整个 #heroes 换成错误文案，
      而 renderHeld 跑在它之后 ⇒ 一处渲染异常会把已经画好的「最强看涨/看跌」抹掉，
      症状是「榜单空了」，病因在持仓区 —— 形状与「守卫红把人推向改正确代码」同族。
      同 renderAlloc 的形态：自己的 try、自己的错误文案。 */
   try { renderHeld(status.live); }
-  catch (e) { $('held-box').innerHTML = `<div class="held-why danger">持仓区渲染失败：${esc(e.message)}</div>`; }
+  catch (e) { console.error('[持仓区] 渲染失败', e); $('held-box').innerHTML = `<div class="held-why danger">持仓区渲染失败：${esc(e.message)}</div>`; }
   try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
 }
 
 /* 判决板：空态不写「—」，写「还差什么」。
-   3 笔是硬门槛，与转债纸面账户「调仓期不足 3 次不给年化判决」同一条规矩：
-   两三天的命中率是噪音，报出来会被读成信号。 */
-const MIN_JUDGED = 3;
-function renderDocket(stats, evo, weights, predictions) {
+   🚨 2026-10-18 修正单位错配：门槛原先数 `judged`（判定**条数**，实测 116），
+   而预注册的门槛数的是 W = **独立成交窗口**
+   （`docs/DELIVERY_DECISIONS_2026-10-18.md §4` 决策四，值 = 10）。
+   这两个不是同一个量：116 条里 60 条是 10-09/10-10/10-11 三个信号日共享的
+   **同一笔成交**（entry 10-12 → exit 10-13）⇒ 一次交易被数三遍，
+   于是 `116 >= 3` 放行、页面照报命中率，而真实独立样本 W = 4 < 10。
+   `/api/status` 一直带着 `n_independent_windows`，是这里没读它。
+
+   ⚠️ 只改**门槛的单位与值**，四档措辞原样保留 —— 它们在 W≥10 时是对的，
+   而今天（W=4）走不到那里，改它等于我替一段没跑过的代码编内容（形状 9）。 */
+/* ★ D1 上线闸门横幅（2026-10-18）。
+   数据来自 `/api/status` 的 `publish_gate`，后端 `webapp.py::_publish_gate_payload`
+   从 `data/reports/score_ranking_power.json` **现读**。
+
+   ## 措辞是判据的一部分，不是文风
+   `NOT_PASSED_POWERLESS` = 「**测不出**排序力」，
+   `NOT_PASSED_MEASURED` = 「测出来了，但没过线」。
+   🚨 全文**不许**出现「没有排序力」/「打分无效」—— 前者是「仪器看不清」，
+     后者是「东西本身不行」，而这一版的失败方向恰恰是**乐观**的：
+     写成后者会让人以为加数据没用，而加数据是**唯一**能解锁判决的那一条。
+
+   ## 为什么两个「不许发布」共用一个红色档
+   颜色跟着**动作**走（都是拦住发布），细节跟着**判决**走。
+   把 POWERLESS 画成黄色会让人读成「快过了」—— 而它的行动含义是
+   「只能攒前瞻期」，与 MEASURED 的「必须换结构」**方向相反**。
+
+   ## 幂等：两个 caller 都会无条件重写
+   `renderDocket` 被 `loadChrome()` 与 `loadOverview()` **各调一次**
+   （后者会无条件抹掉前者渲染的一切，见上面 loadOverview 的注释）。
+   ⇒ 本函数是「全量覆写自己那个节点」，不累加、不 append ⇒ 调两次结果一致。 */
+function renderPublishGate(gate) {
+  const el = $('publish-gate');
+  if (!el) return;
+  let level, headline, detail;
+
+  if (!gate) {
+    /* 后端没递这个字段 = 服务版本旧。**不许静默收起**：
+       收起的横幅与「没有闸门问题」在屏幕上**逐位同形**，而它是页面
+       上唯一说「不许发布」的地方 ⇒ 藏起来等于撤掉这句话。 */
+    level = 'warn'; headline = '上线闸门未接入';
+    detail = '这个服务版本没有 /api/status 的 <code>publish_gate</code> 字段，'
+      + '因此**页面上没有任何一处说明这份名单能不能发布**。'
+      + '这不是「闸门通过」，是「闸门读不到」。';
+  } else if (!gate.available) {
+    level = 'warn'; headline = '上线闸门读不到';
+    detail = '<code>score_ranking_power.json</code> 缺失或结构不符，判决读不出来。'
+      + '读不到时**不许**当成通过。';
+  } else if (gate.publish_allowed === true) {
+    level = 'ok'; headline = '已通过上线闸门';
+    detail = `判据「${gate.criterion ?? '—'}」通过（预注册 ${gate.prereg ?? '—'}）。`;
+  } else {
+    /* 两个不许发布的分支。**先分清「测不出」与「测出不过线」**，
+       它们的行动含义相反，合流成一个标签会让动作跟着错。 */
+    const powerless = gate.verdict === 'NOT_PASSED_POWERLESS';
+    level = 'danger';
+    headline = powerless ? '测不出排序力 —— 这份名单不许发布' : '排序力没过线 —— 这份名单不许发布';
+    /* 数字一律现读、逐个判空。写死的那天底稿一追加就会变成一句假话
+       （`verification.parquet` 是追加式，2026-10-16 那次追加就把旧值全作废了）。 */
+    const f4 = (v) => v == null ? '—' : Number(v).toFixed(4);
+    const n = (v) => v == null ? '未知' : String(v);
+    detail = `判据「${gate.criterion ?? '—'}」，预注册 ${gate.prereg ?? '—'}。`
+      + (powerless
+        ? `点二列 ρ=<b>${f4(gate.rho)}</b>，置换 p=<b>${f4(gate.p)}</b>，`
+          + `而零分布 95 分位（检出力下限）=<b>${f4(gate.power_floor)}</b>`
+          + ` ⇒ 实测的 |ρ| 比自己的噪声地板还小，**这份样本分不出这个量级的关联**。`
+          + `⚠️ 这是「测不出」，**不是**「测出没有排序力」—— `
+          + `两者行动含义相反：前者的唯一出路是攒前瞻期（出单日 <b>${n(gate.n_pred_dates)}</b> 个、`
+          + `真实独立成交窗口 <b>${n(gate.n_entry_dates)}</b> 个）。`
+        : `点二列 ρ=<b>${f4(gate.rho)}</b>，置换 p=<b>${f4(gate.p)}</b>，`
+          + `检出力下限 <b>${f4(gate.power_floor)}</b>，四分位单调性成立与否：`
+          + `${gate.monotone === false ? '<b>不单调</b>' : String(gate.monotone)}。`
+          + `这一支是「**测出来了，但没过线**」⇒ 出路是换结构，不是等。`)
+      + `<br>${esc(gate.reason ?? '')}`;
+  }
+
+  el.className = 'docket-warn ' + level;
+  el.hidden = false;
+  el.innerHTML = `<b>${esc(headline)}</b><span>${detail}</span>`;
+}
+
+const MIN_WINDOWS = 10;   // 决策四 W≥10 —— 判据值不许在这里另定
+function renderDocket(stats, evo, weights, predictions, gate) {
+  /* ★ 闸门横幅**先渲染**，放在本函数第一句。
+     理由是它是首屏唯一说「这份名单不许发布」的地方 ⇒ 后面任何一段
+     （命中率分档 / 警示条 / 数字块）抛异常时，它**已经**在屏幕上，
+     不会跟着后面那段一起消失。
+     ⚠️ 那些段的 catch 只换 `#heroes` / `#docket-word`，**换不掉这个节点**
+        —— 所以「渲染顺序」在这里是承重的，不是排版偏好。 */
+  try { renderPublishGate(gate); }
+  catch (e) { console.error('[发布闸门] 渲染失败', e); }
+
   const judged = stats?.judged ?? 0;
-  const has = judged >= MIN_JUDGED;
+  /* 「不知道」与「0 个」是两件事（第 7 层）⇒ 缺字段塌成 null，不塌成 0 */
+  const windows = stats?.n_independent_windows ?? null;
+  const has = windows !== null && windows >= MIN_WINDOWS;
   const rate = stats?.overall_hit_rate ?? null;
   const exc = stats?.up_excess_vs_market ?? null;
   const word = $('docket-word'), why = $('docket-why');
 
   if (!has) {
     word.textContent = '还不能下结论';
-    why.innerHTML = `命中率要攒够 <b>${MIN_JUDGED}</b> 个已收盘验证日才给结论，现在 <b>${judged}</b> 个。
-      每个交易日收盘后自动判定一次，明晚再来。`;
+    why.innerHTML = windows === null
+      ? `独立成交窗口数未知，因此不报命中率。/api/status 没有带出
+         <code>n_independent_windows</code> —— 这是「判据不可问」，不是「样本为零」。`
+      : `命中率要攒够 <b>${MIN_WINDOWS}</b> 个<b>独立成交窗口</b>才给结论，现在 <b>${windows}</b> 个。
+         窗口 = 一次真实的进出场；同一笔成交被几个信号日共享只算 <b>1</b> 个。
+         判定条数（<b>${judged}</b> 条）不参与这道门槛 —— 数条数会把一次交易数三遍。`;
   } else if (rate >= 0.55) {
     word.textContent = '初步有效';
     why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>。
@@ -945,7 +1062,13 @@ function renderDocket(stats, evo, weights, predictions) {
       不加仓，等下一轮权重赛马换掉它。`;
   }
 
-  const pct = Math.min(100, judged / MIN_JUDGED * 100);
+  /* 进度条量的是「离门槛还差多远」⇒ 分子必须与上面 `has` 的同一个。
+     🚨 留着 `judged` 会算出 `116 / 10 = 1160%` 被截成**满条**，
+     而同一时刻 `has` 为假、旁边写着「还不能下结论」——
+     **满条读起来像「到了」**（形状 6：不崩、不报警、照样出数）。
+     `windows === null`（`/api/status` 没带该字段）时宽度取 0：
+     那是「不显示进度」，不是「样本为零」—— 空态那句话已经把两件事分开了。 */
+  const pct = windows === null ? 0 : Math.min(100, windows / MIN_WINDOWS * 100);
   const tally = $('docket-tally');
   tally.className = 'tally' + (has ? ' done' : '');
   tally.firstElementChild.style.width = pct + '%';
@@ -993,7 +1116,7 @@ function renderDocket(stats, evo, weights, predictions) {
       + fig('idle', '—', '涨组合超额')
       + fig('idle', '—', '跌篮子回避')
       + fig('idle', '—', '多空价差')
-      + fig('idle', String(judged), `已判定笔数（还差 ${MIN_JUDGED - judged}）`);
+      + fig('idle', String(judged), `判定条数（独立成交 ${windows ?? '未知'} 个）`);
 }
 
 async function loadRunDot() {

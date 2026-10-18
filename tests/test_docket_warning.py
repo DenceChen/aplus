@@ -471,11 +471,30 @@ def test_fallback_caveat_is_fed_into_the_docket():
 #:
 #: ⚠️ 而**第 4 位也要钉**：它钉的是「两个调用点在这一位传的是同一个标识符」
 #:   + 「实参个数与形参个数相同」，不是名字相等。
+#:
+#: 🚨🚨 **这张表是「登记制」，不是「派生制」——而 `len(formals) == len(DOCKET_BINDINGS)`
+#: 是一条**故意的绊线**，不是过时的快照。**（2026-10-18 实测撞了一次，两者症状逐位同形。）**
+#: 起因：`renderDocket` 加了第 5 位 `gate`（上线闸门横幅），我没同步这张表 ⇒ 那条断言红了。
+#: **最省事、也最错的修法是「从 `formals` 派生这张表」** ⇒ 那样
+#: `len(formals) == len(由 formals 派生的表)` 就变成**自比**（第 176 层：
+#: 恒真的恒等式定不了语义），而第一列 `want_arg` **根本无人填**——
+#: 它承载的恰恰是「**哪一列喂进哪一个槽位**」这条只有人能复核的信息。
+#: ⇒ 处置是**补登记**，并把新位的实参**逐个复核**一遍（下面两行就是这么来的）。
+#: ⇒ **判别一条红断言是「绊线」还是「过严」：读它的失败消息。**
+#:   消息里写着**要你做什么**（「必须同步绑定表并复核新位的实参是谁」）⇒ 绊线，
+#:   按它说的做；消息只在陈述「不一致」且代码本来就是对的 ⇒ 才轮到问判据（第 112 层）。
 DOCKET_BINDINGS = (
     ("stats", "stats"),
     ("evo", "evo"),
     ("weights", "weights"),
     ("pred", "predictions"),      # 名字不同、绑定正确
+    # 第 5 位（2026-10-18）：D1 上线闸门横幅。
+    # 🚨 **第二个「名字不同、绑定正确」**——形参 `gate` vs 实参 `status.publish_gate`
+    #    ⇒ 上面那条「两列分开钉」的理由**不再是一条孤例，而是两次**。
+    #    两个调用点（`loadChrome` / `loadOverview`）都必须传它：漏一个 ⇒
+    #    深链进概览时 `gate` 为 `undefined` ⇒ 横幅渲染成「上线闸门未接入」，
+    #    症状是「告示在别的 tab 正常、在概览里变成未接入」，**不会报错**。
+    ("publish_gate", "gate"),
 )
 
 _DOCKET_DEF = re.compile(r"function\s+renderDocket\s*\(([^)]*)\)\s*\{")
@@ -567,18 +586,22 @@ def test_the_position_guard_can_reject_a_shuffled_call_site():
     ——只测「正则能不能抓到调用点」的话，
     「抓到但比对逻辑恒真」与「比对正确」在输出上**逐位同形**（第 131 层）。
     """
-    formals = ("stats", "evo", "weights", "predictions")
-    good = ["status.stats", "evo", "weights", "pred"]
+    formals = ("stats", "evo", "weights", "predictions", "gate")
+    good = ["status.stats", "evo", "weights", "pred", "status.publish_gate"]
 
     # 真配置逐位通过
     assert [_innermost(a) for a in good] == [w for w, _ in DOCKET_BINDINGS]
     assert list(zip([_innermost(a) for a in good], formals)) == list(DOCKET_BINDINGS)
 
-    # 三个反例必须被抓：顺序反 / 名字像但不是它 / 少一个
+    # 反例必须被抓：顺序反 / 名字像但不是它 / 少一个 / **第 5 位喂错 status 字段**
     for bad, why in (
-        (["status.stats", "weights", "evo", "pred"], "evo 与 weights 调换"),
-        (["status.stats", "weights_snapshot", "evo", "pred"], "子串像、标识符不是它"),
+        (["status.stats", "weights", "evo", "pred", "status.publish_gate"], "evo 与 weights 调换"),
+        (["status.stats", "weights_snapshot", "evo", "pred", "status.publish_gate"], "子串像、标识符不是它"),
         (["status.stats", "weights", "evo"], "少传一个"),
+        # 🚨 第 5 位**特有的**失效形态：`gate` 与 `live`/`publish_allowed` 同为
+        # `/api/status` 的字段，接错是**最自然的手误**，而 `renderDocket` 不会报错 ——
+        # 它只会把 `live`（持仓）当成闸门判决去渲染。子串判据对这一条完全免疫。
+        (["status.stats", "evo", "weights", "pred", "status.live"], "第 5 位喂了另一个 status 字段"),
     ):
         caught = (len(bad) != len(formals)
                   or [_innermost(a) for a in bad] != [w for w, _ in DOCKET_BINDINGS]

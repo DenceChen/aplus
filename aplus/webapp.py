@@ -120,6 +120,70 @@ def _live_holdings_payload(reports_dir) -> dict:
     return out
 
 
+def _publish_gate_payload(reports_dir) -> dict:
+    """**D1 上线闸门**的判决，原样递到首屏。
+
+    ## 为什么要单独一个字段，而不是并进 `stats`
+
+    判决板 `stats.*` 回答的是「方向猜得准不准」（命中率、组合超额）；
+    闸门回答的是**另一个问题**——「这份名单**能不能拿去发布**」。
+    两者**可以同时为真或同时为假**：命中率够高也可能因排序力测不出而被闸门拦住。
+    ⇒ 并进同一个字典就会让读者以为一个数能同时回答两问（第 7 种形状）。
+
+    ## 三态标签是判决的一部分，不是措辞偏好
+
+    `NOT_PASSED_POWERLESS` = 「**测不出**排序力」，
+    `NOT_PASSED_MEASURED` = 「测出来了，但没过线」。
+    **两者行动含义相反**：前者只能攒前瞻期，后者必须换结构。
+    授权它们的是**置换零分布 95 分位**（`null_abs_rho_q95_power_floor`，
+    检出力下限），不是手写的「n 太小」。
+    ⇒ 页面文案只许由 `verdict` 决定，**不许写死**——
+    写死的那天底稿一追加就会变成一句假话（第 73 层）。
+
+    ## 数字一律**现读**，不许进散文
+
+    `rho / p / power_floor / n_independent_pred_dates` 会随
+    `verification.parquet` 这个**追加式底稿**增长而变（2026-10-16 那次追加
+    就把旧值 5 日 / 96 / 30 / 66 全作废了）。
+    这里**逐次从产物读**，前端只负责渲染 ⇒ 追加后重跑闸门即自动跟着走。
+    """
+    path = reports_dir / "score_ranking_power.json"
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        arm = doc["by_score_col"][doc["primary_score_col"]]["arms"]["up"]
+        stats = arm["_stats"]
+        score = doc["by_score_col"][doc["primary_score_col"]]
+        calib = score.get("independence_caliber") or {}
+    except (OSError, ValueError, KeyError, TypeError):
+        # 🚨 **读不出来不许变成「通过」**。`publish_allowed` 缺字段时前端
+        # 必须渲染成「闸门读不到」而不是静默收起横幅——那是一个看起来
+        # 正常的假绿灯（形状 23 的方向）。
+        return {"available": False, "publish_allowed": None, "verdict": None}
+
+    return {
+        "available": True,
+        # `publish_allowed` 必须是**严格布尔**；`verdict` 是三态字符串。
+        "publish_allowed": doc.get("publish_allowed"),
+        "verdict": doc.get("verdict"),
+        "gate": doc.get("gate"),
+        "prereg": doc.get("prereg"),
+        "primary_score_col": doc.get("primary_score_col"),
+        "verification_source": doc.get("verification_source"),
+        "reason": doc.get("verdict_reason"),
+        "criterion": (score.get("criterion") or {}).get("rule"),
+        "n_rows_total": score.get("n_rows_total"),
+        "n_rows_judgeable": score.get("n_rows_judgeable"),
+        "n_pred_dates": score.get("n_independent_pred_dates"),
+        "n_entry_dates": calib.get("n_entry_dates"),
+        "monotone": stats.get("monotone_nondecreasing"),
+        "rho": stats.get("point_biserial_rho"),
+        "p": stats.get("permutation_p_two_sided"),
+        "power_floor": stats.get("null_abs_rho_q95_power_floor"),
+        "detectable": stats.get("detectable_at_alpha05"),
+        "cannot_prove": doc.get("what_this_cannot_prove"),
+    }
+
+
 def _json_safe(df: pd.DataFrame) -> list:
     """DataFrame → JSON 安全的 records：任何 NA 哨兵 → None（starlette 拒绝 NaN）。
 
@@ -283,6 +347,11 @@ def create_app(data_root, llm=None) -> FastAPI:
             # **零消费点**：用户看到每天 10 涨 10 跌，却看不到「实盘每 21 个
             # 交易日换一次仓」。差 74.4pp/年摩擦，且与信号好坏无关。
             "live": _live_holdings_payload(reports_dir),
+            # 2026-10-18 接上。此前 `score_ranking_power.json` 的判决
+            # **零消费点**（`index.html` / `verdict.js` 对这个词零命中）：
+            # 页面上天天出 10 涨 10 跌，**却没有任何一处说这份名单不许发布**。
+            # ⇒ 与 `live` 并排而不是并进 `stats`：见 `_publish_gate_payload` 开头。
+            "publish_gate": _publish_gate_payload(reports_dir),
         }
 
     @app.get("/api/predictions/latest")
