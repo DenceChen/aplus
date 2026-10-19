@@ -29,6 +29,17 @@
     --chart: #D9A441;
     --serif: "Noto Serif SC", "Songti SC", "STSong", serif;
     --sans: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif;
+    /* --mono 原来没定义，而 .held-codes 在用它 —— 浏览器静默回退到继承字体，
+       股票代码于是并不等宽，「603096.SH / 301052.SZ」逐位对不齐号。
+       缺一个 token 的代价不是报错，是「看起来像有，只是没用上」。 */
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    /* 吸顶偏移：tab 栏与名单表头都是 sticky，而它们原本**都是 top:0** ——
+       滚动之后 z=39 的 tab 栏整个藏进 z=40 的判决板底下，导航直接消失。
+       高度由 JS 量真实 DOM 写回（tab 栏的内容随视口宽度变化，字面量会过期）。
+       判决板**不再**参与这条链 —— 它实测 346px，见上面 .docket 的注释。 */
+    --tabs-h: 0px;
+    --sticky-top: var(--tabs-h);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
@@ -54,9 +65,13 @@
 
   /* ── 判决板 ──
      这是全页唯一的记忆点：进门第一眼回答「这钱能不能赚、凭什么信我」。
-     空态不再是三个「—」，而是还差什么、差多少、下一步做什么。 */
+     空态不再是三个「—」，而是还差什么、差多少、下一步做什么。
+
+     🚨 2026-10-19：**它原来是 sticky 的，实测高度 346px**。
+     判决板 + tab + 名单头 + 表头四层吸顶，在 1000px 视口里永久占掉 45%，
+     而这一页真正要反复看的是下面那 20 行 —— 判决是**进门读一次**的东西，
+     不是**滚动全程陪着**的东西。改回随页滚走，吸顶只留 tab 一层。 */
   .docket {
-    position: sticky; top: 0; z-index: 40;
     background: var(--ink);
     border-bottom: 1px solid var(--line-strong);
   }
@@ -144,6 +159,8 @@
     max-width: 1180px; margin: 0 auto; padding: 0 24px;
     display: flex; gap: 2px; overflow-x: auto;
     border-bottom: 1px solid var(--line);
+    /* 判决板已改为随页滚走（见上面 .docket 的注释），于是 tab 栏回到 top:0 ——
+       全页只剩这一层吸顶 + 名单列名一层，合计不到 90px。 */
     position: sticky; top: 0; z-index: 39; background: var(--bg);
   }
   .tab {
@@ -198,6 +215,28 @@
   tr:last-child td { border-bottom: 0; }
   tbody tr { transition: background .12s; }
   tbody tr:hover { background: rgba(255,255,255,.025); }
+  /* 名单滚过一屏之后，列名（「股票 / 20日动量 / 综合分」）还该在 ——
+     20 行密集数字一旦失去表头，扫读就变成猜。
+     sticky 单元格 + border-collapse:collapse 时边框会随滚动消失，
+     所以名单这两张表改 separate；边框本来就画在 th/td 各自的 border-bottom 上。 */
+  .ledger table { border-collapse: separate; border-spacing: 0; }
+  /* 🚨 `.ledger-head`（「看涨名单 10 只」那条彩色条）**刻意不吸顶**。
+     它第一版跟着吸顶，截图里立刻压住第 03 行的名字与数字 ——
+     而它的底色是 `--up-soft`（rgba 红 .12，**近乎透明**），字叠字。
+     摘掉这件配饰：列名失去固定位置，比「标题条盖住数据行」轻得多。 */
+  .ledger thead th { position: sticky; top: var(--sticky-top); z-index: 5; background: var(--panel); }
+  /* 「本栏最强」——条形是**栏内相对量**，不是绝对强度。
+     不写这句，读者会把最长的那条当成「这只很极端」而不是「这是这一栏的参照点」。
+     实测两栏量程差 6 倍（涨 1.41~2.57 / 跌 4.79~8.85），不标出来就是在骗人。 */
+  /* 🚨 注记必须**独占一行**（display:block），不能跟在列名后面流式排版。
+     实测 1440px：看涨栏那一列只有 175px 宽、看跌栏 250px —— 同一段注记
+     （`noteScrollWidth` 114px）在宽栏里一行读完，在窄栏里**折成两行**
+     ⇒ 两栏表头行高变成 52 vs 35px，**列头与首行错位**。
+     靠改短文案赌宽度是不稳的（栏宽随消息面列在不在而变，见 renderRows
+     的 `hasNews` 判定）⇒ 改成块级后两栏**按构造**等高，与栏宽无关。 */
+  .th-note { display: block; color: var(--faint); font-weight: 400; letter-spacing: 0;
+             white-space: nowrap; }
+  .th-news[hidden] { display: none; }
   td.num, th.num { text-align: right; }
   .name-cell b { font-weight: 600; }
   .name-cell span { display: block; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -207,7 +246,15 @@
   .pct-down { color: var(--down); font-weight: 600; }
   .bar-cell { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
   .bar-cell .track { width: 64px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
-  .bar-cell .track i { display: block; height: 100%; border-radius: 3px; background: var(--seal); }
+  /* 条形取本栏方向色，不再统一用金色。
+     金色在本页面是**判决专用**（判决板字、封口数、进度条），
+     拿它当每行的强度条会把「这 10 只都很看跌」画成「这一栏被批准过」。 */
+  .bar-cell .track i.up { display: block; height: 100%; border-radius: 3px; background: var(--up); }
+  .bar-cell .track i.down { display: block; height: 100%; border-radius: 3px; background: var(--down); }
+  /* 行号：20 行里没有序号，扫读时眼睛找不到「我从第几行看到哪了」 */
+  th.rank, td.rank { width: 1%; padding-left: 14px; padding-right: 0; }
+  td.rank { color: var(--faint); font-size: 11px; }
+  tr[tabindex]:focus-visible { outline: 2px solid var(--seal); outline-offset: -2px; }
   /* 消息面：原来 max-width:190px + ellipsis 直接吞字（「预亏利空」被切掉）。
      改成两行夹断，且允许换行——消息理由是被砍仓的依据，不能丢。 */
   .news-chip { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; color: var(--muted); }
@@ -461,14 +508,14 @@
         <div class="ledger-col ledger-up">
           <div class="ledger-head">看涨名单<span id="up-count"></span></div>
           <table>
-            <thead><tr><th>股票</th><th class="num">20日动量</th><th class="num">综合分</th><th>消息面</th></tr></thead>
+            <thead><tr><th class="rank"></th><th>股票</th><th class="num">20日涨跌<span class="th-note">（反向：跌者得分高）</span></th><th class="num">综合分<span class="th-note">（本栏最强）</span></th><th class="th-news" id="news-th-up">消息面</th></tr></thead>
             <tbody id="pred-rows-up"></tbody>
           </table>
         </div>
         <div class="ledger-col ledger-down">
           <div class="ledger-head">看跌名单 · 建议回避<span id="down-count"></span></div>
           <table>
-            <thead><tr><th>股票</th><th class="num">20日动量</th><th class="num">综合分</th><th>消息面</th></tr></thead>
+            <thead><tr><th class="rank"></th><th>股票</th><th class="num">20日涨跌<span class="th-note">（反向：跌者得分高）</span></th><th class="num">综合分<span class="th-note">（本栏最强）</span></th><th class="th-news" id="news-th-down">消息面</th></tr></thead>
             <tbody id="pred-rows-down"></tbody>
           </table>
         </div>
@@ -707,6 +754,40 @@ document.querySelectorAll('.tab').forEach(t => {
     next.focus(); activate(next.dataset.panel);
   });
 });
+
+/* 名单内上下移动（↑↓）。与上面的 tab 导航同一条 roving 思路：
+   两张名单一共 20 行，Tab 键要按 20 次才走得完，而它们正是这一页的主内容。
+   只在焦点已经落在名单行上时才接管 —— 否则会抢走别的输入框的上下键。 */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  const tr = e.target.closest?.('tr[data-rank]');
+  if (!tr) return;
+  const body = tr.parentElement;
+  const list = [...body.querySelectorAll('tr[data-rank]')];
+  const i = list.indexOf(tr);
+  const next = list[i + (e.key === 'ArrowDown' ? 1 : -1)];
+  if (!next) return;                       /* 到头就不动：悄悄跳回第一行会丢位置 */
+  e.preventDefault();
+  tr.setAttribute('tabindex', '-1');
+  next.setAttribute('tabindex', '0');
+  next.focus();
+});
+
+/* 吸顶偏移量回填。tab 栏高度随视口宽度变化（窄屏会换行），
+   写死一个像素值就会在窗口缩放时让列名压回 tab 栏底下 ——
+   而那正是这页第一次出现过、之后自己好了的那类缺陷。
+   判据取**实测 offsetHeight**，不写字面量。 */
+function measureSticky() {
+  const tabs = document.querySelector('nav.tabs');
+  const root = document.documentElement.style;
+  if (tabs) root.setProperty('--tabs-h', `${tabs.offsetHeight}px`);
+}
+window.addEventListener('resize', measureSticky);
+measureSticky();
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(measureSticky);
+  document.querySelectorAll('nav.tabs').forEach(el => ro.observe(el));
+}
 
 /* ── 数据加载器 ── */
 const state = { predictions: null, history: null, backtest: null, filter: 'all' };
@@ -1018,11 +1099,29 @@ async function loadOverview() {
    🚨 两个警示条**各自**拥有自己的 <details>：既不合并 DOM 所有权
    （index.html 的 publish-gate 契约注释），也不引入任何 JS 状态。
    `headlineHtml` / `bodyHtml` 都要求调用方**已经转义过**（与旧写法同）。 */
+/* 把正文里的 `**强调**` 变成 <strong>。
+   🚨 **必须在转义之后调用**：入参是已经 `esc()` 过的 HTML，
+   所以这里的字面量里不可能带 `<`，正则匹配到的内文必然是已转义文本 ——
+   反过来（在转义前替换）就会让 `**` 变成一个 HTML 注入点。
+   为什么不改生产端的字符串：`aplus/evolve.py:290` 那句带 `**` 是**判决文案**，
+   而判决文案被 pytest 逐字钉住 ⇒ 前端只管呈现，不碰它（第 91 层）。
+   ⚠️ **三个消费者，其中只有一个是「看起来像真凶」的**：
+     ① `foldVerdict` 的推导正文（前端自己拼的 HTML，里面的 `**` 是我们自己写的）；
+     ② `foldVerdict` 的 caveat 回落路径（`esc(detail)`，`detailHtml` 缺失时）；
+     ③ 🚨 **`.held-why` 的 `live.reason` —— 它根本不经过 `foldVerdict`**，
+        这是唯一一处「后端纯文本直上屏」，2026-10-19 的字面 `**` 就是它。
+   ⇒ 上一次我只在 ① 的 DOM 上探 `**`，看到 `<b>`（来自 `verdict.js::renderCaveat`）
+      就判「我加的 boldify 没用」—— **探针只查了三个消费者里的一个**，
+      而真凶在第三个。是探针的覆盖面不足，不是工具的错。 */
+function boldify(escapedHtml) {
+  return escapedHtml.replace(/\*\*([^*<>]+)\*\*/g, '<strong>$1</strong>');
+}
+
 function foldVerdict(headlineHtml, bodyHtml, label) {
   if (!bodyHtml) return `<b>${headlineHtml}</b>`;
   return `<b>${headlineHtml}</b>`
     + `<details class="fold"><summary>${esc(label)}</summary>`
-    + `<div class="fold-body">${bodyHtml}</div></details>`;
+    + `<div class="fold-body">${boldify(bodyHtml)}</div></details>`;
 }
 
 function renderPublishGate(gate) {
@@ -1240,7 +1339,7 @@ function renderHeroes(upTop, downTop) {
     <div class="hero ${side}">
       <div class="tag">${label}</div>
       <div class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></div>
-      <div class="why">二十日动量 ${fmtPct(r.mom20)} · 综合分 ${r.score?.toFixed(2) ?? '—'}</div>
+      <div class="why">近 20 日涨跌 ${fmtPct(r.mom20)} · 综合分 ${r.score?.toFixed(2) ?? '—'}</div>
       ${hasNews ? `<div class="news"><i class="${r.news_sentiment > 0 ? 'pos' : r.news_sentiment < 0 ? 'neg' : 'neu'}">${r.news_sentiment > 0 ? '+' : ''}${(r.news_sentiment ?? 0).toFixed(1)}</i>${esc(r.news_reason ?? '中性')}</div>` : ''}
     </div>`;
   };
@@ -1250,16 +1349,59 @@ function renderHeroes(upTop, downTop) {
 /* 榜单行：涨/跌已由分栏表达，去掉了每行重复的 ▲▼ 符号——
    结构已经说清楚了，符号再说一遍只是噪声。 */
 function renderRows(tbody, rows, dir) {
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="4" class="empty" style="padding:16px">本日无</td></tr>`; return; }
-  const maxScore = 3;
-  tbody.innerHTML = rows.map(r => `
-    <tr>
+  /* 「消息面」整列在**该栏一条消息都没有**时不渲染。
+     实测 2026-10-16：涨栏 0/10 缺失、跌栏 **10/10 缺失** ——
+     跌栏那一列十个格子全在写「无消息」，零信息量却占掉四分之一的宽度。
+     这是呈现层的判断（数据还是原样），不是数据层的过滤。 */
+  const hasNews = rows.some(r => r.news_reason != null || r.news_sentiment != null);
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="${hasNews ? 5 : 4}" class="empty" style="padding:16px">本日无</td></tr>`; return; }
+  /* 条形宽度按**本栏极值**归一，不按手打常量。
+     🚨 原来是 `const maxScore = 3`，而实测两栏量程是
+     涨 [1.41, 2.57] / 跌 [−8.85, −4.79] ⇒ `Math.min(100, …)` 把跌栏
+     **十行全部截成 100%** —— 渲染器放弃了，图上还写着「这十只一样极端」。
+     误差方向偏乐观：它把「量不出来」画成了「很强」。
+     归一之后条形是**栏内相对量**，表头那句「（本栏最强）」是它唯一的诚实读法。 */
+  const peak = rows.reduce((m, r) => Math.max(m, Math.abs(r.score ?? 0)), 0) || 1;
+  const cls = dir === 'up' ? 'up' : 'down';
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr tabindex="-1" data-rank="${i + 1}">
+      <td class="rank">${String(i + 1).padStart(2, '0')}</td>
       <td class="name-cell"><b class="${dir === 'up' ? 'dir-up' : 'dir-down'}">${esc(r.name ?? r.code)}</b><span>${esc(r.code ?? '')}</span></td>
       <td class="num ${r.mom20 >= 0 ? 'pct-up' : 'pct-down'}">${fmtPct(r.mom20)}</td>
-      <td class="num"><span class="bar-cell"><span class="track"><i style="width:${Math.min(100, Math.abs(r.score ?? 0) / maxScore * 100)}%"></i></span>${r.score?.toFixed(2) ?? '—'}</span></td>
-      <td>${newsChip(r)}</td>
+      <td class="num"><span class="bar-cell"><span class="track"><i class="${cls}" style="width:${Math.min(100, Math.abs(r.score ?? 0) / peak * 100)}%"></i></span>${r.score?.toFixed(2) ?? '—'}</span></td>
+      ${hasNews ? `<td>${newsChip(r)}</td>` : ''}
     </tr>`).join('');
+  /* 「消息面」表头跟着同一把尺走。
+     🚨 原来写的是 `tbody.closest('table').querySelector('th.th-news')` ——
+     真实浏览器里能跑，但 node 探针的 DOM stub 没有 `closest` ⇒ **两条前端守卫当场红**，
+     而症状（探针自己崩）长得像「探针写坏了」，实际上是我的写法依赖了一个
+     探针没实现的祖先回溯。改成**按 id 直取**：表头本来就有稳定 id，
+     不必从 tbody 往上走，也就不依赖任何祖先链。 */
+  const newsTh = $(`news-th-${dir}`);
+  if (newsTh) newsTh.hidden = !hasNews;
+  /* 行内方向键：20 行密排数字用 tab 键逐个跳要按 20 次。
+     roving tabindex —— 整张表只占一个 tab 位，进出用 Tab，上下用 ↑↓。
+     返回是否已处理，让调用方决定要不要 preventDefault。 */
+  const rows_ = tbody.querySelectorAll('tr[data-rank]');
+  if (rows_.length) rows_[0].setAttribute('tabindex', '0');
 }
+
+/* 🚨 2026-10-19：列名「20日动量」曾经是**一句假话**，而画面上它红绿分明、毫无异样。
+     实测 2026-10-16 的榜单：**看涨栏十行的 20 日涨跌全是负的**
+     （−50.7% / −50.1% / …），**看跌栏十行全正**（+169.1% / +90.1% / …）。
+     同一屏上红字配负数、绿字配正数，而栏目名写着「看涨 / 看跌」。
+     ⚠️ 数据没错、策略方向也是**有意**的：`aplus/factor.py:61`
+     `DEFAULT_WEIGHTS = {"mom20": -1.0, …}` ⇒ **动量权重为负 = 买超跌/反转**
+     （`evolve_race.py:863` 逐字：「负动量方向：mom20 权重为负（= 买超跌/反转）」）。
+     错的是**列名**：「动量」在量化语境里默认「正向、越高越看涨」，
+     而这个策略把它当**反向**因子用 ⇒ **名字与值承诺的不是同一件事**
+     （本仓「列名/字段名不承诺语义」那一族）。
+     修法只动措辞、**不碰后端口径**（前端只管呈现，第 91 层）：
+     列名改成「20日涨跌」（描述这一列**是什么**）+ 表头注「本策略取反：跌者得分高」
+     （描述它**怎么用**）。🚨 不许把它改回「20日动量」——
+     那个名字读起来最顺，而它恰好是错的（守卫名若宣称被撤回的性质，
+     得跟着改名；此处无守卫，是有意留白：加守卫会把一句话钉成一句假话，
+     而这条口径的真值源在 Python 侧，不在 HTML 里）。 */
 
 // ⚠️ D1 交付形态的**唯一承重点**：标题上的「N 只」与表格里的 N 行必须同源。
 // 这四行曾经长在 `load()` 的 async 闭包里，而守卫测的是 `renderRows` 的函数体
@@ -1318,7 +1460,7 @@ function renderHeld(live) {
   /* `reason` 必须逐字显示。它带着「回落默认权重未经赛马验证 / 上一版排 81/87 名、
      t=−3.03」这类字样，压成布尔就等于把「测过且是坏的」说成「没测过」。 */
   const why = live.reason
-    ? `<div class="held-why${live.honored === false ? ' danger' : ' warn'}">${esc(live.reason)}</div>`
+    ? `<div class="held-why${live.honored === false ? ' danger' : ' warn'}">${boldify(esc(live.reason))}</div>`
     : '';
 
   box.innerHTML = `
