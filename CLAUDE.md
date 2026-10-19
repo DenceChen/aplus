@@ -1693,6 +1693,18 @@ K 链是串行长跑（~10 分钟/档）。我一边跑一边改了生成器
 | 实测超额·5万·**市值** | **8.5922%** | 同臂 `per_combo.bt003.measured_excess_annual` | **市值加权** | **N=10** | ¥5万 | 同上 | **产物字段** |
 | 实测/所需·5万·**市值** | **0.4809** | `measured_over_required` | **市值加权** | **N=10** | ¥5万 | 同上（等权臂同字段 = **0.0606**） | **产物字段** |
 | 缺口·5万·**市值** | **不许引用** | 同上 | 市值加权 | N=10 | ¥5万 | — | 🚨 产物自己禁：见下 |
+| **判定·cap/cap·N=10·K=21** | 毛 **9.4980%** vs `g*` **24.2819%**；t=1.1521；MDE=23.0872% ⇒ **🚨 POWERLESS** | `g*(N,K) = required_excess(0.20, c_mkt=1.8087%, yrs=5.717213) + width_aware_friction(N,K)`；§6.2 四态，**`|毛超额| < MDE` 先判、盖住其余三态** | **市值加权 1.8087%** | N=10 / K=21 / MIN_BASKET=3 | ¥5万 | `data/reports/cap_weighted_benchmark_n10_k21.json`；`g*` 取自 `PREREG_CAP_WIDTH_GRID_2026-10-18.md` §4 冻结表（经 §3 的 `required_excess` + `width_aware_friction` 重算，六格逐格吻合 ±0.0000pp） | 毛/MDE/t/可测 = `::arms.C.gross_annual_pct` / `::arms.C.MDE_annual_pct` / `::arms.C.t_blocked` / `::arms.C.detectable`（六格全 `False`）；`::verdict = CAP_POSITIVE_NOT_SIG`；sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…`（第 125 层冻结成立） |
+| **判定·cap/cap·N=10·K=63** | 毛 **14.3230%** vs `g*` **20.0061%**；t=1.3538；MDE=23.6452% ⇒ **🚨 POWERLESS** | `g*(N,K) = required_excess(0.20, c_mkt=1.8087%, yrs=5.717213) + width_aware_friction(N,K)`；§6.2 四态，**`|毛超额| < MDE` 先判、盖住其余三态** | **市值加权 1.8087%** | N=10 / K=63 / MIN_BASKET=3 | ¥5万 | `data/reports/cap_weighted_benchmark_n10_k63.json`；`g*` 取自 `PREREG_CAP_WIDTH_GRID_2026-10-18.md` §4 冻结表（经 §3 的 `required_excess` + `width_aware_friction` 重算，六格逐格吻合 ±0.0000pp） | 毛/MDE/t/可测 = `::arms.C.gross_annual_pct` / `::arms.C.MDE_annual_pct` / `::arms.C.t_blocked` / `::arms.C.detectable`（六格全 `False`）；`::verdict = CAP_POSITIVE_NOT_SIG`；sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…`（第 125 层冻结成立） |
+| **判定·cap/cap·N=30·K=21** | 毛 **7.9455%** vs `g*` **28.9295%**；t=1.2428；MDE=21.0584% ⇒ **🚨 POWERLESS** | `g*(N,K) = required_excess(0.20, c_mkt=1.8087%, yrs=5.717213) + width_aware_friction(N,K)`；§6.2 四态，**`|毛超额| < MDE` 先判、盖住其余三态** | **市值加权 1.8087%** | N=30 / K=21 / MIN_BASKET=3 | ¥5万 | `data/reports/cap_weighted_benchmark_n30_k21.json`；`g*` 取自 `PREREG_CAP_WIDTH_GRID_2026-10-18.md` §4 冻结表（经 §3 的 `required_excess` + `width_aware_friction` 重算，六格逐格吻合 ±0.0000pp） | 毛/MDE/t/可测 = `::arms.C.gross_annual_pct` / `::arms.C.MDE_annual_pct` / `::arms.C.t_blocked` / `::arms.C.detectable`（六格全 `False`）；`::verdict = CAP_POSITIVE_NOT_SIG`；sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…`（第 125 层冻结成立） |
+| **判定·cap/cap·N=30·K=63** | 毛 **15.8108%** vs `g*` **21.5553%**；t=1.6906；MDE=21.0612% ⇒ **🚨 POWERLESS** | `g*(N,K) = required_excess(0.20, c_mkt=1.8087%, yrs=5.717213) + width_aware_friction(N,K)`；§6.2 四态，**`|毛超额| < MDE` 先判、盖住其余三态** | **市值加权 1.8087%** | N=30 / K=63 / MIN_BASKET=3 | ¥5万 | `data/reports/cap_weighted_benchmark_n30_k63.json`；`g*` 取自 `PREREG_CAP_WIDTH_GRID_2026-10-18.md` §4 冻结表（经 §3 的 `required_excess` + `width_aware_friction` 重算，六格逐格吻合 ±0.0000pp） | 毛/MDE/t/可测 = `::arms.C.gross_annual_pct` / `::arms.C.MDE_annual_pct` / `::arms.C.t_blocked` / `::arms.C.detectable`（六格全 `False`）；`::verdict = CAP_POSITIVE_NOT_SIG`；sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…`（第 125 层冻结成立） |
+| **判定·cap/cap·N=50·K=21** | 毛 **7.2650%** vs `g*` **33.5771%**；t=0.9252；MDE=20.4549% ⇒ **🚨 POWERLESS** | `g*(N,K) = required_excess(0.20, c_mkt=1.8087%, yrs=5.717213) + width_aware_friction(N,K)`；§6.2 四态，**`|毛超额| < MDE` 先判、盖住其余三态** | **市值加权 1.8087%** | N=50 / K=21 / MIN_BASKET=12 | ¥5万 | `data/reports/cap_weighted_benchmark_n50_k21.json`；`g*` 取自 `PREREG_CAP_WIDTH_GRID_2026-10-18.md` §4 冻结表（经 §3 的 `required_excess` + `width_aware_friction` 重算，六格逐格吻合 ±0.0000pp） | 毛/MDE/t/可测 = `::arms.C.gross_annual_pct` / `::arms.C.MDE_annual_pct` / `::arms.C.t_blocked` / `::arms.C.detectable`（六格全 `False`）；`::verdict = CAP_POSITIVE_NOT_SIG`；sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…`（第 125 层冻结成立） |
+| **判定·cap/cap·N=50·K=63** | 毛 **13.5020%** vs `g*` **23.1045%**；t=1.4645；MDE=19.7917% ⇒ **🚨 POWERLESS** | `g*(N,K) = required_excess(0.20, c_mkt=1.8087%, yrs=5.717213) + width_aware_friction(N,K)`；§6.2 四态，**`|毛超额| < MDE` 先判、盖住其余三态** | **市值加权 1.8087%** | N=50 / K=63 / MIN_BASKET=12 | ¥5万 | `data/reports/cap_weighted_benchmark_n50_k63.json`；`g*` 取自 `PREREG_CAP_WIDTH_GRID_2026-10-18.md` §4 冻结表（经 §3 的 `required_excess` + `width_aware_friction` 重算，六格逐格吻合 ±0.0000pp） | 毛/MDE/t/可测 = `::arms.C.gross_annual_pct` / `::arms.C.MDE_annual_pct` / `::arms.C.t_blocked` / `::arms.C.detectable`（六格全 `False`）；`::verdict = CAP_POSITIVE_NOT_SIG`；sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…`（第 125 层冻结成立） |
+
+🚨 **上面六行是同一族，跨格禁止比值**（预注册 §7.3）：`measured_over_required` 的分母 `g*` 逐格不同，且分子腿的 `::arms.C.detectable` 六格全为 `False` ⇒ **连符号都定不了**，比值无意义（🚨 这里刻意**不手打**六个比值：它们既被 §7.3 禁、又会在重跑后静默过期——读 `detectable` 字段即可，第 140 层）。**跨格唯一允许的形状陈述**（§7.4）：`g*` 随 N 单调递增、随 K 单调递减（六格全部成立）。
+
+🚨 **判决（六格全 `POWERLESS`）与预注册 §7.1 的事前预测一致**：六格全部填不上缺口。⚠️ `POWERLESS` **只等于「测不到」，不等于「没有超额」**（`::what_this_cannot_prove[3]` 逐字），**也不许写成「更近了」**（§7.2：门槛松弛 ≠ 达标）。最高的 t 是 N=30/K=63 的 **1.6906 < 1.96**，即**连显著性都没到**，遑论量级。
+
+⚠️ 毛超额**不随榜宽单调上升**（K=21: 9.4980 → 7.9455 → 7.2650 递减；K=63: 14.3230 → 15.8108 → 13.5020 非单调）⇒ 与等权/等权臂那个「榜越宽毛超额越高」的形状**方向相反**，本族不支持「加宽榜宽换毛超额」这条杠杆。
 
 ★ **方向声明（本表最容易被读反的一格，引用前必读）**：
 换成可投资的市值口径后，**市场腿从 9.9471% 掉到 1.8087%**，于是
@@ -1721,8 +1733,12 @@ K 链是串行长跑（~10 分钟/档）。我一边跑一边改了生成器
 `BASKET = 200` / `K = 21` 降级为 `_parse_args` 的 `default=` 来源，
 `:418/:431/:455/:461` 的 `run_arm` 已透传 `basket_n=args.basket_n`，
 `:579` 已接 `expect_bytes`（第 125 层）。
-⇒ **判决臂 C × 六格（N∈{10,30,50} × K∈{21,63}）正在跑**，
-逐格读数一律走 `产物路径 :: JSON 路径`，**并按第 143 层建行写进上方口径台账**。
+⇒ ✅ **判决臂 C × 六格（N∈{10,30,50} × K∈{21,63}）已于 2026-10-19 跑完**
+（串行 65 分钟，六格产物 + 六份 sidecar 齐全，`GRID_ALL_DONE`；
+sidecar `code_file_sha256` 六格全 = 生成器字节 `9c1a44f6…` ⇒ 第 125 层的字节冻结成立）。
+**判决：六格全部 `POWERLESS`**（最高 t = 1.6906 < 1.96），与预注册 §7.1 事前预测一致。
+六格读数已按第 143 层**建行**进上方口径台账（`判定·cap/cap·N=…·K=…` 六行），
+逐格引用一律走 `产物路径 :: JSON 路径`。
 ⚠️ 六格 `--out` 写 `cap_weighted_benchmark_n{N}_k{K}.json`，**绝不覆盖** `cap_weighted_benchmark.json`（全仓 24 个文件消费）。
 ⚠️ 但**判决腿**（`basket_nav_01` 的 `net_excess_bt003`）本来就是宽度 10 标的定
 （`bt003` 由 `annual_friction(50_000, 10, rate=0.0003, min_comm=5)` 一次算出）⇒ **交付配置本身已测过**。

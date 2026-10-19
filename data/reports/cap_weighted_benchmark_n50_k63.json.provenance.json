@@ -1,0 +1,9 @@
+{
+  "code_sha": "c51313e4538c19aeb8ddc4c1a68d20935b1b71e1",
+  "code_dirty": true,
+  "code_file_sha256": "9c1a44f64339229bed8b8a5a85dd758175c85375f46f523a9e9814afbce56f7a",
+  "data_fp": "5460:1792319402.222019",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/cap_weighted_benchmark.py",
+  "stamped_at": "2026-10-19T02:00:58+00:00"
+}
