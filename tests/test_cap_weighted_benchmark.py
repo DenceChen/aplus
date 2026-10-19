@@ -958,8 +958,10 @@ def test_the_artifacts_verdict_is_the_one_decide_gives_for_arm_c():
     而**不是「它是 C 臂算出来的那个」**。全仓没有任何守卫断言
     `out["verdict"] == decide(C.gross, C.t)`。
 
-    ⇒ 具体反例（审查 agent 实测过）：把 `scripts/cap_weighted_benchmark.py:422`
-      的 `decide(arms["C"][...])` 改成 `decide(arms["B"][...])`。
+    ⇒ 具体反例（审查 agent 实测过）：把 `scripts/cap_weighted_benchmark.py`
+      里的 `decide(arms["C"][...])` 改成 `decide(arms["B"][...])`
+      （2026-10-19 实测在 **:493**；🚨 行号会漂，**权威锚是那个表达式本身**
+      ——`decide(arms[` 在 `scripts/` 与 `aplus/` 源码里**仅此一处**）。
       B 臂 gross = **+14.99%**、t = **2.2914 ≥ 1.96**
       ⇒ 判决变成 **`CAP_FACTOR_WORKS`「因子有效」**，三处相关守卫**全绿**。
     ⇒ 真实结论是「C 臂 t = 1.638，未显著」，报告却会把「因子有效」绿灯出去，
