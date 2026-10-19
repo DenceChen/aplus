@@ -512,6 +512,18 @@ DEFAULT_GENERATORS: dict[str, str] = {
 PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"^wf_weights_backtest_k\d+\.json$"),
      "scripts/backtest_walk_forward_weights.py"),
+    #   判决臂 C 的六格（N∈{10,30,50} × K∈{21,63}），预注册
+    #   `docs/PREREG_CAP_WIDTH_GRID_2026-10-18.md`（2026-10-19 跑完）。
+    #   🚨 走**模式表**而不是往 `DEFAULT_GENERATORS` 里写六个名字：
+    #   六格是同一生成器的第 2~7 份输出，枚举写法下**新增一格就又漏登记**
+    #   （CLAUDE.md 形状 17：同一语义被处理 N−1 次）。
+    #   基名 `cap_weighted_benchmark.json`（N=200/K=21 的既有产物）在
+    #   `DEFAULT_GENERATORS` 里，且**先查精确表**，所以它归精确表管。
+    #   ⚠️ 刻意**不写**「两条互不遮蔽」这类话：两者指向**同一个脚本** ⇒
+    #      返回值逐位相同 ⇒「谁命中的」在行为上不可观测（形状 23 之后那条
+    #      **散文里的公式没有守卫**的变体：留着一句没人能验的宣称）。
+    (re.compile(r"^cap_weighted_benchmark_n\d+_k\d+\.json$"),
+     "scripts/cap_weighted_benchmark.py"),
 ]
 
 
