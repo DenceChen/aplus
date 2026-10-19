@@ -1,9 +1,9 @@
 {
-  "code_sha": "5e6bab458265d3a1c255c7e27d1b7d383c80c06a",
+  "code_sha": "7bff510166196991eb79e1a97e5fb36f545c3a90",
   "code_dirty": true,
-  "code_file_sha256": "a1ddb6a39d8ea3debf4690a5f3d08d7ced8740abc6237fa981429862b1d8ab0d",
-  "data_fp": "5460:1792002326.672246",
+  "code_file_sha256": "9c1a44f64339229bed8b8a5a85dd758175c85375f46f523a9e9814afbce56f7a",
+  "data_fp": "5460:1792319402.222019",
   "data_dir": "data/master/daily",
   "generator": "scripts/cap_weighted_benchmark.py",
-  "stamped_at": "2026-10-15T08:46:21+00:00"
+  "stamped_at": "2026-10-19T00:21:55+00:00"
 }

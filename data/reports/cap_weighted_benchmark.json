@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-15",
+  "generated": "2026-10-19",
   "prereg": "docs/TODO_cap_weighted_benchmark_2026-10-15.md",
   "window_arg": [
     "2021-01-01",
@@ -150,10 +150,10 @@
   },
   "verdict": "CAP_POSITIVE_NOT_SIG",
   "verdict_branch": "C 臂毛超额 +12.49%/年 > 0 但 t = 1.64 < 1.9600 ⇒ 方向为正、**在现有样本上测不到显著性**。⚠️ 这不等于「没有超额」，只等于「测不到」——必须与 MDE 并排读。",
-  "cost_assumptions_unchanged": "预注册 §4：成本链 / MIN_BASKET 规则 / K=21 / 窗口起点 2021-01-01 全部未改。本脚本不定义 FEE_SCHEDULE、COST_REAL_50K、MIN_BASKET、COST_REAL_CAPITAL、EQUITY_WEIGHT 中的任何一个。",
+  "cost_assumptions_unchanged": "预注册 §4：成本链 / MIN_BASKET 规则 / K=21 / 窗口起点 2021-01-01 全部未改（K 由 --k 传入，默认 21）。本脚本不定义 FEE_SCHEDULE、COST_REAL_50K、MIN_BASKET、COST_REAL_CAPITAL、EQUITY_WEIGHT 中的任何一个。",
   "what_this_cannot_prove": [
     "全样本内（权重用同一段历史拟合）⇒ 量级偏乐观，只有符号与排序有参考价值",
-    "**不能证明前瞻有效性**，也不能证明 20%/年（5 万本金 N=10 需 ≥26.41% 毛超额）",
+    "**不能证明前瞻有效性**，也不能证明 20%/年（5 万本金下所需毛超额不是一个数，是一族 —— 见 docs/PREREG_CAP_WIDTH_GRID_2026-10-18.md §4 的 g* 表，随 (基准臂, N, K) 变；⚠️ 本产物只报毛超额，**不判定**够不够线）",
     "摩擦正下界 4.787%/年与本判决无关、也不因本判决改变",
     "「t < t_crit」只等于「测不到」，**不等于「没有超额」** —— 必须与 MDE 并排读",
     "B 臂只用于分解；⚠️ A 臂的数字一律不得作为最终结论"

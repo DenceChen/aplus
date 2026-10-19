@@ -210,7 +210,7 @@ def arm_stats(series: pd.Series, k: int, mb: int, *,
 def run_arm(xs, wmap, judged, by_year, *, portfolio_cap, benchmark_cap,
             cap_ctx=None, score_transform=None,
             portfolio_weighting: str, benchmark_weighting: str,
-            k: int, mb: int) -> tuple[dict, pd.Series]:
+            k: int, mb: int, basket_n: int) -> tuple[dict, pd.Series]:
     """跑一整臂，返回 `(那一臂的数字, 毛超额逐日序列)`。
 
     ★ 逐年拆开跑、最后用 `series_from_chunks` 拼回一条 ——
@@ -220,7 +220,7 @@ def run_arm(xs, wmap, judged, by_year, *, portfolio_cap, benchmark_cap,
     chunks: list = []
     per_year = []
     for y in judged:
-        r = run_year(xs, wmap[y]["weights"], by_year[y], BASKET, BASKET, k,
+        r = run_year(xs, wmap[y]["weights"], by_year[y], basket_n, basket_n, k,
                      daily_out=chunks,
                      score_transform=score_transform,
                      benchmark_cap=benchmark_cap, portfolio_cap=portfolio_cap,
@@ -307,7 +307,8 @@ def _size_tilt_label(ratio: float | None) -> str:
 
 def main(argv=None) -> int:
     args = _parse_args(argv)
-    with begin_run("cap_weighted_benchmark", basket=BASKET, k=K, start=args.start):
+    with begin_run("cap_weighted_benchmark", basket=args.basket_n, k=args.k,
+                   start=args.start):
         return _run(args)
 
 
@@ -322,6 +323,11 @@ def _parse_args(argv=None):
                     default=Path("data/reports/ic_matrices.parquet"))
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/cap_weighted_benchmark.json"))
+    ap.add_argument("--basket-n", type=int, default=BASKET,
+                    help="★ 榜宽（预注册 §4：判决臂跑 10/30/50，"
+                         "此处默认 200 仅复现既有产物）")
+    ap.add_argument("--k", type=int, default=K,
+                    help="★ 调仓周期（预注册 §4：判决臂跑 21 与 63）")
     return ap.parse_args(argv)
 
 
@@ -386,8 +392,8 @@ def _run(args) -> int:
         print("🚨 没有任何判决年份")
         return 1
 
-    mb = scaled_min_basket(BASKET)
-    print(f"\n判决年 {judged}｜N={BASKET}｜K={K}｜MIN_BASKET={mb}"
+    mb = scaled_min_basket(args.basket_n)
+    print(f"\n判决年 {judged}｜N={args.basket_n}｜K={args.k}｜MIN_BASKET={mb}"
           f"（scaled_min_basket，从 factor_width_mde import）"
           f"｜t_crit={T_CRIT_5PCT:.6f}（从 factor_attribution import）")
     print(f"窗口 {args.start} ~ {args.end}（末端钉死，见形状 23）")
@@ -409,7 +415,7 @@ def _run(args) -> int:
                        cap_ctx=CapContext(cap_table),
                        portfolio_weighting="cap", benchmark_weighting="cap")),
         ):
-            stats, ser = run_arm(xs, wmap, judged, by_year, k=K, mb=mb, **kw)
+            stats, ser = run_arm(xs, wmap, judged, by_year, k=args.k, mb=mb, basket_n=args.basket_n, **kw)
             arms[name], series[name] = stats, ser
             _print_arm(name, stats)
             sys.stdout.flush()
@@ -422,7 +428,7 @@ def _run(args) -> int:
         #   舍入顺序不同，所以是容差相等而不是逐位相等 —— 逐位那条在
         #   `_daily_series(weights_col=None)` 的单元守卫上钉。）
         uniform_ctx = CapContext(CapTable(daily_map, weight_override=1.0))
-        v_stats, _ = run_arm(xs, wmap, judged, by_year, k=K, mb=mb,
+        v_stats, _ = run_arm(xs, wmap, judged, by_year, k=args.k, mb=mb, basket_n=args.basket_n,
                              portfolio_cap=True, benchmark_cap=True,
                              cap_ctx=uniform_ctx,
                              portfolio_weighting="cap(uniform)",
@@ -447,13 +453,13 @@ def _run(args) -> int:
         # ── 预注册 §3.3：`a_shares` 作为单因子的分块 t（**诊断，不是判据**）──
         st = a_shares_score_transform(cap_table)
         shares_eq, _ = run_arm(
-            xs, wmap, judged, by_year, k=K, mb=mb,
+            xs, wmap, judged, by_year, k=args.k, mb=mb, basket_n=args.basket_n,
             portfolio_cap=False, benchmark_cap=False,
             portfolio_weighting="equal(a_shares only)",
             benchmark_weighting="equal",
             score_transform=st)
         shares_cap_b, _ = run_arm(
-            xs, wmap, judged, by_year, k=K, mb=mb,
+            xs, wmap, judged, by_year, k=args.k, mb=mb, basket_n=args.basket_n,
             portfolio_cap=False, benchmark_cap=True,
             portfolio_weighting="equal(a_shares only)",
             benchmark_weighting="cap",
@@ -476,7 +482,8 @@ def _run(args) -> int:
     # ── 诊断：组合 vs 基准的流通市值中位数比（预注册 §3.1）──
     ctx_c = CapContext(cap_table)
     port_diag = _diag_for_portfolio(xs, wmap, judged, by_year, ctx_c, mb,
-                                    reference=arms["C"]["gross_annual_pct"])
+                                    reference=arms["C"]["gross_annual_pct"],
+                                    k=args.k, basket_n=args.basket_n)
     ratio, dropped = median_ratio_by_day(port_diag,
                                          ctx_bench.diag.get("benchmark", {}))
     print("─" * 108)
@@ -498,8 +505,8 @@ def _run(args) -> int:
         "generated": date.today().isoformat(),
         "prereg": "docs/TODO_cap_weighted_benchmark_2026-10-15.md",
         "window_arg": [args.start, args.end],
-        "k_rebalance_every": K,
-        "basket_n": BASKET,
+        "k_rebalance_every": args.k,
+        "basket_n": args.basket_n,
         "min_basket": int(mb),
         "min_basket_source": "factor_width_mde.scaled_min_basket（import，不重定义）",
         "t_crit": T_CRIT_5PCT,
@@ -551,12 +558,16 @@ def _run(args) -> int:
         "verdict": verdict,
         "verdict_branch": branch,
         "cost_assumptions_unchanged": (
-            "预注册 §4：成本链 / MIN_BASKET 规则 / K=21 / 窗口起点 2021-01-01 "
-            "全部未改。本脚本不定义 FEE_SCHEDULE、COST_REAL_50K、MIN_BASKET、"
+            f"预注册 §4：成本链 / MIN_BASKET 规则 / K={args.k} / 窗口起点 "
+            f"{args.start} 全部未改（K 由 --k 传入，默认 21）。"
+            "本脚本不定义 FEE_SCHEDULE、COST_REAL_50K、MIN_BASKET、"
             "COST_REAL_CAPITAL、EQUITY_WEIGHT 中的任何一个。"),
         "what_this_cannot_prove": [
             "全样本内（权重用同一段历史拟合）⇒ 量级偏乐观，只有符号与排序有参考价值",
-            "**不能证明前瞻有效性**，也不能证明 20%/年（5 万本金 N=10 需 ≥26.41% 毛超额）",
+            "**不能证明前瞻有效性**，也不能证明 20%/年"
+            f"（5 万本金下所需毛超额不是一个数，是一族 —— 见 "
+            f"docs/PREREG_CAP_WIDTH_GRID_2026-10-18.md §4 的 g* 表，"
+            f"随 (基准臂, N, K) 变；⚠️ 本产物只报毛超额，**不判定**够不够线）",
             "摩擦正下界 4.787%/年与本判决无关、也不因本判决改变",
             "「t < t_crit」只等于「测不到」，**不等于「没有超额」** —— 必须与 MDE 并排读",
             "B 臂只用于分解；⚠️ A 臂的数字一律不得作为最终结论",
@@ -570,7 +581,8 @@ def _run(args) -> int:
     return 0
 
 
-def _diag_for_portfolio(xs, wmap, judged, by_year, ctx, mb, reference: float):
+def _diag_for_portfolio(xs, wmap, judged, by_year, ctx, mb, reference: float,
+                        *, k: int, basket_n: int):
     """重跑一遍 C 臂的组合端，只为把 `CapContext.diag["portfolio"]` 取出来。
 
     ⚠️ **为什么值得多花一趟**：这个比值的分子只存在于
@@ -583,7 +595,7 @@ def _diag_for_portfolio(xs, wmap, judged, by_year, ctx, mb, reference: float):
       对不上就说明它们量的根本不是同一件事，而差值会被当成诊断印进报告。
     """
     verify_mod.MIN_BASKET = mb
-    stats, _ = run_arm(xs, wmap, judged, by_year, k=K, mb=mb,
+    stats, _ = run_arm(xs, wmap, judged, by_year, k=k, mb=mb, basket_n=basket_n,
                        portfolio_cap=True, benchmark_cap=True, cap_ctx=ctx,
                        portfolio_weighting="cap", benchmark_weighting="cap")
     got = stats["gross_annual_pct"]
