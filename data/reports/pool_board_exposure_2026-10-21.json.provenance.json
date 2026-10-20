@@ -1,0 +1,27 @@
+{
+  "code_sha": "f26ea5a1afbc79d9433668542b2be973613c1278",
+  "code_dirty": true,
+  "code_file_sha256": "b17e3abf8bc35edadf7b6d7e5929e1016a80a202baf7c7f91477cadb06954658",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_pool_board_exposure.py",
+  "stamped_at": "2026-10-20T16:50:37+00:00",
+  "capital": 50000.0,
+  "slot_budget_per_name": 5000.0,
+  "n_prediction_files": 10,
+  "pred_dates": [
+    "2026-10-09",
+    "2026-10-10",
+    "2026-10-11",
+    "2026-10-12",
+    "2026-10-13",
+    "2026-10-14",
+    "2026-10-15",
+    "2026-10-16",
+    "2026-10-19",
+    "2026-10-20"
+  ],
+  "pool_size": 5460,
+  "lot_shares_STAR": 200,
+  "lot_shares_default": 100
+}

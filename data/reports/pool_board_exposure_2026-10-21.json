@@ -1,0 +1,3637 @@
+{
+  "caliber": {
+    "title": "候选池与预测名单的板块暴露 + 整手可买性（**只量可执行性，不量收益**）",
+    "generated_for": "docs/PREREG_POOL_BOARD_FILTER_2026-10-21.md",
+    "capital": 50000.0,
+    "slot_budget_per_name": 5000.0,
+    "slot_budget_note": "= ¥50,000 ÷ 10（10 涨腿等权一份）＝ aplus/alloc.py per_stock_cap 0.10",
+    "board_rule": {
+      "by": "**只认代码前缀**，与价格无关（aplus/webapp.py:456-460 逐字禁止「价格高就 200 股」那种推断）",
+      "map": {
+        "STAR": [
+          "688",
+          "689"
+        ],
+        "CHINEXT": [
+          "300",
+          "301"
+        ],
+        "SH_MAIN": [
+          "600",
+          "601",
+          "603",
+          "605"
+        ],
+        "SZ_MAIN": [
+          "000",
+          "001",
+          "002",
+          "003"
+        ],
+        "BSE": [
+          "920",
+          "43",
+          "83",
+          "87",
+          "88"
+        ]
+      },
+      "other_note": "`302`（池里 1 只）**不在** `aplus/panel.py:170` 的 ±20% 板名单（300/301/688/689）里 ⇒ 按仓库自身规则归 OTHER 并单列。"
+    },
+    "lot_rule": {
+      "rule": "688/689 = **200 股**一手；其余（主板/创业板/北交所）= **100 股**一手",
+      "evidence_level": "⚠️ **外部交易所规则 · 本仓无数据源**。本仓只能证明「688/689 是科创板」（aplus/panel.py::price_limit 认这两个前缀）；「起买 200 股」**没有仓内数据源** ⇒ 写成显式常量并在此自报证据等级。",
+      "same_rule_in_repo": [
+        "aplus/webapp.py::lot_shares_for",
+        "scripts/measure_deployed_d2.py::lot_shares"
+      ]
+    },
+    "price_rule": {
+      "source": "主库 data/master/daily/{code}.parquet 的 close 列",
+      "as_of": "**取 date <= pred_date 的最后一根 bar**（出单时刻真正看得见的价）",
+      "adjusted": "**不复权**（判「买不买得起」用当日真实成交价；判「收益」才用后复权）",
+      "missing": "**缺价 ⇒ 显式缺失**（`n_price_missing`），**不编 0**、不当成「免费」"
+    },
+    "down_leg_scope": "**跌腿只报、不据此过滤**：跌腿是**回避清单**、不占资金（docs/PREREG_AFFORDABILITY_2026-10-16.md §6.3；A 股散户融不到券）。⇒ 板块/权限/整手约束**只作用于涨腿**。",
+    "permission": "**本产物一个字都不判定权限**：「科创板需 50 万 + 24 个月、创业板需 10 万 + 24 个月」是**外部常识·本仓无权限模型**（`grep -rn '开通权限\\|交易权限' aplus/ scripts/` 命中 0）⇒ 见 PREREG §4 的条件分支。",
+    "not_registered_in_default_generators": "本脚本**未**登记进 `aplus/provenance.py::DEFAULT_GENERATORS`（本轮不改 `aplus/` 下任何模块）⇒ 引用本产物时须**显式传 generator**。"
+  },
+  "inputs": {
+    "prediction_dir": "/Users/airboom/opencode/aplus/data/reports/predictions",
+    "n_prediction_files": 10,
+    "pred_dates": [
+      "2026-10-09",
+      "2026-10-10",
+      "2026-10-11",
+      "2026-10-12",
+      "2026-10-13",
+      "2026-10-14",
+      "2026-10-15",
+      "2026-10-16",
+      "2026-10-19",
+      "2026-10-20"
+    ],
+    "daily_dir": "/Users/airboom/opencode/aplus/data/master/daily",
+    "pool_size": 5460,
+    "n_rows_read": 5460
+  },
+  "pool_composition": {
+    "note": "**股票只数**（不随天数放大）。⚠️ 与 `pool_affordability_by_board.aggregate`的**观测数**（股票 × 天）**不是同一个量**（第 7 层）⇒ 不许混引。",
+    "by_board": {
+      "SH_MAIN": {
+        "n_stocks": 1795,
+        "share_of_pool_stocks": 0.32875457875457875
+      },
+      "SZ_MAIN": {
+        "n_stocks": 1595,
+        "share_of_pool_stocks": 0.29212454212454214
+      },
+      "CHINEXT": {
+        "n_stocks": 1448,
+        "share_of_pool_stocks": 0.2652014652014652
+      },
+      "STAR": {
+        "n_stocks": 621,
+        "share_of_pool_stocks": 0.11373626373626373
+      },
+      "OTHER": {
+        "n_stocks": 1,
+        "share_of_pool_stocks": 0.00018315018315018315
+      }
+    },
+    "n_pool_total": 5460,
+    "prefix_to_board": {
+      "688": "STAR",
+      "689": "STAR",
+      "300": "CHINEXT",
+      "301": "CHINEXT",
+      "600": "SH_MAIN",
+      "601": "SH_MAIN",
+      "603": "SH_MAIN",
+      "605": "SH_MAIN",
+      "000": "SZ_MAIN",
+      "001": "SZ_MAIN",
+      "002": "SZ_MAIN",
+      "003": "SZ_MAIN",
+      "920": "BSE",
+      "43": "BSE",
+      "83": "BSE",
+      "87": "BSE",
+      "88": "BSE"
+    }
+  },
+  "pool_affordability_by_board": {
+    "note": "各板在**每一天**的「1 手 ≤ ¥5,000」比例（分母 = 该板**当日有价**的只数）。`aggregate` 的分母是**观测数**（股票 × 天），**不是股票只数**。",
+    "per_date": {
+      "2026-10-09": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1708,
+          "afford_OK_ratio": 0.9515320334261839,
+          "n_afford_B_SLOT": 86,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1526,
+          "afford_OK_ratio": 0.9567398119122257,
+          "n_afford_B_SLOT": 68,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1254,
+          "afford_OK_ratio": 0.8660220994475138,
+          "n_afford_B_SLOT": 191,
+          "n_afford_A_PHYSICAL": 3
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 207,
+          "afford_OK_ratio": 0.3333333333333333,
+          "n_afford_B_SLOT": 386,
+          "n_afford_A_PHYSICAL": 28
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-10": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1708,
+          "afford_OK_ratio": 0.9515320334261839,
+          "n_afford_B_SLOT": 86,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1526,
+          "afford_OK_ratio": 0.9567398119122257,
+          "n_afford_B_SLOT": 68,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1254,
+          "afford_OK_ratio": 0.8660220994475138,
+          "n_afford_B_SLOT": 191,
+          "n_afford_A_PHYSICAL": 3
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 207,
+          "afford_OK_ratio": 0.3333333333333333,
+          "n_afford_B_SLOT": 386,
+          "n_afford_A_PHYSICAL": 28
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-11": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1708,
+          "afford_OK_ratio": 0.9515320334261839,
+          "n_afford_B_SLOT": 86,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1526,
+          "afford_OK_ratio": 0.9567398119122257,
+          "n_afford_B_SLOT": 68,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1254,
+          "afford_OK_ratio": 0.8660220994475138,
+          "n_afford_B_SLOT": 191,
+          "n_afford_A_PHYSICAL": 3
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 207,
+          "afford_OK_ratio": 0.3333333333333333,
+          "n_afford_B_SLOT": 386,
+          "n_afford_A_PHYSICAL": 28
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-12": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1709,
+          "afford_OK_ratio": 0.9520891364902507,
+          "n_afford_B_SLOT": 85,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1529,
+          "afford_OK_ratio": 0.9586206896551724,
+          "n_afford_B_SLOT": 65,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1259,
+          "afford_OK_ratio": 0.869475138121547,
+          "n_afford_B_SLOT": 188,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 213,
+          "afford_OK_ratio": 0.34299516908212563,
+          "n_afford_B_SLOT": 380,
+          "n_afford_A_PHYSICAL": 28
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-13": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1712,
+          "afford_OK_ratio": 0.9537604456824512,
+          "n_afford_B_SLOT": 82,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1529,
+          "afford_OK_ratio": 0.9586206896551724,
+          "n_afford_B_SLOT": 65,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1260,
+          "afford_OK_ratio": 0.8701657458563536,
+          "n_afford_B_SLOT": 187,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 216,
+          "afford_OK_ratio": 0.34782608695652173,
+          "n_afford_B_SLOT": 376,
+          "n_afford_A_PHYSICAL": 29
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-14": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1714,
+          "afford_OK_ratio": 0.954874651810585,
+          "n_afford_B_SLOT": 80,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1532,
+          "afford_OK_ratio": 0.9605015673981191,
+          "n_afford_B_SLOT": 62,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1269,
+          "afford_OK_ratio": 0.8763812154696132,
+          "n_afford_B_SLOT": 177,
+          "n_afford_A_PHYSICAL": 2
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 226,
+          "afford_OK_ratio": 0.3639291465378422,
+          "n_afford_B_SLOT": 368,
+          "n_afford_A_PHYSICAL": 27
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-15": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1716,
+          "afford_OK_ratio": 0.9559888579387187,
+          "n_afford_B_SLOT": 78,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1536,
+          "afford_OK_ratio": 0.9630094043887147,
+          "n_afford_B_SLOT": 58,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1283,
+          "afford_OK_ratio": 0.886049723756906,
+          "n_afford_B_SLOT": 163,
+          "n_afford_A_PHYSICAL": 2
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 233,
+          "afford_OK_ratio": 0.3752012882447665,
+          "n_afford_B_SLOT": 362,
+          "n_afford_A_PHYSICAL": 26
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-16": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1717,
+          "afford_OK_ratio": 0.9565459610027855,
+          "n_afford_B_SLOT": 77,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1538,
+          "afford_OK_ratio": 0.9642633228840125,
+          "n_afford_B_SLOT": 56,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1282,
+          "afford_OK_ratio": 0.8853591160220995,
+          "n_afford_B_SLOT": 164,
+          "n_afford_A_PHYSICAL": 2
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 232,
+          "afford_OK_ratio": 0.37359098228663445,
+          "n_afford_B_SLOT": 363,
+          "n_afford_A_PHYSICAL": 26
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-19": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1717,
+          "afford_OK_ratio": 0.9565459610027855,
+          "n_afford_B_SLOT": 77,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1537,
+          "afford_OK_ratio": 0.9636363636363636,
+          "n_afford_B_SLOT": 57,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1281,
+          "afford_OK_ratio": 0.8846685082872928,
+          "n_afford_B_SLOT": 165,
+          "n_afford_A_PHYSICAL": 2
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 236,
+          "afford_OK_ratio": 0.38003220611916266,
+          "n_afford_B_SLOT": 358,
+          "n_afford_A_PHYSICAL": 27
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      },
+      "2026-10-20": {
+        "SH_MAIN": {
+          "n": 1795,
+          "n_priced": 1795,
+          "n_price_missing": 0,
+          "n_afford_OK": 1715,
+          "afford_OK_ratio": 0.9554317548746518,
+          "n_afford_B_SLOT": 79,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "SZ_MAIN": {
+          "n": 1595,
+          "n_priced": 1595,
+          "n_price_missing": 0,
+          "n_afford_OK": 1532,
+          "afford_OK_ratio": 0.9605015673981191,
+          "n_afford_B_SLOT": 62,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "CHINEXT": {
+          "n": 1448,
+          "n_priced": 1448,
+          "n_price_missing": 0,
+          "n_afford_OK": 1271,
+          "afford_OK_ratio": 0.8777624309392266,
+          "n_afford_B_SLOT": 176,
+          "n_afford_A_PHYSICAL": 1
+        },
+        "STAR": {
+          "n": 621,
+          "n_priced": 621,
+          "n_price_missing": 0,
+          "n_afford_OK": 228,
+          "afford_OK_ratio": 0.3671497584541063,
+          "n_afford_B_SLOT": 365,
+          "n_afford_A_PHYSICAL": 28
+        },
+        "OTHER": {
+          "n": 1,
+          "n_priced": 1,
+          "n_price_missing": 0,
+          "n_afford_OK": 0,
+          "afford_OK_ratio": 0.0,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0
+        }
+      }
+    },
+    "aggregate": {
+      "SH_MAIN": {
+        "n_obs": 17950,
+        "n_obs_priced": 17950,
+        "n_obs_price_missing": 0,
+        "n_stocks": 1795,
+        "n_afford_OK": 17124,
+        "afford_OK_ratio": 0.953983286908078,
+        "n_afford_B_SLOT": 816,
+        "n_afford_A_PHYSICAL": 10
+      },
+      "SZ_MAIN": {
+        "n_obs": 15950,
+        "n_obs_priced": 15950,
+        "n_obs_price_missing": 0,
+        "n_stocks": 1595,
+        "n_afford_OK": 15311,
+        "afford_OK_ratio": 0.9599373040752351,
+        "n_afford_B_SLOT": 629,
+        "n_afford_A_PHYSICAL": 10
+      },
+      "CHINEXT": {
+        "n_obs": 14480,
+        "n_obs_priced": 14480,
+        "n_obs_price_missing": 0,
+        "n_stocks": 1448,
+        "n_afford_OK": 12667,
+        "afford_OK_ratio": 0.874792817679558,
+        "n_afford_B_SLOT": 1793,
+        "n_afford_A_PHYSICAL": 20
+      },
+      "STAR": {
+        "n_obs": 6210,
+        "n_obs_priced": 6210,
+        "n_obs_price_missing": 0,
+        "n_stocks": 621,
+        "n_afford_OK": 2205,
+        "afford_OK_ratio": 0.35507246376811596,
+        "n_afford_B_SLOT": 3730,
+        "n_afford_A_PHYSICAL": 275
+      },
+      "OTHER": {
+        "n_obs": 10,
+        "n_obs_priced": 10,
+        "n_obs_price_missing": 0,
+        "n_stocks": 1,
+        "n_afford_OK": 0,
+        "afford_OK_ratio": 0.0,
+        "n_afford_B_SLOT": 10,
+        "n_afford_A_PHYSICAL": 0
+      }
+    }
+  },
+  "up_leg_aggregate": {
+    "by_board": {
+      "SH_MAIN": {
+        "n": 23,
+        "n_priced": 23,
+        "n_price_missing": 0,
+        "n_afford_OK": 20,
+        "n_afford_B_SLOT": 3,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 56634.0,
+        "budget_capped_spend": 48400.0,
+        "lot_cost_share": 0.038939367374511404,
+        "budget_capped_share": 0.14190219303389234,
+        "afford_OK_ratio": 0.8695652173913043
+      },
+      "SZ_MAIN": {
+        "n": 25,
+        "n_priced": 25,
+        "n_price_missing": 0,
+        "n_afford_OK": 20,
+        "n_afford_B_SLOT": 5,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 141229.0,
+        "budget_capped_spend": 67787.0,
+        "lot_cost_share": 0.09710364648329398,
+        "budget_capped_share": 0.19874223056174503,
+        "afford_OK_ratio": 0.8
+      },
+      "CHINEXT": {
+        "n": 17,
+        "n_priced": 17,
+        "n_price_missing": 0,
+        "n_afford_OK": 11,
+        "n_afford_B_SLOT": 6,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 78578.0,
+        "budget_capped_spend": 54505.0,
+        "lot_cost_share": 0.05402722056634454,
+        "budget_capped_share": 0.15980121965521285,
+        "afford_OK_ratio": 0.6470588235294118
+      },
+      "STAR": {
+        "n": 35,
+        "n_priced": 35,
+        "n_price_missing": 0,
+        "n_afford_OK": 4,
+        "n_afford_B_SLOT": 28,
+        "n_afford_A_PHYSICAL": 3,
+        "lot_cost_sum": 1177974.0,
+        "budget_capped_spend": 170388.0,
+        "lot_cost_share": 0.8099297655758501,
+        "budget_capped_share": 0.4995543567491498,
+        "afford_OK_ratio": 0.11428571428571428
+      }
+    },
+    "totals": {
+      "n_slots": 100,
+      "n_priced": 100,
+      "n_price_missing": 0,
+      "n_afford_OK": 55,
+      "n_afford_B_SLOT": 42,
+      "n_afford_A_PHYSICAL": 3,
+      "afford_OK_ratio": 0.55,
+      "lot_cost_sum": 1454415.0,
+      "budget_capped_spend": 341080.0
+    }
+  },
+  "down_leg_aggregate": {
+    "by_board": {
+      "SH_MAIN": {
+        "n": 39,
+        "n_priced": 39,
+        "n_price_missing": 0,
+        "n_afford_OK": 35,
+        "n_afford_B_SLOT": 4,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 72965.0,
+        "budget_capped_spend": 65880.0,
+        "lot_cost_share": 0.20991987571385418,
+        "budget_capped_share": 0.3065383684788475,
+        "afford_OK_ratio": 0.8974358974358975
+      },
+      "SZ_MAIN": {
+        "n": 33,
+        "n_priced": 33,
+        "n_price_missing": 0,
+        "n_afford_OK": 33,
+        "n_afford_B_SLOT": 0,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 55445.0,
+        "budget_capped_spend": 55445.0,
+        "lot_cost_share": 0.15951493879195017,
+        "budget_capped_share": 0.2579845148802323,
+        "afford_OK_ratio": 1.0
+      },
+      "CHINEXT": {
+        "n": 19,
+        "n_priced": 19,
+        "n_price_missing": 0,
+        "n_afford_OK": 18,
+        "n_afford_B_SLOT": 1,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 48971.0,
+        "budget_capped_spend": 48591.0,
+        "lot_cost_share": 0.1408892788814247,
+        "budget_capped_share": 0.22609298516629753,
+        "afford_OK_ratio": 0.9473684210526315
+      },
+      "STAR": {
+        "n": 9,
+        "n_priced": 9,
+        "n_price_missing": 0,
+        "n_afford_OK": 0,
+        "n_afford_B_SLOT": 9,
+        "n_afford_A_PHYSICAL": 0,
+        "lot_cost_sum": 170204.0,
+        "budget_capped_spend": 45000.0,
+        "lot_cost_share": 0.489675906612771,
+        "budget_capped_share": 0.20938413147462265,
+        "afford_OK_ratio": 0.0
+      }
+    },
+    "totals": {
+      "n_slots": 100,
+      "n_priced": 100,
+      "n_price_missing": 0,
+      "n_afford_OK": 86,
+      "n_afford_B_SLOT": 14,
+      "n_afford_A_PHYSICAL": 0,
+      "afford_OK_ratio": 0.86,
+      "lot_cost_sum": 347585.0,
+      "budget_capped_spend": 214916.0
+    },
+    "scope": "**只报，不据此过滤**（跌腿是回避清单、不占资金）"
+  },
+  "days": [
+    {
+      "pred_date": "2026-10-09",
+      "source_file": "pred_2026-10-09.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 10,
+            "n_priced": 10,
+            "n_price_missing": 0,
+            "lot_cost_sum": 14627.0,
+            "budget_capped_spend": 14627.0,
+            "n_afford_OK": 10,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 1.0,
+            "budget_capped_share": 1.0
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 14627.0,
+          "budget_capped_spend": 14627.0,
+          "idle_cash": 35373.0,
+          "n_afford_OK": 10,
+          "n_afford_B_SLOT": 0,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 10,
+            "n_priced": 10,
+            "n_price_missing": 0,
+            "lot_cost_sum": 13016.0,
+            "budget_capped_spend": 10996.0,
+            "n_afford_OK": 9,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 1.0,
+            "budget_capped_share": 1.0
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 13016.0,
+          "budget_capped_spend": 10996.0,
+          "idle_cash": 39004.0,
+          "n_afford_OK": 9,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "600641.SH",
+          "name": "先导基电",
+          "board": "SH_MAIN",
+          "close": 44.66,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 4466.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600127.SH",
+          "name": "金健米业",
+          "board": "SH_MAIN",
+          "close": 15.18,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1518.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600617.SH",
+          "name": "国新能源",
+          "board": "SH_MAIN",
+          "close": 3.72,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 372.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600059.SH",
+          "name": "古越龙山",
+          "board": "SH_MAIN",
+          "close": 11.66,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1166.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600371.SH",
+          "name": "万向德农",
+          "board": "SH_MAIN",
+          "close": 14.97,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1497.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600418.SH",
+          "name": "江淮汽车",
+          "board": "SH_MAIN",
+          "close": 22.75,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 2275.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600400.SH",
+          "name": "红豆股份",
+          "board": "SH_MAIN",
+          "close": 3.98,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 398.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600354.SH",
+          "name": "敦煌种业",
+          "board": "SH_MAIN",
+          "close": 9.99,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 999.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600081.SH",
+          "name": "东风科技",
+          "board": "SH_MAIN",
+          "close": 10.6,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1060.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600189.SH",
+          "name": "泉阳泉",
+          "board": "SH_MAIN",
+          "close": 8.76,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 876.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 10,
+          "n_current_up_affordable_OK": 10,
+          "n_slots_to_fill": 0,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4488,
+          "pool_affordable_rate": 0.9276560562215792,
+          "expected_n_affordable": 10.0,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 10,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 10,
+          "n_current_up_affordable_OK": 10,
+          "n_slots_to_fill": 0,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3234,
+          "pool_affordable_rate": 0.9539823008849557,
+          "expected_n_affordable": 10.0,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 10,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-10",
+      "source_file": "pred_2026-10-10.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 5,
+            "n_priced": 5,
+            "n_price_missing": 0,
+            "lot_cost_sum": 7484.0,
+            "budget_capped_spend": 7484.0,
+            "n_afford_OK": 5,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.5011047874121192,
+            "budget_capped_share": 0.5011047874121192
+          },
+          "SZ_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 4870.0,
+            "budget_capped_spend": 4870.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.3260796786072983,
+            "budget_capped_share": 0.3260796786072983
+          },
+          "CHINEXT": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 2581.0,
+            "budget_capped_spend": 2581.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.17281553398058253,
+            "budget_capped_share": 0.17281553398058253
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 14935.0,
+          "budget_capped_spend": 14935.0,
+          "idle_cash": 35065.0,
+          "n_afford_OK": 10,
+          "n_afford_B_SLOT": 0,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3515.0,
+            "budget_capped_spend": 3515.0,
+            "n_afford_OK": 4,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.399977241693218,
+            "budget_capped_share": 0.399977241693218
+          },
+          "SZ_MAIN": {
+            "n": 5,
+            "n_priced": 5,
+            "n_price_missing": 0,
+            "lot_cost_sum": 4469.0,
+            "budget_capped_spend": 4469.0,
+            "n_afford_OK": 5,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.5085343650432408,
+            "budget_capped_share": 0.5085343650432408
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 803.9999999999999,
+            "budget_capped_spend": 803.9999999999999,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.09148839326354118,
+            "budget_capped_share": 0.09148839326354118
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 8788.0,
+          "budget_capped_spend": 8788.0,
+          "idle_cash": 41212.0,
+          "n_afford_OK": 10,
+          "n_afford_B_SLOT": 0,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "601607.SH",
+          "name": "上海医药",
+          "board": "SH_MAIN",
+          "close": 16.68,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1668.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002261.SZ",
+          "name": "拓维信息",
+          "board": "SZ_MAIN",
+          "close": 23.53,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 2353.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000626.SZ",
+          "name": "远大控股",
+          "board": "SZ_MAIN",
+          "close": 9.03,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 902.9999999999999,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600693.SH",
+          "name": "东百集团",
+          "board": "SH_MAIN",
+          "close": 10.16,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1016.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000681.SZ",
+          "name": "视觉中国",
+          "board": "SZ_MAIN",
+          "close": 16.14,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1614.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "605303.SH",
+          "name": "园林股份",
+          "board": "SH_MAIN",
+          "close": 32.21,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 3221.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600825.SH",
+          "name": "新华传媒",
+          "board": "SH_MAIN",
+          "close": 12.53,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1253.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "601016.SH",
+          "name": "节能风电",
+          "board": "SH_MAIN",
+          "close": 3.26,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 326.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300019.SZ",
+          "name": "硅宝科技",
+          "board": "CHINEXT",
+          "close": 15.6,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1560.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300514.SZ",
+          "name": "友讯达",
+          "board": "CHINEXT",
+          "close": 10.21,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1021.0000000000001,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 10,
+          "n_current_up_affordable_OK": 10,
+          "n_slots_to_fill": 0,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4488,
+          "pool_affordable_rate": 0.9276560562215792,
+          "expected_n_affordable": 10.0,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 10,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 8,
+          "n_current_up_affordable_OK": 8,
+          "n_slots_to_fill": 2,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3234,
+          "pool_affordable_rate": 0.9539823008849557,
+          "expected_n_affordable": 9.907964601769912,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 8,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-11",
+      "source_file": "pred_2026-10-11.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 4028.0,
+            "budget_capped_spend": 4028.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.06998036797025661,
+            "budget_capped_share": 0.14317196274969787
+          },
+          "SZ_MAIN": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 7075.0,
+            "budget_capped_spend": 7075.0,
+            "n_afford_OK": 4,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.1229173543668236,
+            "budget_capped_share": 0.2514750835288263
+          },
+          "CHINEXT": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 14220.0,
+            "budget_capped_spend": 12031.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.24705085216907868,
+            "budget_capped_share": 0.42763204663396603
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 32236.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.5600514254938411,
+            "budget_capped_share": 0.1777209070875098
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 57559.0,
+          "budget_capped_spend": 28134.0,
+          "idle_cash": 21866.0,
+          "n_afford_OK": 8,
+          "n_afford_B_SLOT": 2,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 2942.0,
+            "budget_capped_spend": 2942.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.09729479462927443,
+            "budget_capped_share": 0.1406444210727603
+          },
+          "SZ_MAIN": {
+            "n": 5,
+            "n_priced": 5,
+            "n_price_missing": 0,
+            "lot_cost_sum": 11816.0,
+            "budget_capped_spend": 11816.0,
+            "n_afford_OK": 5,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.3907665850916066,
+            "budget_capped_share": 0.5648723587341046
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 1160.0,
+            "budget_capped_spend": 1160.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.038362325550631654,
+            "budget_capped_share": 0.055454632374031934
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 14319.999999999998,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.4735762947284873,
+            "budget_capped_share": 0.23902858781910316
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 30238.0,
+          "budget_capped_spend": 20918.0,
+          "idle_cash": 29082.0,
+          "n_afford_OK": 9,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "688137.SH",
+          "name": "近岸蛋白",
+          "board": "STAR",
+          "close": 161.18,
+          "bar_date": "2026-10-09",
+          "lot_shares": 200,
+          "lot_cost": 32236.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 27236.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "301190.SZ",
+          "name": "善水科技",
+          "board": "CHINEXT",
+          "close": 43.99,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 4399.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300019.SZ",
+          "name": "硅宝科技",
+          "board": "CHINEXT",
+          "close": 15.6,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1560.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "601579.SH",
+          "name": "会稽山",
+          "board": "SH_MAIN",
+          "close": 40.28,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 4028.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300340.SZ",
+          "name": "科恒股份",
+          "board": "CHINEXT",
+          "close": 10.72,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1072.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "001216.SZ",
+          "name": "华瓷股份",
+          "board": "SZ_MAIN",
+          "close": 22.75,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 2275.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002866.SZ",
+          "name": "传艺科技",
+          "board": "SZ_MAIN",
+          "close": 18.32,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1832.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000993.SZ",
+          "name": "闽东电力",
+          "board": "SZ_MAIN",
+          "close": 17.89,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1789.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "301513.SZ",
+          "name": "尚水智能",
+          "board": "CHINEXT",
+          "close": 71.89,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 7189.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 2189.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000504.SZ",
+          "name": "南华生物",
+          "board": "SZ_MAIN",
+          "close": 11.79,
+          "bar_date": "2026-10-09",
+          "lot_shares": 100,
+          "lot_cost": 1179.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 9,
+          "n_current_up_affordable_OK": 8,
+          "n_slots_to_fill": 1,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4488,
+          "pool_affordable_rate": 0.9276560562215792,
+          "expected_n_affordable": 8.92765605622158,
+          "best_case_n_affordable": 9,
+          "worst_case_n_affordable": 8,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 5,
+          "n_current_up_affordable_OK": 5,
+          "n_slots_to_fill": 5,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3234,
+          "pool_affordable_rate": 0.9539823008849557,
+          "expected_n_affordable": 9.76991150442478,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 5,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-12",
+      "source_file": "pred_2026-10-12.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 5490.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.0888522043115168,
+            "budget_capped_share": 0.1354866681118578
+          },
+          "SZ_MAIN": {
+            "n": 5,
+            "n_priced": 5,
+            "n_price_missing": 0,
+            "lot_cost_sum": 13481.0,
+            "budget_capped_spend": 13481.0,
+            "n_afford_OK": 5,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.21818152392050236,
+            "budget_capped_share": 0.365299154563191
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 4845.0,
+            "budget_capped_spend": 4845.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.07841328413284133,
+            "budget_capped_share": 0.1312865814003902
+          },
+          "STAR": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 37972.0,
+            "budget_capped_spend": 13578.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.6145529876351395,
+            "budget_capped_share": 0.36792759592456104
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 61788.0,
+          "budget_capped_spend": 36904.0,
+          "idle_cash": 13096.0,
+          "n_afford_OK": 8,
+          "n_afford_B_SLOT": 2,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 5093.0,
+            "budget_capped_spend": 5093.0,
+            "n_afford_OK": 4,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.1626221342359027,
+            "budget_capped_share": 0.22561353769823692
+          },
+          "SZ_MAIN": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 10417.0,
+            "budget_capped_spend": 10417.0,
+            "n_afford_OK": 4,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.33262021840475126,
+            "budget_capped_share": 0.4614600868255515
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 2064.0,
+            "budget_capped_spend": 2064.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.06590459160865955,
+            "budget_capped_share": 0.09143262160007087
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 13744.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.4388530557506865,
+            "budget_capped_share": 0.2214937538761407
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 31318.0,
+          "budget_capped_spend": 22574.0,
+          "idle_cash": 27426.0,
+          "n_afford_OK": 9,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "301190.SZ",
+          "name": "善水科技",
+          "board": "CHINEXT",
+          "close": 48.45,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 4845.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688137.SH",
+          "name": "近岸蛋白",
+          "board": "STAR",
+          "close": 146.97,
+          "bar_date": "2026-10-12",
+          "lot_shares": 200,
+          "lot_cost": 29394.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 24394.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "605058.SH",
+          "name": "澳弘电子",
+          "board": "SH_MAIN",
+          "close": 54.9,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 5490.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 490.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002058.SZ",
+          "name": "紫竹高科",
+          "board": "SZ_MAIN",
+          "close": 25.3,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 2530.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "001216.SZ",
+          "name": "华瓷股份",
+          "board": "SZ_MAIN",
+          "close": 23.88,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 2388.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "001368.SZ",
+          "name": "通达创智",
+          "board": "SZ_MAIN",
+          "close": 37.59,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 3759.0000000000005,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000993.SZ",
+          "name": "闽东电力",
+          "board": "SZ_MAIN",
+          "close": 18.21,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 1821.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688203.SH",
+          "name": "海正生材",
+          "board": "STAR",
+          "close": 20.88,
+          "bar_date": "2026-10-12",
+          "lot_shares": 200,
+          "lot_cost": 4176.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688315.SH",
+          "name": "诺禾致源",
+          "board": "STAR",
+          "close": 22.01,
+          "bar_date": "2026-10-12",
+          "lot_shares": 200,
+          "lot_cost": 4402.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002912.SZ",
+          "name": "中新赛克",
+          "board": "SZ_MAIN",
+          "close": 29.83,
+          "bar_date": "2026-10-12",
+          "lot_shares": 100,
+          "lot_cost": 2983.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 7,
+          "n_current_up_affordable_OK": 6,
+          "n_slots_to_fill": 3,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4497,
+          "pool_affordable_rate": 0.9295163290615956,
+          "expected_n_affordable": 8.788548987184786,
+          "best_case_n_affordable": 9,
+          "worst_case_n_affordable": 6,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 6,
+          "n_current_up_affordable_OK": 5,
+          "n_slots_to_fill": 4,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3238,
+          "pool_affordable_rate": 0.9551622418879055,
+          "expected_n_affordable": 8.820648967551623,
+          "best_case_n_affordable": 9,
+          "worst_case_n_affordable": 5,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-13",
+      "source_file": "pred_2026-10-13.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3400.0,
+            "budget_capped_spend": 3400.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.059603113386158056,
+            "budget_capped_share": 0.11519176040113836
+          },
+          "SZ_MAIN": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 6196.0,
+            "budget_capped_spend": 6196.0,
+            "n_afford_OK": 4,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.1086179089825398,
+            "budget_capped_share": 0.2099200433663098
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 4920.0,
+            "budget_capped_spend": 4920.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.086249211135264,
+            "budget_capped_share": 0.16668925328635317
+          },
+          "STAR": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 42528.0,
+            "budget_capped_spend": 15000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 3,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.7455297664960382,
+            "budget_capped_share": 0.5081989429461987
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 57044.0,
+          "budget_capped_spend": 29516.0,
+          "idle_cash": 20484.0,
+          "n_afford_OK": 7,
+          "n_afford_B_SLOT": 3,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 1824.0,
+            "budget_capped_spend": 1824.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.0670489633877371,
+            "budget_capped_share": 0.09739427595044853
+          },
+          "SZ_MAIN": {
+            "n": 6,
+            "n_priced": 6,
+            "n_price_missing": 0,
+            "lot_cost_sum": 8681.0,
+            "budget_capped_spend": 8681.0,
+            "n_afford_OK": 6,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.31910748419350093,
+            "budget_capped_share": 0.46353054250320375
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3222.9999999999995,
+            "budget_capped_spend": 3222.9999999999995,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.11847522423173061,
+            "budget_capped_share": 0.17209525843656553
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 13476.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.4953683281870313,
+            "budget_capped_share": 0.26697992310978214
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 27204.0,
+          "budget_capped_spend": 18728.0,
+          "idle_cash": 31272.0,
+          "n_afford_OK": 9,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "301190.SZ",
+          "name": "善水科技",
+          "board": "CHINEXT",
+          "close": 49.2,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 4920.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688137.SH",
+          "name": "近岸蛋白",
+          "board": "STAR",
+          "close": 137.16,
+          "bar_date": "2026-10-13",
+          "lot_shares": 200,
+          "lot_cost": 27432.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 22432.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "600241.SH",
+          "name": "时代万恒",
+          "board": "SH_MAIN",
+          "close": 12.86,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 1286.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002242.SZ",
+          "name": "九阳股份",
+          "board": "SZ_MAIN",
+          "close": 17.67,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 1767.0000000000002,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688004.SH",
+          "name": "博汇科技",
+          "board": "STAR",
+          "close": 42.73,
+          "bar_date": "2026-10-13",
+          "lot_shares": 200,
+          "lot_cost": 8546.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 3546.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002692.SZ",
+          "name": "远程股份",
+          "board": "SZ_MAIN",
+          "close": 4.93,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 493.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "601811.SH",
+          "name": "新华文轩",
+          "board": "SH_MAIN",
+          "close": 21.14,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 2114.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688175.SH",
+          "name": "高凌信息",
+          "board": "STAR",
+          "close": 32.75,
+          "bar_date": "2026-10-13",
+          "lot_shares": 200,
+          "lot_cost": 6550.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 1550.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000993.SZ",
+          "name": "闽东电力",
+          "board": "SZ_MAIN",
+          "close": 17.55,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 1755.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "001216.SZ",
+          "name": "华瓷股份",
+          "board": "SZ_MAIN",
+          "close": 21.81,
+          "bar_date": "2026-10-13",
+          "lot_shares": 100,
+          "lot_cost": 2181.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 7,
+          "n_current_up_affordable_OK": 7,
+          "n_slots_to_fill": 3,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4501,
+          "pool_affordable_rate": 0.930343116990492,
+          "expected_n_affordable": 9.791029350971476,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 7,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 6,
+          "n_current_up_affordable_OK": 6,
+          "n_slots_to_fill": 4,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3241,
+          "pool_affordable_rate": 0.956047197640118,
+          "expected_n_affordable": 9.824188790560472,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 6,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-14",
+      "source_file": "pred_2026-10-14.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SZ_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 22550.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.060659208229208415,
+            "budget_capped_share": 0.11178680021463065
+          },
+          "CHINEXT": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 22617.0,
+            "budget_capped_spend": 11236.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 2,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.060839437362306285,
+            "budget_capped_share": 0.251207297442318
+          },
+          "STAR": {
+            "n": 6,
+            "n_priced": 6,
+            "n_price_missing": 0,
+            "lot_cost_sum": 326582.0,
+            "budget_capped_spend": 28492.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 4,
+            "n_afford_A_PHYSICAL": 1,
+            "lot_cost_share": 0.8785013544084853,
+            "budget_capped_share": 0.6370059023430513
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 371749.0,
+          "budget_capped_spend": 44728.0,
+          "idle_cash": 5272.0,
+          "n_afford_OK": 2,
+          "n_afford_B_SLOT": 7,
+          "n_afford_A_PHYSICAL": 1,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 12619.0,
+            "budget_capped_spend": 11211.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.20840627580511972,
+            "budget_capped_share": 0.3392749061856918
+          },
+          "SZ_MAIN": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3644.0,
+            "budget_capped_spend": 3644.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.06018166804293972,
+            "budget_capped_share": 0.11027720614937658
+          },
+          "CHINEXT": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 8189.0,
+            "budget_capped_spend": 8189.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.13524360033030552,
+            "budget_capped_share": 0.24782108703546787
+          },
+          "STAR": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 36098.0,
+            "budget_capped_spend": 10000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 2,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.596168455821635,
+            "budget_capped_share": 0.30262680062946373
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 60550.0,
+          "budget_capped_spend": 33044.0,
+          "idle_cash": 16956.0,
+          "n_afford_OK": 7,
+          "n_afford_B_SLOT": 3,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "688110.SH",
+          "name": "东芯股份",
+          "board": "STAR",
+          "close": 61.17,
+          "bar_date": "2026-10-14",
+          "lot_shares": 200,
+          "lot_cost": 12234.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 7234.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "001309.SZ",
+          "name": "德明利",
+          "board": "SZ_MAIN",
+          "close": 225.5,
+          "bar_date": "2026-10-14",
+          "lot_shares": 100,
+          "lot_cost": 22550.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 17550.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688433.SH",
+          "name": "华曙高科",
+          "board": "STAR",
+          "close": 64.41,
+          "bar_date": "2026-10-14",
+          "lot_shares": 200,
+          "lot_cost": 12882.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 7882.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688498.SH",
+          "name": "源杰科技",
+          "board": "STAR",
+          "close": 1118.89,
+          "bar_date": "2026-10-14",
+          "lot_shares": 200,
+          "lot_cost": 223778.00000000003,
+          "affordability": "A_PHYSICAL",
+          "shortfall_at_5000": 218778.00000000003,
+          "is_A_physical": true
+        },
+        {
+          "code": "300382.SZ",
+          "name": "斯莱克",
+          "board": "CHINEXT",
+          "close": 12.36,
+          "bar_date": "2026-10-14",
+          "lot_shares": 100,
+          "lot_cost": 1236.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688048.SH",
+          "name": "长光华芯",
+          "board": "STAR",
+          "close": 199.44,
+          "bar_date": "2026-10-14",
+          "lot_shares": 200,
+          "lot_cost": 39888.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 34888.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "301489.SZ",
+          "name": "思泉新材",
+          "board": "CHINEXT",
+          "close": 91.9,
+          "bar_date": "2026-10-14",
+          "lot_shares": 100,
+          "lot_cost": 9190.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 4190.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688403.SH",
+          "name": "汇成股份",
+          "board": "STAR",
+          "close": 17.46,
+          "bar_date": "2026-10-14",
+          "lot_shares": 200,
+          "lot_cost": 3492.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688668.SH",
+          "name": "鼎通科技",
+          "board": "STAR",
+          "close": 171.54,
+          "bar_date": "2026-10-14",
+          "lot_shares": 200,
+          "lot_cost": 34308.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 29308.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300475.SZ",
+          "name": "香农芯创",
+          "board": "CHINEXT",
+          "close": 121.91,
+          "bar_date": "2026-10-14",
+          "lot_shares": 100,
+          "lot_cost": 12191.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 7191.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 4,
+          "n_current_up_affordable_OK": 1,
+          "n_slots_to_fill": 6,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4515,
+          "pool_affordable_rate": 0.9332368747416288,
+          "expected_n_affordable": 6.599421248449772,
+          "best_case_n_affordable": 7,
+          "worst_case_n_affordable": 1,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 1,
+          "n_current_up_affordable_OK": 0,
+          "n_slots_to_fill": 9,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3246,
+          "pool_affordable_rate": 0.9575221238938053,
+          "expected_n_affordable": 8.617699115044248,
+          "best_case_n_affordable": 9,
+          "worst_case_n_affordable": 0,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-15",
+      "source_file": "pred_2026-10-15.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 1025.0,
+            "budget_capped_spend": 1025.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.009106335344130634,
+            "budget_capped_share": 0.025477865327732347
+          },
+          "SZ_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 21105.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.18750166579305075,
+            "budget_capped_share": 0.12428226989137729
+          },
+          "CHINEXT": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 7441.0,
+            "budget_capped_spend": 5888.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.06610755248358638,
+            "budget_capped_share": 0.1463548010240859
+          },
+          "STAR": {
+            "n": 6,
+            "n_priced": 6,
+            "n_price_missing": 0,
+            "lot_cost_sum": 82988.0,
+            "budget_capped_spend": 28318.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 5,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.7372844463792322,
+            "budget_capped_share": 0.7038850637568045
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 112559.0,
+          "budget_capped_spend": 40231.0,
+          "idle_cash": 9769.0,
+          "n_afford_OK": 3,
+          "n_afford_B_SLOT": 7,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 5405.0,
+            "budget_capped_spend": 5405.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.10528058590934766,
+            "budget_capped_share": 0.2070643221085699
+          },
+          "SZ_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 6548.0,
+            "budget_capped_spend": 6548.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.12754436198601454,
+            "budget_capped_share": 0.2508523924453128
+          },
+          "CHINEXT": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 9150.0,
+            "budget_capped_spend": 9150.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.17822707882896044,
+            "budget_capped_share": 0.35053442133088153
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 30236.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.5889479732756774,
+            "budget_capped_share": 0.1915488641152358
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 51339.0,
+          "budget_capped_spend": 26103.0,
+          "idle_cash": 23897.0,
+          "n_afford_OK": 9,
+          "n_afford_B_SLOT": 1,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "001309.SZ",
+          "name": "德明利",
+          "board": "SZ_MAIN",
+          "close": 211.05,
+          "bar_date": "2026-10-15",
+          "lot_shares": 100,
+          "lot_cost": 21105.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 16105.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688110.SH",
+          "name": "东芯股份",
+          "board": "STAR",
+          "close": 57.18,
+          "bar_date": "2026-10-15",
+          "lot_shares": 200,
+          "lot_cost": 11436.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 6436.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "301232.SZ",
+          "name": "飞沃科技",
+          "board": "CHINEXT",
+          "close": 65.53,
+          "bar_date": "2026-10-15",
+          "lot_shares": 100,
+          "lot_cost": 6553.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 1553.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688403.SH",
+          "name": "汇成股份",
+          "board": "STAR",
+          "close": 16.59,
+          "bar_date": "2026-10-15",
+          "lot_shares": 200,
+          "lot_cost": 3318.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688559.SH",
+          "name": "海目星",
+          "board": "STAR",
+          "close": 38.36,
+          "bar_date": "2026-10-15",
+          "lot_shares": 200,
+          "lot_cost": 7672.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 2672.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688668.SH",
+          "name": "鼎通科技",
+          "board": "STAR",
+          "close": 163.0,
+          "bar_date": "2026-10-15",
+          "lot_shares": 200,
+          "lot_cost": 32600.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 27600.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688629.SH",
+          "name": "华丰科技",
+          "board": "STAR",
+          "close": 80.43,
+          "bar_date": "2026-10-15",
+          "lot_shares": 200,
+          "lot_cost": 16086.000000000002,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 11086.000000000002,
+          "is_A_physical": false
+        },
+        {
+          "code": "600499.SH",
+          "name": "科达制造",
+          "board": "SH_MAIN",
+          "close": 10.25,
+          "bar_date": "2026-10-15",
+          "lot_shares": 100,
+          "lot_cost": 1025.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688433.SH",
+          "name": "华曙高科",
+          "board": "STAR",
+          "close": 59.38,
+          "bar_date": "2026-10-15",
+          "lot_shares": 200,
+          "lot_cost": 11876.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 6876.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300227.SZ",
+          "name": "光韵达",
+          "board": "CHINEXT",
+          "close": 8.88,
+          "bar_date": "2026-10-15",
+          "lot_shares": 100,
+          "lot_cost": 888.0000000000001,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 4,
+          "n_current_up_affordable_OK": 2,
+          "n_slots_to_fill": 6,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4535,
+          "pool_affordable_rate": 0.9373708143861099,
+          "expected_n_affordable": 7.624224886316659,
+          "best_case_n_affordable": 8,
+          "worst_case_n_affordable": 2,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 2,
+          "n_current_up_affordable_OK": 1,
+          "n_slots_to_fill": 8,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3252,
+          "pool_affordable_rate": 0.95929203539823,
+          "expected_n_affordable": 8.674336283185841,
+          "best_case_n_affordable": 9,
+          "worst_case_n_affordable": 1,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-16",
+      "source_file": "pred_2026-10-16.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 8945.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.050125243061198185,
+            "budget_capped_share": 0.1
+          },
+          "SZ_MAIN": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 32868.0,
+            "budget_capped_spend": 10000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 2,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.1841829501325279,
+            "budget_capped_share": 0.2
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 13030.000000000002,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.07301642449272358,
+            "budget_capped_share": 0.1
+          },
+          "STAR": {
+            "n": 6,
+            "n_priced": 6,
+            "n_price_missing": 0,
+            "lot_cost_sum": 123610.0,
+            "budget_capped_spend": 30000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 6,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.6926753823135503,
+            "budget_capped_share": 0.6
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 178453.0,
+          "budget_capped_spend": 50000.0,
+          "idle_cash": 0.0,
+          "n_afford_OK": 0,
+          "n_afford_B_SLOT": 10,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 10098.0,
+            "budget_capped_spend": 8515.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.19218910585817062,
+            "budget_capped_share": 0.3032731417174199
+          },
+          "SZ_MAIN": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 2712.0,
+            "budget_capped_spend": 2712.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.05161585017700126,
+            "budget_capped_share": 0.09659151618762689
+          },
+          "CHINEXT": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 11850.0,
+            "budget_capped_spend": 11850.0,
+            "n_afford_OK": 4,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.22553385862738382,
+            "budget_capped_share": 0.4220536382092104
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 27882.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.5306611853374443,
+            "budget_capped_share": 0.1780817038857428
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 52542.0,
+          "budget_capped_spend": 28077.0,
+          "idle_cash": 21923.0,
+          "n_afford_OK": 8,
+          "n_afford_B_SLOT": 2,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "001309.SZ",
+          "name": "德明利",
+          "board": "SZ_MAIN",
+          "close": 206.01,
+          "bar_date": "2026-10-16",
+          "lot_shares": 100,
+          "lot_cost": 20601.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 15601.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688110.SH",
+          "name": "东芯股份",
+          "board": "STAR",
+          "close": 56.99,
+          "bar_date": "2026-10-16",
+          "lot_shares": 200,
+          "lot_cost": 11398.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 6398.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688300.SH",
+          "name": "联瑞新材",
+          "board": "STAR",
+          "close": 102.7,
+          "bar_date": "2026-10-16",
+          "lot_shares": 200,
+          "lot_cost": 20540.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 15540.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002384.SZ",
+          "name": "东山精密",
+          "board": "SZ_MAIN",
+          "close": 122.67,
+          "bar_date": "2026-10-16",
+          "lot_shares": 100,
+          "lot_cost": 12267.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 7267.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688559.SH",
+          "name": "海目星",
+          "board": "STAR",
+          "close": 37.68,
+          "bar_date": "2026-10-16",
+          "lot_shares": 200,
+          "lot_cost": 7536.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 2536.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "605376.SH",
+          "name": "博迁新材",
+          "board": "SH_MAIN",
+          "close": 89.45,
+          "bar_date": "2026-10-16",
+          "lot_shares": 100,
+          "lot_cost": 8945.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 3945.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688629.SH",
+          "name": "华丰科技",
+          "board": "STAR",
+          "close": 77.99,
+          "bar_date": "2026-10-16",
+          "lot_shares": 200,
+          "lot_cost": 15597.999999999998,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 10597.999999999998,
+          "is_A_physical": false
+        },
+        {
+          "code": "688668.SH",
+          "name": "鼎通科技",
+          "board": "STAR",
+          "close": 161.47,
+          "bar_date": "2026-10-16",
+          "lot_shares": 200,
+          "lot_cost": 32294.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 27294.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300870.SZ",
+          "name": "欧陆通",
+          "board": "CHINEXT",
+          "close": 130.3,
+          "bar_date": "2026-10-16",
+          "lot_shares": 100,
+          "lot_cost": 13030.000000000002,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 8030.000000000002,
+          "is_A_physical": false
+        },
+        {
+          "code": "688048.SH",
+          "name": "长光华芯",
+          "board": "STAR",
+          "close": 181.22,
+          "bar_date": "2026-10-16",
+          "lot_shares": 200,
+          "lot_cost": 36244.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 31244.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 4,
+          "n_current_up_affordable_OK": 0,
+          "n_slots_to_fill": 6,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4537,
+          "pool_affordable_rate": 0.9377842083505581,
+          "expected_n_affordable": 5.626705250103349,
+          "best_case_n_affordable": 6,
+          "worst_case_n_affordable": 0,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 3,
+          "n_current_up_affordable_OK": 0,
+          "n_slots_to_fill": 7,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3255,
+          "pool_affordable_rate": 0.9601769911504425,
+          "expected_n_affordable": 6.721238938053098,
+          "best_case_n_affordable": 7,
+          "worst_case_n_affordable": 0,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-19",
+      "source_file": "pred_2026-10-19.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 8799.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.02933625840179238,
+            "budget_capped_share": 0.12217769523995699
+          },
+          "SZ_MAIN": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 24839.0,
+            "budget_capped_spend": 7920.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.0828143337245279,
+            "budget_capped_share": 0.19352946926009187
+          },
+          "CHINEXT": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3004.0,
+            "budget_capped_spend": 3004.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.010015469966926278,
+            "budget_capped_share": 0.07340435930016616
+          },
+          "STAR": {
+            "n": 5,
+            "n_priced": 5,
+            "n_price_missing": 0,
+            "lot_cost_sum": 263294.0,
+            "budget_capped_spend": 25000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 4,
+            "n_afford_A_PHYSICAL": 1,
+            "lot_cost_share": 0.8778339379067535,
+            "budget_capped_share": 0.6108884761997849
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 299936.0,
+          "budget_capped_spend": 40924.0,
+          "idle_cash": 9076.0,
+          "n_afford_OK": 3,
+          "n_afford_B_SLOT": 6,
+          "n_afford_A_PHYSICAL": 1,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 4613.0,
+            "budget_capped_spend": 4613.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.10899510904236467,
+            "budget_capped_share": 0.2252991452991453
+          },
+          "SZ_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3847.0,
+            "budget_capped_spend": 3847.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.09089620301018358,
+            "budget_capped_share": 0.1878876678876679
+          },
+          "CHINEXT": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 7395.0,
+            "budget_capped_spend": 7015.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.17472768943600406,
+            "budget_capped_share": 0.3426129426129426
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 26468.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.6253809985114477,
+            "budget_capped_share": 0.2442002442002442
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 42323.0,
+          "budget_capped_spend": 20475.0,
+          "idle_cash": 29525.0,
+          "n_afford_OK": 8,
+          "n_afford_B_SLOT": 2,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "001309.SZ",
+          "name": "德明利",
+          "board": "SZ_MAIN",
+          "close": 219.19,
+          "bar_date": "2026-10-19",
+          "lot_shares": 100,
+          "lot_cost": 21919.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 16919.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688629.SH",
+          "name": "华丰科技",
+          "board": "STAR",
+          "close": 77.7,
+          "bar_date": "2026-10-19",
+          "lot_shares": 200,
+          "lot_cost": 15540.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 10540.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "301526.SZ",
+          "name": "国际复材",
+          "board": "CHINEXT",
+          "close": 21.18,
+          "bar_date": "2026-10-19",
+          "lot_shares": 100,
+          "lot_cost": 2118.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "001285.SZ",
+          "name": "瑞立科密",
+          "board": "SZ_MAIN",
+          "close": 29.2,
+          "bar_date": "2026-10-19",
+          "lot_shares": 100,
+          "lot_cost": 2920.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688610.SH",
+          "name": "埃科光电",
+          "board": "STAR",
+          "close": 79.21,
+          "bar_date": "2026-10-19",
+          "lot_shares": 200,
+          "lot_cost": 15841.999999999998,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 10841.999999999998,
+          "is_A_physical": false
+        },
+        {
+          "code": "688300.SH",
+          "name": "联瑞新材",
+          "board": "STAR",
+          "close": 100.43,
+          "bar_date": "2026-10-19",
+          "lot_shares": 200,
+          "lot_cost": 20086.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 15086.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688110.SH",
+          "name": "东芯股份",
+          "board": "STAR",
+          "close": 57.13,
+          "bar_date": "2026-10-19",
+          "lot_shares": 200,
+          "lot_cost": 11426.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 6426.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688498.SH",
+          "name": "源杰科技",
+          "board": "STAR",
+          "close": 1002.0,
+          "bar_date": "2026-10-19",
+          "lot_shares": 200,
+          "lot_cost": 200400.0,
+          "affordability": "A_PHYSICAL",
+          "shortfall_at_5000": 195400.0,
+          "is_A_physical": true
+        },
+        {
+          "code": "300227.SZ",
+          "name": "光韵达",
+          "board": "CHINEXT",
+          "close": 8.86,
+          "bar_date": "2026-10-19",
+          "lot_shares": 100,
+          "lot_cost": 886.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "605376.SH",
+          "name": "博迁新材",
+          "board": "SH_MAIN",
+          "close": 87.99,
+          "bar_date": "2026-10-19",
+          "lot_shares": 100,
+          "lot_cost": 8799.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 3799.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 5,
+          "n_current_up_affordable_OK": 3,
+          "n_slots_to_fill": 5,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4535,
+          "pool_affordable_rate": 0.9373708143861099,
+          "expected_n_affordable": 7.68685407193055,
+          "best_case_n_affordable": 8,
+          "worst_case_n_affordable": 3,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 3,
+          "n_current_up_affordable_OK": 1,
+          "n_slots_to_fill": 7,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3254,
+          "pool_affordable_rate": 0.959882005899705,
+          "expected_n_affordable": 7.719174041297935,
+          "best_case_n_affordable": 8,
+          "worst_case_n_affordable": 1,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    },
+    {
+      "pred_date": "2026-10-20",
+      "source_file": "pred_2026-10-20.parquet",
+      "up": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 2836.0,
+            "budget_capped_spend": 2836.0,
+            "n_afford_OK": 1,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.009924238447675537,
+            "budget_capped_share": 0.069034346778316
+          },
+          "SZ_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 8245.0,
+            "budget_capped_spend": 8245.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.028852378702780256,
+            "budget_capped_share": 0.2007010540152382
+          },
+          "CHINEXT": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 5920.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.020716322852693647,
+            "budget_capped_share": 0.12171076653440763
+          },
+          "STAR": {
+            "n": 5,
+            "n_priced": 5,
+            "n_price_missing": 0,
+            "lot_cost_sum": 268764.0,
+            "budget_capped_spend": 25000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 4,
+            "n_afford_A_PHYSICAL": 1,
+            "lot_cost_share": 0.9405070599968506,
+            "budget_capped_share": 0.6085538326720382
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 285765.0,
+          "budget_capped_spend": 41081.0,
+          "idle_cash": 8919.0,
+          "n_afford_OK": 4,
+          "n_afford_B_SLOT": 5,
+          "n_afford_A_PHYSICAL": 1,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "down": {
+        "n": 10,
+        "n_priced": 10,
+        "n_price_missing": 0,
+        "by_board": {
+          "SH_MAIN": {
+            "n": 4,
+            "n_priced": 4,
+            "n_price_missing": 0,
+            "lot_cost_sum": 13840.0,
+            "budget_capped_spend": 11766.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.4572636865232762,
+            "budget_capped_share": 0.46666402252806094
+          },
+          "SZ_MAIN": {
+            "n": 3,
+            "n_priced": 3,
+            "n_price_missing": 0,
+            "lot_cost_sum": 3311.0,
+            "budget_capped_spend": 3311.0,
+            "n_afford_OK": 3,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.10939306835827799,
+            "budget_capped_share": 0.13132114385436083
+          },
+          "CHINEXT": {
+            "n": 2,
+            "n_priced": 2,
+            "n_price_missing": 0,
+            "lot_cost_sum": 5136.0,
+            "budget_capped_spend": 5136.0,
+            "n_afford_OK": 2,
+            "n_afford_B_SLOT": 0,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.16968976112597878,
+            "budget_capped_share": 0.20370443818664974
+          },
+          "STAR": {
+            "n": 1,
+            "n_priced": 1,
+            "n_price_missing": 0,
+            "lot_cost_sum": 7980.0,
+            "budget_capped_spend": 5000.0,
+            "n_afford_OK": 0,
+            "n_afford_B_SLOT": 1,
+            "n_afford_A_PHYSICAL": 0,
+            "lot_cost_share": 0.263653483992467,
+            "budget_capped_share": 0.1983103954309285
+          }
+        },
+        "totals": {
+          "lot_cost_sum": 30267.0,
+          "budget_capped_spend": 25213.0,
+          "idle_cash": 24787.0,
+          "n_afford_OK": 8,
+          "n_afford_B_SLOT": 2,
+          "n_afford_A_PHYSICAL": 0,
+          "n_afford_PRICE_MISSING": 0
+        }
+      },
+      "up_items": [
+        {
+          "code": "001285.SZ",
+          "name": "瑞立科密",
+          "board": "SZ_MAIN",
+          "close": 29.37,
+          "bar_date": "2026-10-20",
+          "lot_shares": 100,
+          "lot_cost": 2937.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688498.SH",
+          "name": "源杰科技",
+          "board": "STAR",
+          "close": 1010.35,
+          "bar_date": "2026-10-20",
+          "lot_shares": 200,
+          "lot_cost": 202070.0,
+          "affordability": "A_PHYSICAL",
+          "shortfall_at_5000": 197070.0,
+          "is_A_physical": true
+        },
+        {
+          "code": "688383.SH",
+          "name": "新益昌",
+          "board": "STAR",
+          "close": 90.83,
+          "bar_date": "2026-10-20",
+          "lot_shares": 200,
+          "lot_cost": 18166.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 13166.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688610.SH",
+          "name": "埃科光电",
+          "board": "STAR",
+          "close": 80.4,
+          "bar_date": "2026-10-20",
+          "lot_shares": 200,
+          "lot_cost": 16080.000000000002,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 11080.000000000002,
+          "is_A_physical": false
+        },
+        {
+          "code": "688300.SH",
+          "name": "联瑞新材",
+          "board": "STAR",
+          "close": 103.22,
+          "bar_date": "2026-10-20",
+          "lot_shares": 200,
+          "lot_cost": 20644.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 15644.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "688110.SH",
+          "name": "东芯股份",
+          "board": "STAR",
+          "close": 59.02,
+          "bar_date": "2026-10-20",
+          "lot_shares": 200,
+          "lot_cost": 11804.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 6804.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "603031.SH",
+          "name": "安孚科技",
+          "board": "SH_MAIN",
+          "close": 28.36,
+          "bar_date": "2026-10-20",
+          "lot_shares": 100,
+          "lot_cost": 2836.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "000978.SZ",
+          "name": "桂林旅游",
+          "board": "SZ_MAIN",
+          "close": 6.38,
+          "bar_date": "2026-10-20",
+          "lot_shares": 100,
+          "lot_cost": 638.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "300951.SZ",
+          "name": "博硕科技",
+          "board": "CHINEXT",
+          "close": 59.2,
+          "bar_date": "2026-10-20",
+          "lot_shares": 100,
+          "lot_cost": 5920.0,
+          "affordability": "B_SLOT",
+          "shortfall_at_5000": 920.0,
+          "is_A_physical": false
+        },
+        {
+          "code": "002897.SZ",
+          "name": "意华股份",
+          "board": "SZ_MAIN",
+          "close": 46.7,
+          "bar_date": "2026-10-20",
+          "lot_shares": 100,
+          "lot_cost": 4670.0,
+          "affordability": "OK",
+          "shortfall_at_5000": 0.0,
+          "is_A_physical": false
+        }
+      ],
+      "counterfactual_up": {
+        "main_plus_chinext": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN",
+            "CHINEXT"
+          ],
+          "n_current_up_in_set": 5,
+          "n_current_up_affordable_OK": 4,
+          "n_slots_to_fill": 5,
+          "pool_n_priced": 4838,
+          "pool_n_affordable_OK": 4518,
+          "pool_affordable_rate": 0.9338569656883009,
+          "expected_n_affordable": 8.669284828441505,
+          "best_case_n_affordable": 9,
+          "worst_case_n_affordable": 4,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        },
+        "main_only": {
+          "boards": [
+            "SH_MAIN",
+            "SZ_MAIN"
+          ],
+          "n_current_up_in_set": 4,
+          "n_current_up_affordable_OK": 4,
+          "n_slots_to_fill": 6,
+          "pool_n_priced": 3390,
+          "pool_n_affordable_OK": 3247,
+          "pool_affordable_rate": 0.9578171091445428,
+          "expected_n_affordable": 9.746902654867256,
+          "best_case_n_affordable": 10,
+          "worst_case_n_affordable": 4,
+          "估计方法": "expected = 已知部分（精确）+ 待补名额 × 该板集合池自身的可买率；**不是** top-10 重排结果（全池排名未落盘）",
+          "已知部分为何精确": "当前涨腿是**全池前 10** ⇒ 落在该板集合里的那几只**分数高于所有集合外的名字** ⇒ 重排后**必定**还在前 10 内。",
+          "估计的偏差方向": "⚠️ **估计的偏差方向未知**：待补名额来自**全池前 10 之外**的名字，而池可买率是**全池平均** ⇒ 若高分名字更偏贵，真实值低于 expected；反之高于。**不许把 expected 当点估计引用**。"
+        }
+      }
+    }
+  ],
+  "what_this_cannot_prove": [
+    "**不回答涨不涨**——本产物一个字的 CAGR / 超额 / 命中率都没有。「科创板买不进」与「科创板会跌」是**两个完全不同的量**。",
+    "**反事实那节不是收益读数**——它只把名单重排（且因全池排名未落盘，连重排都只能给区间与估计），**不重算任何收益**。",
+    "**不回答权限**——50 万/10 万门槛是外部常识、本仓无权限模型 ⇒ 「用户有没有科创板权限」是**必须人工确认**的一项。",
+    "**不回答剔池后策略会不会更好/更差**——那需要回测（回测会把候选池改掉，而 `verification.parquet` 是冻结的前瞻实验，改名单 = 污染它）。",
+    "**「可买率低」不等于「会亏」**——它只说 5 万买不进这些名字。"
+  ],
+  "verdict_about_board_exposure": {
+    "scope": "**只关于可执行性**（买不买得起），**不含任何收益判断**",
+    "headline": {
+      "up_slots_total": 100,
+      "up_n_afford_OK": 55,
+      "up_afford_OK_ratio": 0.55,
+      "up_A_physical": 3,
+      "up_B_slot": 42,
+      "star_n_in_up": 35,
+      "star_share_of_up_slots": 0.35,
+      "star_share_of_up_lot_cost": 0.8099297655758501,
+      "star_share_of_up_budget_capped_spend": 0.4995543567491498,
+      "chinext_n_in_up": 17,
+      "main_board_n_in_up": 48,
+      "pool_star_afford_OK_ratio": 0.35507246376811596,
+      "pool_main_board_afford_OK_ratio": 0.9567846607669617,
+      "up_main_board_afford_OK_ratio": 0.8333333333333334,
+      "三档分开": "**物理买不进（A）** = 1 手 > 全部本金（与怎么分配无关）；**分配不够（B）** = 1 手 > 每份 ¥5,000 但 ≤ 本金（得集中，不是买不了）；**权限未知** = 外部常识·本仓无模型 ⇒ 单列，不与前两者合并。"
+    }
+  },
+  "runtime_seconds": 23.75
+}
