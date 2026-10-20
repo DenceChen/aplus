@@ -31,6 +31,7 @@ B 是「数据有偏、必须扩池」，C 是「PIT 不成立，这条线彻底
 本脚本**不产生任何采纳结论**，只解释上面那个矛盾。
 """
 import argparse
+import hashlib
 import json
 import pickle
 import sys
@@ -41,11 +42,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from aplus import provenance  # noqa: E402
 from aplus.evolve_race import bonferroni_t  # noqa: E402
 from scripts.fundamental_factor import (  # noqa: E402
     attach_to_cross_sections, coverage, load_annual,
 )
 from scripts.horizon_sweep import forward_return  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+GENERATOR = "scripts/bm_ic_attribution.py"
 
 K = 21
 FACTOR = "bm"
@@ -279,7 +284,30 @@ def tail_contrasts(xs, days, k, daily_map, factors_map, adj_cache):
     return out
 
 
-def main() -> int:
+def _sha256_file(path) -> str | None:
+    """输入文件的**字节**指纹。
+
+    🚨 为什么章必须自己记输入（第 156 层：「盖章只验了身份证没验出生日期」）：
+    `expect_bytes` 守的是**生成器**的字节，而本产物的判决还依赖**两个输入**：
+    面板缓存（`--cache`）与财报缓存（`--financial`）。
+    **代码一个字节没动、输入换了一份** ⇒ 产物照样判「新鲜」⇒
+    只有把输入的**内容哈希**写进章，读者才能知道它算自哪一份字节。
+    """
+    try:
+        h = hashlib.sha256()
+        with Path(path).open("rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def main(argv=None) -> int:
+    # 第 125 层：**盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节**。
+    # ⇒ `main()` 的**第一条可执行语句**抓一次，盖章时比对，不一致就拒绝盖章。
+    expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", type=Path, required=True)
     ap.add_argument("--financial", type=Path,
@@ -288,7 +316,7 @@ def main() -> int:
     ap.add_argument("--end", default="2023-12-31")
     ap.add_argument("--out", type=Path,
                     default=Path("data/reports/bm_ic_attribution.json"))
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     xs = pickle.loads(args.cache.read_bytes())
     days = sorted(d for d in xs["_dates"] if args.start <= d <= args.end)
@@ -327,16 +355,30 @@ def main() -> int:
         print(f"  {y}   平均IC {v['mean_ic']:+.4f}   期数 {v['n']}")
 
     # ── C. 截尾 ─────────────────────────────────────────────────
+    #
+    # 🚨🚨 **`t_trimmed` 这个名字是承重的**（2026-10-21 修）：
+    # 本节的 t 是**截尾 IC 序列自己的 t**（机理①的判据）。
+    # 它原来也叫 `t`，而 G 节循环里又写了一次 `t = v.get("t")`
+    # （每个尾部对照自己的 t）⇒ **G 节循环结束后，`t` 指向最后一个
+    # 尾部对照（q1_minus_pool）的 t**，产物里 `trimmed_ic::t` 写的就是那个值。
+    # 实测：旧产物 `trimmed_ic::t` = `tail_contrasts::q1_minus_pool::t`
+    # = **-1.6119787074299516**，**逐位相同**；
+    # 而 `trimmed_ic::mean` = **+0.067197**（正）⇒
+    # **正均值序列的 t 不可能为负** ⇒ 那个数**不可能**是截尾 IC 的 t。
+    # ⇒ 机理①（极值集中）在旧产物里**根本没被判定过**。
+    #
+    # ⇒ 两个不同的量必须有两个不同的名字。本节用 `t_trimmed`，
+    #    G 节的循环变量用 `t_leg`。**不许再合并回 `t`。**
     tic = trimmed_ic(xs, days, K, dm, fm, ac)
-    t, n = (None, len(tic))
+    t_trimmed, n = (None, len(tic))
     if len(tic) >= 3:
         vv = tic.to_numpy()
         sd = vv.std(ddof=1)
-        t = float(vv.mean() / (sd / np.sqrt(len(vv)))) if sd > 0 else None
+        t_trimmed = float(vv.mean() / (sd / np.sqrt(len(vv)))) if sd > 0 else None
     crit = bonferroni_t(1, df=max(n - 1, 2))
     print(f"\n{'='*86}\nC. 截掉两端各 {TRIM:.0%} 后的 IC\n{'='*86}")
     print(f"  平均IC {tic.mean() if len(tic) else float('nan'):+.4f}   "
-          f"t {t if t is not None else float('nan'):+.2f}   期数 {n}")
+          f"t {t_trimmed if t_trimmed is not None else float('nan'):+.2f}   期数 {n}")
 
     # ── D. 池子偏差 ─────────────────────────────────────────────
     pb = pool_bias(xs, days, dm)
@@ -374,10 +416,18 @@ def main() -> int:
     }
     for key, lab in labels.items():
         v = tc.get(key, {})
-        t = v.get("t")
+        # 🚨 循环变量叫 `t_leg`，**不是 `t`**：它装的是「这一条尾部对照自己的 t」，
+        #    与 C 节的「截尾 IC 序列自己的 t」是**两个不同的量**。
+        #    2026-10-21 修：它原来也叫 `t` ⇒ G 节循环结束后 `t` 指向
+        #    **最后一个**尾部对照（`q1_minus_pool`）的 t ⇒ 产物
+        #    `trimmed_ic::t` 写出去的是那个值（实测 −1.6119787074299516，
+        #    与 `tail_contrasts::q1_minus_pool::t` **逐位相同**），
+        #    而 `trimmed_ic::mean` = **+0.067197**（正）
+        #    ⇒ **正均值序列的 t 不可能为负** ⇒ 那个数不可能是截尾 IC 的 t。
+        t_leg = v.get("t")
         mark = "**显著**" if v.get("significant") else "不显著"
         print(f"  {lab:<34} 年化 {v.get('annualized', float('nan')):+7.2%}   "
-              f"t {t if t is not None else float('nan'):>+6.2f}   {mark}")
+              f"t {t_leg if t_leg is not None else float('nan'):>+6.2f}   {mark}")
     mde = tc.get("mde", {})
     if mde:
         print(f"\n  ⚠️ 本设计最小可检出年化幅度 = "
@@ -393,7 +443,7 @@ def main() -> int:
                      "A 关系弱且集中在中部 / B 池子有偏 / C BPS 后修值带来前视"),
         "deciles": dec, "ic_by_year": byy,
         "trimmed_ic": {"mean": float(tic.mean()) if len(tic) else None,
-                       "t": t, "n": n, "trim": TRIM},
+                       "t": t_trimmed, "n": n, "trim": TRIM},
         "pool_bias": pb,
         "ic_by_calendar_and_report_year": cell,
         "revision_exposure": rev,
@@ -410,6 +460,19 @@ def main() -> int:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    provenance.stamp(args.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+                     extra={
+                         "k": K,
+                         "factor": FACTOR,
+                         "window": [args.start, args.end],
+                         "cache": str(Path(args.cache).resolve()),
+                         "cache_sha256": _sha256_file(args.cache),
+                         "financial": str(Path(args.financial).resolve()),
+                         "financial_sha256": _sha256_file(args.financial),
+                         "fix_2026_10_21": (
+                             "trimmed_ic::t 曾被 G 节尾部对照循环的 t 覆盖"
+                             "（变量遮蔽）⇒ 本产物该字段首次是**截尾 IC 序列自己的 t**"),
+                     })
     print(f"\n  ⚠️ {out['no_promotion']}")
     print(f"\n写出 {args.out}")
     return 0

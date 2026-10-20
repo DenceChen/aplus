@@ -1,0 +1,293 @@
+{
+  "kind": "bm_ic_attribution",
+  "k": 21,
+  "factor": "bm",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "coverage": {
+    "n_days": 1214,
+    "days_with_any": 1154,
+    "mean_n": 349.672981878089,
+    "median_n": 359.0,
+    "min_n": 0,
+    "max_n": 441,
+    "last_n": 438
+  },
+  "question": "IC-t +2.94 过闸，但组合 t −0.96。三种机制：A 关系弱且集中在中部 / B 池子有偏 / C BPS 后修值带来前视",
+  "deciles": {
+    "mean": {
+      "1": -0.00355,
+      "2": 0.00043,
+      "3": 0.00487,
+      "4": 0.00298,
+      "5": 0.00923,
+      "6": 0.009,
+      "7": 0.0069,
+      "8": 0.00798,
+      "9": 0.00937,
+      "10": 0.0078
+    },
+    "n_obs": {
+      "1": 55,
+      "2": 55,
+      "3": 55,
+      "4": 55,
+      "5": 55,
+      "6": 55,
+      "7": 55,
+      "8": 55,
+      "9": 55,
+      "10": 55
+    },
+    "win_rate": {
+      "1": 0.491,
+      "2": 0.473,
+      "3": 0.545,
+      "4": 0.509,
+      "5": 0.491,
+      "6": 0.564,
+      "7": 0.509,
+      "8": 0.509,
+      "9": 0.545,
+      "10": 0.509
+    }
+  },
+  "ic_by_year": {
+    "2019": {
+      "n": 9,
+      "mean_ic": 0.016194292047806164
+    },
+    "2020": {
+      "n": 12,
+      "mean_ic": 0.009885452638192628
+    },
+    "2021": {
+      "n": 11,
+      "mean_ic": 0.10881847198320224
+    },
+    "2022": {
+      "n": 12,
+      "mean_ic": 0.09571893289577539
+    },
+    "2023": {
+      "n": 11,
+      "mean_ic": 0.11415727476485488
+    }
+  },
+  "trimmed_ic": {
+    "mean": 0.06719696684340001,
+    "t": 3.0761460884793435,
+    "n": 55,
+    "trim": 0.05
+  },
+  "pool_bias": {
+    "2019": {
+      "day": "2019-07-05",
+      "pool_total": 313,
+      "pool_covered": 312,
+      "share": 0.997
+    },
+    "2020": {
+      "day": "2020-07-07",
+      "pool_total": 319,
+      "pool_covered": 317,
+      "share": 0.994
+    },
+    "2021": {
+      "day": "2021-07-06",
+      "pool_total": 362,
+      "pool_covered": 361,
+      "share": 0.997
+    },
+    "2022": {
+      "day": "2022-07-07",
+      "pool_total": 403,
+      "pool_covered": 401,
+      "share": 0.995
+    },
+    "2023": {
+      "day": "2023-07-06",
+      "pool_total": 418,
+      "pool_covered": 418,
+      "share": 1.0
+    }
+  },
+  "ic_by_calendar_and_report_year": {
+    "2019/2017": {
+      "n": 1,
+      "mean_ic": 0.0505
+    },
+    "2019/2018": {
+      "n": 9,
+      "mean_ic": 0.011
+    },
+    "2020/2018": {
+      "n": 4,
+      "mean_ic": -0.0227
+    },
+    "2020/2019": {
+      "n": 9,
+      "mean_ic": 0.024
+    },
+    "2021/2019": {
+      "n": 3,
+      "mean_ic": 0.2283
+    },
+    "2021/2020": {
+      "n": 9,
+      "mean_ic": 0.0638
+    },
+    "2022/2020": {
+      "n": 4,
+      "mean_ic": 0.2205
+    },
+    "2022/2021": {
+      "n": 9,
+      "mean_ic": 0.021
+    },
+    "2023/2021": {
+      "n": 3,
+      "mean_ic": 0.124
+    },
+    "2023/2022": {
+      "n": 9,
+      "mean_ic": 0.1355
+    }
+  },
+  "revision_exposure": {
+    "2007": {
+      "n": 215,
+      "revised_share": 0.0465,
+      "median_days_revised": 0
+    },
+    "2008": {
+      "n": 239,
+      "revised_share": 0.0377,
+      "median_days_revised": 0
+    },
+    "2009": {
+      "n": 254,
+      "revised_share": 0.0591,
+      "median_days_revised": 0
+    },
+    "2010": {
+      "n": 255,
+      "revised_share": 0.8157,
+      "median_days_revised": 364
+    },
+    "2011": {
+      "n": 312,
+      "revised_share": 0.7564,
+      "median_days_revised": 360
+    },
+    "2012": {
+      "n": 337,
+      "revised_share": 0.8042,
+      "median_days_revised": 357
+    },
+    "2013": {
+      "n": 381,
+      "revised_share": 0.811,
+      "median_days_revised": 364
+    },
+    "2014": {
+      "n": 393,
+      "revised_share": 0.8677,
+      "median_days_revised": 364
+    },
+    "2015": {
+      "n": 397,
+      "revised_share": 0.8892,
+      "median_days_revised": 363
+    },
+    "2016": {
+      "n": 422,
+      "revised_share": 0.9408,
+      "median_days_revised": 365
+    },
+    "2017": {
+      "n": 439,
+      "revised_share": 0.9704,
+      "median_days_revised": 366
+    },
+    "2018": {
+      "n": 464,
+      "revised_share": 0.9806,
+      "median_days_revised": 371
+    },
+    "2019": {
+      "n": 482,
+      "revised_share": 0.9959,
+      "median_days_revised": 364
+    },
+    "2020": {
+      "n": 488,
+      "revised_share": 0.9939,
+      "median_days_revised": 365
+    },
+    "2021": {
+      "n": 490,
+      "revised_share": 0.9918,
+      "median_days_revised": 365
+    },
+    "2022": {
+      "n": 496,
+      "revised_share": 0.9919,
+      "median_days_revised": 366
+    },
+    "2023": {
+      "n": 493,
+      "revised_share": 0.9939,
+      "median_days_revised": 365
+    },
+    "2024": {
+      "n": 491,
+      "revised_share": 0.9959,
+      "median_days_revised": 365
+    },
+    "2025": {
+      "n": 490,
+      "revised_share": 0.0265,
+      "median_days_revised": 0
+    }
+  },
+  "revision_caveat": "F 表**不可当作污染证据**。报告年份 ≥2010 的改动滞后中位数恰好 ~365 天，整齐地锁在一年——逐笔重述不会这样。这是全表刷新时间戳，与 `diag_financial_lookahead.py` 否决出路 A 的发现一致：`UPDATE_DATE` 反映的是「这一行最近一次被刷新」，不是「这个数被改过」",
+  "tail_contrasts": {
+    "t_crit": 2.470848111890964,
+    "annualizer": 11.619047619047619,
+    "n_days": 55,
+    "q10_minus_q1": {
+      "n": 55,
+      "mean_per_k": 0.011347540216754118,
+      "annualized": 0.13184761013752405,
+      "t": 1.2177103701193164,
+      "significant": false
+    },
+    "q10_minus_pool": {
+      "n": 55,
+      "mean_per_k": 0.002296947765303637,
+      "annualized": 0.02668834546352797,
+      "t": 0.47681823363050085,
+      "significant": false
+    },
+    "q1_minus_pool": {
+      "n": 55,
+      "mean_per_k": -0.009050592451450479,
+      "annualized": -0.10515926467399603,
+      "t": -1.6119787074299516,
+      "significant": false
+    },
+    "mde": {
+      "sd_per_k": 0.06910971003679894,
+      "crit": 2.470848111890964,
+      "n_pairs": 55,
+      "min_detectable_per_k": 0.023025219302703653,
+      "min_detectable_annualized": 0.26753111951712816,
+      "note": "低于这个年化幅度的真实效应，本设计**根本没有能力**发现。「不显著」只能读作「没检出」，读作「不存在」就是自欺"
+    }
+  },
+  "discriminator": "E 表是分开「宏观风格」与「PIT 污染」的判别式：同一信号年内，报告年份越新 IC 若越高 → 污染解释；各年份 IC 相近 → 宏观解释",
+  "no_promotion": "本脚本只做归因，不产生采纳结论，更不写 weights.json"
+}

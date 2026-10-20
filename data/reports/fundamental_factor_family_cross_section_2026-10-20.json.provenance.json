@@ -1,0 +1,25 @@
+{
+  "code_sha": "7bf2abbf0fdac213124cbbb05eea445d7c393218",
+  "code_dirty": true,
+  "code_file_sha256": "bfe326258b01127de679ce7a7472749f34636268bcd9454cee513ceca9cb2a5c",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_fundamental_factor_family_cross_section.py",
+  "stamped_at": "2026-10-20T18:09:38+00:00",
+  "prereg": "docs/PREREG_FUNDAMENTAL_FAMILY_2026-10-20.md",
+  "as_of": "2026-10-20",
+  "frozen_factors": [
+    "bm",
+    "ep",
+    "roe",
+    "size",
+    "q"
+  ],
+  "family_a_factors": [
+    "bm",
+    "ep",
+    "roe",
+    "q"
+  ],
+  "data_root": "/Users/airboom/opencode/aplus/data"
+}

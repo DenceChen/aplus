@@ -53,6 +53,16 @@ from aplus.store import LocalStore  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _read_codes(path: Path) -> set[str]:
+    """读代码清单：文本文件（一行一个）或 parquet（取 `SECURITY_CODE` 列）。"""
+    if path.suffix.lower() in (".parquet", ".pq"):
+        import pandas as pd
+        col = pd.read_parquet(path, columns=["SECURITY_CODE"])["SECURITY_CODE"]
+        return {str(c).strip() for c in col}
+    return {line.strip() for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
@@ -62,6 +72,12 @@ def main() -> int:
     ap.add_argument("--reuse", action="store_true",
                     help="复用已有缓存。**默认重建**——"
                          "2026-10-14 那次假重跑就是这么发生的")
+    ap.add_argument("--codes-from", type=Path, default=None,
+                    help="**缩减范围**：只保留这些代码（文本文件，一行一个代码；"
+                         "或 parquet，取 SECURITY_CODE 列）。"
+                         "用于「判决量只依赖带得上因子的那批票」的诊断性重跑"
+                         "（GB 级全市场面板的轻活替代）。"
+                         "⚠️ 缩减后 `pool_total` 等**池子规模**字段不再可比")
     args = ap.parse_args()
 
     # **复用前先体检，而且只看 sidecar（不读 1.7 GB）。**
@@ -82,10 +98,19 @@ def main() -> int:
                  for p in sorted((args.data_root / "master" / "daily").glob("*.parquet"))}
     print(f"日线 {len(daily_map)} 只载入 {time.time() - t0:.0f}s", flush=True)
 
+    if args.codes_from:
+        keep = _read_codes(args.codes_from)
+        daily_map = {k: v for k, v in daily_map.items()
+                     if k in keep and v is not None and len(v)}
+        print(f"**缩减范围** {len(daily_map)} 只（{args.codes_from}）", flush=True)
+
     from aplus.snapshot import load_factors_map
+    factors_map = load_factors_map(store)
+    if args.codes_from:
+        factors_map = {k: v for k, v in factors_map.items() if k in daily_map}
     xs = build_cross_sections(store, args.start, args.end,
                               daily_map=daily_map,
-                              factors_map=load_factors_map(store))
+                              factors_map=factors_map)
     print(f"横截面 {len(xs['_dates'])} 个交易日 {time.time() - t0:.0f}s", flush=True)
     if not xs["_dates"]:
         print("区间内**没有任何交易日**——不要拿这份缓存跑任何结论", flush=True)

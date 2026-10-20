@@ -1,0 +1,14 @@
+{
+  "code_sha": "7bf2abbf0fdac213124cbbb05eea445d7c393218",
+  "code_dirty": true,
+  "code_file_sha256": "df4d0decac9f034f032b1191dbd0a8d4c132ded071296e35332b4b14b238e588",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_fundamental_coverage_axes.py",
+  "stamped_at": "2026-10-20T18:07:26+00:00",
+  "prereg": "docs/PREREG_FUNDAMENTAL_FAMILY_2026-10-20.md",
+  "prereg_section": "§6.2 机理②",
+  "as_of": "2026-10-20",
+  "coverage_cache_sha256": "417981166d675421277a0a7697deb3160bd4f8f82a6f301ad8d8a6e631440340",
+  "data_root": "/Users/airboom/opencode/aplus/data"
+}

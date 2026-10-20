@@ -1,0 +1,204 @@
+{
+  "kind": "fundamental_contamination_concentration",
+  "prereg": "docs/PREREG_FUNDAMENTAL_FAMILY_2026-10-20.md",
+  "prereg_section": "§6.1 机理③",
+  "as_of_before": "2026-10-14",
+  "as_of_after": "2026-10-20",
+  "question": "PIT 变更行是否集中在 BM 两端（若是，则 BM 两端是脏数据）",
+  "method": {
+    "diff_key": "(SECUCODE, REPORT_DATE)",
+    "diff_scope": "至少一个数值列变了",
+    "bm_before": "BPS(2026-10-14 快照) / close(2026-10-14, 不复权)",
+    "pool": "年报口径 + NOTICE_DATE 对齐（aplus/factor_fundamental.py::annual_from_frame）",
+    "binning": "全池 BM 的等频值域边界（10 档）",
+    "price": "不复权 close；当日无 bar 取之前最后一根（生产语义）"
+  },
+  "diff": {
+    "n_rows_before": 65391,
+    "n_rows_after": 65391,
+    "n_aligned_keys": 65296,
+    "n_keys_only_in_before": 95,
+    "n_keys_only_in_after": 95,
+    "n_value_cols_compared": 121,
+    "n_value_cols_changed": 83,
+    "changed_cols_top": {
+      "EPSJBTZ": 17,
+      "ROICTZ": 16,
+      "DJD_DPNP_QOQ": 16,
+      "DJD_DPNP_YOY": 15,
+      "FCFF_FORWARD": 15,
+      "EPSJB": 14,
+      "ROEJQTZ": 14,
+      "EPSXS": 13,
+      "ZZCJLLTZ": 13,
+      "DJD_TOI_QOQ": 13,
+      "ROEJQ": 12,
+      "ROIC": 12
+    },
+    "n_rows_changed": 64,
+    "n_changed_share_of_aligned": 0.00098015
+  },
+  "price": {
+    "n_codes_with_bar": 5460,
+    "n_codes_with_bar_at_requested_day": 5215,
+    "n_stale_price": 245,
+    "stale_price_note": "陈旧价 = 当日无 bar（停牌/退市）取之前最后一根，与 aplus/factor_fundamental.py::close_on 同口径。🚨 这是**生产口径**，不是缺陷，但必须报出来"
+  },
+  "pool": {
+    "n_codes": 5317,
+    "n_deciles": 10,
+    "decile_edges": [
+      -2.067974945207706,
+      -1.595726274584449,
+      -1.3102189839853104,
+      -1.0914163221042066,
+      -0.9040256858962182,
+      -0.7209706376835019,
+      -0.5375799214200849,
+      -0.32738149421233226,
+      -0.004776644601202696
+    ],
+    "counts": [
+      532,
+      532,
+      531,
+      532,
+      531,
+      532,
+      532,
+      531,
+      532,
+      532
+    ],
+    "props": [
+      0.1000564227948091,
+      0.1000564227948091,
+      0.0998683468121121,
+      0.1000564227948091,
+      0.0998683468121121,
+      0.1000564227948091,
+      0.1000564227948091,
+      0.0998683468121121,
+      0.1000564227948091,
+      0.1000564227948091
+    ],
+    "bm_quantiles": {
+      "0.01": -3.7951035232472607,
+      "0.05": -2.5827253180939898,
+      "0.25": -1.4467318985643187,
+      "0.5": -0.9040256858962182,
+      "0.75": -0.44085045985064947,
+      "0.95": 0.23345294853760215,
+      "0.99": 1.0531365736860563
+    }
+  },
+  "changed_rows": {
+    "n_rows_changed": 64,
+    "n_rows_with_price_and_bps": 64,
+    "n_codes_touched": 39,
+    "counts": [
+      7,
+      4,
+      12,
+      5,
+      1,
+      6,
+      11,
+      8,
+      6,
+      4
+    ],
+    "props": [
+      0.109375,
+      0.0625,
+      0.1875,
+      0.078125,
+      0.015625,
+      0.09375,
+      0.171875,
+      0.125,
+      0.09375,
+      0.0625
+    ],
+    "bm_before_quantiles": {
+      "0.05": -2.6825263895092677,
+      "0.25": -1.5253785973565992,
+      "0.5": -0.8052208701590462,
+      "0.75": -0.5202016643748082,
+      "0.95": 0.1731978888288106
+    },
+    "report_type_breakdown": {
+      "三季报": 26,
+      "中报": 16,
+      "年报": 16,
+      "一季报": 6
+    }
+  },
+  "criterion": {
+    "threshold_pp": 3.0,
+    "threshold_provenance": "**自研门槛**（预注册 §6.1 明写「书与仓内均无此门槛」）。🚨 **本轮实测发现该门槛的原始推导有分母错配**，且错配会**翻转结论** ⇒ 见 threshold_calibration_audit",
+    "metric": "**预注册未写死分母** ⇒ 两个读法都报：甲=各档占比差（分母=变更行总数）；乙=各档污染率相对全池总污染率的偏差（分母=各档池子）",
+    "reading_A_share_dev": {
+      "definition": "max_d |count_changed(d)/n_changed − pool_share(d)|",
+      "value_pp": 8.76316531878879,
+      "exceeds_threshold": true,
+      "exceeds_null_p95": false,
+      "null_p95_pp": 10.325665318788788,
+      "verdict": "读法甲(占比差): 观测偏差 8.763pp 超过门槛 3.0pp，**但**落在零假设 95 分位 10.326pp **之内** ⇒ 该门槛在此样本量下**没有检出力**，过门槛**不构成**集中的证据"
+    },
+    "reading_B_rate_dev": {
+      "definition": "max_d |count_changed(d)/pool_count(d) − total_rate|",
+      "value_pp": 1.056200716388856,
+      "exceeds_threshold": false,
+      "exceeds_null_p95": false,
+      "null_p95_pp": 1.2445246335263325,
+      "verdict": "读法乙(每档污染率): 观测偏差 1.056pp 未超过门槛 3.0pp，也未超过零假设 95 分位 1.245pp ⇒ **未测出**集中"
+    },
+    "chi2_stat": 15.391704510658707,
+    "chi2_df": 9,
+    "chi2_p": 0.08072330297766467,
+    "chi2_note": "卡方是**第三个口径**（分布形状：每档期望占比 × n_obs），与甲、乙都**不是同一个量**；三个口径不一致时三个都印出来，不许只挑一个说",
+    "chi2_significant_at_0.05": false,
+    "chi2_line": "卡方 p=0.08072 ≥ 0.05 ⇒ **不能拒绝**「变更行按全池形状分布」",
+    "threshold_calibration_audit": {
+      "finding": "🚨 **预注册 §6.1 的 3pp 门槛推导有分母错配，且错配翻转结论**。",
+      "prereg_derivation_verbatim": "「64 行若均匀铺在 10 档，每档约 6.4 行；全池每档约 5,460 只 ⇒ 期望占比 10%，64 行的随机波动标准差 ≈ √(64 × 0.1 × 0.9) ≈ 2.4 行 ⇒ 占全池 0.044pp。⇒ 3pp 门槛是「远超随机」」",
+      "audit": "同一条波动标准差 2.4 **行**，换分母：读法甲（分母=64 变更行）⇒ 3.75pp，**比 3pp 门槛本身还大** ⇒ 门槛在噪声带**里面**，零假设下几乎必然被超过（本轮实测 99.1% 的抽样过门槛）；读法乙（分母=每档池子≈546）⇒ 0.44pp，门槛在噪声带**上面**。",
+      "consequence": "⇒ 同一个观测值在两个读法下**判决相反**。本产物**不替预注册选边**（那是第 91 层「跑过数据后换判据」），而是两个读法 + 卡方**三个口径一起报**，并把噪声尺度摆在旁边，让读数能自己判断。",
+      "recommendation_for_next_prereg": "下一份预注册必须**写死分母**（并把门槛的推导与该分母对齐），否则同一个数在两种读法下判决相反 ⇒ 判据不可用。"
+    },
+    "noise_reference": {
+      "method": "蒙特卡洛 20000 次，零假设=变更行按全池形状落下，种子 20261020",
+      "reading_A_null_pp": {
+        "p50": 6.880642279480911,
+        "p95": 10.325665318788788,
+        "p99": 13.431857720519089,
+        "exceeds_threshold_rate": 0.9909
+      },
+      "reading_B_null_pp": {
+        "p50": 0.8277464396368013,
+        "p95": 1.2445246335263325,
+        "p99": 1.6158625829195896,
+        "exceeds_threshold_rate": 0.0
+      },
+      "note": "🚨 **这是 3pp 门槛的参照系**：n_obs 只有几十行时，单个档位的占比标准差就有 √(0.1×0.9/n_obs) 个百分点，而**十个档位的最大值**还要更大。⇒ 观测偏差必须与本零假设分布比，否则「3pp」这句话在 n_obs=几十 时**没有意义**"
+    }
+  },
+  "verdict": "NO_CONCENTRATION_DETECTED: 三个口径**未一致** ⇒ 机理③在本窗口**未被证实**。🚨 这**不等于**「没有污染」——只等于「本设计在本窗口测不到」",
+  "verdict_reading_A": "读法甲(占比差): 观测偏差 8.763pp 超过门槛 3.0pp，**但**落在零假设 95 分位 10.326pp **之内** ⇒ 该门槛在此样本量下**没有检出力**，过门槛**不构成**集中的证据",
+  "verdict_reading_B": "读法乙(每档污染率): 观测偏差 1.056pp 未超过门槛 3.0pp，也未超过零假设 95 分位 1.245pp ⇒ **未测出**集中",
+  "verdict_discipline": {
+    "not_detected_is_not_absent": "🚨 本产物**没有**「污染不存在」这个结论的射程：窗口 6 天、变更行几十行，检出力由 criterion.noise_reference 报出",
+    "three_readings_must_agree": "🚨 结论要成立，三个口径（甲/乙/卡方）必须**一致**。任一口径不过 ⇒ 机理③**未被证实**。本产物**不替预注册选一个分母**（预注册没写死），两个读法都报出来",
+    "uniform_is_not_harmless": "预注册 §6.0：污染**均匀** ⇒ 只加噪（**降低** IC）⇒ **削弱③**，不是「无害」",
+    "mechanism3_consequence_if_established": "预注册 §6.6：③成立 ⇒ **历史读数全部作废，只剩臂 F**"
+  },
+  "scope": {
+    "this_product_does_not": [
+      "判定 BM 因子的预测力（那是族 A 的事）",
+      "判定污染对 IC 的**量级**影响（需要 forward return，那是轮次 B）",
+      "断言「没有污染」"
+    ],
+    "reads": "只读 vintage parquet + daily parquet 的单票单行；未建面板"
+  }
+}

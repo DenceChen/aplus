@@ -1,0 +1,20 @@
+{
+  "code_sha": "4686c42f4ea09f75f8f00b559d1f81fe0adf2838",
+  "code_dirty": true,
+  "code_file_sha256": "82fb26255e11d9389a2ed12bd85b669834c455266d54c4271c56da575a69cf04",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/bm_ic_attribution.py",
+  "stamped_at": "2026-10-20T18:59:10+00:00",
+  "k": 21,
+  "factor": "bm",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "cache": "/private/tmp/aplus_bm_reduced_cache.pkl",
+  "cache_sha256": "b92598dd2f70744f907abfb26e31ce34d20efb99cd2d2853590af62636022948",
+  "financial": "/Users/airboom/opencode/aplus/data/reports/financial_annual_cache.parquet",
+  "financial_sha256": "417981166d675421277a0a7697deb3160bd4f8f82a6f301ad8d8a6e631440340",
+  "fix_2026_10_21": "trimmed_ic::t 曾被 G 节尾部对照循环的 t 覆盖（变量遮蔽）⇒ 本产物该字段首次是**截尾 IC 序列自己的 t**"
+}
