@@ -289,7 +289,37 @@ def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
                 "hit_rate": float((g["result"] == "hit").mean()),
             }
         seq = [sub[k]["hit_rate"] for k in sorted(kk for kk in sub if kk.startswith("Q"))]
-        monotone = all(seq[i] <= seq[i + 1] for i in range(len(seq) - 1))
+        # 🚨🚨 **2026-10-20 方向修正（P0）** —— 这行的不等号原来写反了。
+        #
+        # **分位约定**：`_within_group_quartile` 的 docstring 逐字「组内四分位
+        # （1 = 分数最高）」⇒ **Q1 = 分数最高**，Q4 = 分数最低。
+        # ⇒ `seq` 的下标是**分位标签**（Q1→Q4），不是分数的大小。
+        #
+        # **预注册原文**（docs/TODO_reverse_scoring_2026-10-15.md §3 第 128 行）：
+        # 「| **G4** | `score` 四分位命中率 | **单调递增** | S3 |」
+        # 同文件第 59 行：「`score 四分位 → 命中率单调递增` 的证据（分段单调即可）」。
+        # ⇒ 「命中率随 score 递增」在 Q 标签上的代数形式是
+        #    **hit_rate(Q1) >= hit_rate(Q2) >= hit_rate(Q3) >= hit_rate(Q4)**
+        # ⇒ 原实现写的 `all(seq[i] <= seq[i+1])` 判的其实是
+        #    「**命中率随 score 递减**」⇒ **与预注册相反**。
+        #
+        # **为什么是 P0（失效方向）**：
+        # ① 一个**真的**有排序力的打分器 ⇒ 命中率随 score 递增 ⇒
+        #    在原实现下**判为不单调** ⇒ **拦住目标信号**；
+        # ② 一个**反预测**的打分器 ⇒ 在原实现下**判为单调** ⇒ **放行错误信号**。
+        # ⇒ 这枚闸门判的是**打分器的反向**。
+        #
+        # **今天判决为什么没翻转**：两个方向下涨腿臂的序列**都不单调**
+        # （Q1 0.7083 / Q2 0.3750 / Q3 0.4091 / Q4 0.6250）⇒ 判决仍是
+        # `NOT_PASSED_POWERLESS`。**那是数据恰好如此，不是判据正确**
+        # ⇒ 与 `tests/test_score_ranking_power.py` 里「monotone 全是夹具注入的
+        # 字段、真实测量一次没被调用」是同一族（第 120 层）。
+        #
+        # **修法 = 让代码回到预注册的原文**（判据是文档先定的，§3 第 128 行一字未动
+        # ⇒ 这不是「改判据」，是「修一个与预注册相反的实现」）。
+        # **方向必须显式落进产物**（`monotone_direction`），读者不许靠
+        # 「代码长得像」推断方向 —— 这次的方向错误就是靠推断出来的。
+        monotone = all(seq[i] >= seq[i + 1] for i in range(len(seq) - 1))
         x = a[score_col].to_numpy(dtype=float)
         y = (a["result"] == "hit").to_numpy(dtype=float)
         rho = _point_biserial(x, y)
@@ -337,6 +367,20 @@ def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
         sub["_stats"] = {
             "hit_rate_sequence_q1_to_q4": seq,
             "monotone_nondecreasing": bool(monotone),
+            # 🚨 **方向必须显式落进产物**（2026-10-20）。判据的**名字**
+            # （`monotone_nondecreasing`）不带方向 ⇒ 读者只能靠 `seq` 的下标约定
+            # 推断，而那个约定（Q1 = 分数最高）写在**另一个函数**的 docstring 里
+            # ⇒ **推断链跨了两个文件** ⇒ 这就是本次方向错误的成因。
+            # ⇒ 从今天起方向是产物的**字段**，不是读者的推断题。
+            "quartile_label_convention": "Q1 = 分数最高（组内按 score 名次降序），Q4 = 分数最低",
+            "monotone_direction": "increasing_with_score",
+            "monotone_direction_meaning": (
+                "命中率随 **score 递增**（预注册 G4 原文「单调递增」）；"
+                "等价于 hit_rate 随 **Q 标签**（Q1=分数最高）**非递增**。"
+                "⚠️ 这两个表述指同一条不等式链，但只有前者能说明它测的是哪个方向。"),
+            "monotone_test_formula": (
+                "hit_rate(Q1) >= hit_rate(Q2) >= hit_rate(Q3) >= hit_rate(Q4)"),
+            "expected_rho_sign": "positive",
             "point_biserial_rho": rho,
             "permutation_p_two_sided": p,
             "null_abs_rho_q95_power_floor": q95,

@@ -365,3 +365,94 @@ def test_point_biserial_is_zero_when_either_side_is_constant():
     x = np.array([1.0, 2.0, 3.0, 4.0])
     assert _point_biserial(x, np.ones(4)) == 0.0
     assert _point_biserial(x, np.array([1.0, 0.0, 1.0, 0.0])) != 0.0
+
+
+# ── 能力守卫：真实测量函数的**方向**必须与预注册一致（2026-10-20） ──────────
+#
+# 🚨🚨 **背景**：本文件此前的 21 条守卫里，`monotone_nondecreasing`
+# **全部是夹具注入的字段**（`_stats(monotone=True, ...)`）⇒
+# **`measure()` 这个真实测量函数一次都没被调用过** ⇒ 它的方向从未被验过。
+# ⇒ 后果（2026-10-20 实测发现）：`_within_group_quartile` 的约定是
+# **Q1 = 分数最高**（写在**另一个函数**的 docstring 里），而实现判的是
+# `all(seq[i] <= seq[i+1])` ⇒ 判的是「**命中率随 score 递减**」
+# ⇒ **与预注册 G4 原文相反**。
+#
+# ⇒ 失效方向（为什么贵）：
+#   ① 真的**有排序力**的打分器 ⇒ 被判「不单调」⇒ **拦住目标信号**；
+#   ② **反预测**的打分器 ⇒ 被判「单调」⇒ **放行错误信号**。
+# ⇒ 今天判决没翻转**纯属数据恰好**（两个方向都不单调），不是判据正确。
+
+def _synthetic(hit_counts: tuple[int, ...], n_per_q: int = 10):
+    """造一份「分数越高命中率越高（或越低）」的横截面。
+
+    **Q1 = 分数最高**（`_within_group_quartile` 的约定）⇒
+    `hit_counts` 的第 0 位是 **Q1** 的命中数，第 3 位是 **Q4** 的。
+
+    🚨 **分数必须按分位「递减」铺**（q=0 → 最高分）：
+    第一版把 q=0 配成了**最低**分，于是 Q1 与 q=0 错位 ⇒
+    两条守卫**同时红**、而报出来的序列是「好夹具」那一条 ——
+    ⇒ **夹具错了，症状长得像「代码错了」**（第 98 层：先怀疑构造）。
+    """
+    import pandas as pd
+    rows = []
+    for q, nh in enumerate(hit_counts):
+        for i in range(n_per_q):
+            rows.append({
+                "code": f"6000{q}{i:02d}.SH",
+                "name": f"票{q}{i}",
+                "direction": "up",
+                # q=0 ⇒ 分数最高 ⇒ **递减**铺
+                "score": float(-(q * n_per_q + i)),
+                "result": "hit" if i < nh else "miss",
+                "pred_date": "2026-10-20",
+            })
+    return pd.DataFrame(rows)
+
+
+def test_a_scorer_whose_hit_rate_rises_with_the_score_is_judged_monotone():
+    """🚨 能力守卫（正控）：**真的有排序力**的打分器必须过闸。
+
+    预注册 G4 原文：「`score` 四分位命中率 **单调递增**」
+    （docs/TODO_reverse_scoring_2026-10-15.md §3 第 128 行），
+    分位约定 Q1 = 分数最高 ⇒ 「命中率随 score 递增」
+    = hit_rate 随 **Q 标签**（Q1→Q4）**非递增**。
+    """
+    from scripts.score_ranking_power import measure
+    good = measure(_synthetic((10, 5, 2, 0)), "score", n_perm=200, seed=1)
+    st = good["arms"]["up"]["_stats"]
+    assert st["monotone_nondecreasing"] is True, (
+        "一个「分数越高命中率越高」的打分器被判成不单调 ⇒ 方向写反了；"
+        f"实测序列 {st['hit_rate_sequence_q1_to_q4']}")
+
+
+def test_an_inverted_scorer_is_judged_not_monotone():
+    """🚨 能力守卫（反向正控）：**反预测**的打分器必须**过不了**闸。
+
+    与上一条**互为镜像** ⇒ 方向写反时**必有一条变红**。
+    """
+    from scripts.score_ranking_power import measure
+    bad = measure(_synthetic((0, 2, 5, 10)), "score", n_perm=200, seed=1)
+    st = bad["arms"]["up"]["_stats"]
+    assert st["monotone_nondecreasing"] is False, (
+        "一个「分数越高命中率越低」的打分器被判成单调 ⇒ 方向写反了；"
+        f"实测序列 {st['hit_rate_sequence_q1_to_q4']}")
+
+
+def test_the_artifact_states_its_own_direction_instead_of_making_the_reader_infer_it():
+    """🚨 方向必须是**产物的字段**，不是读者的推断题。
+
+    本次的方向错误就是靠推断出来的：分位约定写在**另一个函数**的
+    docstring 里 ⇒ 推断链跨了两个文件 ⇒ 谁也没看见。
+    ⇒ 从今天起，产物必须自己说清：
+    ① `quartile_label_convention`（Q1 = 分数最高）
+    ② `monotone_direction`（increasing_with_score）
+    ③ `monotone_test_formula`（不等式链本身）
+    ④ `expected_rho_sign`（点二列相关的期望符号）
+    """
+    from scripts.score_ranking_power import measure
+    res = measure(_synthetic((10, 5, 2, 0)), "score", n_perm=200, seed=1)
+    st = res["arms"]["up"]["_stats"]
+    assert st["quartile_label_convention"].startswith("Q1 = 分数最高"), st
+    assert st["monotone_direction"] == "increasing_with_score", st
+    assert "hit_rate(Q1) >= hit_rate(Q2)" in st["monotone_test_formula"], st
+    assert st["expected_rho_sign"] == "positive", st
