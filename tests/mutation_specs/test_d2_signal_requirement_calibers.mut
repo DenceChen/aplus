@@ -1,0 +1,74 @@
+M1 实测毛超额被乘 1.01（不再是上游那一格的值）	scripts/d2_signal_requirement.py
+        "measured_gross_annual_pct": require(k_axis, "gross_excess_annual_pct"),
+=== 变异体 ===
+        "measured_gross_annual_pct": require(k_axis, "gross_excess_annual_pct") * 1.01,
+
+M2 生产臂的臂被改成 ARM_C（不再是生产那一格）	scripts/d2_signal_requirement.py
+PRODUCTION_FILTER_ARM = "ARM_A"
+=== 变异体 ===
+PRODUCTION_FILTER_ARM = "ARM_C"
+
+M3 台账的 K 被写死成 21（不再跟 LIVE_REBALANCE_EVERY 走）	scripts/d2_signal_requirement.py
+LEDGER_K = int(LIVE_REBALANCE_EVERY)
+=== 变异体 ===
+LEDGER_K = 21
+
+M4 倍数被乘 1.01（不再是要求 ÷ 实测）	scripts/d2_signal_requirement.py
+    return required_gross_pct / measured_gross_pct
+=== 变异体 ===
+    return required_gross_pct / measured_gross_pct * 1.01
+
+M5 跨口径那一列被标成「是缺口」	scripts/d2_signal_requirement.py
+            "is_the_gap": False,
+=== 变异体 ===
+            "is_the_gap": True,
+
+M6 跨口径那一列的 K 被抹成台账的 K（跨口径这个事实被抹掉）	scripts/d2_signal_requirement.py
+            "k_of_measured": cross_k,
+=== 变异体 ===
+            "k_of_measured": LEDGER_K,
+
+M7 跨口径那一列的分母被换成同口径那一列的（两列变成同一列）	scripts/d2_signal_requirement.py
+    cross_measured_pct = deliverable_row["measured_gross_annual"] * 100.0
+=== 变异体 ===
+    cross_measured_pct = prod["measured_gross_annual_pct"]
+
+M8 同口径那一列读的不是生产格（自己挑了一格）	scripts/d2_signal_requirement.py
+    prod = k_axis_measurement(deployed, production_cell_label())
+=== 变异体 ===
+    prod = k_axis_measurement(deployed, f"BACKTEST_IC|ARM_A|K{LEDGER_K}|E100")
+
+M9 生产臂的口径自检被摘掉（检查还在，没人调）	scripts/d2_signal_requirement.py
+    check_production_arm(prod)
+=== 变异体 ===
+    pass
+
+M10 市场腿自检内部被摘掉（永远不响）	scripts/d2_signal_requirement.py
+        if token not in desc:
+=== 变异体 ===
+        if False:
+
+M11 对照臂的信号检查被摘掉（对照臂可以与生产臂同信号）	scripts/d2_signal_requirement.py
+        if meas["signal"] == PRODUCTION_SIGNAL:
+=== 变异体 ===
+        if False:
+
+M12 对照臂被塞进生产臂（挑臂的空间）	scripts/d2_signal_requirement.py
+CONTROL_ARMS = (("BACKTEST_IC", "ARM_A"), ("BACKTEST_IC", "ARM_C"))
+=== 变异体 ===
+CONTROL_ARMS = (("LIVE_DEFAULT", "ARM_A"), ("BACKTEST_IC", "ARM_C"))
+
+M13 同口径那一列的倍数用错分母（拿跨口径的实测）	scripts/d2_signal_requirement.py
+    same_multiple = multiple_needed(required_pct, prod["measured_gross_annual_pct"])
+=== 变异体 ===
+    same_multiple = multiple_needed(required_pct, deliverable_row["measured_gross_annual"] * 100.0)
+
+M14 块里那份「要求」被乘 1.01（与 headline 漂移）	scripts/d2_signal_requirement.py
+    required_pct = deliverable_row["required_gross_at_50k"] * 100.0
+=== 变异体 ===
+    required_pct = deliverable_row["required_gross_at_50k"] * 100.0 * 1.01
+
+M15 生产格的核对被摘掉（落盘路径上不再核对上游认的那一格）	scripts/d2_signal_requirement.py
+    check_production_cell(deployed)
+=== 变异体 ===
+    pass

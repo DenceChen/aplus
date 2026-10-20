@@ -138,6 +138,94 @@
       "hardest": 2.2323053532665944
     },
     "multiple_needed_at_50k_deliverable": 2.3450157528864404,
+    "multiple_needed_at_50k_deliverable_by_caliber": {
+      "⚠️_read_this_before_quoting_any_multiple": "🚨 **这个块里有两个倍数，口径不同。**只有 `same_caliber` 那个（**同口径**：K=63 · 生产臂 `LIVE_DEFAULT` · 榜宽 10 · ¥5万 · 满仓 · 同一等权市场腿）是「还差几倍」。`cross_caliber` 那个把 **K=21 研究臂的实测**除以 **K=63 的要求** ⇒ **K 与信号两处口径都不同** ⇒ 它**不是**缺口（第 7 层：两个各自都对的数放一起比）。",
+      "requirement": {
+        "caliber_name": "要求（K=63 · 榜宽 10 · ¥5万 · 满仓(equity_weight=1.0) · 等权市场腿）",
+        "k": 63,
+        "n_positions": 10,
+        "capital": 50000.0,
+        "equity_weight": 1.0,
+        "rounds_per_year": 3.873015873015873,
+        "market_leg": {
+          "description": "等权（抽样面板等权日收益）",
+          "sample_size": 150,
+          "sample_pool": 5460,
+          "sample_seed": 42,
+          "source": "data/reports/market_nav_caliber.json::sample",
+          "deployed_side_description": "抽样面板等权日收益（150 只、种子 42）—— **不是**中证全指、**不是**市值加权"
+        },
+        "required_gross_at_50k_deliverable_pct": 11.281298415805717,
+        "source": "data/reports/d2_signal_requirement.json::headline.required_gross_at_50k_deliverable",
+        "is_the_preregistered_criterion_input": true,
+        "was_changed_by_this_ledger": false
+      },
+      "same_caliber": {
+        "is_the_gap": true,
+        "caliber_name": "同口径·K=63·生产臂 LIVE_DEFAULT·配置层 ARM_A·榜宽 10·¥5万·满仓·等权市场腿",
+        "cell": "LIVE_DEFAULT|ARM_A|K63|E100",
+        "k": 63,
+        "signal": "LIVE_DEFAULT",
+        "filter_arm": "ARM_A",
+        "n_positions": 10,
+        "equity_weight": 1.0,
+        "capital": 50000.0,
+        "market_leg": {
+          "description": "等权（抽样面板等权日收益）—— 与 requirement 同一腿",
+          "sample_size": 150,
+          "sample_pool": 5460,
+          "sample_seed": 42,
+          "source": "data/reports/market_nav_caliber.json::sample",
+          "deployed_side_description": "抽样面板等权日收益（150 只、种子 42）—— **不是**中证全指、**不是**市值加权"
+        },
+        "measured_gross_annual_pct": 6.303364234768245,
+        "measured_gross_source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"LIVE_DEFAULT|ARM_A|K63|E100\"].k_axis.gross_excess_annual_pct",
+        "multiple_needed": 1.7897265643606735,
+        "is_the_production_verdict_cell": true
+      },
+      "control_arms": [
+        {
+          "role": "⚠️ 对照臂（非生产、非判决）",
+          "caliber_name": "对照臂·K=63·信号 BACKTEST_IC·臂 ARM_A·榜宽 10·¥5万·满仓·等权市场腿",
+          "cell": "BACKTEST_IC|ARM_A|K63|E100",
+          "k": 63,
+          "signal": "BACKTEST_IC",
+          "filter_arm": "ARM_A",
+          "n_positions": 10,
+          "equity_weight": 1.0,
+          "measured_gross_annual_pct": 7.495849309750109,
+          "measured_gross_source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"BACKTEST_IC|ARM_A|K63|E100\"].k_axis.gross_excess_annual_pct",
+          "multiple_needed": 1.5050060306217394
+        },
+        {
+          "role": "⚠️ 对照臂（非生产、非判决）",
+          "caliber_name": "对照臂·K=63·信号 BACKTEST_IC·臂 ARM_C·榜宽 10·¥5万·满仓·等权市场腿",
+          "cell": "BACKTEST_IC|ARM_C|K63|E100",
+          "k": 63,
+          "signal": "BACKTEST_IC",
+          "filter_arm": "ARM_C",
+          "n_positions": 10,
+          "equity_weight": 1.0,
+          "measured_gross_annual_pct": 8.023302547297947,
+          "measured_gross_source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"BACKTEST_IC|ARM_C|K63|E100\"].k_axis.gross_excess_annual_pct",
+          "multiple_needed": 1.4060666850466688
+        }
+      ],
+      "cross_caliber": {
+        "is_the_gap": false,
+        "caliber_name": "跨口径（K=21 研究臂）—— ⚠️ **不是缺口**",
+        "k_of_measured": 21,
+        "k_of_requirement": 63,
+        "the_two_calibers_differ_in": "K 与信号（研究臂 8 因子逐年 IC 定权 ≠ 生产臂 DEFAULT_WEIGHTS）",
+        "signal_of_measured": "研究臂（8 因子逐年 IC 定权）",
+        "measured_gross_annual_pct": 4.810755920048621,
+        "measured_gross_source": "data/reports/factor_width_mde.json::widths[\"10\"].gross_annual_pct",
+        "multiple_needed": 2.3450157528864404,
+        "legacy_key": "headline.multiple_needed_at_50k_deliverable",
+        "⚠️_why_it_is_not_a_gap": "分子是 K=63 的要求，分母是 K=21 研究臂的实测 ⇒ K 与信号两处口径都不同 ⇒ 这个比值**不是**「还差几倍」（第 7 层：两个各自都对的数放一起比）。同口径的那一列在 `same_caliber`。",
+        "is_the_legacy_number_kept": true
+      }
+    },
     "account_annual_ceiling_pct": {
       "is_the_supremum_over_widths": true,
       "width": 546,
@@ -301,6 +389,8 @@
     "equity_weight": 1.0,
     "equity_weight_is_the_FULL_POSITION_verdict_caliber_not_live": "⚠️ 本文件的 EQUITY_WEIGHT=1.0 是**满仓判决口径**（预注册 §2.1 C2）。实盘是**半仓**：`aplus/alloc.py::build_allocation(max_positions=5, per_stock_cap=0.10)` ⇒ equity_weight=0.5，`deployed_account_nav.json` 已记此债。⇒ 两个口径下的「所需毛超额」**不可互相代替**：半仓的摩擦正好是满仓的一半（1.595683% → 0.797841%/年，实测比值 0.5000000000），g*(∞) 相应降到 9.941235%。**本文件全部数字是满仓口径**，引用时必须带这一句；不要拿它去论证实盘半仓的可行性，反之亦然（第 7 层：两个各自都对的数放一起比）",
     "friction_calibrated_at_one_width_only": "COST_REAL_50K 是 N=10 标定值；本脚本用逐笔成本链，不用它",
+    "the_two_multiples_in_the_headline_have_DIFFERENT_calibers": "🚨 `headline.multiple_needed_at_50k_deliverable`（2.3450）是**跨口径**的：分子是 **K=63** 的要求，分母是 **K=21 研究臂**的实测（`factor_width_mde.json::widths[\"10\"]`，8 因子逐年 IC 定权）⇒ **K 与信号两处口径都不同** ⇒ 它**不是**「还差几倍」（第 7 层：两个各自都对的数放一起比）。⇒ 同口径的那一列（生产臂 LIVE_DEFAULT · 同 K · 同榜宽 · 同市场腿）在 `headline.multiple_needed_at_50k_deliverable_by_caliber.same_caliber`；**引用任何倍数都必须带口径名**。",
+    "the_same_caliber_column_is_ADDED_not_a_criterion_change": "⚠️ 本节**只加一列读数**：要求那一个数 `required_gross_at_50k_deliverable` = 11.2813% **一个字未动**（判据的输入，预注册的）⇒ 门槛、MDE 口径、20% 目标、要求毛超额的算法**全部未改**（事后补记见预注册文档 §6，**明写不是预注册**）。",
     "the_ceiling_family_is_WIDTH_DEPENDENT_and_says_which_width": "⚠️ `account_annual_ceiling_pct` / `measured_gross_best` 取的是 max(rows, key=…) ⇒ 跨榜宽**上确界**，落在 n=546；而 `friction_floor` 与 N 无关 ⇒ 该 max ≡ 毛超额最高档，而那正是 5 万下最不可交付的一档（摩擦 43.6566%/年）。⇒ 这两个键的**值是 dict、宽度装在里面**（与相邻的 `multiple_needed_at_infinite_capital` 同一约定）；**与 20% 对比只许用 `at_deliverable_width`（宽度 10）**，逐档全表见 `account_annual_ceiling_by_width`。⚠️ 此前这两个键是**裸 float** 且无宽度标记 ⇒ 读者拿 15.9199% 去比 20% 会得到「只差 4.0801pp」，而交付档的真读数是差 6.8378pp ⇒ **乐观方向低估 2.7577pp**（第 7 层）",
     "upstream_units_differ": {
       "factor_width_mde_*_pct": "分数（字段名带 _pct 但值是分数）",

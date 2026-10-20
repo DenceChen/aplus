@@ -44,6 +44,24 @@
 
 上游任一键缺失 → `require()` 抛 `KeyError` 并点名缺哪个键。
 **不许 `.get(..., 默认值)`**：缺低尾档就用全截面顶上 = 口径不一致。
+
+# 🚨 同一个 `headline` 里**有两个**「还差几倍」（2026-10-21 补）
+
+`headline.multiple_needed_at_50k_deliverable` = **2.3450** 这个数**不是缺口**：
+它的**分子**是 **K=63** 的要求（`LEDGER_K`），
+而它的**分母**是 `factor_width_mde.json::widths["10"]` —— **K=21 的研究臂**
+（8 因子逐年 IC 定权）⇒ **K 与信号两处口径都不同**（第 7 层：
+两个各自都对的数放一起比）。
+
+⇒ 本脚本现在**并排给两列**：
+
+| 列 | 口径 | 倍数 |
+|---|---|---|
+| `same_caliber` | **同口径**：K=63 · 生产臂 `LIVE_DEFAULT` · 榜宽 10 · ¥5 万 · 满仓 · 同一等权市场腿 | **≈1.79×** |
+| `cross_caliber` | **跨口径**：K=21 研究臂 ÷ K=63 的要求（**老的那一列，保留并显式标注**） | 2.3450（**不是缺口**） |
+
+⚠️ **要求那一个数一个字没动**：`required_gross_at_50k_deliverable` 仍是
+**11.2813%**（判据的输入，预注册的）⇒ 本节**只加一列读数**，不改判据。
 """
 
 from __future__ import annotations
@@ -100,6 +118,24 @@ CAPITAL = 50_000.0
 # 供「本金 → ∞」用的替身：只要求 > COMMISSION_MIN_BINDS_BELOW，
 # 使最低佣金不生效，于是摩擦退化成纯比例费率 = **可证的正下界**
 INFINITE_CAPITAL = 1e12
+
+# ── 生产臂（同一 K / 同一信号 / 同一榜宽 / 同一市场腿）────────────────
+# 🚨 台账这一族算的是 **K=63**（实盘配置）的「所需毛超额」（`LEDGER_K`），
+#    而 `measured_gross_best.at_deliverable_width` 那个 4.8108% 来自
+#    `factor_width_mde.json::widths["10"]` —— **K=21 的研究臂**（8 因子逐年 IC 定权）
+#    ⇒ 分子分母的 **K 与信号两处口径都不同** ⇒ 2.3450 **不是「还差几倍」**。
+# ⇒ 生产臂 = `deployed_d2_verdict.json::verdict.config` 那一格
+#    （它的 `production_sources.signal` 逐字写着
+#    「aplus/factor.py::DEFAULT_WEIGHTS（weights.json 不存在 ⇒ 回落）」）。
+# ⚠️ 生产臂那一格的标签**由口径常量拼出来**，不许手打
+#    （K 一变标签跟着变 ⇒ 不会静默停在旧 K 的格上 —— 与 `LEDGER_K` 同一真相源）。
+PRODUCTION_SIGNAL = "LIVE_DEFAULT"
+PRODUCTION_FILTER_ARM = "ARM_A"
+# 对照臂（**非生产、非判决**）：同 K / 同榜宽 / 同市场腿，**信号不同**
+# ⇒ 它们的倍数只作对照，**不许**替代生产臂那个
+# （第 183 层：加对照臂，不换判据臂 —— 预注册的判决臂不许因为某个臂好看就换）。
+CONTROL_ARMS = (("BACKTEST_IC", "ARM_A"), ("BACKTEST_IC", "ARM_C"))
+DEPLOYED_ARTIFACT_NAME = "deployed_d2_verdict.json"
 
 
 def require(container: dict, *path: str):
@@ -226,6 +262,250 @@ def decide(rows: list[dict]) -> str:
     return "D_NO_DATA"
 
 
+# ── 同口径那一列（2026-10-21 补）────────────────────────────────────
+# ⚠️ 这一族**全部是纯函数**：不写盘、不读全局状态 ⇒ 守卫可以直接 import
+#    本模块调用它们 ⇒ **变异改生成器时守卫立刻红**（第 96 层：
+#    「读落盘 json 的守卫与代码毫无关系」）。
+
+
+def production_cell_label(k: int = LEDGER_K,
+                          equity_weight: float = EQUITY_WEIGHT) -> str:
+    """生产臂那一格的标签 —— **由口径常量拼出来**，不手打。
+
+    ⚠️ 标签里带着 K 与满仓档 ⇒ K 一变标签跟着变 ⇒ 不会静默停在旧 K 的格上。
+    """
+    return (f"{PRODUCTION_SIGNAL}|{PRODUCTION_FILTER_ARM}"
+            f"|K{k}|E{int(round(equity_weight * 100))}")
+
+
+def k_axis_measurement(deployed: dict, cell_label: str) -> dict:
+    """从 `deployed_d2_verdict.json::k_grid.cells[label].k_axis` **逐位**读一格。
+
+    ⚠️ **只读不改算**：实测毛超额**不许**用公式重算（第 109 层）。
+    """
+    k_axis = require(deployed, "k_grid", "cells", cell_label, "k_axis")
+    return {
+        "cell": cell_label,
+        "k": require(k_axis, "K"),
+        "signal": require(k_axis, "signal"),
+        "filter_arm": require(k_axis, "filter_arm"),
+        "n_positions": require(k_axis, "n_positions"),
+        "equity_weight": require(k_axis, "equity_weight"),
+        "measured_gross_annual_pct": require(k_axis, "gross_excess_annual_pct"),
+        "source": (f"data/reports/{DEPLOYED_ARTIFACT_NAME}::k_grid.cells"
+                   f'["{cell_label}"].k_axis.gross_excess_annual_pct'),
+    }
+
+
+def check_ledger_caliber(meas: dict) -> None:
+    """**任何**一格都要过的口径自检：K / 榜宽 / 敞口。
+
+    ⚠️ 这一条**不是**恒真：`deployed_d2_verdict.json::k_grid` 里有
+    K=5/10/21/42/63 与 E50/E100 共 40 格 ⇒ 拿错一格（K 不符 / 半仓）
+    这里立刻响 ⇒ **跨口径的数进不来**（第 7 层）。
+    """
+    for name, key, want in (("K", "k", LEDGER_K),
+                            ("n_positions", "n_positions", DELIVERABLE_N),
+                            ("equity_weight", "equity_weight", EQUITY_WEIGHT)):
+        got = meas[key]
+        if got != want:
+            raise AssertionError(
+                f"{GENERATOR}: 那一格（{meas['cell']}）的 {name} = {got!r}，"
+                f"与台账要求的口径 {want!r} 不同 ⇒ **跨口径**，"
+                f"不许拿它算倍数（第 7 层：两个各自都对的数放一起比）")
+
+
+def check_production_arm(meas: dict) -> None:
+    """生产臂那一格还要**信号与臂**都对上（配置层 ARM_A = 生产读数）。"""
+    check_ledger_caliber(meas)
+    for name, key, want in (("signal", "signal", PRODUCTION_SIGNAL),
+                            ("filter_arm", "filter_arm", PRODUCTION_FILTER_ARM)):
+        got = meas[key]
+        if got != want:
+            raise AssertionError(
+                f"{GENERATOR}: 生产臂那一格（{meas['cell']}）的 {name} = {got!r}，"
+                f"与生产口径 {want!r} 不同 ⇒ 它**不是生产臂**")
+
+
+def check_production_cell(deployed: dict) -> str:
+    """我们拼出来的那一格标签必须**逐字等于**上游 `verdict.config.cell`。
+
+    ⚠️ 上游那一格是**生产判决格**（它的 `production_sources.signal` 逐字写着
+    「`aplus/factor.py::DEFAULT_WEIGHTS`（weights.json 不存在 ⇒ 回落）」）。
+    ⇒ 自己挑一格 = 有「挑一个好看的臂」的空间（第 91 层）⇒ 不许。
+    """
+    label = production_cell_label()
+    upstream = require(deployed, "verdict", "config", "cell")
+    if label != upstream:
+        raise AssertionError(
+            f"{GENERATOR}: 拼出来的生产格标签 {label!r} ≠ 上游 "
+            f"`verdict.config.cell` {upstream!r} ⇒ "
+            f"要么标签拼错，要么上游的生产配置变了 ⇒ **停止**，"
+            f"不许拿另一格算倍数（分支 D_NO_DATA，绝不回落）")
+    return label
+
+
+def check_same_market_leg(calib: dict, deployed: dict) -> None:
+    """两条腿必须是**同一腿**：等权、同样大小的抽样、同样种子。
+
+    ⚠️ 这一条**不是**恒真：`market_nav_caliber.json::sample`（size/pool/seed）
+    与 `deployed_d2_verdict.json::caliber.market_leg`（散文）各说各的；
+    一边改成 300 只 / 另一个种子 ⇒ 这里立刻响。
+    """
+    size = require(calib, "sample", "size")
+    seed = require(calib, "sample", "seed")
+    desc = require(deployed, "caliber", "market_leg")
+    for token, what in ((str(size), "抽样只数"), (str(seed), "种子")):
+        if token not in desc:
+            raise AssertionError(
+                f"{GENERATOR}: 实测那一腿的市场基准（{desc!r}）里找不到"
+                f"{what} {token!r} ⇒ 它与要求那一腿（{size} 只 / 种子 {seed}）"
+                f"**不是同一腿** ⇒ 分子分母跨口径，不许算倍数（第 7 层）")
+
+
+def multiple_needed(required_gross_pct: float, measured_gross_pct: float) -> float:
+    """倍数 = 要求 ÷ 实测。**只做一次除法**。
+
+    ⚠️ 分子分母必须**同口径**（同 K / 同信号 / 同榜宽 / 同市场腿）——
+       跨口径的比值不是「还差几倍」（第 7 层）。
+    ⚠️ 分母为 0 ⇒ **报错**，不许回落成 0（回落 = 一个看起来正常的 0）。
+    """
+    if not measured_gross_pct:
+        raise ValueError(
+            f"{GENERATOR}: 实测毛超额为 0 ⇒ 倍数无定义（不许回落成 0）")
+    return required_gross_pct / measured_gross_pct
+
+
+def build_multiple_calibers(width_artifact: dict, calib: dict,
+                            deployed: dict, deliverable_row: dict) -> dict:
+    """`headline` 里那**并排两列**的倍数块（纯函数，不写盘）。
+
+    ⚠️ 老的那一列（跨口径，K=21 研究臂 ÷ K=63 的要求）**保留**，
+       但**必须**带上「它不是缺口」与「它的 K 是几」两个标签。
+    """
+    required_pct = deliverable_row["required_gross_at_50k"] * 100.0
+
+    prod = k_axis_measurement(deployed, production_cell_label())
+    check_production_arm(prod)
+    check_same_market_leg(calib, deployed)
+    same_multiple = multiple_needed(required_pct, prod["measured_gross_annual_pct"])
+
+    controls = []
+    for signal, arm in CONTROL_ARMS:
+        label = (f"{signal}|{arm}|K{LEDGER_K}"
+                 f"|E{int(round(EQUITY_WEIGHT * 100))}")
+        meas = k_axis_measurement(deployed, label)
+        check_ledger_caliber(meas)
+        if meas["signal"] == PRODUCTION_SIGNAL:
+            raise AssertionError(
+                f"{GENERATOR}: 对照臂（{label}）的信号与生产臂相同 ⇒ "
+                f"它就不是对照臂了（对照臂的作用是**显式不同**）")
+        controls.append({
+            "role": "⚠️ 对照臂（非生产、非判决）",
+            "caliber_name": (f"对照臂·K={LEDGER_K}·信号 {meas['signal']}·"
+                             f"臂 {meas['filter_arm']}·榜宽 {DELIVERABLE_N}·"
+                             "¥5万·满仓·等权市场腿"),
+            "cell": meas["cell"],
+            "k": meas["k"],
+            "signal": meas["signal"],
+            "filter_arm": meas["filter_arm"],
+            "n_positions": meas["n_positions"],
+            "equity_weight": meas["equity_weight"],
+            "measured_gross_annual_pct": meas["measured_gross_annual_pct"],
+            "measured_gross_source": meas["source"],
+            "multiple_needed": multiple_needed(
+                required_pct, meas["measured_gross_annual_pct"]),
+        })
+
+    cross_k = require(width_artifact, "k_rebalance_every")
+    cross_measured_pct = deliverable_row["measured_gross_annual"] * 100.0
+    cross_multiple = deliverable_row["multiple_needed_at_50k"]
+
+    return {
+        "⚠️_read_this_before_quoting_any_multiple": (
+            "🚨 **这个块里有两个倍数，口径不同。**"
+            f"只有 `same_caliber` 那个（**同口径**：K={LEDGER_K} · 生产臂 "
+            f"`{PRODUCTION_SIGNAL}` · 榜宽 {DELIVERABLE_N} · ¥5万 · 满仓 · "
+            "同一等权市场腿）是「还差几倍」。"
+            f"`cross_caliber` 那个把 **K={cross_k} 研究臂的实测**除以 "
+            f"**K={LEDGER_K} 的要求** ⇒ **K 与信号两处口径都不同** ⇒ "
+            "它**不是**缺口（第 7 层：两个各自都对的数放一起比）。"),
+
+        "requirement": {
+            "caliber_name": (f"要求（K={LEDGER_K} · 榜宽 {DELIVERABLE_N} · "
+                             "¥5万 · 满仓(equity_weight=1.0) · 等权市场腿）"),
+            "k": LEDGER_K,
+            "n_positions": DELIVERABLE_N,
+            "capital": CAPITAL,
+            "equity_weight": EQUITY_WEIGHT,
+            "rounds_per_year": ROUNDS_PER_YEAR,
+            "market_leg": {
+                "description": "等权（抽样面板等权日收益）",
+                "sample_size": require(calib, "sample", "size"),
+                "sample_pool": require(calib, "sample", "pool"),
+                "sample_seed": require(calib, "sample", "seed"),
+                "source": "data/reports/market_nav_caliber.json::sample",
+                "deployed_side_description": require(
+                    deployed, "caliber", "market_leg"),
+            },
+            "required_gross_at_50k_deliverable_pct": required_pct,
+            "source": ("data/reports/d2_signal_requirement.json::headline."
+                       "required_gross_at_50k_deliverable"),
+            "is_the_preregistered_criterion_input": True,
+            "was_changed_by_this_ledger": False,
+        },
+
+        "same_caliber": {
+            "is_the_gap": True,
+            "caliber_name": (f"同口径·K={LEDGER_K}·生产臂 {PRODUCTION_SIGNAL}·"
+                             f"配置层 {PRODUCTION_FILTER_ARM}·榜宽 {DELIVERABLE_N}·"
+                             "¥5万·满仓·等权市场腿"),
+            "cell": prod["cell"],
+            "k": prod["k"],
+            "signal": prod["signal"],
+            "filter_arm": prod["filter_arm"],
+            "n_positions": prod["n_positions"],
+            "equity_weight": prod["equity_weight"],
+            "capital": CAPITAL,
+            "market_leg": {
+                "description": "等权（抽样面板等权日收益）—— 与 requirement 同一腿",
+                "sample_size": require(calib, "sample", "size"),
+                "sample_pool": require(calib, "sample", "pool"),
+                "sample_seed": require(calib, "sample", "seed"),
+                "source": "data/reports/market_nav_caliber.json::sample",
+                "deployed_side_description": require(
+                    deployed, "caliber", "market_leg"),
+            },
+            "measured_gross_annual_pct": prod["measured_gross_annual_pct"],
+            "measured_gross_source": prod["source"],
+            "multiple_needed": same_multiple,
+            "is_the_production_verdict_cell": True,
+        },
+
+        "control_arms": controls,
+
+        "cross_caliber": {
+            "is_the_gap": False,
+            "caliber_name": f"跨口径（K={cross_k} 研究臂）—— ⚠️ **不是缺口**",
+            "k_of_measured": cross_k,
+            "k_of_requirement": LEDGER_K,
+            "the_two_calibers_differ_in": "K 与信号（研究臂 8 因子逐年 IC 定权 ≠ 生产臂 DEFAULT_WEIGHTS）",
+            "signal_of_measured": "研究臂（8 因子逐年 IC 定权）",
+            "measured_gross_annual_pct": cross_measured_pct,
+            "measured_gross_source": ('data/reports/factor_width_mde.json::'
+                                      'widths["10"].gross_annual_pct'),
+            "multiple_needed": cross_multiple,
+            "legacy_key": "headline.multiple_needed_at_50k_deliverable",
+            "⚠️_why_it_is_not_a_gap": (
+                f"分子是 K={LEDGER_K} 的要求，分母是 K={cross_k} 研究臂的实测 ⇒ "
+                "K 与信号两处口径都不同 ⇒ 这个比值**不是**「还差几倍」"
+                "（第 7 层：两个各自都对的数放一起比）。"
+                f"同口径的那一列在 `same_caliber`。"),
+            "is_the_legacy_number_kept": True,
+        },
+    }
+
+
 def main() -> int:
     # 第 125 层：开跑抓一次字节，盖章时比对 —— 拒绝盖「写盘那一刻恰好是这些字节」
     # 的章。必须落在**第一条执行语句**（第 131 层：放在盖章前更坏 ⇒ 检查恒真）。
@@ -234,6 +514,10 @@ def main() -> int:
     width = json.loads((REPORTS / "factor_width_mde.json").read_text())
     nav = json.loads((REPORTS / "basket_nav_01_2026-10-16.json").read_text())
     calib = json.loads((REPORTS / "market_nav_caliber.json").read_text())
+    # 🚨 第四份上游（2026-10-21 补）：**同口径**那一列的实测毛超额来自这里。
+    #    它的 `verdict.config` 那一格就是**生产判决格**
+    #    （`production_sources.signal` = `aplus/factor.py::DEFAULT_WEIGHTS`）。
+    deployed = json.loads((REPORTS / DEPLOYED_ARTIFACT_NAME).read_text())
 
     # —— 量纲：每一处读法显式，换算不留第二入口 ——
     c_mkt = calib_frac(require(calib, ARM, "geometric_annual_pct"))
@@ -406,6 +690,15 @@ def main() -> int:
     worst_gap_row = max(rows, key=lambda r: r["shortfall_at_infinite_capital_pp"])
     max_shortfall_inf = worst_gap_row["shortfall_at_infinite_capital_pp"]
 
+    # ── 2026-10-21 补：**同口径**那一列的倍数（只加，不改既有任何值）──
+    # ✅ 对拍 6（**生产格的一致性**）：我们拼出来的那一格标签必须**逐字等于**
+    #   `deployed_d2_verdict.json::verdict.config.cell`（产物自己认的那一格）
+    #   ⇒ 不一致 ⇒ 我们要么算错了标签，要么上游换了生产配置 ⇒ 立刻响，
+    #   **不许**默默拿另一格算倍数（第 7 层）。
+    check_production_cell(deployed)
+    multiple_calibers = build_multiple_calibers(
+        width, calib, deployed, deliverable)
+
     out = {
         "artifact": OUT.name,
         "generator": GENERATOR,
@@ -457,6 +750,14 @@ def main() -> int:
             },
             "multiple_needed_at_50k_deliverable":
                 deliverable["multiple_needed_at_50k"],
+
+            # 🚨 2026-10-21 补：**并排两列**的倍数。
+            #   `multiple_needed_at_50k_deliverable`（上面那个裸 float）**保留**
+            #   —— 前端与既有守卫读它 ⇒ **值一个字不许改**；
+            #   但它**跨口径**（K=21 研究臂 ÷ K=63 的要求）⇒ 这里给它标注。
+            #   同口径的那一列（生产臂）在这里，**口径名 + 产物路径**齐备。
+            "multiple_needed_at_50k_deliverable_by_caliber":
+                multiple_calibers,
 
             # 🚨 这三个键以前是**裸数**：`account_annual_ceiling_pct` = 12.7285%
             #   与 `measured_gross_best` = 7.5685%，而它们的 argmax 都是 n=546
@@ -649,6 +950,24 @@ def main() -> int:
                 "两个各自都对的数放一起比）",
             "friction_calibrated_at_one_width_only":
                 "COST_REAL_50K 是 N=10 标定值；本脚本用逐笔成本链，不用它",
+            "the_two_multiples_in_the_headline_have_DIFFERENT_calibers": (
+                f"🚨 `headline.multiple_needed_at_50k_deliverable`（"
+                f"{deliverable['multiple_needed_at_50k']:.4f}）是**跨口径**的："
+                f"分子是 **K={LEDGER_K}** 的要求，分母是 **K="
+                f"{require(width, 'k_rebalance_every')} 研究臂**的实测"
+                "（`factor_width_mde.json::widths[\"10\"]`，8 因子逐年 IC 定权）"
+                "⇒ **K 与信号两处口径都不同** ⇒ 它**不是**「还差几倍」"
+                "（第 7 层：两个各自都对的数放一起比）。"
+                "⇒ 同口径的那一列（生产臂 LIVE_DEFAULT · 同 K · 同榜宽 · 同市场腿）"
+                "在 `headline.multiple_needed_at_50k_deliverable_by_caliber."
+                "same_caliber`；**引用任何倍数都必须带口径名**。"),
+            "the_same_caliber_column_is_ADDED_not_a_criterion_change": (
+                f"⚠️ 本节**只加一列读数**：要求那一个数 "
+                f"`required_gross_at_50k_deliverable` = "
+                f"{deliverable['required_gross_at_50k'] * 100:.4f}% **一个字未动**"
+                "（判据的输入，预注册的）⇒ 门槛、MDE 口径、20% 目标、"
+                "要求毛超额的算法**全部未改**（事后补记见预注册文档 §6，"
+                "**明写不是预注册**）。"),
             "the_ceiling_family_is_WIDTH_DEPENDENT_and_says_which_width":
                 "⚠️ `account_annual_ceiling_pct` / `measured_gross_best` "
                 "取的是 max(rows, key=…) ⇒ 跨榜宽**上确界**，落在 n="
@@ -733,6 +1052,7 @@ def main() -> int:
         "data/reports/factor_width_mde.json",
         "data/reports/basket_nav_01_2026-10-16.json",
         "data/reports/market_nav_caliber.json",
+        f"data/reports/{DEPLOYED_ARTIFACT_NAME}",
     ]})
 
     print(f"branch = {branch}")
@@ -750,6 +1070,23 @@ def main() -> int:
     ceil_h = h["account_annual_ceiling_pct"]
     cap_h = h["capital_can_close_at_most_pp"]
     gapinf_h = h["gap_left_after_infinite_capital_pp"]
+    mc = h["multiple_needed_at_50k_deliverable_by_caliber"]
+    same_c = mc["same_caliber"]
+    cross_c = mc["cross_caliber"]
+    print(f"  ★ 还差几倍：**同口径**（K={same_c['k']}·生产臂 {same_c['signal']}·"
+          f"榜宽 {same_c['n_positions']}·¥5万·满仓·同一市场腿）= "
+          f"**×{same_c['multiple_needed']:.4f}**"
+          f"（实测毛超额 {same_c['measured_gross_annual_pct']:.4f}% ÷ "
+          f"要求 {mc['requirement']['required_gross_at_50k_deliverable_pct']:.4f}%）")
+    print(f"    ⚠️ **跨口径**（K={cross_c['k_of_measured']} 研究臂 ÷ "
+          f"K={cross_c['k_of_requirement']} 的要求）= "
+          f"×{cross_c['multiple_needed']:.4f} ⇒ **不是缺口**，"
+          f"它虚高 "
+          f"×{cross_c['multiple_needed'] / same_c['multiple_needed']:.4f}"
+          f"（{cross_c['k_of_measured']} vs {cross_c['k_of_requirement']}）")
+    for c in mc["control_arms"]:
+        print(f"    · 对照臂 {c['cell']}：×{c['multiple_needed']:.4f}"
+              f"（{c['role']}）")
     print(f"  本金最多省 {cap_h['at_deliverable_width']:.4f}pp"
           f"（宽度 N={cap_h['width']}；⚠️ 随宽变，实测五档极差 ×"
           f"{cap_h['spread_max_over_min']:.1f}）；"
