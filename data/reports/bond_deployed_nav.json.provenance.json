@@ -1,0 +1,30 @@
+{
+  "code_sha": "aa0a9a78917705f5c9e651b2f8cd5cb61f66152f",
+  "code_dirty": true,
+  "code_file_sha256": "fc13c94eb0edcfc2b159e7c7526e5392a1116ac47a227f51284d63bf4531eb16",
+  "data_fp": "1087:1792496085.697559",
+  "data_dir": "data/bonds/master/daily",
+  "generator": "scripts/measure_bond_deployed_nav.py",
+  "stamped_at": "2026-10-20T16:10:37+00:00",
+  "capital": 50000.0,
+  "judgment_arm": "backtest.test.deployed_50k（5 万可交付档 @ 样本外测试段）",
+  "target_annual": 0.2,
+  "windows": {
+    "train": [
+      "2024-02-28",
+      "2025-09-16"
+    ],
+    "test": [
+      "2025-09-23",
+      "2026-10-21"
+    ],
+    "full": [
+      "2024-02-28",
+      "2026-10-21"
+    ]
+  },
+  "forward_window": [
+    "2026-10-12",
+    "2026-10-20"
+  ]
+}
