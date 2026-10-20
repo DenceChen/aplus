@@ -122,6 +122,51 @@ GENERATOR = "scripts/collect_dividend_pit.py"
 #: 分红 PIT 快照根。**复用 `aplus.vintage` 的整套读写协议**（见模块 docstring）。
 DIVIDEND_ROOT = ROOT / "data" / "reports" / "dividend_pit"
 
+#: **单次运行的调用配额闸**（baostock 日限 5 万次，超限黑名单 6 小时起）。
+#:
+#: 🚨 **为什么是 15,000 而不是更多**：
+#: 本机 18:30 的日行情采集（`com.aplus.daily` → `run_daily.py`）走 baostock，
+#: 要占 **5,460 次**。若分红一次吃满 43,680 ⇒ 合计 49,140 ⇒ **逼近 5 万上限**
+#: ⇒ 一次超限就**黑名单 6 小时** ⇒ **打坏 D1 的每日交付**。
+#: ⇒ **D1 的交付优先级高于数据采集** ⇒ 留足余量。
+#:
+#: 15,000 + 5,460 = 20,460 ⇒ **不到日限的一半** ⇒ 安全余量充足。
+#: ⇒ 43,680 / 15,000 ⇒ **约 3 天采完**（3 片，每片 1,820 只 × 8 年 = 14,560 次）。
+#:
+#: 🚨 **配额闸是「超了当场停」，不是「今天多跑点明天少跑」** ——
+#: 超限的后果是黑名单，不是「明天补回来」。
+MAX_CALLS_PER_RUN = 15_000
+
+#: 分片根的目录名模板。**分片自己一个根**，互不冲突。
+SHARD_DIR_TEMPLATE = "shard={i}-of-{n}"
+
+#: 「当天新公告」层的根名（见模块 docstring 的「两条腿」）。
+ANNOUNCED_ROOT_NAME = "announced"
+
+#: **单元账**（断点续采的真相源）的文件名 —— **全年份范围的那一份**。
+#:
+#: 为什么必须有它：一只票在某年「没有分红方案」（源站返回 0 行）与
+#: 「还没采到这一格」在落盘的数据里**长得一模一样** ⇒ 续跑时无法区分
+#: ⇒ 会**重采**（浪费额度）或者**漏采**（数据缺口）。
+#: ⇒ 逐 (票, 年) 记状态。
+#:
+#: 🚨 **为什么它与「每日当年扫描」的账分成两个文件名**（这是一件我差点搞错的事）：
+#: 「这只票**采到了没有**」这个问题，答案取决于**采了几个年份**。
+#: - `_cells.json` = **全年份范围**（8 年）的那一份 ⇒ 「这只票采到了」= 真命题；
+#: - `_cells_sweep.json` = **只有当年**的那一份 ⇒ 「这只票采到了当年」，
+#:   **不**等于「这只票的历史也采到了」。
+#: ⇒ 若把两份混在一个名字下，消费者（因子脚本）会把「只采了当年」的票
+#: 判成「完全覆盖」⇒ 在 2021 年那种**需要 2019–2021 三年**的信号日上，
+#: 它会被算出一个**偏小的 TTM 股息率**却标成「已观测」⇒ **静默的覆盖不足**。
+#: ⇒ **分开命名 ⇒ 覆盖域只从全年份那一份推导**（默认方向是「宁可排除」）。
+CELLS_LEDGER_NAME = "_cells.json"
+
+#: 「每日当年扫描」的单元账。**与全年份的账分开**（理由见上）。
+CELLS_SWEEP_LEDGER_NAME = "_cells_sweep.json"
+
+#: **分片进度账**（追加式）的文件名。记录「哪片、哪天、采了多少、完没完」。
+SHARD_PROGRESS_NAME = "_shard_progress.jsonl"
+
 #: 平台真实股票池目录（`000001.SZ.parquet` 一只一个）。
 DAILY_DIR = ROOT / "data" / "master" / "daily"
 
@@ -135,7 +180,7 @@ SLEEP_BETWEEN_CALLS = 0.05
 #: 上界取当年（2026）⇒ 覆盖到 2026-10 之前公告的方案（含 2026 中期分红）。
 #:
 #: ⚠️ 这个范围是**按语义推的**，不是按「多采点保险」堆的 ——
-#: 少采一年 ⇒ 判决窗口头一年�� TTM 分子少一条；多采一年 ⇒ 成本 +12.5%。
+#: 少采一年 ⇒ 判决窗口头一年的 TTM 分子少一条；多采一年 ⇒ 成本 +12.5%。
 DEFAULT_YEARS = tuple(range(2019, 2027))
 
 #: 判定「这条记录能不能进 PIT 帧」的锚字段（源站原名）。
@@ -437,6 +482,258 @@ def _resolve_one_row_per_plan(out: pd.DataFrame) -> pd.DataFrame:
 
 # ── 宇宙与采集 ──────────────────────────────────────────────────────
 
+def parse_shard(spec: str) -> tuple[int, int] | None:
+    """`'1/3'` → `(1, 3)`；`'auto'` → `None`（由 `pick_shard_auto` 决定）。
+
+    🚨 **分片号是 1 起的**（人读的分片号），不是 0。
+    混用 0 起与 1 起 ⇒ 「第 1 片」会变成「第二片」⇒ **采漏一片而没人喊**。
+    """
+    s = str(spec).strip().lower()
+    if s == "auto":
+        return None
+    if "/" not in s:
+        raise ValueError(f"分片参数应为 'i/n' 或 'auto'，收到 {spec!r}")
+    a, _, b = s.partition("/")
+    i, n = int(a), int(b)
+    if n < 1 or not (1 <= i <= n):
+        raise ValueError(f"分片号必须落在 1..{n}，收到 {spec!r}")
+    return i, n
+
+
+def shard_codes(codes: list[str], i: int, n: int) -> list[str]:
+    """**确定性**切分：排序后按 `i` 取连续一段。
+
+    ⚠️ **必须是确定性的** ⇒ 同一份代码清单 ⇒ 同一片 ⇒
+    **可复现、可断点续采**（第 1 片采到一半被打断，第二天接着采的还是同一片）。
+    ⚠️ 切分**依赖代码清单本身** ⇒ 清单变了，切分就变了 ⇒
+    ⇒ 切分结果与「代码清单的哈希」一起记进进度账（见 `main`）。
+    """
+    if n < 1 or not (1 <= i <= n):
+        raise ValueError(f"分片号必须落在 1..{n}，收到 {i}/{n}")
+    codes = sorted(codes)
+    lo = (i - 1) * len(codes) // n
+    hi = i * len(codes) // n
+    return codes[lo:hi]
+
+
+def shard_root(root: Path | str, i: int, n: int) -> Path:
+    """某一片的快照根：`root/shard=<i>-of-<n>/`。
+
+    **每片一个根** ⇒ 每片有自己的 `date=` 分区与 manifest ⇒
+    **互不冲突**（两个分片写同一个分区会互相覆盖）。
+    """
+    return Path(root) / SHARD_DIR_TEMPLATE.format(i=i, n=n)
+
+
+def daily_root(root: Path | str) -> Path:
+    """「当时读到的」层的根：`root/daily/`。
+
+    每天一份**全池当年视图**（全部 5,460 只 × 当年的预案公告年份）：
+
+    - **完整性**：当日覆盖**全池**，不像分片那样只有 1/5；
+    - **修订可观测**：当天把每一条当年方案重读一遍 ⇒
+      「预案 → 股东大会改额」在**第二天**就能比出来；
+    - **代价**：5,460 次/天（见 `MAX_CALLS_PER_RUN` 的余量说明）。
+    """
+    return Path(root) / "daily"
+
+
+def announced_root(root: Path | str) -> Path:
+    """「当天新公告」层的根：`root/announced/`。
+
+    每天一份**只含当天新公告的方案**的分区（`date=YYYY-MM-DD/financial.parquet`）。
+    ⇒ 这是「当时读到的」那一层的**最锐利的一格**：
+    「D 那天到底公告了什么、当天读到的金额是多少」。
+    """
+    return Path(root) / ANNOUNCED_ROOT_NAME
+
+
+def announced_root_old(root: Path | str, i: int, n: int) -> Path:
+    """「当天新公告」层的根：`root/announced/shard=<i>-of-<n>/`。
+
+    ## 这一层是什么
+
+    **「当时读到的」那一层**（模块 docstring 的「两条腿」）：
+
+    - 事件层（`shard=*/date=*/financial.parquet` 的全量历史）里读到的金额是
+      「**今天读到的**」，**不是**「当时公告的**」**（预案 → 股东大会可能改额）；
+    - 这一层按**天**记「**当天新公告了哪些方案、当天读到的金额是多少**」
+      ⇒ 从今天起逐日累积 ⇒ 将来能观测到「某条方案的金额在公告后被改过」。
+
+    ⇒ **两条腿不许混引**：事件层的历史可回溯但带修订风险；
+    这一层逐日忠实但只覆盖从今天开始的窗口。
+    """
+    return Path(root) / ANNOUNCED_ROOT_NAME / SHARD_DIR_TEMPLATE.format(i=i, n=n)
+
+
+# ── 并发锁（baostock **禁并发**）─────────────────────────────────────
+#: 锁文件。放在分红根下 ⇒ 每台机器一把。
+LOCK_NAME = ".lock"
+
+
+def _pid_alive(pid: int) -> bool:
+    """PID 是否还活着。**只用 `kill -0`**（内置、不产生可被 `pgrep -f` 匹配的进程名）。"""
+    import os
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _proc_cmdline(pid: int) -> str:
+    """进程的完整命令行（**身份证据**，不只是 PID 活着）。"""
+    import subprocess
+    try:
+        out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=5)
+        return out.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _same_script(recorded: str, live: str) -> bool:
+    """活着的那个进程**是不是同一个脚本**（PID 复用防护）。
+
+    🚨 **PID 存活 ≠ 身份**（本仓第 115 层：PID 是可复用资源，
+    macOS 回收 PID 给无关进程 ⇒ KeepAlive 服务会永久停摆）。
+
+    ⇒ 判据：活进程的命令行里必须含有**持锁时记录的那个脚本路径**。
+    ⚠️ 不许只判 PID 活着：那会把「PID 被回收给别的进程」当成「还持有」。
+    ⚠️ 也不许只判「命令行里含 collect_dividend_pit」——
+    **测试进程**跑的就是 `tests/test_dividend_pit.py`，
+    按前者判会把持锁者认成「已死」⇒ 并发锁在测试里形同虚设。
+    """
+    if not recorded or not live:
+        return False
+    scripts = [t for t in recorded.split() if t.endswith(".py")]
+    if not scripts:
+        return recorded in live
+    return any(t in live for t in scripts)
+
+
+def acquire_lock(root: Path | str) -> Path | None:
+    """取并发锁。**已有活着的持有者 ⇒ 返回 None**（调用方必须拒绝启动）。
+
+    ## 为什么要有锁（本仓铁律：约定没强制力）
+
+    🚨 baostock **禁并发** ⇒ 两个采集同时跑会：
+    ① 撞源站的并发限制；
+    ② 两次写**同一个** `date=` 分区 ⇒ 分区内容取决于谁先写完 ⇒ **不确定**；
+    ③ 单元账互相覆盖 ⇒ 额度被用两次。
+
+    ⚠️ **PID 存活 ≠ 身份**（本仓第 115 层：PID 是可复用资源）。
+    ⇒ 判「还持有」要**三条取证**：PID 活着 **且** 命令行里含本脚本名
+    **且** 锁文件里的 pid 与当前持有者一致。
+    ⚠️ 锁文件存在但持有者已死 ⇒ **当过期处理**（直接接管），不许永久卡死。
+    """
+    import os
+    import sys as _sys
+    p = Path(root) / LOCK_NAME
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if p.is_file():
+        try:
+            holder = json.loads(p.read_text(encoding="utf-8"))
+            pid = int(holder.get("pid", -1))
+        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+            pid = -1
+        live = _proc_cmdline(pid) if pid > 0 else ""
+        if pid > 0 and _pid_alive(pid) and _same_script(
+                str(holder.get("cmdline", "")), live):
+            print(f"❌ **已有采集在跑**（pid {pid}）："
+                  f"{live[:120]}\n"
+                  f"   锁文件：{p}\n"
+                  f"   baostock **禁并发** ⇒ 不许第二个采集同时跑。"
+                  f"（若确认那个进程已经死了，删掉锁文件再跑。）",
+                  file=_sys.stderr)
+            return None
+        print(f"  锁文件存在但持有者已不在（pid {pid}）⇒ 当过期处理，接管。")
+    p.write_text(json.dumps({
+        "pid": os.getpid(),
+        "cmdline": " ".join(_sys.argv),
+        "acquired_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }, ensure_ascii=False), encoding="utf-8")
+    return p
+
+
+def release_lock(lock: Path | None) -> None:
+    """放锁。**只在持有者还是自己时**删（别删掉别人的）。"""
+    import os
+    import sys as _sys
+    if lock is None:
+        return
+    try:
+        holder = json.loads(lock.read_text(encoding="utf-8"))
+        if int(holder.get("pid", -1)) != os.getpid():
+            return
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        pass
+    try:
+        lock.unlink()
+    except OSError:
+        pass
+
+
+def write_announced_layer(aroot: Path | str, day: str,
+                          ann: pd.DataFrame) -> Path:
+    """落「当天新公告」层的分区。**空分区也要落。**
+
+    🚨 **为什么空分区也是记录**：
+    「今天跑了但没有新公告」与「今天没跑」在文件系统上**长得一样**
+    （目录里没有 `date=` 分区）⇒ 读的人无法区分 ⇒ 那一天就成了**静默的空洞**。
+    ⇒ 落一个**空的**分区（`n_rows=0`）⇒ 「跑过、零条」成为可核对的事实。
+
+    🚨 **空分区必须能被 `vintage.verify_integrity` 核对** ⇒ 走
+    `vintage.write_snapshot`（不自己 `to_parquet`）。
+    """
+    aroot = Path(aroot)
+    part = vintage.write_snapshot(aroot, day, ann)
+    (part.parent / "_scope.json").write_text(
+        json.dumps({"day": day, "kind": "announced_today",
+                    "scope": "当天（预案公告日 == day）新公告的方案",
+                    "n_rows": int(len(ann)),
+                    "note": ("**空分区也是记录**：它表示「当天跑过、零条新公告」，"
+                             "与「当天没跑」必须可区分。")},
+                   ensure_ascii=False, indent=1), encoding="utf-8")
+    return part
+
+
+def shard_roots(root: Path | str) -> list[Path]:
+    """`root` 下所有分片根（按片号排序）。**没有分片目录时返回 `[root]`。**
+
+    ⇒ 兼容**未分片**的老布局（`root/date=*/`），
+    使 `load_events` 对两种布局都成立。
+    """
+    root = Path(root)
+    if not root.is_dir():
+        return []
+    found = []
+    for d in root.glob("shard=*"):
+        if d.is_dir():
+            found.append(d)
+    if not found:
+        return [root] if root.is_dir() else []
+    return sorted(found, key=lambda p: p.name)
+
+
+def announced_roots(root: Path | str) -> list[Path]:
+    """`root/announced/` 下的所有**根**（新布局：直接 `date=*/`；旧布局：`shard=*/`）。
+
+    两种布局都支持 ⇒ 换布局时**不会静默丢数据**。
+    """
+    base = Path(root) / ANNOUNCED_ROOT_NAME
+    if not base.is_dir():
+        return []
+    out = []
+    if any(vintage.available_days(base)):
+        out.append(base)
+    out.extend(sorted([d for d in base.glob("shard=*") if d.is_dir()],
+                      key=lambda p: p.name))
+    return out
+
+
 def universe(daily_dir: Path | str = DAILY_DIR) -> dict[str, str]:
     """`{裸6位代码: baostock代码}`。
 
@@ -460,6 +757,8 @@ def universe(daily_dir: Path | str = DAILY_DIR) -> dict[str, str]:
 def collect(pool: dict[str, str], root: Path, day: str,
             years: tuple[int, ...] = DEFAULT_YEARS,
             sleep: float = SLEEP_BETWEEN_CALLS,
+            max_calls: int = MAX_CALLS_PER_RUN,
+            cells: dict | None = None,
             fetcher=None) -> dict:
     """抓一轮并落盘。**只写 `day` 那一份分区**（`aplus/vintage` 的铁律）。
 
@@ -478,6 +777,19 @@ def collect(pool: dict[str, str], root: Path, day: str,
 
     循环里**没有并发**：一次一个请求 + 强制 sleep。
     `tests/test_dividend_pit.py` 用假 fetcher 量最大并发数，钉成 1。
+
+    ## 🚨 配额闸（`max_calls`）
+
+    **超了当场停**，不许「今天多跑点明天少跑」——
+    超限的后果是**黑名单 6 小时**，不是「明天补回来」。
+    ⇒ 每次调用**之前**检查闸；撞闸 ⇒ `quota_stopped=True` 且**立刻停**。
+    ⇒ 撞闸后这一片**不算完成**（进度账 `complete=False`）⇒ 明天续跑。
+
+    ## 续跑（`cells` 单元账）
+
+    逐 (票, 年) 记状态；已记的**不再调**。
+    🚨 没有单元账的话，「那票那年没分红」与「还没采」在数据里**同形**
+    ⇒ 续跑会**重采**（烧额度）或**漏采**（数据缺口）。
     """
     root = Path(root)
     part = vintage.snapshot_path(root, day)
@@ -502,11 +814,14 @@ def collect(pool: dict[str, str], root: Path, day: str,
                 zip(have["cash_ps_before_tax"], have["cash_stock_desc"])]
         print(f"  续跑：已有 {len(have)} 行", flush=True)
 
+    cells = dict(cells or {})
     chunks: list[pd.DataFrame] = []
     failed: list[dict] = []
     empty_cells: list[str] = []
     n_calls = 0
     n_amount_conflicts = 0
+    n_skipped_resume = 0
+    quota_stopped = False
     t0 = time.time()
     call_times: list[float] = []
 
@@ -514,6 +829,22 @@ def collect(pool: dict[str, str], root: Path, day: str,
     done = 0
     for code, bs_code in pool.items():
         for year in years:
+            cell_key = f"{code}|{year}"
+            # 🚨 **只跳过「成功」的单元**。
+            # 状态为 `error` 的单元**必须重试** —— 那是「没查成」，
+            # 不是「查过了、那票没分红」。
+            # 把 error 也跳过 ⇒ 这一格**永远补不上** ⇒ 数据缺口永久留下
+            # （而进度账会以为它跑过了）。
+            if cells.get(cell_key) in ("ok", "empty"):
+                # **已采过** ⇒ 不再调源站（省额度；且不许重采）。
+                n_skipped_resume += 1
+                done += 1
+                continue
+            if n_calls >= max_calls:
+                quota_stopped = True
+                print(f"  🚨 配额闸触发（{max_calls} 次）——**当场停**。"
+                      f"这一片不算完成，明天续跑。", flush=True)
+                break
             t1 = time.time()
             raw, status = fetch_code_year(bs_code, year, fetcher=fetcher)
             call_times.append(time.time() - t1)
@@ -522,8 +853,12 @@ def collect(pool: dict[str, str], root: Path, day: str,
             if status.startswith("error:"):
                 failed.append({"code": code, "bs_code": bs_code,
                                "year": int(year), "status": status})
+                # ⚠️ **失败的单元也要记账**，但状态要标出来。
+                # 不记账 ⇒ 明天续跑**不会**重试它 ⇒ 缺口永久留下。
+                cells[cell_key] = "error"
             elif status == "empty":
                 empty_cells.append(f"{code}:{year}")
+                cells[cell_key] = "empty"
             else:
                 chunks.append(normalize_events(
                     raw, bs_code, year,
@@ -531,11 +866,19 @@ def collect(pool: dict[str, str], root: Path, day: str,
                         timespec="seconds")))
                 n_amount_conflicts += int(
                     chunks[-1].attrs.get("n_amount_conflicts", 0))
+                cells[cell_key] = "ok"
             if done % 200 == 0 or done == total:
                 print(f"  {done}/{total} 次调用  {time.time()-t0:.0f}s"
                       f"  失败 {len(failed)}", flush=True)
+                # 🚨 **单元账周期落盘**：崩了最多丢 200 格（会重采），
+                # 而不是丢全部（那要重采 1.4 万格）。**原子写**。
+                write_cells(cells_path(root, day), cells,
+                            meta={"day": day, "pool_size": len(pool),
+                                  "years": list(years)})
             if sleep:
                 time.sleep(sleep)
+        if quota_stopped:
+            break
 
     frames = [f for f in ([have] + chunks) if f is not None and not f.empty]
     df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
@@ -557,9 +900,125 @@ def collect(pool: dict[str, str], root: Path, day: str,
         "dup_dropped": dup_dropped,
         "n_calls": n_calls,
         "n_amount_conflicts": n_amount_conflicts,
+        "n_skipped_resume": n_skipped_resume,
+        "quota_stopped": quota_stopped,
+        "cells": cells,
         "seconds": time.time() - t0,
         "call_times": call_times,
     }
+
+
+# ── 账本：单元账（续跑）与分片进度账 ────────────────────────────────
+
+def cells_path(shard_dir: Path | str, day: str, kind: str = "full") -> Path:
+    """单元账路径：`<root>/date=<day>/_cells.json`（全年份）或 `_cells_sweep.json`（当年扫描）。
+
+    ⚠️ **两个文件名不可合并**（理由见 `CELLS_LEDGER_NAME` 的注释）。
+    """
+    name = CELLS_LEDGER_NAME if kind == "full" else CELLS_SWEEP_LEDGER_NAME
+    return vintage.snapshot_path(shard_dir, day).parent / name
+
+
+def read_cells(path: Path | str) -> dict:
+    """读单元账。**坏文件不许静默当空** —— 那会让续跑**重采一遍**（浪费额度）。"""
+    p = Path(path)
+    if not p.is_file():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(
+            f"单元账 {p} 读不出来（{exc}）。"
+            f"**不许当成空的**——那会让这一片**从头重采**，白烧额度。"
+            f"修法：手工核对后删掉它，或改名保留证据。") from exc
+    cells = data.get("cells") if isinstance(data, dict) else None
+    return cells if isinstance(cells, dict) else {}
+
+
+def write_cells(path: Path | str, cells: dict, meta: dict | None = None) -> None:
+    """写单元账（**原子写**：先写临时文件再 rename）。
+
+    🚨 **原子写是必须的**：采集是长跑（~45 分钟），
+    崩在写盘中途会留下半截 JSON ⇒ 下次续跑读不出来 ⇒ 只能重采。
+    """
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    payload = dict(meta or {})
+    payload["cells"] = cells
+    payload["written_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
+                   encoding="utf-8")
+    tmp.replace(p)
+
+
+def progress_path(root: Path | str = DIVIDEND_ROOT) -> Path:
+    """分片进度账的路径。**追加式**（不覆盖）。"""
+    return Path(root) / SHARD_PROGRESS_NAME
+
+
+def read_progress(root: Path | str = DIVIDEND_ROOT) -> list[dict]:
+    """读分片进度账（按写入顺序）。"""
+    p = progress_path(root)
+    if not p.is_file():
+        return []
+    out = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                # 追加式账本里的一行坏了 ⇒ **不许整本作废**，
+                # 也不许当它没坏 —— 记下来让人知道。
+                out.append({"_unreadable_line": line[:200]})
+    return out
+
+
+def append_progress(root: Path | str, entry: dict) -> None:
+    """**追加**一条分片进度。**绝不覆盖**（覆盖就抹掉了「这一片跑过几次」）。"""
+    p = progress_path(root)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def pick_shard_auto(root: Path | str, day: str, n_shards: int) -> int:
+    """`--shard auto` ⇒ 该跑哪一片。
+
+    ## 三条规则（按顺序）
+
+    1. **今天已经起过某片** ⇒ **继续那一片**。
+       🚨 这是「同一天重跑不许把额度用两次」的落点：
+       重复触发只能**续跑**那一片（只补没采的单元），
+       **不许**当天再起一片（那会把当天的额度花掉两遍）。
+    2. **还有没跑完的片** ⇒ 跑第一片没跑完的。
+       「没跑完」= 有单元失败（⇒ 明天重试那几格）或撞了配额闸。
+    3. **全跑完了** ⇒ 轮转跑**最久没跑**的那片。
+       ⇒ 全池采完之后，作业**继续每日跑**，
+       维持「当时读到的」那一层逐日累积（模块 docstring 的「两条腿」）。
+    """
+    prog = read_progress(root)
+    # 🚨 **只认「同一种分片数」的记录**。
+    # 片数一改，切分边界就变了 ⇒ 老的 `shard=1-of-5/` 变成**孤儿目录**
+    # （新的跑在 `shard=1-of-3/`）⇒ 若把老的 `complete` 也算进来，
+    # 「这一片跑过了」的判断就是**假的** ⇒ 那一段永远不会被重采 ⇒ **静默的覆盖空洞**。
+    same = [e for e in prog if int(e.get("n_shards", -1)) == int(n_shards)]
+    today = [e for e in same
+             if e.get("day") == day and isinstance(e.get("shard_i"), int)]
+    if today:
+        return int(today[-1]["shard_i"])
+    done = {int(e["shard_i"]) for e in same
+            if e.get("complete") and isinstance(e.get("shard_i"), int)}
+    for i in range(1, n_shards + 1):
+        if i not in done:
+            return i
+    last_day: dict[int, str] = {}
+    for e in same:
+        if isinstance(e.get("shard_i"), int):
+            last_day[int(e["shard_i"])] = str(e.get("day") or "")
+    return min(range(1, n_shards + 1),
+               key=lambda i: (last_day.get(i, ""), i))
 
 
 # ── 读侧：事件层 PIT ────────────────────────────────────────────────
@@ -590,19 +1049,51 @@ def pit_dividend_frame_from_events(events: pd.DataFrame, as_of: str) -> pd.DataF
 
 
 def load_events(root: Path | str = DIVIDEND_ROOT) -> pd.DataFrame:
-    """读**全部**快照分区，拼成事件表。**跨采集日去重，后写胜出。**
+    """读**全部**快照分区（**跨分片**），拼成事件表。**跨采集日去重，后写胜出。**
 
     为什么读全部而不是最后一份：事件库是**追加式**的 ——
     第 1 天采了 A/B 两只，第 2 天采了 C/D 两只，
     只读最后一份会把 A/B **丢掉** ⇒ 因子在某些票上凭空变缺。
+    跨分片同理：**第 1 片与第 2 片是互补的两半**，只读一片 ⇒ 因子只覆盖半个池。
     """
-    root = Path(root)
     frames = []
-    for day in vintage.available_days(root):
-        f = pd.read_parquet(vintage.snapshot_path(root, day))
-        if "snapshot_date" not in f.columns:
-            f["snapshot_date"] = day
-        frames.append(f)
+    for sr in shard_roots(root):
+        for day in vintage.available_days(sr):
+            f = pd.read_parquet(vintage.snapshot_path(sr, day))
+            if "snapshot_date" not in f.columns:
+                f["snapshot_date"] = day
+            frames.append(f)
+    if not frames:
+        return pd.DataFrame(columns=EVENT_COLUMNS)
+    df = pd.concat(frames, ignore_index=True)
+    df = (df.sort_values(EVENT_KEY, kind="stable")
+            .drop_duplicates(subset=EVENT_KEY, keep="last")
+            .reset_index(drop=True))
+    return df
+
+
+def load_announced(root: Path | str = DIVIDEND_ROOT, day: str | None = None
+                   ) -> pd.DataFrame:
+    """「当天新公告」层的事件表（**跨分片**）。
+
+    `day=None` ⇒ 全部日子。`day='YYYY-MM-DD'` ⇒ 只看那一天新公告的方案。
+
+    ⚠️ **这一层只覆盖从它开始存在的那天起** ——
+    它是**逐日**记的，不是回溯补的。
+    ⇒ 想知道 2021 年那天公告了什么，**只能问事件层**（带修订风险），
+    事件层与这一层**不是同一个量**（第 7 层：两份各自都对的数不许混比）。
+    """
+    frames = []
+    for ar in announced_roots(root):
+        days = [day] if day else vintage.available_days(ar)
+        for d in days:
+            p = vintage.snapshot_path(ar, d)
+            if not p.is_file():
+                continue
+            f = pd.read_parquet(p)
+            if "snapshot_date" not in f.columns:
+                f["snapshot_date"] = d
+            frames.append(f)
     if not frames:
         return pd.DataFrame(columns=EVENT_COLUMNS)
     df = pd.concat(frames, ignore_index=True)
@@ -875,6 +1366,14 @@ def _parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--out", default=None, help="覆盖产物路径")
     p.add_argument("--dry-run", action="store_true",
                    help="只打印成本账，不采")
+    p.add_argument("--shard", default="auto",
+                   help="'i/n'（1 起的分片号）或 'auto'（由进度账决定）")
+    p.add_argument("--shards", type=int, default=5,
+                   help="'--shard auto' 时的总片数（默认 5）")
+    p.add_argument("--no-lock", action="store_true",
+                   help="跳过并发锁（**只给测试用**）")
+    p.add_argument("--max-calls", type=int, default=MAX_CALLS_PER_RUN,
+                   help=f"单次运行的调用配额闸（默认 {MAX_CALLS_PER_RUN}）")
     return p.parse_args(argv)
 
 
@@ -911,18 +1410,64 @@ def main(argv=None) -> int:
     day = args.day or datetime.now().strftime("%Y-%m-%d")
     years = tuple(int(y) for y in args.years.split(",") if y.strip())
 
+    # 🚨 **并发锁**：baostock 禁并发 ⇒ 两个采集同时跑会撞源站限制、
+    # 互相覆盖同一个 `date=` 分区、并把额度用两次。
+    lock = None
+    if not args.no_lock:
+        lock = acquire_lock(root)
+        if lock is None:
+            return 3
+
+    try:
+        return _run(args, root, day, years, expect_bytes)
+    finally:
+        release_lock(lock)
+
+
+def _run(args, root: Path, day: str, years: tuple[int, ...],
+         expect_bytes: str | None, fetcher=None) -> int:
+    """真正的采集流程（**`main()` 只做锁与委派**）。
+
+    ⇒ 判决逻辑在模块级函数里，**可被守卫直接调用**（第 120 层：
+    嵌套在 `main()` 里的函数结构上无法测试）。
+
+    `fetcher` 可注入 ⇒ **测试不联网也能跑完整条链路**。
+    🚨 这不是「为了测试而加的旁门」，是**唯一能测到「续跑路径」的办法**：
+    续跑（本次 0 调用）恰恰是**第一天真采集测不出来**的那条分支，
+    而它**恰恰是 launchd 每天都会走的**那条。
+    """
     pool_all = universe()
+
+    # ── 分片 ──────────────────────────────────────────────────────
+    spec = parse_shard(args.shard)
+    if spec is None:                      # auto
+        n_shards = int(args.shards)
+        shard_i = pick_shard_auto(root, day, n_shards)
+    else:
+        shard_i, n_shards = spec
+    sroot = shard_root(root, shard_i, n_shards)
+
+    # 🚨 **分片数变了 ⇒ 老的分片目录变成孤儿** ⇒ 显式喊出来。
+    other = {int(e.get("n_shards", -1)) for e in read_progress(root)
+             if isinstance(e.get("n_shards"), int)} - {int(n_shards)}
+    if other:
+        print(f"⚠️ 进度账里有**别的分片数**的记录：{sorted(other)}；"
+              f"本次用 {n_shards} 片。⇒ 那些 `shard=*-of-{sorted(other)[0]}/` "
+              f"目录是**孤儿**（不会被本次续跑覆盖，但 `load_events` 仍会读到它们）。"
+              f"要清干净请手工核对后删除。")
+
     if args.codes:
         want = {c.strip() for c in args.codes.split(",") if c.strip()}
-        pool = {c: v for c, v in pool_all.items() if c in want}
-        missing = want - set(pool)
+        missing = want - set(pool_all)
         if missing:
             print(f"❌ 池里没有这些代码：{sorted(missing)}")
             return 2
+        selected = sorted(want)
     else:
-        pool = pool_all
+        selected = shard_codes(sorted(pool_all), shard_i, n_shards)
     if args.max_codes:
-        pool = dict(list(pool.items())[:args.max_codes])
+        selected = selected[:args.max_codes]
+    pool = {c: pool_all[c] for c in selected}
 
     if args.dry_run:
         # ⚠️ 这里的 0.173 是**默认假设值**，不是实测值。
@@ -933,13 +1478,85 @@ def main(argv=None) -> int:
         acct["authoritative_number"] = (
             "覆盖产物的 `::cost_account.full_pool`（用当次实测的 "
             "`::scope.per_call_mean_s` 算）")
+        acct["shard"] = f"{shard_i}/{n_shards}"
+        acct["max_calls_gate"] = int(args.max_calls)
+        acct["quota_gate_note"] = (
+            f"这一片要 {len(pool) * len(years)} 次调用，"
+            f"配额闸 {args.max_calls} ⇒ "
+            + ("**装得下**" if len(pool) * len(years) <= args.max_calls
+               else "🚨 **装不下** ⇒ 会被闸挡住，这一片不算完成，明天续跑"))
         print(json.dumps(acct, ensure_ascii=False, indent=1))
         return 0
 
-    print(f"采集 {day} 的分红 PIT：{len(pool)} 只 × {len(years)} 年 "
-          f"= {len(pool) * len(years)} 次调用（串行，禁并发）", flush=True)
-    res = collect(pool, root, day, years=years, sleep=args.sleep)
+    # ══ 采集 A：全池「当年」视图 —— "当时读到的"那一层 ══════════════
+    # 每天把**全部 5,460 只**的当年方案重读一遍（5,460 次）：
+    #   ① 当天的「当年视图」覆盖**全池**（分片只有 1/5）；
+    #   ② 当天把每一条当年方案重读 ⇒ 「预案 → 股东大会改额」
+    #      在**第二天**就能比出来。
+    sweep_years = (int(day[:4]),)
+    droot = daily_root(root)
+    dcp = cells_path(droot, day, kind="sweep")
+    dcells = read_cells(dcp)
+    # ⚠️ `--codes` / `--max-codes` 是**白名单** ⇒ 它**同时**收窄采集 A 与采集 B。
+    # 否则一个 5 只的试跑会顺手触发 5,460 次的全池扫描。
+    whitelist = bool(args.codes or args.max_codes)
+    sweep_pool = pool if whitelist else pool_all
+    sweep_needed = len(sweep_pool) * len(sweep_years)
+    sweep_cap = min(sweep_needed, int(args.max_calls))
+    print(f"采集 A｜全池当年视图｜{len(sweep_pool)} 只 × {sweep_years} = "
+          f"{sweep_needed} 次（配额上限 {sweep_cap}）", flush=True)
+    dres = collect(sweep_pool, droot, day, years=sweep_years, sleep=args.sleep,
+                   max_calls=sweep_cap, cells=dcells, fetcher=fetcher)
+    write_cells(dcp, dres["cells"],
+                meta={"day": day, "kind": "daily_sweep", "pool_size": len(sweep_pool),
+                      "years": list(sweep_years),
+                      "n_calls_this_run": dres["n_calls"],
+                      "quota_stopped": dres["quota_stopped"]})
+    ddf = dres["df"]
+    if not ddf.empty:
+        vintage.write_snapshot(droot, day, ddf, dup_dropped=dres["dup_dropped"])
+        (vintage.snapshot_path(droot, day).parent / "_scope.json").write_text(
+            json.dumps({"day": day, "kind": "daily_sweep",
+                        "scope": ("**白名单**（试跑）" if whitelist
+                                  else "全池 × 当年预案公告年份"),
+                        "n_codes": len(sweep_pool), "years": list(sweep_years),
+                        "n_cells": sweep_needed,
+                        "quota_stopped": dres["quota_stopped"]},
+                       ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"  采集 A 完成：{dres['n_calls']} 次，事件 {len(ddf)} 条，"
+          f"失败 {len(dres['failed'])}", flush=True)
+
+    # ══ 采集 B：分片全量历史（事件库 + 修订轨迹）══════════════════
+    # **配额闸共享**：A 用掉的额度从 B 的额度里扣 ⇒ 全天合计 ≤ --max-calls。
+    remaining = int(args.max_calls) - dres["n_calls"]
+    if remaining <= 0:
+        print(f"🚨 配额被采集 A 用完（{dres['n_calls']}/{args.max_calls}）"
+              f"——**采集 B 今天不跑**（明天续）。")
+        res = {"df": pd.DataFrame(columns=EVENT_COLUMNS), "failed": [],
+               "empty_cells": [], "dup_dropped": 0, "n_calls": 0,
+               "n_amount_conflicts": 0, "n_skipped_resume": 0,
+               "quota_stopped": True, "cells": {}, "seconds": 0.0,
+               "call_times": []}
+        cp = cells_path(sroot, day)
+        cells = {}
+    else:
+        cp = cells_path(sroot, day)
+        cells = read_cells(cp)
+        if cells:
+            print(f"  续跑：单元账已有 {len(cells)} 格（不再调源站）", flush=True)
+        print(f"采集 B｜片 {shard_i}/{n_shards} 全量历史｜"
+              f"{len(pool)} 只 × {len(years)} 年 = "
+              f"{len(pool) * len(years)} 次（配额闸还剩 {remaining}）", flush=True)
+        res = collect(pool, sroot, day, years=years, sleep=args.sleep,
+                      max_calls=remaining, cells=cells, fetcher=fetcher)
     df = res["df"]
+
+    # 单元账最终落盘（**原子写**）。
+    write_cells(cp, res["cells"],
+                meta={"day": day, "shard": f"{shard_i}/{n_shards}",
+                      "pool_size": len(pool), "years": list(years),
+                      "n_calls_this_run": res["n_calls"],
+                      "quota_stopped": res["quota_stopped"]})
 
     if df.empty and res["failed"]:
         print(f"❌ 全部失败（{len(res['failed'])} 次）——不落盘")
@@ -949,25 +1566,20 @@ def main(argv=None) -> int:
     # 它负责加 `snapshot_date` 列、写**追加式 manifest 账本**、记内容摘要
     # ⇒ `vintage.verify_integrity` 能自证「这份数据没被动过」。
     # 自己 `to_parquet` 的话，产物**对完整性校验是不可见的**。
-    #
-    # 🚨 **但「小样本」这件事必须显式记下来**：manifest 的 `n_rows` 只说
-    # 「这一份有多少行」，不说「这一份覆盖了全池还是 50 只」。
-    # ⇒ 另写 `_scope.json` 把**采集域**（哪些票 × 哪些年）与失败单元钉死。
-    # 财报 vintage 的规矩是「半份快照不许登记 manifest」（那里半份会冒充全池）；
-    # **分红是事件库，半份不冒充全池**（缺的就是缺，事件是加性的）⇒
-    # 登记 manifest + 记 scope 才是对的。
-    partial = bool(args.max_codes or args.codes)
-    part = vintage.write_snapshot(root, day, df,
+    part = vintage.write_snapshot(sroot, day, df,
                                   dup_dropped=res["dup_dropped"])
     scope = {
         "day": day,
-        "partial": partial,
+        "shard": f"{shard_i}/{n_shards}",
+        "partial": bool(args.max_codes or args.codes),
         "n_codes": len(pool),
         "codes": sorted(pool),
         "years": list(years),
         "n_cells": len(pool) * len(years),
+        "n_cells_attempted": len(res["cells"]),
         "failed_cells": res["failed"],
         "empty_cells_no_dividend": len(res["empty_cells"]),
+        "quota_stopped": res["quota_stopped"],
         "note": ("这一份的**采集域**是上面这些票 × 上面这些年，"
                  "**不是全池**。读它的人必须先看这份 scope。"),
     }
@@ -977,40 +1589,142 @@ def main(argv=None) -> int:
         (part.parent / "_failed.json").write_text(
             json.dumps(res["failed"], ensure_ascii=False, indent=1),
             encoding="utf-8")
-    if partial:
-        print(f"  小样本：已落盘 {part}（采集域见 _scope.json）")
+
+    # ── 「当天新公告」那一层（"当时读到的"）────────────────────
+    # 这一层**逐日记**：当天的分区里放「**当天新公告**了哪些方案、
+    # 当天读到的金额是多少」⇒ 从今天起累积 ⇒ 将来能观测到修订。
+    # 来源 = 采集 A（**全池**当年）∪ 采集 B（分片全量历史）⇒ 取并集，
+    # 方案身份去重（同方案后写胜出）。
+    ann_frames = [f for f in (ddf, df) if f is not None and not f.empty]
+    ann = pd.DataFrame(columns=EVENT_COLUMNS)
+    if ann_frames:
+        ann = pd.concat(ann_frames, ignore_index=True)
+        ann = (ann.sort_values(EVENT_KEY, kind="stable")
+                  .drop_duplicates(subset=EVENT_KEY, keep="last")
+                  .reset_index(drop=True))
+        ann = ann[ann["plan_announce_date"].astype(str) == day]
+    aroot = announced_root(root)
+    write_announced_layer(aroot, day, ann)
+    print(f"  「当天新公告」层：{len(ann)} 条 → {aroot}/date={day}/", flush=True)
+
+    # ── 分片进度账（追加式）────────────────────────────────────
+    failed_cells = {(f["code"], f["year"]) for f in res["failed"]}
+    cell_total = len(pool) * len(years)
+    complete = (not res["quota_stopped"]) and (len(failed_cells) == 0)
+    append_progress(root, {
+        "day": day,
+        "shard_i": int(shard_i),
+        "n_shards": int(n_shards),
+        "shard_dir": str(sroot.relative_to(ROOT)) if sroot.is_relative_to(ROOT)
+        else str(sroot),
+        "n_codes": len(pool),
+        "n_cells_total": cell_total,
+        "n_cells_attempted": len(res["cells"]),
+        "n_calls_this_run": res["n_calls"],
+        "n_calls_sweep": dres["n_calls"],
+        "n_calls_total_today": dres["n_calls"] + res["n_calls"],
+        "n_skipped_resume": res["n_skipped_resume"],
+        "n_failed_cells": len(failed_cells),
+        "quota_stopped": bool(res["quota_stopped"]),
+        "max_calls_gate": int(args.max_calls),
+        "complete": bool(complete),
+        "seconds": res["seconds"],
+        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
 
     # ── 覆盖产物 ──────────────────────────────────────────────────
     ev = load_events(root)
     proof = pit_visibility_self_proof(ev)
+    covered = {c for c in pool if not any(f["code"] == c for f in res["failed"])}
+    cell_ok = cell_total - len(failed_cells)
+
+    # ⚠️ **产物路径必须先算出来**（`prev_path` 下面要用它）。
+    # 第一版把它放在 `per_call` 之后 ⇒ 续跑路径（本次 0 调用 ⇒ 走
+    # 「沿用上一轮实测单次耗时」那个分支）**直接 UnboundLocalError**，
+    # 而这条路径**恰恰是 launchd 每天都会走的**（单元账满了 ⇒ 0 新调用）。
+    # ⇒ 🚨 **「跑到底才炸」的错又长了一个样**：不是网络、不是源站，
+    # 是**代码顺序**，而它只在**续跑**时才炸 ⇒ 第一天（真采）测不出来。
+    out = Path(args.out) if args.out else (
+        ROOT / "data" / "reports"
+        / f"dividend_pit_coverage_shard{shard_i}of{n_shards}.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    prev_path = out
+
     per_call = (sum(res["call_times"]) / len(res["call_times"])
                 if res["call_times"] else 0.0)
     max_call = max(res["call_times"]) if res["call_times"] else 0.0
+    # 🚨 **续跑时本次调用数 ≈ 0** ⇒ `per_call_mean_s` 会算成 0 ⇒
+    # 成本账会印出「预计 0 秒」这种**看起来对、其实是没测**的数。
+    # ⇒ 本次没调用时，**沿用上一次运行的实测值**，并标明来源。
+    per_call_source = "this_run"
+    if per_call == 0.0:
+        prev = None
+        if prev_path.is_file():
+            try:
+                prev = json.loads(prev_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                prev = None
+        if prev:
+            per_call = float(prev.get("scope", {}).get("per_call_mean_s") or 0.0)
+            per_call_source = "previous_run_carried_forward"
 
-    covered = {c for c in pool if not any(f["code"] == c for f in res["failed"])}
-    # 覆盖率必须**按 (票, 年) 单元**算，不是按票算：
-    # 一只票 8 年里失败 1 年 ⇒ 它的 TTM 分子**可能缺一条** ⇒ 不能算「采到了」。
-    failed_cells = {(f["code"], f["year"]) for f in res["failed"]}
-    cell_total = len(pool) * len(years)
-    cell_ok = cell_total - len(failed_cells)
-
-    out = Path(args.out) if args.out else (
-        ROOT / "data" / "reports" / "dividend_pit_coverage_2026-10-21.json")
-    out.parent.mkdir(parents=True, exist_ok=True)
     report = {
         "generator": GENERATOR,
         "day": day,
+        "shard": {
+            "i": int(shard_i), "n": int(n_shards),
+            "root": str(sroot.relative_to(ROOT)) if sroot.is_relative_to(ROOT)
+            else str(sroot),
+            "announced_root": str(aroot.relative_to(ROOT))
+            if aroot.is_relative_to(ROOT) else str(aroot),
+            "deterministic": ("按**排序后的代码清单**连续切片 ⇒ "
+                              "同一份清单 ⇒ 同一片 ⇒ 可复现、可续采"),
+            "n_codes_in_shard": len(pool),
+            "n_codes_in_pool": len(pool_all),
+        },
         "scope": {
             "n_codes": len(pool),
             "n_years": len(years),
             "years": list(years),
-            "partial": partial,
+            "partial": bool(args.max_codes or args.codes),
             "n_calls": res["n_calls"],
+            "n_calls_meaning": ("**本次**的调用数。续跑（单元账已满）时它接近 0；"
+                                "判「累计采了多少」看 `n_cells_attempted_cumulative`。"),
+            "n_cells_attempted_cumulative": len(res["cells"]),
+            "n_skipped_resume": res["n_skipped_resume"],
+            "quota_stopped": bool(res["quota_stopped"]),
+            "max_calls_gate": int(args.max_calls),
             "seconds": res["seconds"],
             "per_call_mean_s": per_call,
+            "per_call_mean_s_source": per_call_source,
             "per_call_max_s": max_call,
             "serial_no_concurrency": True,
             "sleep_between_calls_s": args.sleep,
+            "two_phase": {
+                "A_daily_sweep": {
+                    "what": "全池 × 当年预案公告年份（「当时读到的」那一层）",
+                    "n_codes": len(sweep_pool),
+                    "years": list(sweep_years),
+                    "n_calls": dres["n_calls"],
+                    "n_failed": len(dres["failed"]),
+                    "quota_stopped": bool(dres["quota_stopped"]),
+                    "root": str(droot.relative_to(ROOT))
+                    if droot.is_relative_to(ROOT) else str(droot),
+                },
+                "B_shard_full_history": {
+                    "what": f"片 {shard_i}/{n_shards} × 全部年份（事件库 + 修订轨迹）",
+                    "n_codes": len(pool),
+                    "years": list(years),
+                    "n_calls": res["n_calls"],
+                    "n_failed": len(res["failed"]),
+                    "quota_stopped": bool(res["quota_stopped"]),
+                    "root": str(sroot.relative_to(ROOT))
+                    if sroot.is_relative_to(ROOT) else str(sroot),
+                },
+                "total_calls_today": dres["n_calls"] + res["n_calls"],
+                "gate_shared": ("两个阶段**共享**同一个配额闸 ⇒ "
+                                "全天合计 ≤ --max-calls"),
+            },
         },
         "coverage": {
             "n_events": int(len(ev)),
@@ -1022,8 +1736,6 @@ def main(argv=None) -> int:
             "cell_coverage_pct": (cell_ok / cell_total) if cell_total else None,
             "failed_cells": res["failed"][:200],
             "n_failed_codes": len({f["code"] for f in res["failed"]}),
-            # **完全采到的票**（它所有年份的单元都成功）——
-            # 与「有分红事件的票」是**两个数**（前者是覆盖，后者是数据）。
             "n_codes_fully_covered": len(covered),
             "dup_dropped": res["dup_dropped"],
             "events_missing_announce_date": int(
@@ -1038,11 +1750,7 @@ def main(argv=None) -> int:
             if not ev.empty else 0,
             "cash_status_counts": (
                 ev["cash_status"].value_counts().to_dict() if not ev.empty else {}),
-            # 同一个 (票, 公告日, 除权日) 出现**不同金额** ⇒ 源站有两版。
-            # 这不是错误，是**修订轨迹的线索**（也可能是源站的重复行）。
-            # 同一个方案、两个**不同**的可解析金额 ⇒ 源站有两版（取最小）。
             "n_same_plan_amount_conflicts": res["n_amount_conflicts"],
-            # 落盘后应当**一个方案一行**（源站会把同一方案返回两遍）。
             "n_plan_identity_duplicates_left": _n_multi_amount_plans(ev),
         },
         "pit_anchor": {
@@ -1083,31 +1791,54 @@ def main(argv=None) -> int:
         },
         "pit_self_proof": proof,
         "cost_account": {
-            "sample": cost_account(len(pool), len(years), per_call, args.sleep),
+            "this_shard": cost_account(len(pool), len(years), per_call,
+                                       args.sleep),
             "full_pool": cost_account(len(pool_all), len(years), per_call,
                                       args.sleep),
-            "decision": ("**本轮只跑小样本**；全池规模由决策者按 cost_account 决定。"
-                         "🚨 本轮**不许**擅自跑全池 5,460 只。"),
+            "quota_gate": {
+                "max_calls_per_run": int(args.max_calls),
+                "n_shards": int(n_shards),
+                "calls_per_shard": len(pool) * len(years),
+                "calls_daily_sweep": len(pool_all),
+                "calls_total_per_day": len(pool_all) + len(pool) * len(years),
+                "fits_in_gate": (len(pool_all) + len(pool) * len(years)
+                                 <= int(args.max_calls)),
+                "why": ("baostock 日限 5 万次、禁并发、超限黑名单 6 小时起；"
+                        "本机 18:30 的日行情采集要占 5,460 次 ⇒ "
+                        "分红一次吃满 43,680 会逼近上限 ⇒ 一次超限就**打坏 D1 的"
+                        "每日交付** ⇒ **D1 的交付优先级高于数据采集** ⇒ "
+                        "每日配额 ≤ 15,000。"),
+            },
+            "decision": ("按片采：每片 ≤ 15,000 次，跨日分批；"
+                         "**不许**一天吃完全池。"),
         },
         "freshness_note": (
             "本产物**没有**登记进 `aplus/provenance.py::DEFAULT_GENERATORS`"
             "（本轮不许改 `aplus/` 下任何模块）⇒ `provenance.freshness()`"
             "**不传 generator 会判 `unknown`**。"
             "⇒ 验新鲜度必须**显式传生成器**："
-            "`provenance.freshness('data/reports/dividend_pit_coverage_2026-10-21.json', "
+            "`provenance.freshness(<本文件路径>, "
             "generator='scripts/collect_dividend_pit.py')`。"
             "🚨 `unknown` 与「数据坏了」长得一模一样 ⇒ 不传就等于没验。"),
+        "two_layers": {
+            "event_layer": ("`shard=*/date=*/financial.parquet` = 分片的全量历史"
+                            "（可回溯到 2021，但金额是**今天读到的** ⇒ 带修订风险）"),
+            "announced_layer": ("`announced/shard=*/date=*/financial.parquet` = "
+                                "**当天新公告**的方案（逐日忠实，只覆盖从今天起）"),
+            "rule": "**两条腿不许混引**（第 7 层：两份各自都对的数不许混比）",
+        },
         "what_this_cannot_prove": [
             "本产物只证明**数据管道**的覆盖率与 PIT 可见性，不证明因子有效。",
             "**不许**把石川书里的多空数（IVOL 等权月均超额 1.27%，t=8.64，"
             "cn_factor_lines.txt:9885）当成本项目的可达目标 —— 空腿散户做不了。",
             "事件层读到的金额是「**今天读到的**」，不等于「当时公告的**」；"
-            "「当时读到的」要靠 `aplus.vintage` 的 date= 分区逐日累积（从今天起）。",
+            "「当时读到的」靠 `announced/` 那一层逐日累积（从今天起）。",
             "覆盖率低 ⇒ 因子在**未覆盖的票**上是**缺数据**，不是零股息；"
             "低覆盖率下的横截面排名会被系统性偏置（银行/煤炭这类高股息票最容易被采到）。",
         ],
         "gaps": [
-            "本轮**未**采全池（5,460 只）：只采了小样本，全池成本账见 cost_account。",
+            "本产物只覆盖**一片**；全池要等所有片跑完（进度见 "
+            "`data/reports/dividend_pit/_shard_progress.jsonl`）。",
             "分红 PIT 的**修订轨迹**从今天起才能观测（需要第二份快照）。",
         ],
     }
@@ -1121,11 +1852,13 @@ def main(argv=None) -> int:
         expect_bytes=expect_bytes,
         extra={
             "day": day,
+            "shard": f"{shard_i}/{n_shards}",
             "n_codes": len(pool),
             "n_years": len(years),
             "n_calls": res["n_calls"],
+            "quota_stopped": bool(res["quota_stopped"]),
+            "max_calls_gate": int(args.max_calls),
             "n_events": int(len(ev)),
-            "partial_sample": partial,
             "data_fp_caliber": ("本脚本的输入是**抓取当时的 baostock 源站**；"
                                 "章里的 data_fp 描述的是它**写入**的分红 PIT 存储，"
                                 "不是它读进来的东西。价格侧（不复权 close）"
@@ -1135,19 +1868,20 @@ def main(argv=None) -> int:
                                 "而 `provenance.data_fingerprint` 只扫一层 `*.parquet` "
                                 "⇒ 它的内容摘要改由 `aplus.vintage` 的"
                                 "**追加式 manifest** 承担"
-                                "（`data/reports/dividend_pit/_manifest.jsonl::sha256`），"
+                                "（`data/reports/dividend_pit/shard=*/_manifest.jsonl"
+                                "::sha256`），"
                                 "并由 `vintage.verify_integrity()` 逐份核对。"),
         })
 
     print(f"\n  事件 {len(ev)} 条 / {ev['code'].nunique() if not ev.empty else 0} 只")
-    print(f"  单元覆盖 {cell_ok}/{cell_total} = "
-          f"{(cell_ok / cell_total) if cell_total else 0:.4f}")
+    print(f"  本片单元覆盖 {cell_ok}/{cell_total} = "
+          f"{(cell_ok / cell_total) if cell_total else 0:.4f}"
+          + ("  🚨 配额闸触发" if res["quota_stopped"] else ""))
     print(f"  PIT 自证：{proof.get('ok')} "
           f"(查 {proof.get('n_checked')} 条，"
           f"锚日可见 {proof.get('visible_at_anchor')}，"
           f"锚日前不可见 {proof.get('invisible_before_anchor')})")
     print(f"  产物：{out}")
-    print(f"  ⚠️ 本轮**未**跑全池；全池成本账见产物的 cost_account。")
     return 0
 
 

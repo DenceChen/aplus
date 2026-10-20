@@ -150,15 +150,16 @@ TTM 每股税前现金分红(D) = Σ { cash_ps_before_tax : 除权除息日 ∈ 
 | 采集器 | `scripts/collect_dividend_pit.py`（baostock，**串行 + 限速**） | 本轮新增 |
 | 快照布局 | `data/reports/dividend_pit/date=YYYY-MM-DD/financial.parquet` + `_manifest.jsonl` | **整条复用 `aplus.vintage`**（写入、摘要、完整性校验） |
 | 采集域 | `data/reports/dividend_pit/date=2026-10-21/_scope.json`（**哪些票 × 哪些年**） | 本轮新增 |
-| 覆盖产物 | `data/reports/dividend_pit_coverage_2026-10-21.json` | 本轮新增（带 sidecar） |
+| 覆盖产物 | `data/reports/dividend_pit_coverage_shard<i>of<n>.json`（每片一份） | 本轮新增（带 sidecar） |
 | PIT 自证 | 同产物 `::pit_self_proof` | 本轮实测 |
-| 守卫 | `tests/test_dividend_pit.py`（**44 条**） | 本轮新增 |
+| 守卫 | `tests/test_dividend_pit.py`（**57 条**） | 本轮新增 |
+| 每日作业 | `com.aplus.dividendpit`（launchd，**03:30**） | 本轮新增（plist 见 `docs/com.aplus.dividendpit.plist`） |
 
 ⚠️ **验新鲜度必须显式传生成器**（本产物**没有**登记进
 `aplus/provenance.py::DEFAULT_GENERATORS` —— 本轮不许改 `aplus/` 下任何模块）：
 
 ```python
-provenance.freshness("data/reports/dividend_pit_coverage_2026-10-21.json",
+provenance.freshness("data/reports/dividend_pit_coverage_shard<i>of<n>.json",
                       generator="scripts/collect_dividend_pit.py")
 # → verdict='fresh' + byte_evidence=True
 ```
@@ -167,9 +168,177 @@ provenance.freshness("data/reports/dividend_pit_coverage_2026-10-21.json",
 而 `unknown` 与「数据坏了」**长得一模一样**。
 ⚠️ `trustworthy=False`（盖章时工作区有未提交改动）⇒ 引用时两句都要带。
 
-🚨 **本轮只采了 50 只的小样本**（`::scope.n_codes` = 50），
-**全池成本账见 `::cost_account.full_pool`**。
-⇒ **下一轮跑回测前必须先补齐全池**（或明确接受覆盖偏差并写进结论）。
+### 3.1 采集协议（**分片 + 配额闸 + 两条腿**）
+
+| 项 | 内容 |
+|---|---|
+| **分片** | `--shard i/n`（**1 起**）按**排序后的代码清单**连续切片 ⇒ 同一份清单 ⇒ 同一片 ⇒ **可复现、可断点续采**。分片号 1 起是刻意的：0 起与 1 起混用 ⇒「第 1 片」变成第二片 ⇒ **采漏一片而没人喊** |
+| **分片根** | 每片一个根 `data/reports/dividend_pit/shard=<i>-of-<n>/` ⇒ 每片有自己的 `date=` 分区与 manifest ⇒ **互不冲突** |
+| **配额闸** | `--max-calls`（默认 **15,000**）⇒ **超了当场停**。🚨 不是「今天多跑点明天少跑」——超限的后果是**黑名单 6 小时起**，不是「明天补回来」 |
+| **为什么是 15,000** | baostock 日限 5 万次、禁并发；本机 18:30 的日行情（`com.aplus.daily`）要占 **5,460 次** ⇒ 15,000 + 5,460 = 20,460 ⇒ **不到日限的一半** ⇒ **D1 的交付优先级高于数据采集** |
+| **单元账** | 逐 (票, 年) 记状态（`_cells.json`）⇒ 同一天重跑**不再调源站** ⇒ 额度不许用两次。🚨 **状态为 `error` 的单元必须重试**（那是「没查成」，不是「查过了」） |
+| **两份账分开** | `_cells.json` = **全年份（8 年）**的那一份 ⇒「这只票采到了」= 真命题；`_cells_sweep.json` = **只有当年**的那一份。🚨 **合并成一个名字会出事**：消费者会把「只采了当年」的票判成「完全覆盖」⇒ 在 2021 年那种**需要 2019–2021 三年**的信号日上，它会被算出一个**偏小的 TTM 股息率**却标成「已观测」⇒ **静默的覆盖不足**（方向：低估高股息 ⇒ **掩盖**因子效果）。⇒ 默认方向必须是「宁可排除」 |
+| **并发锁** | `<root>/.lock`（pid + cmdline 三重取证）⇒ **禁并发由工具强制**，不靠约定。🚨 **PID 存活 ≠ 身份**（PID 可复用）⇒ 判「还持有」要活进程的命令行里含**持锁时的那个脚本路径** |
+| **进度账** | `_shard_progress.jsonl`（追加式）⇒ `--shard auto` 的三条规则：① 同一天重跑 ⇒ **继续同一片**（额度不许用两次）；② 还有没跑完的片 ⇒ 跑第一片；③ 全跑完 ⇒ **轮转**最久没跑的 |
+
+### 3.1.1 每日作业的原文（launchd `com.aplus.dividendpit`）
+
+plist 落在 `docs/com.aplus.dividendpit.plist`（**新增**，未改任何现有 plist），
+安装到 `~/Library/LaunchAgents/com.aplus.dividendpit.plist`。
+`ProgramArguments` 逐字：
+
+```
+/Users/airboom/opencode/aplus/.venv/bin/python
+/Users/airboom/opencode/aplus/scripts/collect_dividend_pit.py
+--shard
+auto
+--shards
+5
+--max-calls
+15000
+```
+
+时刻 **03:30 与 06:30**（两个触发点，见 plist 注释）：
+launchd 的日历触发**不补跑** ⇒ 06:30 是第二个机会；
+⚠️ 第二个触发点**不会把额度用两次**（单元账 ⇒ 一次调用只对应一个格子
+⇒ 全天调用数 ≤ 格子数 ⇒ 全天仍 ≤ 15,000）⇒ 第一轮跑成功时它是**空操作**。
+
+### 3.1.2 安装与验收（**先手动跑一遍，再装**）
+
+```bash
+# ① 手动跑一遍**装上去之后 launchd 会跑的那条命令**（不许装没验过的 cron）
+/Users/airboom/opencode/aplus/.venv/bin/python \
+  /Users/airboom/opencode/aplus/scripts/collect_dividend_pit.py \
+  --shard auto --shards 5 --max-calls 15000
+
+# ② 装（**只新增**，不改任何现有 plist）
+cp /Users/airboom/opencode/aplus/docs/com.aplus.dividendpit.plist \
+   /Users/airboom/Library/LaunchAgents/com.aplus.dividendpit.plist
+launchctl bootstrap gui/$(id -u) \
+   /Users/airboom/Library/LaunchAgents/com.aplus.dividendpit.plist
+
+# ③ 验（**看作业在册 + 时刻对**，不看进程）
+launchctl print gui/$(id -u)/com.aplus.dividendpit | head -20
+```
+
+🚨 **第 ① 步是硬闸**：launchd 的作业**不经过人工确认**，
+装一条没验过的命令 = 把一个可能每天静默失败的作业装进系统。
+⇒ 第 ① 步应当**零新增调用**（单元账已满 ⇒ 续跑是空操作），
+这同时**证明了两件事**：命令能跑，且**同一天重跑不烧额度**。
+
+🚨 **验收判据是产物指纹，不是退出码**（本仓第 8 层）：
+```bash
+ls data/reports/dividend_pit/_shard_progress.jsonl   # 有一行今天的记录
+tail -1 data/reports/dividend_pit/_shard_progress.jsonl | python3 -m json.tool
+# ⇒ shard_i / n_calls_total_today / complete / quota_stopped
+```
+
+**与现有作业的时刻表（实测自 `~/Library/LaunchAgents/com.aplus.*.plist`）**：
+
+| 时刻 | 作业 | 走 baostock？ |
+|---|---|---|
+| **03:30 / 06:30** | **com.aplus.dividendpit（新增）** | **是（≤15,000）** |
+| 09:30 / 23:30 | `com.aplus.guardvintage` | 否（只读产物） |
+| 10:00 / 22:30 | `com.aplus.vintage` | 否（akshare 东财） |
+| 18:30 | `com.aplus.daily` | **是（5,460）** |
+| 19:30 | `com.aplus.guard` | 否 |
+| 20:00 | `com.aplus.evolve` | 否 |
+| 21:00 | `com.aplus.forward` | 否 |
+
+⇒ 全仓**只有 `run_daily.py` 与本采集器**走 baostock（`grep -rln "import baostock" scripts/ aplus/`
+实测：`scripts/run_daily.py` ← `aplus/sources/baostock_source.py`）。
+⇒ 每日 baostock 合计 = 15,000 + 5,460 = **20,460 < 50,000** ⇒ **不到一半**。
+
+### 3.2 每天跑两件事（**共享同一个配额闸** ⇒ 全天合计 ≤ 15,000）
+
+| 阶段 | 内容 | 调用数 | 落点 | 作用 |
+|---|---|---|---|---|
+| **A** | **全池 5,460 只 × 当年**预案公告年份 | 5,460 | `daily/date=<day>/` | 「**当时读到的**」那一层：当日视图覆盖**全池**（分片只有 1/5）；当天把每条当年方案重读一遍 ⇒ 「预案 → 股东大会改额」**第二天**就能比出来 |
+| **B** | **一片 1,092 只 × 8 年** | 8,736 | `shard=<i>-of-<n>/date=<day>/` | 事件库（**5 天覆盖全池**）+ **修订轨迹**（每天轮转重读一片 ⇒ 任何一年的方案都被重读） |
+| | **合计** | **14,196** | | ≤ 15,000 ✓ |
+
+### 3.3 两条腿（**不许混引**）
+
+| 层 | 落点 | 内容 | 覆盖 | 缺陷 |
+|---|---|---|---|---|
+| **事件层** | `shard=*/date=*/financial.parquet` | 分片的**全量 8 年**历史 | 可回溯到 **2021** | 金额是「**今天读到的**」⇒ **带修订风险** |
+| **当天新公告层** | `announced/date=*/financial.parquet` | **当天（预案公告日 == day）新公告**的方案 | **只覆盖从 2026-10-21 起** | 逐日忠实，但**没有历史** |
+
+🚨 **两条腿不是同一个量**（第 7 层：两份各自都对的数不许混比）：
+回测吃**事件层**（有历史、有修订风险）；
+「当时读到的」靠**当天新公告层 + 每日 `daily/` 全池视图**逐日累积。
+⚠️ **空分区也是记录**：当天零条新公告时**照样落一个 `n_rows=0` 的分区** ——
+「今天跑了但零条」与「今天没跑」在文件系统上**长得一样** ⇒ 不落 ⇒ 那一天变成**静默的空洞**。
+
+### 3.3.1 「这只票采到了没有」怎么判（**因子脚本的输入契约**）
+
+> **采到域只能从单元账读**，不能从事件表读
+> （「那票某年没分红」与「那票还没采到」在事件表里**长得一样**）。
+
+| 集合 | 定义 | 用途 |
+|---|---|---|
+| `covered` | 存在 `_cells.json`（**全年份**那份）里 `cells[票\|年] ∈ {ok, empty}` 的票 | 因子脚本的**采到域**；不在其中的票 ⇒ `not_collected` ⇒ **NaN，不进横截面** |
+| `not_collected` | 不在 `covered` 里 | ⇒ 股息率 = **NaN**（不是 0）⇒ 被排除 |
+| `error` 格 | 单元账里状态为 `error` | ⇒ **不算采到**（那是「没查成」）⇒ 该票继续被排除，**且明天会重试** |
+
+🚨 **为什么 `_cells_sweep.json`（当年扫描那份）不许进 `covered`**：
+它只覆盖**当年** ⇒ 「这只票采到了当年」**不等于**「这只票的历史也采到了」。
+混进去 ⇒ 在 2021 年那种**需要 2019–2021 三年**的信号日上，
+那只票会被算出一个**偏小的 TTM 股息率**却标成「已观测」
+⇒ **静默的覆盖不足**（方向：低估高股息 ⇒ **掩盖**因子效果）。
+⇒ 默认方向必须是「**宁可排除**」。
+
+> **对接说明（本轮观察）**：仓内已有另一个 agent 在写
+> `scripts/measure_dividend_lowvol_longleg.py`（红利/低波长腿回测）。
+> 它按本管道的 API 取数：`cdp.load_events(root)`、
+> `cdp.pit_dividend_frame_from_events(...)`、`cdp.ttm_cash_dividend(..., covered_codes=, codes=)`、
+> `cdp.read_cells(...)`（单元账）⇒ **两个文件是对接的**。
+> ⇒ 它把「采到域」从**单元账**读（不从事件表），并把覆盖率打进产物
+> （`coverage_bias_note`）⇒ **覆盖不足是披露的，不是藏起来的**。
+> ⚠️ 但**只有在 `_cells.json` 与 `_cells_sweep.json` 分开**时这个对接才正确 ——
+> 合并成一份就会让它把「只采了当年」的票当成完全覆盖（见上）。
+
+### 3.4 当前状态（2026-10-21，片 1/5 已跑完）
+
+**实测（`data/reports/dividend_pit_coverage_shard1of5.json`）**：
+
+| 量 | 实测值 |
+|---|---|
+| 全天调用 | **14,196**（扫描 5,460 + 分片 8,736）⇒ 闸 15,000，**未撞闸** |
+| 单次调用实测均值 | **0.17323 s** |
+| 单元覆盖 | **8,736 / 8,736 = 1.0000**（0 失败） |
+| 事件 | 5,344 条 / 873 只（其中 39 条纯送转 ⇒ 现金 0.0 是事实） |
+| 方案身份重复残留 | **0**（源站的重复行已被方案级去重吃掉） |
+| PIT 自证 | 200/200（锚日可见 200、锚日前不可见 200） |
+| 溯源章 | `fresh` + 字节证据（`stamped sha == 盘上字节`） |
+
+🚨 **全池采集进行中**：片 1/5 已完成（`complete: true`）；
+余下 4 片由 `com.aplus.dividendpit`（03:30）每天一片 ⇒ **5 天覆盖全池**。
+⇒ **下一轮跑回测前必须确认全池覆盖完成**
+（查 `data/reports/dividend_pit/_shard_progress.jsonl` 的 `complete` 字段）。
+
+### 3.4.1 本轮踩到的两个真 bug（**都记在这里，因为它们会被重犯**）
+
+1. **「跑到底才炸」的错：只在续跑路径炸的 `UnboundLocalError`**
+   —— 报告里「本次 0 调用 ⇒ 沿用上一轮实测单次耗时」那个分支引用了
+   `prev_path`，而它在**后面**才被赋值。
+   🚨 **它只在续跑时炸**（本次调用数 > 0 时那个分支根本不走）
+   ⇒ **第一天真采集测不出来** ⇒ 而那**恰恰是 launchd 每天都会走的**。
+   ⇒ 修法：把产物路径的计算提到使用点之前；
+   **并补一条端到端守卫：注入假 fetcher 连跑两次**（第二遍 0 调用）
+   ⇒ **「注入 fetcher」不是旁门，是唯一能测到续跑路径的办法**。
+2. **字节冻结（第 125 层）在长跑里真的拦住了我**：
+   我在 45 分钟的采集过程中改了采集器 ⇒ 盖章时 `expect_bytes` 不符
+   ⇒ **拒绝盖章**（产物写盘了、章没有）⇒
+   ⇒ **处置不是「把章补上」，是用当前字节重跑一遍**：
+   单元账让重跑**零新增调用**（实测 0 次）⇒ 重跑既补了章，又**证明了幂等**。
+
+3. 🚨 **「单元账」的两份不许合并**（见 §3.3.1）：
+   并行的另一个 agent 正在写的回测脚本 `scripts/measure_dividend_lowvol_longleg.py`
+   按本管道的 API 取数（含 `ttm_cash_dividend(..., covered_codes=, codes=)` 与
+   `read_cells`）⇒ **两份账合并会让它把「只采了当年」的票当成完全覆盖**
+   ⇒ 在 2021 年的信号日上算出**偏小的 TTM 股息率**却标成「已观测」
+   ⇒ **静默的覆盖不足**（方向：低估高股息 ⇒ **掩盖**因子效果）。
 
 🚨 **数据可得性的一条诚实边界**：事件层读到的金额是「**今天读到的**」，
 **不是「当时公告的**」**（预案 → 股东大会可能改额）。
@@ -381,7 +550,7 @@ df=200 时 ≈ 2.8986。**实际值由脚本按真实 df 算，不许抄这里�
 
 ---
 
-## §11 守卫清单（本轮已落地，`tests/test_dividend_pit.py`，**44 条**）
+## §11 守卫清单（本轮已落地，`tests/test_dividend_pit.py`，**61 条**）
 
 | 守卫 | 钉住的是哪一层 |
 |---|---|
@@ -408,12 +577,33 @@ df=200 时 ≈ 2.8986。**实际值由脚本按真实 df 算，不许抄这里�
 | `test_the_prereg_cites_the_artifact_values_exactly` | **本文引用的产物数字**必须与产物一致（口径与容差写死） |
 | `test_the_prereg_hurdle_table_is_reproducible_from_the_repo_primitives` | 本文 §4.2 的四个门槛**现场重算**得出 |
 | `test_the_prereg_states_that_the_book_numbers_are_long_short_not_reachable` | **「书里的多空数不可达」这句话不许被漏掉** |
+| `test_the_shard_split_is_deterministic_disjoint_and_complete` | 分片**确定性 + 互斥 + 并起来是全池** |
+| `test_the_shard_number_is_one_based` | 分片号 **1 起**（混用 0 起 ⇒ 采漏一片没人喊） |
+| `test_the_quota_gate_stops_the_run_instead_of_overrunning` | **配额闸：超了当场停** |
+| `test_a_same_day_rerun_does_not_reconsume_the_quota` | 同一天重跑**不再调源站**（额度不许用两次） |
+| `test_a_failed_cell_is_retried_not_skipped` | **失败单元必须重试**（否则缺口永久留下） |
+| `test_the_auto_picker_keeps_the_same_shard_on_the_same_day` | 同一天 ⇒ 同一片 |
+| `test_the_auto_picker_advances_past_completed_shards` | 跑完的片不再被挑中 |
+| `test_the_auto_picker_cycles_when_every_shard_is_complete` | 全跑完 ⇒ **轮转**（维持那一层每日累积） |
+| `test_a_broken_cells_ledger_is_not_silently_treated_as_empty` | 单元账坏了 ⇒ **报错**，不当空（否则重采白烧额度） |
+| `test_the_announced_partition_is_written_even_when_it_is_empty` | **空分区也是记录**（「跑过但零条」≠「没跑」） |
+| `test_the_concurrency_lock_refuses_a_second_collector` | **禁并发由工具强制** |
+| `test_a_stale_lock_from_a_dead_process_is_taken_over` | 过期锁能接管（否则一次崩溃永久停掉采集） |
+| `test_the_shard_split_sorts_its_input_itself` | 分片函数**自己排序**（不能指望调用方传已排序的） |
+| `test_the_sweep_ledger_is_not_the_coverage_ledger` | **两份单元账不许合并**（合并 ⇒ 静默的覆盖不足） |
+| `test_the_deliverables_have_no_character_level_corruption` | 交付物里不许有 U+FFFD（**中文散文专挑注释被损坏**，代码照跑不报错） |
+| `test_the_auto_picker_ignores_progress_from_a_different_shard_count` | 片数一改，老的 `complete` 就是**假的** |
 
-**变异台结果（2026-10-21 实测）**：**有效变异体 16/16 全杀**（rc=1，逐条）。
-⚠️ 其中 **M9 的第一版是等价变异体**（它改的 `cash_ps_before_tax` 字段随后被
-**方案级解析**覆盖 ⇒ 行为不变）⇒ 按本仓规矩**照实记在这里，不藏**；
-**换成真正改到用点的 M9b（金额翻倍）/ M9c（冲突取大不取小）/ M9d（no_cash 判定坏掉）后
-才拿到判别力** ⇒ 三条全杀。
+**变异台结果（2026-10-21 实测）**：**有效变异体 23/23 全杀**（rc=1，逐条）。
+（第一批 16 条：PIT/窗口/缺数据/口径；第二批 7 条：分片/配额闸/续跑/并发锁/孤儿目录。）
+⚠️ 其中 **3 条第一版是等价变异体**，按本仓规矩**照实记在这里，不藏**：
+① **M9**（改的 `cash_ps_before_tax` 随后被**方案级解析**覆盖 ⇒ 行为不变）
+   ⇒ 换成 M9b（金额翻倍）/ M9c（冲突取大不取小）/ M9d（no_cash 判定坏掉）后才有判别力；
+② **N4**（删掉分片函数里的 `sorted()`）—— 变异存活**暴露了我自己的测试缺口**：
+   主路径传进来的确实是排好序的 ⇒ **要传乱序进去才钉得住这一层** ⇒ 补了测试；
+③ **N7**（把空分区改成不写）—— 第一版变异体写成了**空操作**
+   （`ann if len(ann) else 空帧` ≡ `ann`，因为 ann 本来就是空帧）
+   ⇒ 换成真正「不写」的 N7b 后才有判别力。
 ⇒ 通则照抄：**「变异存活」的第一解释永远是「变异没打在判据上」**，
 而「变异体写错」与「守卫有洞」在台子输出里**逐位相同**。
 
@@ -429,14 +619,16 @@ df=200 时 ≈ 2.8986。**实际值由脚本按真实 df 算，不许抄这里�
 | 4 | **门槛推导式**（不是手打的数） | ✅ §4.2 |
 | 5 | **判决链 + 失败文案** | ✅ §4.3 + §7 |
 | 6 | **对照臂清单** | ✅ §6 |
-| 7 | **全池分红数据** | ❌ **未采**（只 50 只）⇒ **下一轮跑回测前必须先补** |
+| 7 | **全池分红数据** | 🟡 **采集中**（片 1/5 已跑；`com.aplus.dividendpit` 每天一片 ⇒ 5 天覆盖全池）⇒ **跑回测前必须确认全池覆盖完成** |
 | 8 | **回测实现** | ❌ 未写（本轮只交付数据 + 预注册） |
 
-### ⚠️ 下一轮的第一件事不是写回测，是**补齐全池分红数据**
+### ⚠️ 下一轮的第一件事不是写回测，是**确认全池分红数据采完**
 
-`data/reports/dividend_pit_coverage_2026-10-21.json::cost_account.full_pool` 给出实测成本账
-（**43,680 次调用**，单次实测均值见同产物 `::scope.per_call_mean_s`）。
-⇒ 决策项：**采全池 / 分批跨日采 / 只用能采到的子池并把覆盖偏差写进结论**。
+进度账：`data/reports/dividend_pit/_shard_progress.jsonl`（追加式，每行一次运行）。
+判「全池采完」= 5 片都出现过 `complete: true`。
+⇒ 覆盖产物：`data/reports/dividend_pit_coverage_shard<i>of<n>.json`（每片一份，带 sidecar）。
+⇒ 决策项：**5 天后若仍有片没跑完** ⇒ 看 `quota_stopped` 与 `n_failed_cells`，
+再决定是加配额、跨日续跑，还是接受覆盖偏差并**把它写进结论**。
 
 ---
 
@@ -450,9 +642,16 @@ df=200 时 ≈ 2.8986。**实际值由脚本按真实 df 算，不许抄这里�
    **数据可得性**（不是 PIT、不是成本）——
    准确说：**「今天读到的金额」与「当时公告的金额」之间的差**（修订），
    以及**要拿到 2021–2026 的判决窗口，就必须今天采到的全量历史**。
-   而全量历史的采集成���是 **43,680 次串行调用**（实测成本账见产物），
+   而全量历史是 **43,680 次串行调用**（实测成本账见覆盖产物），
    **不采全池就没有横截面**。
    ⚠️ PIT **不是**最硬的那一层（公告日是记录自带的字段 ⇒ 可回溯），
    成本**不是**（年摩擦 2.14%–11.06%，远低于门槛的量级）——
-   **最硬的是「一次把全池历史采下来」这件事本身**，
+   **最硬的是「把全池历史采下来」这件事本身**，
    以及采完之后**横截面上的覆盖偏差**（没采到的票必须显式缺失，不许编 0）。
+
+   🚨 **本轮把它从「一个决策」变成「一个协议」**：
+   分片（确定性）+ 每日配额闸（≤15,000，超了当场停）+ 单元账（续跑不重复烧额度）
+   + 并发锁（禁并发由工具强制）+ launchd 作业（03:30 / 06:30，每天一片）。
+   ⇒ 障碍从「今天要不要花 3 小时」变成「**让机器每天替我们花 1 小时**」。
+   ⇒ **但结论仍然要等**：全池覆盖完成（5 天）之前，
+   **横截面上的覆盖偏差无法量化** ⇒ 不许开始回测。

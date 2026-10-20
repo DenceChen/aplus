@@ -35,6 +35,7 @@ BM / ROE / FAR 一律不实现」。
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -742,8 +743,341 @@ def test_the_collector_never_concurrently_writes_and_reads_the_same_partition(tm
 
 
 # ══════════════════════════════════════════════════════════════════
-# 9. 预注册文档与产物对账（防「手打数字静默过期」）
+# 10. 分片 / 配额闸 / 续跑（长跑采集的三个生死开关）
 # ══════════════════════════════════════════════════════════════════
+
+def test_the_shard_split_is_deterministic_disjoint_and_complete():
+    """🚨 **分片必须确定性、可复现、可断点续采。**
+
+    - 同一份清单 ⇒ 同一片（否则「昨天采到一半」接不上）；
+    - 各片**互不相交**且**并起来正好是全池**（否则漏采/重复采）。
+    """
+    codes = [f"{i:06d}" for i in range(100)]
+    a = M.shard_codes(codes, 1, 3)
+    b = M.shard_codes(codes, 2, 3)
+    c = M.shard_codes(codes, 3, 3)
+    assert M.shard_codes(codes, 1, 3) == a, "同一份清单切出不同的片"
+    assert set(a) & set(b) == set() and set(b) & set(c) == set()
+    assert sorted(a + b + c) == sorted(codes), "三片并起来不等于全池"
+    assert len(a) == len(b) == len(c) == 34 or sum(
+        len(x) for x in (a, b, c)) == 100
+
+
+def test_the_shard_split_sorts_its_input_itself():
+    """🚨 **分片函数自己必须排序**，不能指望调用方传进来的已排序。
+
+    变异验证抓到：把函数里的 `codes = sorted(codes)` 删掉，**全部测试照样绿**
+    —— 因为主路径传进来的确实是排好序的。
+    ⇒ 只有**传乱序进去**才钉得住这一层。
+    """
+    codes = [f"{i:06d}" for i in range(100)]
+    shuffled = list(reversed(codes))
+    assert M.shard_codes(shuffled, 1, 3) == M.shard_codes(codes, 1, 3), \
+        "分片没有自己排序 ⇒ 传乱序会切出不同的片 ⇒ 续跑接不上"
+    assert M.shard_codes(shuffled, 2, 5) == M.shard_codes(codes, 2, 5)
+
+
+def test_the_shard_number_is_one_based():
+    """🚨 **分片号从 1 起。** 混用 0 起与 1 起 ⇒ 「第 1 片」会变成第二片。"""
+    with pytest.raises(ValueError):
+        M.parse_shard("0/3")
+    with pytest.raises(ValueError):
+        M.parse_shard("4/3")
+    assert M.parse_shard("1/3") == (1, 3)
+    assert M.parse_shard("auto") is None
+
+
+def test_the_quota_gate_stops_the_run_instead_of_overrunning(tmp_path):
+    """🚨 **配额闸：超了当场停。**
+
+    baostock 日限 5 万次、禁并发、超限**黑名单 6 小时起** ⇒
+    超额的后果是**黑名单**，不是「明天补回来」⇒
+    ⇒ 不许「今天多跑点明天少跑」。
+    """
+    n_calls = {"n": 0}
+
+    def fake_fetcher(bs_code, year):
+        n_calls["n"] += 1
+        return pd.DataFrame(), "empty"
+
+    pool = {f"{i:06d}": f"sh.{i:06d}" for i in range(10)}
+    res = M.collect(pool, tmp_path, "2026-10-21", years=(2020, 2021),
+                    sleep=0, fetcher=fake_fetcher, max_calls=7)
+    assert n_calls["n"] == 7, f"配额闸没挡住：调了 {n_calls['n']} 次"
+    assert res["quota_stopped"] is True
+    # 停下来的位置也要记账 ⇒ 明天从那里接着走。
+    assert len(res["cells"]) == 7
+
+
+def test_a_same_day_rerun_does_not_reconsume_the_quota(tmp_path):
+    """🚨 **同一天重跑不许重复采、不许把额度用两次。**
+
+    机制 = **单元账**（逐 (票, 年) 记状态）⇒ 已采过的格子不再调源站。
+    """
+    n_calls = {"n": 0}
+
+    def fake_fetcher(bs_code, year):
+        n_calls["n"] += 1
+        return pd.DataFrame(), "empty"
+
+    pool = {f"{i:06d}": f"sh.{i:06d}" for i in range(6)}
+    first = M.collect(pool, tmp_path, "2026-10-21", years=(2020,),
+                      sleep=0, fetcher=fake_fetcher)
+    assert n_calls["n"] == 6
+    second = M.collect(pool, tmp_path, "2026-10-21", years=(2020,),
+                        sleep=0, fetcher=fake_fetcher, cells=first["cells"])
+    assert n_calls["n"] == 6, "续跑又调了一次源站 ⇒ 额度被用两次"
+    assert second["n_skipped_resume"] == 6
+
+
+def test_a_failed_cell_is_retried_not_skipped(tmp_path):
+    """🚨 **失败的单元必须重试。**
+
+    「没查成」与「查过了、那票没分红」是**两个事实**。
+    把 error 也当「已采过」跳过 ⇒ 这一格**永远补不上**
+    ⇒ 数据缺口永久留下，而进度账还以为它跑过了。
+    """
+    n_calls = {"n": 0}
+
+    def fake_fetcher(bs_code, year):
+        n_calls["n"] += 1
+        if bs_code == "sh.000000":
+            return pd.DataFrame(), "error:10004006:年份类别不正确"
+        return pd.DataFrame(), "empty"
+
+    pool = {"000000": "sh.000000", "000001": "sh.000001"}
+    first = M.collect(pool, tmp_path, "2026-10-21", years=(2020,),
+                      sleep=0, fetcher=fake_fetcher)
+    assert first["cells"]["000000|2020"] == "error"
+    assert first["cells"]["000001|2020"] == "empty"
+    n_before = n_calls["n"]
+    second = M.collect(pool, tmp_path, "2026-10-21", years=(2020,),
+                        sleep=0, fetcher=fake_fetcher, cells=first["cells"])
+    # 只重试失败的那一格（1 次），成功的那格跳过。
+    assert n_calls["n"] - n_before == 1, "失败单元没有被重试"
+    assert second["n_skipped_resume"] == 1
+
+
+def test_the_auto_picker_keeps_the_same_shard_on_the_same_day(tmp_path):
+    """🚨 **同一天重跑只续跑那一片**，不许当天再起一片（额度不许用两次）。"""
+    M.append_progress(tmp_path, {"day": "2026-10-21", "shard_i": 2,
+                                  "n_shards": 3, "complete": True})
+    assert M.pick_shard_auto(tmp_path, "2026-10-21", 3) == 2
+    # 换一天 ⇒ 挑「第一片没跑完的」。
+    assert M.pick_shard_auto(tmp_path, "2026-10-22", 3) == 1
+
+
+def test_the_auto_picker_advances_past_completed_shards(tmp_path):
+    for i in (1, 2):
+        M.append_progress(tmp_path, {"day": "2026-10-21", "shard_i": i,
+                                      "n_shards": 3, "complete": True})
+    assert M.pick_shard_auto(tmp_path, "2026-10-22", 3) == 3
+
+
+def test_the_auto_picker_cycles_when_every_shard_is_complete(tmp_path):
+    """🚨 **全池采完之后作业继续每日跑**（维持「当时读到的」那一层逐日累积）。"""
+    for i, d in ((1, "2026-10-19"), (2, "2026-10-20"), (3, "2026-10-21")):
+        M.append_progress(tmp_path, {"day": d, "shard_i": i, "n_shards": 3,
+                                      "complete": True})
+    # 最久没跑的是片 1。
+    assert M.pick_shard_auto(tmp_path, "2026-10-22", 3) == 1
+
+
+def test_the_auto_picker_ignores_progress_from_a_different_shard_count(tmp_path):
+    """🚨 **片数一改，老的 `complete` 就是假的。**
+
+    片数变了 ⇒ 切分边界变了 ⇒ 老的 `shard=1-of-5/` 是**孤儿目录**；
+    若把老的 `complete` 也算进来，「这一片跑过了」就是**假的**
+    ⇒ 那一段永远不会被重采 ⇒ **静默的覆盖空洞**。
+    """
+    M.append_progress(tmp_path, {"day": "2026-10-21", "shard_i": 1,
+                                  "n_shards": 5, "complete": True})
+    # 现在用 3 片 ⇒ 第 1 片**没跑过**（老的记录不算数）。
+    assert M.pick_shard_auto(tmp_path, "2026-10-22", 3) == 1
+    # 用 5 片 ⇒ 第 1 片跑过了 ⇒ 挑第 2 片。
+    assert M.pick_shard_auto(tmp_path, "2026-10-22", 5) == 2
+
+
+def test_a_broken_cells_ledger_is_not_silently_treated_as_empty(tmp_path):
+    """🚨 **单元账坏了 ⇒ 报错，不许当空的**（那会让这一片从头重采、白烧额度）。"""
+    p = tmp_path / "_cells.json"
+    p.write_text("{not json", encoding="utf-8")
+    with pytest.raises(ValueError):
+        M.read_cells(p)
+
+
+def test_the_announced_layer_records_only_the_plans_announced_that_day(tmp_path):
+    """🚨 **「当天新公告」那一层只放当天公告的方案。**
+
+    这是「当时读到的」那一层的落点：逐日忠实记录
+    「当天新公告了哪些方案、当天读到的金额是多少」。
+    """
+    raw = pd.DataFrame([
+        {"code": "sh.600000", M.PLAN_ANNOUNCE_COL: "2026-10-21",
+         M.OPERATE_COL: "2026-12-20", M.CASH_BEFORE_TAX_COL: "0.32",
+         "dividCashStock": "10派3.2元"},
+        {"code": "sh.600001", M.PLAN_ANNOUNCE_COL: "2026-10-20",
+         M.OPERATE_COL: "2026-12-21", M.CASH_BEFORE_TAX_COL: "0.10",
+         "dividCashStock": "10派1元"},
+    ])
+    ev = M.normalize_events(raw, "sh.600000", 2026, "2026-10-21T00:00:00+00:00")
+    ann = ev[ev["plan_announce_date"].astype(str) == "2026-10-21"]
+    assert len(ann) == 1
+    assert ann.loc[0, "code"] == "600000"
+    # 另一只票的公告日是昨天 ⇒ 不进今天这一层。
+    assert "600001" not in set(ann["code"])
+
+
+def test_the_announced_partition_is_written_even_when_it_is_empty(tmp_path):
+    """🚨 **空分区也是记录。**
+
+    「今天跑了但零条新公告」与「今天没跑」在文件系统上**长得一样**
+    ⇒ 不落空分区 ⇒ 那一天变成**静默的空洞**，读的人无法区分。
+    """
+    from aplus import vintage
+    empty = pd.DataFrame(columns=M.EVENT_COLUMNS)
+    M.write_announced_layer(tmp_path / "announced", "2026-10-21", empty)
+    assert vintage.available_days(tmp_path / "announced") == ["2026-10-21"], \
+        "空分区没落 ⇒ 「跑过但零条」与「没跑」无法区分"
+    rep = vintage.verify_integrity(tmp_path / "announced")
+    assert rep["ok"], rep
+    assert len(M.load_announced(tmp_path, "2026-10-21")) == 0
+
+
+def test_the_resume_path_runs_end_to_end(tmp_path):
+    """🚨 **续跑路径必须能跑通**（它是 launchd 每天都会走的那条）。
+
+    ## 这个守卫是为一条**真 bug** 写的
+
+    第一版报告里有一段「本次 0 调用 ⇒ 沿用上一轮实测单次耗时」的分支，
+    它引用了 `prev_path` —— 而 `prev_path` 在**后面**才被赋值
+    ⇒ **UnboundLocalError**。
+    🚨 **它只在续跑时炸**（本次调用数 > 0 时那个分支根本不走）
+    ⇒ **第一天真采集测不出来** ⇒ 而那**恰恰是 launchd 每天都会走的**。
+
+    ⇒ 做法：注入假 fetcher，**连跑两次**：
+    第一次真采（造出单元账与产物），第二次 0 调用（走进那个分支）。
+    """
+    from aplus import provenance
+
+    calls = {"n": 0}
+
+    def fake_fetcher(bs_code, year):
+        calls["n"] += 1
+        return pd.DataFrame(), "empty"
+
+    day = "2026-10-21"
+    out = tmp_path / "coverage.json"
+    args = M._parse_args([
+        "--root", str(tmp_path / "store"),
+        "--codes", "600000,000001",
+        "--day", day,
+        "--out", str(out),
+        "--no-lock",
+        "--max-codes", "2",
+    ])
+    root = Path(args.root)
+    years = M.DEFAULT_YEARS
+
+    # 第一遍：真采
+    rc1 = M._run(args, root, day, years, None, fetcher=fake_fetcher)
+    assert rc1 == 0, "第一遍采集没跑通"
+    assert calls["n"] > 0
+    assert out.is_file(), "覆盖产物没落盘"
+
+    # 第二遍：**续跑**（0 调用）⇒ 走「沿用上一轮实测」那个分支
+    calls["n"] = 0
+    rc2 = M._run(args, root, day, years, None, fetcher=fake_fetcher)
+    assert rc2 == 0, "续跑路径炸了 —— 这正是 launchd 每天会走的那条"
+    assert calls["n"] == 0, "续跑又调了源站 ⇒ 额度被用两次"
+
+    import json as _json
+    rep = _json.loads(out.read_text(encoding="utf-8"))
+    assert rep["scope"]["n_calls"] == 0
+    assert rep["scope"]["n_skipped_resume"] > 0
+    # 单次耗时必须**沿用上一轮**（不是 0，否则成本账会说「预计 0 秒」）
+    assert rep["scope"]["per_call_mean_s"] > 0
+    assert rep["scope"]["per_call_mean_s_source"] == "previous_run_carried_forward"
+
+
+def test_the_deliverables_have_no_character_level_corruption():
+    """🚨 **中文散文被字符级损坏**（本仓第 92 层）—— 而且专挑注释。
+
+    本轮实测抓到 **3 处** U+FFFD 替换字符，全在中文注释/散文里
+    （代码本身照常跑，**没有任何报错**）。
+    ⇒ 交付物里出现 U+FFFD ⇒ 那一处的内容已经**不可读**。
+
+    ⚠️ 判据是**码点**，不是「看起来乱不乱」——
+    损坏后的字符仍然是合法的 UTF-8，`compile()` 通过、`pytest` 全绿。
+    """
+    files = [
+        ROOT / "scripts" / "collect_dividend_pit.py",
+        ROOT / "tests" / "test_dividend_pit.py",
+        ROOT / "docs" / "PREREG_DIVIDEND_LOWVOL_LONGLEG_2026-10-21.md",
+        ROOT / "docs" / "com.aplus.dividendpit.plist",
+    ]
+    for f in files:
+        if not f.is_file():
+            continue
+        text = f.read_text(encoding="utf-8")
+        # 🚨 **用转义写法，不写字面量** —— 否则这条守卫会**把自己判死**
+        # （它自己的源码里就有那个字符）。这与「守卫不许给自己发信号」同族。
+        bad = [(i + 1, line) for i, line in enumerate(text.splitlines())
+               if "\ufffd" in line]
+        assert not bad, f"{f.name} 有 {len(bad)} 处字符级损坏：{bad[:3]}"
+
+
+def test_the_sweep_ledger_is_not_the_coverage_ledger(tmp_path):
+    """🚨 **两份单元账必须分开命名。**
+
+    「这只票采到了没有」取决于**采了几个年份**：
+    - `_cells.json` = 全年份（8 年）⇒「采到了」是真命题；
+    - `_cells_sweep.json` = 只有当年 ⇒「只采了当年」。
+
+    ⇒ 若合并，消费者（因子脚本）会把「只采了当年」的票判成「完全覆盖」
+    ⇒ 在 2021 年那种**需要 2019–2021 三年**的信号日上，
+    它会被算出一个**偏小的 TTM 股息率**却标成「已观测」
+    ⇒ **静默的覆盖不足**（方向：低估高股息 ⇒ 掩盖因子效果）。
+    """
+    full = M.cells_path(tmp_path, "2026-10-21", kind="full")
+    sweep = M.cells_path(tmp_path, "2026-10-21", kind="sweep")
+    assert full != sweep
+    assert full.name == M.CELLS_LEDGER_NAME
+    assert sweep.name == M.CELLS_SWEEP_LEDGER_NAME
+    # 「只采了当年」的账**不许**落在覆盖账的名字上。
+    assert sweep.name != M.CELLS_LEDGER_NAME
+
+
+def test_the_concurrency_lock_refuses_a_second_collector(tmp_path):
+    """🚨 **禁并发要由工具强制，不靠约定。**
+
+    baostock 禁并发 ⇒ 两个采集同时跑会撞源站限制、互相覆盖同一个
+    `date=` 分区、并把额度用两次。
+    """
+    lock = M.acquire_lock(tmp_path)
+    assert lock is not None and lock.is_file()
+    # 第二次取锁必须失败（持有者就是本进程 ⇒ 活着且命令行含脚本名）。
+    assert M.acquire_lock(tmp_path) is None
+    M.release_lock(lock)
+    # 放掉之后能再取。
+    lock2 = M.acquire_lock(tmp_path)
+    assert lock2 is not None
+    M.release_lock(lock2)
+
+
+def test_a_stale_lock_from_a_dead_process_is_taken_over(tmp_path):
+    """🚨 **锁文件不能永久卡死采集。**
+
+    持有者已死（PID 被回收）⇒ 锁必须能被接管。
+    ⇒ 否则一次崩溃就永久停掉每日采集。
+    """
+    import os
+    lock_path = tmp_path / M.LOCK_NAME
+    lock_path.write_text(json.dumps({"pid": 999999, "cmdline": "dead"}),
+                         encoding="utf-8")
+    lock = M.acquire_lock(tmp_path)
+    assert lock is not None, "过期锁没有被接管 ⇒ 采集永久卡死"
+    M.release_lock(lock)
 
 PREREG = ROOT / "docs" / "PREREG_DIVIDEND_LOWVOL_LONGLEG_2026-10-21.md"
 COVERAGE = ROOT / "data" / "reports" / "dividend_pit_coverage_2026-10-21.json"

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aplus.dividendpit</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/airboom/opencode/aplus/.venv/bin/python</string>
+        <string>/Users/airboom/opencode/aplus/scripts/collect_dividend_pit.py</string>
+        <string>--shard</string>
+        <string>auto</string>
+        <string>--shards</string>
+        <string>5</string>
+        <string>--max-calls</string>
+        <string>15000</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/airboom/opencode/aplus</string>
+
+    <!--
+      03:30 —— 凌晨。
+
+      **为什么不与现有采集撞车**（本仓铁律：baostock 禁并发、共享日额度）：
+      | 作业 | 时刻 | 走 baostock？ |
+      |---|---|---|
+      | com.aplus.guardvintage | 09:30 / 23:30 | 否（只读产物） |
+      | com.aplus.vintage | 10:00 / 22:30 | 是（akshare 东财，不是 baostock） |
+      | com.aplus.daily | 18:30 | **是**（baostock 日行情，5,460 次） |
+      | **com.aplus.dividendpit** | **03:30** | **是**（≤15,000 次） |
+      ⇒ 03:30 与每一个都错开 ≥ 6 小时 ⇒ 不抢频控额度。
+
+      **配额闸是本作业的硬约束**（--max-calls 15000）：
+      baostock 日限 5 万次、超限**黑名单 6 小时起**。
+      本机 18:30 的日行情要占 5,460 次 ⇒ 若分红一次吃满 43,680，
+      合计 49,140 ⇒ **逼近上限** ⇒ 一次超限就**打坏 D1 的每日交付**。
+      ⇒ **D1 的交付优先级高于数据采集** ⇒ 15,000 + 5,460 = 20,460
+      ⇒ **不到日限的一半** ⇒ 安全余量充足。
+
+      **每天跑两件事**（共享同一个配额闸 ⇒ 全天合计 ≤ 15,000）：
+      ① 采集 A：全池 5,460 只 × 当年预案公告年份 = 5,460 次
+         ⇒ 「当时读到的」那一层（当天视图覆盖**全池**，不是 1/5）；
+      ② 采集 B：一片 1,092 只 × 8 年 = 8,736 次
+         ⇒ 事件库（5 天覆盖全池）+ 修订轨迹（每天轮转重读一片）。
+      合计 14,196 ≤ 15,000 ✓
+
+      **--shard auto 的三条规则**（脚本内 `pick_shard_auto`）：
+      ① 同一天重跑 ⇒ **继续同一片**（只补没采的单元）
+         ⇒ 额度不许用两次；
+      ② 还有没跑完的片 ⇒ 跑第一片没跑完的；
+      ③ 全跑完 ⇒ 轮转跑最久没跑的那片（维持那一层每日累积）。
+
+      **幂等**：单元账（逐 (票, 年) 记状态）⇒ 已采过的不再调源站；
+      失败单元**会重试**（状态是 error，不是「查过了」）。
+
+      **两个触发点：03:30 与 06:30。**
+      launchd 的日历触发**不补跑**：机器在 03:30 睡着就漏了一天。
+      06:30 是第二个机会（与 guardvintage 的 09:30 仍错开 3 小时）。
+      ⚠️ **第二个触发点不会把额度用两次**：单元账里已采过的格子不再调源站
+      ⇒ 一次调用只对应一个格子 ⇒ **全天的调用数 ≤ 格子数**
+      ⇒ 全天合计仍然 ≤ 15,000。⇒ 第一轮跑成功时，06:30 那次是**空操作**。
+
+      RunAtLoad 不开：开机就补跑会把采集塞进别的时间窗口。
+    -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key><integer>3</integer>
+            <key>Minute</key><integer>30</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>6</integer>
+            <key>Minute</key><integer>30</integer>
+        </dict>
+    </array>
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/airboom/opencode/aplus/data/dividendpit.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/airboom/opencode/aplus/data/dividendpit.err.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
