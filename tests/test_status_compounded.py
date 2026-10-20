@@ -82,8 +82,26 @@ def test_arithmetic_annualisation_is_no_longer_physically_impossible():
 
 
 @pytest.mark.skipif(not BACKTEST.exists(), reason="生产验证历史不在本地")
-def test_status_endpoint_carries_the_compounded_ruler():
-    """`/api/status` 必须把复利口径递到前端，否则尺子还是躺在库里。"""
+def test_status_endpoint_carries_the_compounded_ruler_when_it_is_citable():
+    """🚨 `/api/status` 的复利口径：**可引用时必须给，不可引用时必须缺**。
+
+    ## 判据怎么来的（**事前**登记，不是本文件定的）
+
+    - **决策四**（`docs/DELIVERY_DECISIONS_2026-10-18.md` §4）：
+      独立成交窗口 **W ≥ 10** 才许报命中率、不许给 CI。
+    - **结构闸门**（`scripts/measure_portfolio_nav.py`）：
+      **years < 1.0** 不给方向（3 天的 CAGR 是**外推**不是读数）。
+
+    ⇒ 两道闸**取严**：W ≥ 10 **且** years ≥ 1 才可引用。
+
+    ## 为什么这条守卫必须写成「iff」
+
+    第一版只写「字段必须在载荷里」⇒ 于是把**年化 +100.58%**
+    （3 天的外推）与命中率 62% 一起递给了前端与飞书桥
+    ⇒ 「不许报」被自己的接口破了。
+    ⇒ 现在：**可引用 ⇒ 字段在；不可引用 ⇒ 字段**不在**（缺，不是 0）
+    ⇒ 并附 `citable` / `citable_reason` 说明为什么。
+    """
     from fastapi.testclient import TestClient
 
     from aplus.webapp import create_app
@@ -93,8 +111,15 @@ def test_status_endpoint_carries_the_compounded_ruler():
     body = TestClient(app).get("/api/status").json()
     stats = body["stats"]
 
-    for key in ("total_return", "cagr", "arith_ann", "ann_vol", "vol_drag"):
-        assert key in stats, f"/api/status 缺复利字段 {key}"
+    keys = ("total_return", "cagr", "arith_ann", "ann_vol", "vol_drag")
+    if stats.get("citable"):
+        for key in keys:
+            assert key in stats, f"/api/status 缺复利字段 {key}"
+    else:
+        for key in keys:
+            assert key not in stats, (
+                f"样本不足时 `{key}` 不许在载荷里（外推量，缺就是缺）：{stats}")
+        assert stats.get("citable_reason"), "不可引用时必须说清为什么"
 
 
 @pytest.mark.skipif(not BACKTEST.exists(), reason="生产验证历史不在本地")
@@ -147,11 +172,70 @@ def test_status_cagr_matches_what_verify_computes():
     assert got["n_days"] == expect["n_days"], (
         f"前端天数 {got['n_days']} 与归档天数 {expect['n_days']} 不符——"
         "说明前端读了另一个数据源")
+    if not got.get("citable"):
+        # 样本不足 ⇒ 派生量**缺**（不是 0）：缺就是缺（第 89 层）。
+        for key in ("cagr", "total_return", "arith_ann", "ann_vol", "vol_drag"):
+            assert key not in got, (
+                f"不可引用时 `{key}` 不许在载荷里：{got}")
+        assert got.get("citable_reason"), "不可引用时必须说清为什么"
+        return
     if expect["cagr"] is None:
         assert got["cagr"] is None, "归档为空时前端不得编出 CAGR"
     else:
         assert got["cagr"] == pytest.approx(expect["cagr"], rel=1e-9)
         assert got["total_return"] == pytest.approx(expect["total_return"], rel=1e-9)
+
+
+def test_the_compounded_ruler_is_delivered_once_the_sample_is_citable(tmp_path):
+    """🚨 **反向正控**：样本够（W ≥ 10 且 years ≥ 1）时，复利口径**必须**递出去。
+
+    ⚠️ 没有这条，上面那条「iff」守卫会退化成「**永远不给**」的装饰
+    （第 112 层：恒真的守卫和恒为假的守卫一样有害）。
+
+    ## 夹具怎么造（现造，不读生产产物）
+
+    - `reports/verification.parquet`：260 个交易日 × 5 只（≥ `MIN_BASKET=3`）
+      ⇒ `years = 260/252 > 1`、独立成交窗口 260 个（≥ 10）。
+    - 归属证据：底稿带 `weights_hash` 列，取值 = **当前**权重指纹
+      （`load_weights` 的回落默认权重）⇒ `scope_ledger` 认它
+      ⇒ 底稿**不被判成「无归属证据」**（那会让整本底稿变空）。
+    """
+    from fastapi.testclient import TestClient
+
+    from aplus.evolve import load_weights
+    from aplus.reports import weights_fingerprint
+    from aplus.webapp import create_app
+
+    reports = tmp_path / "data" / "reports"
+    reports.mkdir(parents=True)
+    fp = weights_fingerprint(dict(load_weights(reports)["weights"]))
+    assert fp, "算不出当前权重指纹 ⇒ 夹具不成立"
+
+    rows = []
+    for i, day in enumerate(pd.bdate_range("2024-01-01", periods=260)):
+        for k in range(5):
+            up = (k % 2 == 0)
+            rows.append({
+                "pred_date": day.strftime("%Y-%m-%d"),
+                "exit_date": day.strftime("%Y-%m-%d"),
+                "entry_date": day.strftime("%Y-%m-%d"),
+                "code": "%03d.SZ" % k,
+                "direction": "up" if up else "down",
+                "result": "hit" if up else "miss",
+                "actual_pct": 0.01 if up else -0.01,
+                "cost": 0.001,
+                "market_pct": 0.0,
+                "weights_hash": fp,
+            })
+    pd.DataFrame(rows).to_parquet(reports / "verification.parquet")
+
+    app = create_app(tmp_path / "data", llm=None)
+    stats = TestClient(app).get("/api/status").json()["stats"]
+    assert stats["citable"] is True, stats.get("citable_reason")
+    for key in ("total_return", "cagr", "arith_ann", "ann_vol", "vol_drag"):
+        assert key in stats, f"样本够时 `/api/status` 缺复利字段 {key}"
+    assert stats["n_independent_windows"] >= 10, stats
+    assert stats["years"] >= 1.0, stats
 
 
 def test_archive_with_a_single_day_must_not_look_like_a_track_record():

@@ -54,6 +54,9 @@ from aplus.write_lock import LockBusy, WriteLock
 MARKET_SAMPLE = 300  # 市场平均收益的抽样规模（全量读盘太重，抽样足够稳定）
 MARKET_MAX_DATE_SAMPLE = 300  # 市场级末日期的抽样规模（与上者同量级，单列避免被误改）
 
+#: 仓根（`provenance.code_file_sha256(root, ...)` 要它把路径算成**仓相对**）。
+ROOT = Path(__file__).resolve().parents[1]
+
 
 
 def _load_names(data_root: Path) -> dict:
@@ -1012,6 +1015,185 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     except Exception as exc:  # noqa: BLE001
         print(f"[down] 跌腿表现读取失败（不影响今日名单）：{exc!r}")
 
+    # ── 交给下一步（持仓级降级预警）的上下文 ────────────────────────
+    # ★ 为什么把**全池**交出去而不是让下一步自己再算一遍：
+    #   `universe` 就是**生产刚刚发出去的那一份名单**所用的横截面
+    #   （同一个 `build_cross_section` ⇒ 同一个 `aplus/panel.py::_factor_series`
+    #   ⇒ 与生产逐位一致）⇒ 下一步**零额外面板成本**。
+    #   ⚠️ 慢路径 `aplus/factor.py::compute_factors` **不是**生产实现
+    #   （实测 vol20 差 0.0468 ⇒ 合成分差 0.57 ⇒ 连名次都变）⇒ 不许用。
+    return {
+        "universe": universe,
+        "cross_section_size": int(len(cross)),
+        "weights": dict(weights),
+        "filtered": {
+            "stale": len(stale_hits),
+            "unfillable": len(unfillable_hits),
+            "unknown_st": len(unknown_st),
+        },
+        "weights_meta": {
+            "source": cfg.get("source"),
+            "caveat": cfg.get("caveat"),
+            "caveat_kind": cfg.get("caveat_kind"),
+        },
+    }
+
+
+# ── 持仓级降级预警（2026-10-21 接线）────────────────────────────────
+#: 产物 `holdings_alert_<信号日>.json` 的**生成器**登记值。
+#:
+#: ⚠️ `aplus/provenance.py::PATTERN_GENERATORS` 把这个文件名登记给
+#:    **测量台** `scripts/measure_holdings_alert.py`（那是第一个产出者）。
+#:    而**日频**的产出者是本文件 ⇒ 章里必须写**真正跑了的那份字节**
+#:    （第 125 层：章说的必须是「这份产物是这些字节造的」，不是
+#:    「写盘那一刻盘上恰好是这些字节」）。
+#: ⇒ `provenance.freshness()` 因此改成「**比对对象取章自报的生成器**」
+#:    （登记表仍然管「有没有人管这份产物」：表外 ⇒ `unknown`）。
+HOLDINGS_ALERT_GENERATOR = "scripts/run_daily.py"
+
+#: 产物里的「判据阶梯」与 `aplus/holdings_entry.py::RULE_ORDER` 同源，
+#: 这里只放**给人看的出处**，字面量**不在这里复制**。
+HOLDINGS_ALERT_RULE_ORDER_SOURCE = "aplus/holdings_entry.py::RULE_ORDER"
+
+
+def step_holdings_alert(reports_dir, today, ctx):
+    """持仓级降级预警：**用当天的全池**给持仓子集定级（每天自动出）。
+
+    ## 它回答什么
+
+    「我手上这几只里，哪几只已经掉到最差那一档？」——
+    **只回答横截面位次**，不预测涨跌、不算盈亏、不改权重、不改 K。
+
+    ## 三条口径纪律（预注册 `docs/PREREG_HOLDINGS_ALERT_2026-10-21.md`）
+
+    ① **建仓分从建仓日那份预测文件读**（`pred_<建仓日>.parquet::score`）
+       ⇒ **不重算建仓日的全池**（那要再付一次 GB 级代价）。
+       持仓股票若**不在**建仓日那份名单里 ⇒ **没有建仓分**
+       ⇒ 走第 4 态 `UNDECIDED`（「测不出 ≠ 没变差」），**不许**用 0 或当前分顶替。
+    ② **持仓 = 建仓日那份配置里真正拿到钱的那些**（`alloc_<建仓日>::positions`）。
+    ③ 缺建仓分 / 不在当日全池 ⇒ `UNDECIDED`。
+
+    ## 成本：零额外面板
+
+    全池就是 `predict` 步骤**已经在内存里**的那一份 ⇒ 本步骤只排序、定级。
+    ⚠️ **不许**在这里再调一次 `build_cross_section`（GB 级 / 10 分钟量级），
+    也不许用慢路径因子实现。
+
+    ## 失败不许拖垮流水线，但不许静默成功
+
+    抛异常 ⇒ `run_step` 记成 `failed: …` 并**继续**跑后面的步骤；
+    ⇒ 但产物**不落盘**（半截 JSON 会被当成有效读数）。
+    """
+    from aplus import provenance
+    from aplus.holdings_entry import (
+        build_holdings_alert_artifact,
+        production_parity,
+        scored_universe,
+    )
+    from aplus.predict import build_predictions
+    from aplus.reports import weights_fingerprint
+
+    universe = ctx.get("universe")
+    if universe is None or len(universe) == 0:
+        raise StepSkipped("predict 步骤没有留下全池 ⇒ 本步骤无输入")
+    weights = dict(ctx.get("weights") or {})
+    w_hash = weights_fingerprint(weights)
+
+    # ★ 第 125 层：跑的和盖章的必须是**同一份字节** ⇒ 开跑时抓一次。
+    expect_bytes = provenance.code_file_sha256(ROOT, HOLDINGS_ALERT_GENERATOR)
+
+    ranked = scored_universe(universe, weights)
+    if len(ranked) == 0:
+        raise StepSkipped("全池没有一只算出合成分 ⇒ 本步骤无输入")
+
+    # ★ 生产对拍（外部锚）：本块要用的两腿必须与**生产落盘**的那份逐位相同。
+    #   `build_predictions` 是生产自己的那一份（**两腿的取法也在它那里**）
+    #   ⇒ 与落盘文件对拍 = 验「落盘那份没被换过、没被 `score_transform` 改过」。
+    up_leg, down_leg = build_predictions(universe, top_n=10, bottom_n=10,
+                                         weights=weights)
+    parity = production_parity(reports_dir, today, up_leg, down_leg)
+    if parity.get("verdict") != "MATCHES_PRODUCTION":
+        raise RuntimeError(
+            "🚨 持仓预警的两腿与生产落盘的名单对不上 ⇒ **拒绝出产物**"
+            "（自己算自己不是证据，生产产物才是）：" + str(parity))
+
+    artifact = build_holdings_alert_artifact(
+        reports_dir=reports_dir,
+        as_of=today,
+        ranked=ranked,
+        weights=weights,
+        weights_hash=w_hash,
+        generated_by=HOLDINGS_ALERT_GENERATOR,
+        legs=(up_leg, down_leg),
+        pool_method=(
+            "当日全池**直接取自 run_daily 的 predict 步骤**（同一份 "
+            "`build_cross_section` ⇒ 同一套 `aplus/panel.py::_factor_series` "
+            "因子实现 ⇒ 与生产逐位一致）；**不建 GB 级面板、不重算全池**"),
+        pool_method_note=(
+            "⚠️ 慢路径 `aplus/factor.py::compute_factors` **不是**生产实现"
+            "（测量台实测：vol20 差 0.0468 ⇒ 合成分差 0.57 ⇒ 涨腿 10 只里 "
+            "3 只名次不同）⇒ 本路径**不许**用它"),
+        pool_extra={
+            "cross_section_size": ctx.get("cross_section_size"),
+            "filtered": ctx.get("filtered"),
+            "weights_source": (ctx.get("weights_meta") or {}).get("source"),
+            "weights_caveat": (ctx.get("weights_meta") or {}).get("caveat"),
+            "weights_caveat_kind": (ctx.get("weights_meta") or {}).get("caveat_kind"),
+            "production_parity": parity,
+        },
+        extra={
+            "daily_wiring": {
+                "producer": HOLDINGS_ALERT_GENERATOR,
+                "rule_order_source": HOLDINGS_ALERT_RULE_ORDER_SOURCE,
+                "entry_scores_source": (
+                    "建仓日那份预测文件的涨腿落盘分（**不重算建仓日的全池**）"),
+                "cost": ("**零额外面板**：全池复用 predict 步骤已在内存的那一份；"
+                         "本步骤只排序、定级、写一份 json"),
+                "what_it_does_not_do": (
+                    "**不产生收益**：不改权重、不改 K、不生成买卖单、"
+                    "不预测涨跌、不算盈亏"),
+            },
+        },
+    )
+
+    out_path = Path(reports_dir) / ("holdings_alert_%s.json" % today)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(artifact, ensure_ascii=False, indent=2),
+                        encoding="utf-8")
+    provenance.stamp(
+        out_path, HOLDINGS_ALERT_GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        data_root=Path(reports_dir).parent,
+        extra={
+            "as_of": today,
+            "weights_hash": w_hash,
+            "pool_size": artifact["pool"]["size"],
+            "entry_day": artifact["entry"]["entry_day"],
+            "held_codes": artifact["population"]["codes"],
+            "summary": artifact["summary"],
+            "production_parity_verdict": parity.get("verdict"),            # ★ 章只覆盖**生成器自己**的字节 ⇒ 把**算判决那个模块**的字节
+            #   也写进去（`aplus/holdings_entry.py` 与 `aplus/holdings_alert.py`），
+            #   否则「改了判据逻辑但没重跑」这件事在章里**看不见**（第 125 层）。
+            "code_file_sha256_holdings_entry":
+                provenance.code_file_sha256(ROOT, "aplus/holdings_entry.py"),
+            "code_file_sha256_holdings_alert":
+                provenance.code_file_sha256(ROOT, "aplus/holdings_alert.py"),
+        })
+
+    summary = artifact["summary"]
+    print("[holdings-alert] 信号日 " + str(today) + "｜全池 "
+          + str(artifact["pool"]["size"]) + " 只｜持仓 "
+          + str(artifact["population"]["n_holdings"]) + " 只"
+          + "｜建仓日 " + str(artifact["entry"]["entry_day"])
+          + "｜REDUCE " + str(summary.get("REDUCE"))
+          + " / WATCH " + str(summary.get("WATCH"))
+          + " / HOLD " + str(summary.get("HOLD"))
+          + " / UNDECIDED " + str(summary.get("UNDECIDED")), flush=True)
+    for item in artifact["items"]:
+        print("  " + str(item["code"]) + " " + str(item["name"])
+              + "｜" + str(item["action"]) + "｜" + str(item["action_criterion"]),
+              flush=True)
+    print("[holdings-alert] 产物 " + str(out_path), flush=True)
+
 
 CORRUPT_GATE_RATIO = 0.01    # 损坏率分级阈值：超过即需要全量修复
 # 单只损坏文件的中和额度。超过这个数就当作**系统性**故障停机。
@@ -1571,6 +1753,10 @@ def _pipeline(args, run):
     # 预测已经用坏数据把用户名单写出来了（mom20=+903.72% 的三只股票
     # 直接霸占涨榜）。后发现的体检挡不住已发出的名单。
     audit = _run_audit(args.data_root, run_step, steps)
+    # ★ `predict` 的产物（**全池** + 权重）要交给下一步 ⇒ 用 holder 收回来。
+    #   `run_step` 只看异常，不看返回值 ⇒ 返回值**不能**当状态。
+    #   holder 声明在**闸门之外** ⇒ 闸门拦下时下面那步读得到它（空 ⇒ 跳过）。
+    predict_ctx: dict = {}
     if audit.get("error") or factor_gate_blocks(audit["bad"], audit["usable"]):
         msg = (f"因子表损坏 {audit['bad']}/{audit['usable']}"
                f"{'（体检本身失败）' if audit.get('error') else ''} → "
@@ -1581,8 +1767,24 @@ def _pipeline(args, run):
         print(f"[predict] {msg}")
         steps["predict"] = f"blocked: 因子表损坏 {audit['bad']} 只"
     else:
-        run_step("predict", lambda: step_predict_and_allocate(
-            store, reports_dir, today, args.capital, _load_names(Path(args.data_root))))
+
+        def _do_predict():
+            predict_ctx.update(step_predict_and_allocate(
+                store, reports_dir, today, args.capital,
+                _load_names(Path(args.data_root))))
+
+        run_step("predict", _do_predict)
+    # ── 持仓级降级预警（2026-10-21 接线）────────────────────────────
+    # 排在 **predict/allocate 之后**：它要用**当天的全池**与**当天的配置产物**。
+    # ⚠️ `predict` 没过 ⇒ 没有全池 ⇒ 这一步**跳过**（不是失败）：
+    #   缺输入与「跑失败」是两件事（`classify_step` 的三态就是这么分的）。
+    # ⚠️ 这一步失败**不许**拖垮整条流水线（`run_step` 记成 `failed:` 并继续），
+    #   但**不许**静默成功：产物要么落盘（带章），要么什么都没有。
+    if predict_ctx.get("universe") is not None:
+        run_step("holdings_alert", lambda: step_holdings_alert(
+            reports_dir, today, predict_ctx))
+    else:
+        steps["holdings_alert"] = "skipped: predict 步骤没有产出全池"
     if not args.skip_bonds:
         run_step("bond_paper", lambda: step_bond_paper(args.data_root, reports_dir, today))
     run_step("stats", lambda: step_stats(reports_dir, today))

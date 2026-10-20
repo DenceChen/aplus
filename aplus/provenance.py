@@ -204,7 +204,10 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 🚨 它**只读三份已有产物**、不重跑回测 ⇒ 产物不比输入更新，
     #   上游 stale 则本产物继承同一 staleness（预注册 §4.5）。
     "d2_signal_requirement.json": "scripts/d2_signal_requirement.py",
-    # 2026-10-17 登记：D2 缺口陈述的**口径对照表**（`the_only_citable_d2_gap`）。
+    # 2026-10-17 登记：D2 缺口陈述的**口径对照表**
+    # （现役键：`d2_signal_requirement.json::headline::
+    #   account_annual_ceiling_pct::gap_to_target_at_deliverable_width_and_50k_pp`
+    #   —— 旧的 `the_only_citable_d2_gap` 键**已退休**，别再引用它）。
     # 🚨 它存在的唯一理由是**防止第 7 层**：同一个「还差多少」在
     #   `equal_weight` 与 `cap_weight` 两个基准下读数差约 7.94 倍，
     #   而**这两个都是真数、都不是同一个量** ⇒ 谁把它们相除谁就是在
@@ -554,7 +557,6 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # ⇒ 而「盖了章却解析不出生成器」比「没盖章」更坏：读者无从判断它出自哪份代码。
     "bond_deployed_nav.json": "scripts/measure_bond_deployed_nav.py",
     "pool_board_exposure_2026-10-21.json": "scripts/measure_pool_board_exposure.py",
-    "dividend_pit_coverage_shard1of5.json": "scripts/collect_dividend_pit.py",
     # 50 只小样本那一份（第一批采集的产物）—— 它是**真实历史**，
     # 按第 25 层「不删不改不抹历史」⇒ 登记而不是删 sidecar。
     "dividend_pit_coverage_2026-10-21.json": "scripts/collect_dividend_pit.py",
@@ -606,6 +608,14 @@ PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     # ⚠️ `bm_ic_attribution.json` 走**精确表**（基名固定，不带标签）。
     (re.compile(r"^fundamental_mechanism_armR[\w-]*\.json$"),
      "scripts/measure_fundamental_mechanism_armR.py"),
+    # 2026-10-21 登记：红利 PIT 采集的**分片覆盖件**（`shard<i>-of-<n>`）。
+    # 🚨 **走模式表而不是逐名登记**：逐名写法下**每采一片就要补一行**
+    # ⇒ 而今天是 5 片分批采 ⇒ 必然漏登记 ⇒
+    # `test_every_stamped_report_resolves_back_to_a_registered_generator`
+    # 会当场点名那份产物（盖了章却解析不出生成器 ⇒ 按仓内规矩**不可引用**）。
+    # ⚠️ 逐名登记的那一行已删（同一生成器 ⇒ 行为逐位相同 ⇒ 删了不变任何读数）。
+    (re.compile(r"^dividend_pit_coverage_shard\d+of\d+\.json$"),
+     "scripts/collect_dividend_pit.py"),
 ]
 
 
@@ -962,6 +972,15 @@ def freshness(report_path: Path | str, generator: str | None = None,
     所以 `dirty=True` 时即使 verdict 是 fresh，也附 `trustworthy=False`。
     宁可多一次人工确认，也不要一个看起来干净实际不干净的结论。
 
+    ## ★★ 比对对象 = **章自报的那个生成器**（不是登记表那个）
+
+    登记表回答「这个文件名**通常**由谁产出」，章回答「**这一次**是谁产出的」
+    ⇒ 同一个文件名有第二个产出者时（实测：`holdings_alert_<日期>.json`
+    既可由测量台出、也可由日频的 `scripts/run_daily.py` 出），
+    拿登记表去比对 = **判错对象** ⇒ 得出一个**假的 `stale`**。
+    ⇒ 登记表**仍然**管「这份产物是不是有人管」（表外 ⇒ `unknown`），
+    变的只是**比对谁**；两者不一致时判决里会**明写**这件事。
+
     ## 🚨🚨 字节证据**只覆盖生成器自己**，不覆盖它的 import 闭包（2026-10-21 实测）
 
     `code_file_sha256` 盖的是**生成器那个文件**的字节。
@@ -982,6 +1001,27 @@ def freshness(report_path: Path | str, generator: str | None = None,
     name = rp.name
     gen = generator or resolve_generator(name)
     st = read_stamp(rp)
+
+    # ★★ 比对对象 = **这一次真正跑了的那份代码**（章自报的那个），不是登记表。
+    #
+    # 登记表（`DEFAULT_GENERATORS` / `PATTERN_GENERATORS`）回答的是
+    # 「这个文件名**通常**由谁产出」；章里的 `generator` 回答的是
+    # 「**这一次**是谁产出的」，而且它带 `code_file_sha256`（字节证据）。
+    # ⇒ **同一个文件名有第二个产出者时**（实测：`holdings_alert_<日期>.json`
+    #   既可由测量台 `scripts/measure_holdings_alert.py` 出，
+    #   也可由日频的 `scripts/run_daily.py` 出），
+    #   拿登记表去比对 = **判错对象**（第 123 层：判据自己没跑成）
+    #   ⇒ 得出一个**假的 `stale`**（拿 A 的字节去比 B 的章）。
+    # ⇒ 登记表**仍然**管「这份产物是不是有人管」（表外 ⇒ `unknown`），
+    #   变的只是**比对谁**。
+    # ⚠️ 只认**仓相对**路径（`stamp()` 把仓内绝对路径规范成相对，
+    #   仓外绝对路径原样保留 ⇒ 那种章**不采纳**，退回登记表）。
+    cmp_gen = gen
+    stamp_gen = st.get("generator") if isinstance(st, dict) else None
+    if generator is None and isinstance(stamp_gen, str) and stamp_gen \
+            and not Path(stamp_gen).is_absolute():
+        if (root / stamp_gen).is_file():
+            cmp_gen = stamp_gen
 
     # ── C1：裸名（`TODO_generator_static_guards` §1.5，判据先于实现写下）──
     #   `sidecar_path` 把后缀拼在**完整文件名**后面，所以裸名 `verdict_composite`
@@ -1057,7 +1097,14 @@ def freshness(report_path: Path | str, generator: str | None = None,
                 "commits": []}
 
     dirty = bool(st.get("code_dirty"))
-    touched = commits_touching(root, gen, st["code_sha"])
+    touched = commits_touching(root, cmp_gen, st["code_sha"])
+    # ★ 登记表与章说的**不是同一个生成器**时，必须把这件事说出来
+    #   （两个来源互相矛盾 ⇒ 读者无从判断「谁动过这个产物」）。
+    gen_note = ""
+    if cmp_gen != gen:
+        gen_note = ("；⚠️ 登记表说 `%s`，而这一枚章说 `%s` ⇒ "
+                    "**比对对象取章**（章带字节证据，且它记录的是**这一次**"
+                    "真正跑了的代码）" % (gen, cmp_gen))
 
     # ★ 字节判据**优先于** commit 走查，因为走查有两个**方向**的结构性盲区：
     #
@@ -1073,20 +1120,23 @@ def freshness(report_path: Path | str, generator: str | None = None,
     #   `aplus/factor.py` / `hurdle.py` / `store.py` 没变 ⇒ dirty 时仍然
     #   `trustworthy=False`。这里修的是判决，**不放松可信度**。
     stamped_bytes = st.get("code_file_sha256")
-    now_bytes = code_file_sha256(root, gen) if gen else None
+    now_bytes = code_file_sha256(root, cmp_gen) if cmp_gen else None
     if stamped_bytes and now_bytes:
         if stamped_bytes == now_bytes:
-            return {"report": name, "verdict": "fresh", "generator": gen,
+            return {"report": name, "verdict": "fresh", "generator": cmp_gen,
+                    "generator_registered": gen,
                     "reason": "生成器字节与盖章时完全一致" + (
                         "；但盖章时工作区有未提交改动 ⇒ 只能证明生成器本身，"
-                        "不能证明整个依赖闭包" if dirty else ""),
+                        "不能证明整个依赖闭包" if dirty else "") + gen_note,
                     "commits": [], "trustworthy": not dirty, "byte_evidence": True,
                     "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at"),
                     "dirty_at_stamp": dirty, "code_file_sha256": stamped_bytes}
-        return {"report": name, "verdict": "stale", "generator": gen,
+        return {"report": name, "verdict": "stale", "generator": cmp_gen,
+                "generator_registered": gen,
                 "reason": "生成器字节已变（内容哈希不同）" + (
                     f"；另有 {len(touched)} 次提交动过它" if touched else
-                    "；★ 没有任何提交动过它 ⇒ 这是**未提交改动**，commit 走查看不见"),
+                    "；★ 没有任何提交动过它 ⇒ 这是**未提交改动**，commit 走查看不见")
+                + gen_note,
                 "commits": touched, "trustworthy": False, "byte_evidence": True,
                 "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at"),
                 "dirty_at_stamp": dirty, "code_file_sha256": stamped_bytes,
@@ -1094,13 +1144,16 @@ def freshness(report_path: Path | str, generator: str | None = None,
 
     # 无字节证据（旧 sidecar）⇒ 退回 commit 走查，行为与从前完全一致。
     if touched:
-        return {"report": name, "verdict": "stale", "generator": gen,
-                "reason": f"生成后动过 {gen} {len(touched)} 次",
+        return {"report": name, "verdict": "stale", "generator": cmp_gen,
+                "generator_registered": gen,
+                "reason": f"生成后动过 {cmp_gen} {len(touched)} 次" + gen_note,
                 "commits": touched, "trustworthy": False,
                 "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at")}
-    return {"report": name, "verdict": "fresh", "generator": gen,
+    return {"report": name, "verdict": "fresh", "generator": cmp_gen,
+            "generator_registered": gen,
             "reason": "生成后生成模块未改动（★ 无字节证据：这份 sidecar 是"
-                      "`code_file_sha256` 落地之前盖的，只能靠 commit 走查）",
+                      "`code_file_sha256` 落地之前盖的，只能靠 commit 走查）"
+            + gen_note,
             "commits": [], "trustworthy": not dirty,
             "byte_evidence": False,
             "stamped_sha": st["code_sha"], "stamped_at": st.get("stamped_at"),

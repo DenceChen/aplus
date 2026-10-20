@@ -130,6 +130,36 @@
   /* hidden 必须真的藏起来：上面用了 display:flex，会盖过 [hidden] 的默认 display:none */
   .docket-warn[hidden] { display: none; }
 
+  /* ── D2 缺口：两个口径并排（2026-10-21）────────────────────────────
+     🚨 **为什么是独立块、且必须在 <details> 之外**：
+       `#docket-warn` 的正文落在 `<details class="fold">` 里（**默认折叠**）
+       ⇒ 判决的 detail（含缺口数）**看不见**；而 D2 缺口是首屏**唯一**
+       回答「离 20% 还有多远」的地方 ⇒ 必须有**常驻可见**的一行。
+     🚨 **两列 ⇒ 「并排」是结构给的**，不靠读者自己把两句话对上。
+       窄屏（≤860px）退回单列，**顺序不变**（理想档在上）。
+     🚨 两格**各自带标签与来源**：不许只显示其中一档而不说是哪一档。 */
+  .d2-gap-calibers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+                     margin: 0 0 12px; }
+  @media (max-width: 860px) { .d2-gap-calibers { grid-template-columns: 1fr; } }
+  .d2-gap-calibers[hidden] { display: none; }
+  .d2-gap-calibers .d2c { background: rgba(200,150,62,.08);
+                           border-left: 3px solid var(--seal); border-radius: 6px;
+                           padding: 8px 11px; min-width: 0; }
+  .d2-gap-calibers .d2c h5 { margin: 0 0 3px; font-size: 12.5px; font-weight: 600;
+                              color: var(--seal); }
+  .d2-gap-calibers .d2c .d2c-num { font-size: 19px; font-weight: 600; line-height: 1.25;
+                                    font-variant-numeric: tabular-nums; }
+  .d2-gap-calibers .d2c .d2c-sub { color: var(--muted); font-size: 11.5px;
+                                    line-height: 1.5; margin-top: 3px; }
+  .d2-gap-calibers .d2c .d2c-src { color: var(--faint); font-size: 10.5px;
+                                    line-height: 1.4; margin-top: 4px;
+                                    word-break: break-all; }
+  .d2-gap-calibers .d2c.na { border-left-color: var(--faint); }
+  .d2-gap-calibers .d2c.na h5 { color: var(--muted); }
+  /* 「信号侧」那一行**横跨两列**：它是**第三个量**（信号毛超额 vs 达标要求），
+     不是账户缺口 ⇒ 单独占一行，不许混进那两格（第 7 层）。 */
+  .d2-gap-calibers .d2c-wide { grid-column: 1 / -1; }
+
   /* 推导抽屉（2026-10-18）。折的是**推导**，不是**判决**：
      「不许发布」「距 20% 差 11.66pp」必须在首屏，而推导有四段、
      展开时把交付物整条顶到折叠线以下。
@@ -566,6 +596,38 @@
   .cfg-note b { color: var(--text); }
   .cfg-src { font-size: 11px; color: var(--faint); }
 
+  /* ── 持仓降级预警（2026-10-21）──────────────────────────────────
+     🚨 **四种状态各有颜色，且「未定」不许长得像「持有」**：
+        REDUCE（要动手）/ WATCH（留意）/ HOLD（拿着）/ UNDECIDED（**测不出**）。
+        `UNDECIDED` 用**中性灰**而不是绿色 —— 绿色会被读成「查过了，没问题」。
+     🚨 **判据逐字显示**：每条下面一行 `action_criterion`
+        （含用到的数、阈值、锚出处）⇒ 用户能自己核对，不必信页面。 */
+  .ha-wrap { padding: 12px 20px 18px; }
+  .ha-sum { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .ha-chip { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;
+             font-size: 12px; color: var(--muted); background: var(--panel-2); }
+  .ha-chip b { font-family: var(--serif); font-size: 17px; font-weight: 700;
+               color: var(--text); margin-left: 6px; font-variant-numeric: tabular-nums; }
+  .ha-list { display: flex; flex-direction: column; gap: 8px; }
+  .ha-row { border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px;
+            padding: 8px 11px; background: var(--panel-2); }
+  .ha-row.REDUCE { border-left-color: var(--down); }
+  .ha-row.WATCH  { border-left-color: var(--seal); }
+  .ha-row.HOLD   { border-left-color: var(--up); }
+  .ha-row.UNDECIDED { border-left-color: var(--faint); }
+  .ha-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .ha-code { font-family: var(--serif); font-size: 14px; font-weight: 700; color: var(--text); }
+  .ha-name { font-size: 12.5px; color: var(--muted); }
+  .ha-tag { font-size: 11.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px;
+            border: 1px solid var(--line); color: var(--muted); }
+  .ha-row.REDUCE .ha-tag { color: var(--down); border-color: var(--down); }
+  .ha-row.WATCH .ha-tag { color: var(--seal); border-color: var(--seal); }
+  .ha-row.HOLD .ha-tag { color: var(--up); border-color: var(--up); }
+  .ha-row.UNDECIDED .ha-tag { color: var(--faint); border-color: var(--faint); }
+  .ha-crit { margin-top: 4px; font-size: 11.5px; line-height: 1.65; color: var(--muted); }
+  .ha-foot { margin-top: 10px; font-size: 11px; line-height: 1.7; color: var(--faint); }
+  .ha-foot b { color: var(--muted); }
+
   /* ── 进化 ── */
   .weights-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 18px 20px 6px; }
   .weight-chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; text-align: center; }
@@ -741,6 +803,17 @@
          ⚠️ 只在结局**不是 ok** 时占首屏空间 ⇒ 正常那天不多占一屏。 -->
     <div class="docket-warn warn" id="run-outcome" hidden></div>
     </div><!-- /.docket-warns -->
+    <!-- ★ D2 缺口（两个口径并排，2026-10-21）。
+         🚨 **独立元素**，不并进 `#docket-warn`：那条的正文在 `<details>` 里
+            （**默认折叠**）⇒ 判决的 detail 看不见；而 D2 缺口是首屏**唯一**
+            回答「离 20% 还有多远」的地方 ⇒ 必须**常驻可见**。
+         🚨 两个口径**并排、各自带标签与来源**：理想档（满仓假设的公式上界）
+            与实盘档（整手 + 闲置现金后的模拟账户）**不是同一个量**
+            ⇒ 合并 / 取极值都会抹掉它从哪一行来（第 143 层）。
+         🚨 数据来自 `/api/d2-gap`（`aplus/reports.py::read_d2_gap`），
+            **前端一个数都不算**（连来源路径都由端点递过来）。
+         ⚠️ 缺一档 ⇒ **只显示另一档并说清缺哪一档**，不许拿另一档顶替。 -->
+    <div class="d2-gap-calibers" id="d2-gap-calibers" hidden></div>
     <div class="figures" id="docket-figures"></div>
   </div>
 </div>
@@ -800,6 +873,26 @@
       <div id="alloc-body"><div class="skeleton">加载配置…</div></div>
     </div>
 
+    <!-- 🚨 2026-10-21 新增：「持仓降级预警」。
+         D1 每天给**全市场**两个榜（会涨 10 只 / 会跌 10 只），
+         而**持仓来自涨腿** ⇒ 跌榜是「全市场最差的 10 只」，
+         **不回答**「我该卖哪只」。
+         这一块把同一套全池合成分用在**持仓子集**上：
+         「我手上这几只里，哪几只已经掉到最差那一档？」
+
+         🚨 **它不预测涨跌、不算盈亏、不改权重、不改 K、不生成买卖单**
+         —— 只回答**横截面位次**。页面必须带着这条边界显示。
+         🚨 **每一条都要带自己的判据**（`action_criterion` 逐字透传），
+         前端**不许**自己重新判定、不许只显示一个标签。
+         ⚠️ `UNDECIDED` = **测不出**（缺建仓分 / 不在当日全池），
+         **不许**渲染成「持有」。 -->
+    <div class="panel">
+      <div class="panel-head"><h2>持仓降级预警</h2>
+        <span class="sub">只回答横截面位次 · 不预测涨跌 · 不改出单</span>
+        <span class="right" id="holdings-alert-date"></span></div>
+      <div id="holdings-alert-body"><div class="skeleton">读取持仓预警…</div></div>
+    </div>
+
     <!-- 🚨 2026-10-20 新增：「5 万买得起吗」。
          页面上一屏都是「10 涨 10 跌」两张整齐的表 ⇒ 用户会以为照着买就行。
          而实盘那 10 只里**只有 4 只**在每份 ¥5,000 的预算内：
@@ -816,8 +909,11 @@
     </div>
 
     <!-- 🚨 2026-10-20 新增：「判决配置 vs 实盘配置」。
-         屏幕上的年化（判决档）量的是**满仓 10 只 + 8 因子逐年 IC 定权**，
-         而实盘跑的是**半仓 5 只 + DEFAULT_WEIGHTS 4 因子**。
+         屏幕上的年化（判决档）量的是**满仓判决档**，
+         而实盘跑的是**生产今天真的在跑**的那套配置
+         （敞口/仓数/K/因子数**逐字取 `/api/deployed-config`**；
+         ⚠️ **不许在这段散文里写死仓数与仓位** —— 2026-10-21 实盘改成满仓 10 只后，
+         手打的「半仓 5 只」在屏上输出了**自相矛盾**的话）。
          ⇒ 两个数**不是同一个量**。这一块把三层差异摆出来，
          并明说「屏幕上那个读数属于哪一档」——
          不然用户会把满仓判决档的年化当成自己账户的年化。 -->
@@ -1382,6 +1478,9 @@ async function loadOverview() {
         慢一点可以晚点出现，绝不能把名册卡住。 */
   loadLotAffordability();
   loadDeployedConfig();
+  /* 🚨 2026-10-21：持仓降级预警。**不 await** —— 它是补充说明，
+     不是名册的前置条件（慢一点可以晚点出现，绝不能把名册卡住）。 */
+  loadHoldingsAlert();
 }
 
 /* ── 「5 万买得起吗」（2026-10-20 新增）────────────────────────────
@@ -1493,8 +1592,11 @@ async function loadLotAffordability() {
    数据源：`/api/deployed-config`（后端 `webapp.py::deployed_config_payload`）。
 
    🚨 **两层读数不许混成一句话、也不许画成同一根线**：
-   - 判决档（`basket_nav_01_2026-10-16.json`）：满仓 10 只 + 8 因子逐年 IC 定权；
-   - 实盘档（`deployed_d2_verdict.json`）：半仓 5 只 + `DEFAULT_WEIGHTS` 4 因子。
+   - 判决档（`basket_nav_01_2026-10-16.json`）：**满仓判决档**；
+   - 实盘档（`deployed_d2_verdict.json`）：生产**今天真的在跑**的那套配置。
+   ⚠️ **仓数与仓位不许写死在这段注释里**（2026-10-21：实盘从半仓 5 只改成
+     满仓 10 只后，手写的串在屏上输出了**自相矛盾**的话）⇒ 标签与数
+     **一律从 `/api/deployed-config` 的 `position_label` 拿**。
    ⇒ 前端把它们**并排摆成两个独立的块**，各自带自己的标签与来源。
 
    🚨 **判决读数不许说成「你的年化」**：
@@ -1567,13 +1669,20 @@ function renderDeployedConfig(d) {
       + `<div class="cfg-src">⚠️ 这里<b>不会</b>拿判决档的数顶替 —— 那是另一个量。</div>`
       + `</div>`;
 
+  /* ★ 仓位标签**从端点拿**（`position_label`），前端**一个字都不许手打**。
+     起因（2026-10-21）：实盘配置从「半仓 5 只」改成「满仓 10 只」，
+     而这里手写的「半仓」在屏上输出了**自相矛盾**的话。
+     ⚠️ 端点没给 ⇒ 退到中性词「仓位」（**不与任何数矛盾**）。 */
+  const vLabel = (d.verdict_side && d.verdict_side.position_label) || '仓位';
+  const dLabel = (d.deployed_side && d.deployed_side.position_label) || '仓位';
+
   box.innerHTML = `<div class="lot-wrap">`
     + `<div class="lot-table"><table><thead><tr>`
       + `<th>维度</th><th>判决配置</th><th>实盘配置</th><th>一样吗</th><th>来源</th>`
       + `</tr></thead><tbody>${rows}</tbody></table></div>`
     + `<div class="cfg-tiers">${verdictTier}${deployedTier}</div>`
     + `<div class="cfg-note">⚠️ <b>两边的数不是同一个量，不可混引、不可同图比较。</b>`
-      + `判决档量的是「满仓 · 判决专用权重」；实盘跑的是「半仓 · 从未赛马的回落默认权重」。`
+      + `判决档量的是「${esc(vLabel)} · 判决专用权重」；实盘跑的是「${esc(dLabel)} · 从未赛马的回落默认权重」。`
       + `<br>判决档里那个数<b>不是</b>你的年化；实盘档的数要么在这里，要么<b>还没有</b>——`
       + `没有的时候这里就写没有。</div>`
     + `</div>`;
@@ -1587,6 +1696,78 @@ async function loadDeployedConfig() {
   } catch (e) {
     console.error('[配置口径] 加载失败', e);
     $('deployedcfg-body').innerHTML = `<div class="empty">配置口径读不出来（${esc(e.message || e)}）</div>`;
+  }
+}
+
+/* ── 持仓降级预警（2026-10-21 接线）────────────────────────────────
+   数据源：`/api/holdings-alert`（后端 `webapp.py::_holdings_alert_payload`）。
+
+   🚨 **前端一个判定都不许自己做**：
+   - 动作（REDUCE/WATCH/HOLD/UNDECIDED）**逐字**取端点；
+   - **判据**（`criterion`）**逐字**取端点 ⇒ 阈值出处跟着出来；
+   - 前端**不许**根据分位自己重算一次（两份副本之间没有守卫）。
+
+   🚨 **「未定」必须显示成「未定」**：`UNDECIDED` = 测不出
+   （缺建仓分 / 不在当日全池）⇒ **不许**渲染成「持有」。
+   ⚠️ 产物不在 ⇒ **只说没有**，不拿别的东西顶替。
+
+   🚨 **诚实边界必须出现在这一块**（不只是文档里）：
+   「不预测涨跌 / 不算盈亏 / 不改权重 / 不改 K / 不生成买卖单」。 */
+function renderHoldingsAlert(d) {
+  const box = $('holdings-alert-body');
+  if (!box) return;
+  if (!d || !d.available) {
+    $('holdings-alert-date').textContent = '';
+    box.innerHTML = `<div class="empty">${esc((d && d.note) || '没有持仓预警产物')}</div>`;
+    return;
+  }
+  const s = d.summary || {};
+  const chip = (k, label) =>
+    `<span class="ha-chip">${esc(label)}<b>${esc(String(s[k] ?? 0))}</b></span>`;
+  const rows = (d.items || []).map(it => `
+    <div class="ha-row ${esc(it.action || '')}">
+      <div class="ha-top">
+        <span class="ha-code">${esc(it.code || '')}</span>
+        <span class="ha-name">${esc(it.name || '')}</span>
+        <span class="ha-tag">${esc(it.action_label || it.action || '')}</span>
+      </div>
+      <div class="ha-crit">${esc(it.criterion || '')}</div>
+    </div>`).join('');
+
+  const crit = d.criteria || {};
+  const anchors = (crit.anchors && crit.anchors.citation) || '';
+  const cut = (crit.bottom_decile_percentile != null)
+    ? `最差十分位阈值 ${crit.bottom_decile_percentile} / 最差五分位阈值 ${crit.bottom_quintile_percentile}` : '';
+  const fr = d.freshness || {};
+  const entry = d.entry || {};
+
+  box.innerHTML = `<div class="ha-wrap">`
+    + `<div class="ha-sum">`
+      + chip('REDUCE', '减仓') + chip('WATCH', '观察')
+      + chip('HOLD', '持有') + chip('UNDECIDED', '未定（测不出）')
+    + `</div>`
+    + `<div class="ha-list">${rows || '<div class="empty">没有持仓</div>'}</div>`
+    + `<div class="ha-foot">`
+      + `<b>建仓日</b> ${esc(entry.entry_day || '未知')}（${esc(entry.entry_day_source || '判不出')}）`
+      + `　<b>全池</b> ${esc(String((d.population && d.population.n_heldings) ?? 0))} 只持仓`
+      + `　<b>阈值</b> ${esc(cut)}<br>`
+      + `<b>阈值出处</b> ${esc(anchors)}<br>`
+      + `<b>产物</b> ${esc(d.report || '')}`
+      + (fr.stamped_at ? `　生成于 ${esc(fr.stamped_at)}` : '')
+      + (fr.verdict ? `　新鲜度 ${esc(fr.verdict)}` : '')
+      + `<br>⚠️ <b>这一块不预测涨跌、不算盈亏、不改权重、不改换仓频率、不生成买卖单</b>`
+      + ` —— 它只回答「今天它在全池里排第几、比建仓那天是好了还是差了」。`
+    + `</div></div>`;
+  $('holdings-alert-date').textContent = d.as_of ? `${d.as_of} 收盘后生成` : '';
+}
+
+async function loadHoldingsAlert() {
+  try {
+    renderHoldingsAlert(await jget('/api/holdings-alert'));
+  } catch (e) {
+    console.error('[持仓预警] 加载失败', e);
+    const box = $('holdings-alert-body');
+    if (box) box.innerHTML = `<div class="empty">持仓预警读不出来（${esc(e.message || e)}）</div>`;
   }
 }
 
@@ -1705,7 +1886,141 @@ function renderPublishGate(gate) {
   el.innerHTML = foldVerdict(esc(headline), detail, '推导');
 }
 
-const MIN_WINDOWS = 10;   // 决策四 W≥10 —— 判据值不许在这里另定
+/* ⚠️ **兜底值**：判据值由**端点**给（`stats.min_windows`）⇒ 页面不另定一份
+   （两份副本之间没有守卫 ⇒ 改一处就静默分叉，第 137 层）。
+   端点没给才用这个兜底；判据出处：`docs/DELIVERY_DECISIONS_2026-10-18.md` §4 决策四。 */
+const MIN_WINDOWS = 10;
+
+/* ── D2 缺口（两个口径并排，2026-10-21）────────────────────────────────
+   数据源：`/api/d2-gap`（`aplus/reports.py::read_d2_gap`），由 `renderDocket`
+   一并渲染 ⇒ **不多打一次端点、也不多一处 loader**
+   （本仓真吃过「两个 loader 只有一个取端点 ⇒ 深链进去就消失」的亏，
+     见上面 `loadChrome` / `loadOverview` 那两条注释）。
+
+   🚨 **前端一个数都不算**：两档的数、标签、来源路径都由 `verdict.js` 的
+      `d2GapCalibers()` 给（纯函数，node 可直接跑）⇒ 这里只负责拼版。
+
+   🚨 **两个口径不许合并**：理想档（满仓假设的公式上界）与实盘档
+      （整手 + 闲置现金后的模拟账户）**不是同一个量** ⇒ 各占一格、
+      各自带标签与来源。
+
+   🚨 缺一档 ⇒ **只显示另一格并说清缺哪一档**，不许拿另一档顶替
+      （第 7 层：两个各自都对的数不是同一个量）。
+
+   ⚠️ `verdict.js` 是**后加载**的（`<script src="/verdict.js">` 在主脚本之后）
+      ⇒ 本函数必须能在它还没就绪时**安静地什么都不做**，
+      否则会抛 `ReferenceError` 并把整个判决板带崩。
+      （`index.html` 末尾那段 `load` 监听会在 verdict.js 就绪后重跑一次
+        `loadChrome()` ⇒ 这一格最终一定会出现。） */
+function renderD2GapCalibers(d2gap) {
+  const box = $('d2-gap-calibers');
+  if (!box) return;
+  if (typeof d2GapCalibers !== 'function') { box.hidden = true; return; }
+  const L = (d2gap && d2gap.ledger) || null;
+  if (!L || L.status !== 'ok') { box.hidden = true; box.innerHTML = ''; return; }
+
+  const cells = d2GapCalibers(L.verdict_input) || [];
+  const card = (c) => `
+    <div class="d2c">
+      <h5>${esc(c.label)}</h5>
+      <div class="d2c-num">${esc(c.annual)}　缺口 ${esc(c.gap)}</div>
+      <div class="d2c-sub">${boldify(esc(c.what))}</div>
+      <div class="d2c-src">来源 ${esc(c.source)}</div>
+    </div>`;
+
+  let html = cells.map(card).join('');
+  /* 🚨 **信号侧那一行**（2026-10-21）：「还差几倍」**只取同口径那一列**
+     （`same_caliber`：同 K、同信号、同榜宽、同市场腿）。
+     🚨 **旧的裸键那个 2.35× 是跨口径的**（K=63 的要求 ÷ K=21 研究臂的实测）
+     ⇒ 台账已显式判它 `is_the_gap = false` ⇒ **它不是缺口**，屏上不许当缺口显示。
+     ⇒ 这里只显示**同口径**那一列；跨口径那个留给判决正文（那里带完整标签）。
+     ⚠️ 整块缺失 ⇒ **整行不出现**（失败方向是「少说一句」）。 */
+  const mult = typeof d2Multiples === 'function' ? d2Multiples(L.verdict_input) : null;
+  if (mult && mult.same && mult.same.measuredText && mult.same.requiredText) {
+    html += `<div class="d2c d2c-wide">
+      <h5>信号侧毛超额（${esc(mult.same.caliberName)}）</h5>
+      <div class="d2c-num">还差 ${esc(mult.same.text)}</div>
+      <div class="d2c-sub">实测 ${esc(mult.same.measuredText)} → 达标须交出 ${esc(mult.same.requiredText)}。</div>
+      <div class="d2c-src">来源 ${esc(mult.same.source)}</div>
+    </div>`;
+  }
+  /* 缺一档 ⇒ **说清缺哪一档**。不许静默少一格（那读起来像「只有一个口径」），
+     也不许拿另一档顶替（第 7 层）。 */
+  const keys = cells.map(c => c.key);
+  if (!keys.includes('deployed')) {
+    html += `<div class="d2c na">
+      <h5>实盘档（整手+闲置现金后）</h5>
+      <div class="d2c-sub">读不出来（${esc((L.deployed && L.deployed.note) || '端点没给这一档')}）—— 不拿理想档顶替。</div>
+    </div>`;
+  }
+  if (!keys.includes('ideal')) {
+    html += `<div class="d2c na">
+      <h5>理想档（满仓假设）</h5>
+      <div class="d2c-sub">读不出来 —— 不拿实盘档顶替。</div>
+    </div>`;
+  }
+  box.innerHTML = html;
+  box.hidden = false;
+}
+
+/* ── 首屏四个图元的 tooltip（**纯函数**，不碰 DOM）──────────────────
+   🚨 2026-10-21（协调方取证）：`voided()` 把 tip 原样放进 `title`
+      **和** `aria-describedby` 指向的 sr-only 文本 ⇒
+      **读屏软件会念出「不许报」的数**（hover 那道闸在无障碍通道漏了）。
+      ⇒ **数的部分必须在 `has` 为真时才进字符串**。
+   ⚠️ **只拿掉数、口径永远留着**（数走、口径也走是这个仓的规矩），
+      且**够窗口时那些数仍要给**（不许过度收紧）。
+   ⚠️ 「▪▪▪」与「—」不是一回事（第 7 层）⇒ 占位符的语义不动。
+   ⚠️ 抽成纯函数是为了让判据**可问**（能在 node 里喂两种输入跑一遍）。
+   ⚠️ `min_windows` **由端点给**（`stats.min_windows`）⇒ 页面不另定一份；
+      端点没给才用兜底常量。 */
+function figureTips(stats) {
+  const minWin = (stats && Number(stats.min_windows) > 0)
+    ? Number(stats.min_windows) : MIN_WINDOWS;
+  const windows = (stats && stats.n_independent_windows != null)
+    ? stats.n_independent_windows : null;
+  const has = windows !== null && windows >= minWin;
+  const grossUp = stats?.gross_up_excess ?? null;
+  const costShare = stats?.cost_share ?? null;
+  const hitUp = stats?.hit_rate_up ?? null;
+  const hitDown = stats?.hit_rate_down ?? null;
+  const costDrag = stats?.avg_cost_drag ?? null;
+  const p2 = v => v == null ? '—' : fmtPct(v, 2);
+  /* 摩擦是**被扣掉**的量 ⇒ 不能带 `+` 号。`fmtPct` 会给正数加 `+`，
+     于是页面会写出「每笔已扣 **+0.30%** 摩擦」—— 读起来像**加了** 0.30%。 */
+  const pAbs = v => v == null ? '—' : (Math.abs(v) * 100).toFixed(2) + '%';
+  const n1 = v => v == null ? '—' : fmtNum(v);
+  /* ── 口径（**永远带**，与有没有数无关）──────────────────────── */
+  const CAL_HIT = `产品承诺的是涨腿那一半（每天 10 只会涨）；跌腿是回避清单。`
+    + `⚠️ 合并是**按判定条目数加权**（不是两个率的平均）⇒ 两腿分母不同，`
+    + `别拿两个率取平均当验算。`;
+  const CAL_UP = `口径是逐笔平均，不是按日等权组合。`;
+  const CAL_DOWN = `这条腿是回避清单，不做空也能兑现 —— 与「多空价差」不是一回事。`
+    + `⚠️ **这一腿不扣摩擦**（回避清单不持仓 ⇒ 没有摩擦）`
+    + `⇒ 与涨腿那个「净」**不是同一个口径**。`;
+  const CAL_BREADTH = `市场涨跌不影响这个数 —— 它是排序有没有区分度的度量。`
+    + '注意：兑现它需要空头腿，5 万本金做不了空，所以它不是可兑现收益。'
+    + `⚠️ 它是**两个不同口径相减**（涨腿净、跌腿不扣摩擦）⇒ 这个差值本身是混合口径。`;
+  /* ── tip：**数**只在 `has` 为真时进字符串；口径永远在 ──────────── */
+  const tipHit = has
+    ? `涨腿 ${n1(hitUp)} · 跌腿 ${n1(hitDown)} 合并。` + CAL_HIT
+    : CAL_HIT;
+  const tipUp = has
+    ? ('净超额：每笔已扣 ' + pAbs(costDrag) + ' 摩擦。'
+       + (grossUp == null ? '' : '同口径毛超额 ' + p2(grossUp) + '，')
+       + (costShare == null ? '' : '摩擦占毛超额的 ' + (costShare * 100).toFixed(0) + '%。')
+       + (costShare != null && costShare >= 1 ? '净数因此把符号都吃掉了。' : '')
+       + CAL_UP)
+    : ('净超额：每笔已扣摩擦之后的那个数。' + CAL_UP);
+  const tipDown = has
+    ? ('跌篮子相对大盘的超额：正 = 挑出的确实跑输市场，回避有效。' + CAL_DOWN)
+    : CAL_DOWN;
+  const tipBreadth = has
+    ? ('涨篮子减跌篮子。' + CAL_BREADTH)
+    : CAL_BREADTH;
+  return { has, windows, minWin, tipHit, tipUp, tipDown, tipBreadth };
+}
+
 function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
   /* ★ 闸门横幅**先渲染**，放在本函数第一句。
      理由是它是首屏唯一说「这份名单不许发布」的地方 ⇒ 后面任何一段
@@ -1718,8 +2033,13 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
 
   const judged = stats?.judged ?? 0;
   /* 「不知道」与「0 个」是两件事（第 7 层）⇒ 缺字段塌成 null，不塌成 0 */
-  const windows = stats?.n_independent_windows ?? null;
-  const has = windows !== null && windows >= MIN_WINDOWS;
+  /* ★ 门槛与 `has` **都从 `figureTips` 拿**（同一个函数 ⇒ 同一处判据）：
+     页面不许在这里另判一次「够不够窗口」——
+     那正是 2026-10-21 修掉的那类漏（图形层判住了、tooltip 念出了数）。 */
+  const tips = figureTips(stats);
+  const windows = tips.windows;
+  const has = tips.has;
+  const minWin = tips.minWin;
   const rate = stats?.overall_hit_rate ?? null;
   const exc = stats?.up_excess_vs_market ?? null;
   const word = $('docket-word'), why = $('docket-why');
@@ -1729,7 +2049,7 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
     why.innerHTML = windows === null
       ? `独立成交窗口数未知，因此不报命中率。/api/status 没有带出
          <code>n_independent_windows</code> —— 这是「判据不可问」，不是「样本为零」。`
-      : `命中率要攒够 <b>${MIN_WINDOWS}</b> 个<b>独立成交窗口</b>才给结论，现在 <b>${windows}</b> 个。
+      : `命中率要攒够 <b>${minWin}</b> 个<b>独立成交窗口</b>才给结论，现在 <b>${windows}</b> 个。
          窗口 = 一次真实的进出场；同一笔成交被几个信号日共享只算 <b>1</b> 个。
          判定条数（<b>${judged}</b> 条）不参与这道门槛 —— 数条数会把一次交易数三遍。`;
   } else if (rate >= 0.55) {
@@ -1752,7 +2072,7 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
      **满条读起来像「到了」**（形状 6：不崩、不报警、照样出数）。
      `windows === null`（`/api/status` 没带该字段）时宽度取 0：
      那是「不显示进度」，不是「样本为零」—— 空态那句话已经把两件事分开了。 */
-  const pct = windows === null ? 0 : Math.min(100, windows / MIN_WINDOWS * 100);
+  const pct = windows === null ? 0 : Math.min(100, windows / minWin * 100);
   const tally = $('docket-tally');
   tally.className = 'tally' + (has ? ' done' : '');
   tally.firstElementChild.style.width = pct + '%';
@@ -1769,6 +2089,13 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
      测试在 `tests/test_docket_warning.py`。留在这层是为了让每条分支都可测——
      「打开浏览器看一眼」验证不了分支覆盖。 */
   const warn = $('docket-warn');
+  /* ★ D2 缺口的**两个口径并排**（2026-10-21）。
+     放在警示条**之后**渲染，但**独立节点** ⇒ 它**不受** `docketWarning`
+     走哪一支影响（支 2 保留自己的 headline、只搬 detail ⇒ 判决的
+     headline 在生产里没有通路 ⇒ 缺口数必须有一个**常驻可见**的家）。
+     ⚠️ 自己的 try：这一格读不出来**不许**把整个判决板带崩。 */
+  try { renderD2GapCalibers(d2gap); }
+  catch (e) { console.error('[D2 缺口] 渲染失败', e); }
   /* ★ 第 4 参是**袋**，不是「预测面」。`verdict.js` 的 JSDoc 逐字写明
      **不许另开第 5 参**：两条支各按自己的形状认领同一个槽位 ——
        · stale-weights 支读 `screen?.weights_check`（缺 → 闭嘴）
@@ -1821,32 +2148,16 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
      ⇒ 处置：**口径写进标签**（常驻可见，不靠 hover；标签必须短，首屏只有 4 个图），
         数字与差额写进 tooltip（hover 才展开，不占首屏）。
      ⚠️ tooltip 是 `title` 属性 = **纯文本**，里面写 `**加粗**` 会显示成字面星号。 */
-  const grossUp = stats?.gross_up_excess ?? null;
-  const costShare = stats?.cost_share ?? null;
-  const hitUp = stats?.hit_rate_up ?? null;
-  const hitDown = stats?.hit_rate_down ?? null;
-  const costDrag = stats?.avg_cost_drag ?? null;
-  const p2 = v => v == null ? '—' : fmtPct(v, 2);
-  /* 摩擦是**被扣掉**的量 ⇒ 不能带 `+` 号。`fmtPct` 会给正数加 `+`，
-     于是页面会写出「每笔已扣 **+0.30%** 摩擦」—— 读起来像**加了** 0.30%。 */
-  const pAbs = v => v == null ? '—' : (Math.abs(v) * 100).toFixed(2) + '%';
-  const n1 = v => v == null ? '—' : fmtNum(v);
-  const tipHit = `涨腿 ${n1(hitUp)} · 跌腿 ${n1(hitDown)} 合并。产品承诺的是涨腿那一半`
-    + `（每天 10 只会涨）；跌腿是回避清单。`
-    + `⚠️ 合并是**按判定条目数加权**（不是两个率的平均）⇒ 两腿分母不同，`
-    + `别拿两个率取平均当验算。`;
-  const tipUp = '净超额：每笔已扣 ' + pAbs(costDrag) + ' 摩擦。'
-    + (grossUp == null ? '' : '同口径毛超额 ' + p2(grossUp) + '，')
-    + (costShare == null ? '' : '摩擦占毛超额的 ' + (costShare * 100).toFixed(0) + '%。')
-    + (costShare != null && costShare >= 1 ? '净数因此把符号都吃掉了。' : '')
-    + '口径是逐笔平均，不是按日等权组合。';
-  const tipDown = '跌篮子相对大盘的超额：正 = 挑出的确实跑输市场，回避有效。'
-    + '这条腿是回避清单，不做空也能兑现 —— 与「多空价差」不是一回事。'
-    + `⚠️ **这一腿不扣摩擦**（回避清单不持仓 ⇒ 没有摩擦）`
-    + `⇒ 与涨腿那个「净」**不是同一个口径**。`;
-  const tipBreadth = '涨篮子减跌篮子。市场涨跌不影响这个数 —— 它是排序有没有区分度的度量。'
-    + '注意：兑现它需要空头腿，5 万本金做不了空，所以它不是可兑现收益。'
-    + `⚠️ 它是**两个不同口径相减**（涨腿净、跌腿不扣摩擦）⇒ 这个差值本身是混合口径。`;
+  /* 🚨 2026-10-21：tooltip 的**数值部分**改由 `figureTips(stats)` 决定
+     —— 它是**纯函数**，判据「`has` 为假时不许带数」住在那里，
+     本函数只负责把结果拼进图元（`tips` 已在函数开头取过）。
+     ⚠️ 不要再在本函数里拼带数的 tip：那正是 2026-10-21 修掉的漏
+     （tooltip 的 `title` **和** `aria-describedby` 的 sr-only 文本
+     都会把数念出来 ⇒ 读屏软件读到「不许报」的命中率）。 */
+  const tipHit = tips.tipHit;
+  const tipUp = tips.tipUp;
+  const tipDown = tips.tipDown;
+  const tipBreadth = tips.tipBreadth;
   /* 口径说明**不能只挂在 `title` 上**：`title` 键盘不可达、读屏软件通常不朗读、
      触屏要长按才出 ⇒ 口径披露的唯一通道对一部分用户是关着的。
      ⇒ 图元可聚焦（tabindex=0）+ `aria-describedby` 指向一段**视觉隐藏**的正文
@@ -1873,7 +2184,7 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
         W≥10 那天它会带着这些口径冒出来，用户必须那时就知道。 */
   const voidWhy = windows === null
     ? '独立成交窗口数未知，而这一组数全部依赖它，所以算不出来'
-    : `独立成交窗口 ${windows} 个，不到判据要求的 ${MIN_WINDOWS} 个，所以这一组数还没法给`;
+    : `独立成交窗口 ${windows} 个，不到判据要求的 ${minWin} 个，所以这一组数还没法给`;
   const voided = (label, tip) => fig('void', '▪▪▪', label,
     `这里本来就没有数，不是没渲染出来 —— ${voidWhy}` + (tip ? `。口径：${tip}` : ''));
   $('docket-figures').innerHTML = has

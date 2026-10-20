@@ -39,6 +39,61 @@ SYSTEM_PROMPT = (
 )
 
 
+#: 命中率族**要报**的最小独立成交窗口数（W ≥ 10）。
+#:
+#: 🚨 判据出处（**事前**登记，不是本轮定的）：
+#:    `docs/DELIVERY_DECISIONS_2026-10-18.md` §4「决策四：D1 设验收门槛
+#:    —— 独立成交窗口 W ≥ 10」；`docs/DELIVERY_GATE.md` §D1 同款：
+#:    「验收门槛 W ≥ 10 独立成交窗口 ⇒ **W < 10 时不许报命中率、不许给 CI**」。
+#: ⇒ **不许**在这里另定一个数（改判据 = 第 91 层）。
+MIN_INDEPENDENT_WINDOWS = 10
+
+#: W 不足时**不许报**的比率族字段（缺就是缺，**不许回落成 0**）。
+#:
+#: ⚠️ 为什么**比率族整族**都缺、而不只缺命中率：
+#:    这一族在页面上是**同一条判据**下的四个图元（命中率 / 涨篮子超额 /
+#:    跌篮子超额 / 多空价差）⇒ 只砍命中率而留着超额，读者用超额照样能
+#:    反推命中率 ⇒ **判据被自己的兄弟字段破掉**。
+UNCITABLE_RATIO_FIELDS = (
+    "hit_rate_up",
+    "hit_rate_down",
+    "overall_hit_rate",
+    "avg_up_return",
+    "avg_down_return",
+    "up_excess_vs_market",
+    "down_excess_vs_market",
+    "excess_breadth",
+    "excess_tilt",
+    "gross_up_excess",
+    "cost_share",
+    "avg_cost_drag",
+)
+
+#: 年化族**要报**的最小跨度（年）。
+#:
+#: 🚨 判据出处（**不是**本轮定的）：
+#:    `scripts/measure_portfolio_nav.py` 的**结构闸门**
+#:    「样本过短，不给方向（`years < 1.0`）」——
+#:    3 天的样本把 CAGR 开 252 次方得到的是**外推**，不是读数。
+#:    ⇒ 与决策四的「W < 10 时**不许报命中率、不许给 CI**」并成**一道**闸：
+#:    **年化 + CI 外推正落在「不许给 CI」那句话里。**
+MIN_YEARS_FOR_CAGR = 1.0
+
+#: 跨度不足时**不许报**的年化族字段（外推量，缺就是缺）。
+#:
+#: ⚠️ `total_return` 也在里面：它是**样本期内**的事实，但它的**兄弟**
+#:    （cagr / arith_ann）都是外推 ⇒ 只留它、砍掉外推，
+#:    读者会拿「3 天累计 +0.83%」自己外推 ⇒ 判据被自己的兄弟字段破掉。
+UNCITABLE_ANNUALIZED_FIELDS = (
+    "total_return",
+    "cagr",
+    "arith_daily",
+    "arith_ann",
+    "ann_vol",
+    "vol_drag",
+)
+
+
 def _scoped_hist_for_api(reports_dir) -> pd.DataFrame:
     """按**当前信号**分桶后的底稿。
 
@@ -90,9 +145,71 @@ def _stats_with_compounded(history: pd.DataFrame) -> dict:
     嵌套一层会让所有既有读取点静默拿到 `undefined`——而 `undefined`
     在模板里不报错，只是**渲染成空白**。所以这里平铺，`cagr` 这类新键
     由新代码显式消费。
+
+    ## 🚨 样本不足时**派生量不许吐**（2026-10-21，协调方两次追加）
+
+    预注册（`docs/DELIVERY_DECISIONS_2026-10-18.md` §4「决策四」，
+    `docs/DELIVERY_GATE.md` §D1 同款）：
+    **独立成交窗口 W ≥ 10 才许报命中率、不许给 CI**。
+    实测 W = 3 时页面已经挡住主卡，却仍把这些数递了出去：
+
+    - **图形层**：tooltip 的正文里嵌着 `涨腿 0.62 · 跌腿 0.63`
+      ⇒ 读屏软件（`aria-describedby` 指向的 sr-only 文本）**会念出来**
+      ⇒ 「不许报」被自己的 tooltip 破了。
+    - **API 层**：`/api/status` 的 `stats` 带着 `hit_rate_up = 0.6207`
+      与 `cagr = 1.0058`（3 天的年化 = **+100.58%**）。
+      ⇒ **年化 +100% 比命中率 62% 危险得多**（它是把 3 天**外推**到一年）。
+
+    ⇒ 处置：**派生量（比率族 + 年化族）缺就是缺**（⚠️ **不许回落成 0** ——
+    回落成 0 会被读成「查过了，命中率 0%」，第 89 层），
+    并附 `citable` / `citable_reason` 两个字段说明为什么缺。
+    ⇒ **计数类字段照给**（`n_independent_windows` / `judged` /
+    `n_predictions` / `n_days` / `years`）—— 它们是读者判断样本量的依据。
+    ⇒ ⚠️ **判据是两道闸取严**（不是默默挑一个）：
+    **W ≥ 10**（决策四）**且** **years ≥ 1**（`measure_portfolio_nav.py`
+    的结构闸门「样本过短，不给方向」）⇒ 两者**都**过才可引用。
+    ⇒ **年化族为什么也归这道闸**：决策四那句「不许给 CI」里的 CI
+    就是**外推的不确定度** ⇒ 把 3 天开 252 次方当读数，
+    正落在那句话里 ⇒ 一并收口。
     """
     out = dict(rolling_stats(history))
     out.update(compounded_stats(history))
+    out["min_windows"] = MIN_INDEPENDENT_WINDOWS
+    out["min_years"] = MIN_YEARS_FOR_CAGR
+    win = out.get("n_independent_windows")
+    try:
+        n_win = int(win)
+    except (TypeError, ValueError):
+        n_win = None
+    years = out.get("years")
+    try:
+        y = float(years)
+    except (TypeError, ValueError):
+        y = None
+    ok_windows = n_win is not None and n_win >= MIN_INDEPENDENT_WINDOWS
+    ok_years = y is not None and y >= MIN_YEARS_FOR_CAGR
+    citable = bool(ok_windows and ok_years)
+    out["citable"] = citable
+    if citable:
+        out["citable_reason"] = None
+    else:
+        for key in UNCITABLE_RATIO_FIELDS + UNCITABLE_ANNUALIZED_FIELDS:
+            out.pop(key, None)
+        why = []
+        if not ok_windows:
+            why.append(
+                "独立成交窗口 %s < %d（决策四：docs/DELIVERY_DECISIONS_2026-10-18.md "
+                "§4 —— W < %d 时不许报命中率、不许给 CI）"
+                % (n_win if n_win is not None else "未知", MIN_INDEPENDENT_WINDOWS,
+                   MIN_INDEPENDENT_WINDOWS))
+        if not ok_years:
+            why.append(
+                "样本跨度 %s 年 < %g（measure_portfolio_nav.py 的结构闸门："
+                "样本过短，不给方向 —— 3 天的 CAGR 是**外推**不是读数）"
+                % (years if years is not None else "未知", MIN_YEARS_FOR_CAGR))
+        out["citable_reason"] = (
+            "**两道闸取严**（W ≥ %d 且 years ≥ %g）⇒ 派生量**缺**（不是 0）：%s"
+            % (MIN_INDEPENDENT_WINDOWS, MIN_YEARS_FOR_CAGR, "；".join(why)))
     return out
 
 
@@ -362,17 +479,25 @@ def _platform_context(reports_dir: Path) -> str:
         #   只报「80 条」会把一次交易数三遍，读起来像样本量很大。
         win = stats.get("n_independent_windows")
         win_txt = f"，其中 {win} 次独立成交" if win else "（独立成交次数未知）"
-        parts.append(
-            f"累计 {len(hist)} 条判定{win_txt}：总命中率 {stats['overall_hit_rate']:.1%}，"
-            f"涨方向命中 {stats['hit_rate_up']:.1%}，涨组合超额收益 {stats['up_excess_vs_market']:+.2%}"
-        )
-        # 跌腿以前完全不报——平台天天输出 10 跌，能不能看空却从没被测量过。
-        # 价差（涨篮子 − 跌篮子）对大盘方向免疫，比单看涨腿超额诚实。
-        parts.append(
-            f"跌方向命中 {stats['hit_rate_down']:.1%}，跌篮子回避超额 "
-            f"{stats['down_excess_vs_market']:+.2%}，多空价差 {stats['excess_breadth']:+.2%}"
-            f"（价差为正 = 排序两端确实分得开；涨腿超额会被大盘涨跌带偏，价差不会）"
-        )
+        # 🚨 W 不足时**不许报命中率**（预注册 §4 决策四）⇒ 比率族字段**缺**
+        #   （不是 0）⇒ 这里必须**说清为什么没有**，不许拿别的东西顶替。
+        if not stats.get("citable", True):
+            parts.append(
+                f"累计 {len(hist)} 条判定{win_txt}：**命中率、超额与年化都不可报**"
+                f"（{stats.get('citable_reason') or '样本不足'}）"
+            )
+        else:
+            parts.append(
+                f"累计 {len(hist)} 条判定{win_txt}：总命中率 {stats['overall_hit_rate']:.1%}，"
+                f"涨方向命中 {stats['hit_rate_up']:.1%}，涨组合超额收益 {stats['up_excess_vs_market']:+.2%}"
+            )
+            # 跌腿以前完全不报——平台天天输出 10 跌，能不能看空却从没被测量过。
+            # 价差（涨篮子 − 跌篮子）对大盘方向免疫，比单看涨腿超额诚实。
+            parts.append(
+                f"跌方向命中 {stats['hit_rate_down']:.1%}，跌篮子回避超额 "
+                f"{stats['down_excess_vs_market']:+.2%}，多空价差 {stats['excess_breadth']:+.2%}"
+                f"（价差为正 = 排序两端确实分得开；涨腿超额会被大盘涨跌带偏，价差不会）"
+            )
     else:
         parts.append("验证历史为空（平台刚启动，首个预测日待验证）")
     return "\n".join(parts)
@@ -608,6 +733,59 @@ def close_as_of(store, code, as_of):
     except (TypeError, ValueError):
         return None, None
     return close, str(row["date"])
+
+
+#: 仓位标签的**常量表**（显示串**不许手打**）。
+#:
+#: 🚨 起因（2026-10-21，协调方取证）：生产配置已从「半仓 5 只」改成
+#:    「满仓 10 只 × ¥5,000」（`build_allocation` 的默认值
+#:    `max_positions=10` / `per_stock_cap=0.1` ⇒ 敞口 **1.0**），
+#:    而屏上手打的串还写着「半仓」⇒ **输出「半仓 100%」这种自相矛盾的话**。
+#:
+#: ⇒ 标签必须**从敞口数推出来**，不许写死。
+#: ⇒ **判别力**（守卫 `tests/test_holdings_alert_wiring.py`）：
+#:    `exposure = 1.0` 时标签**不许**是「半仓」；
+#:    且 `position_label` 函数体里**不许**出现这两个中文字面量
+#:    （出现 ⇒ 它是手打的，改数时不会跟着变）。
+POSITION_LABELS = (
+    (1.0, "满仓"),
+    (0.5, "半仓"),
+)
+
+#: 标签匹配的容差（敞口是 `n_positions × per_stock_cap` 的乘积 ⇒ 浮点噪声）。
+#: ⚠️ 精确相等会在 1 ulp 上给出假的标签（仓内已有先例：
+#:    「精确相等探针在 1 ulp 上打印假的因果标签」）。
+POSITION_LABEL_TOL = 1e-9
+
+
+def position_label(exposure) -> str:
+    """敞口 ⇒ 仓位标签。**从常量表查**，不许手打。
+
+    查不到就回「仓位」（**中性词，不与任何数矛盾**）——
+    宁可少一个形容词，也不许说一个与数矛盾的形容词。
+    """
+    try:
+        e = float(exposure)
+    except (TypeError, ValueError):
+        return "仓位"
+    for value, label in POSITION_LABELS:
+        if abs(e - value) <= POSITION_LABEL_TOL:
+            return label
+    return "仓位"
+
+
+def exposure_display(exposure) -> str:
+    """敞口 ⇒ 屏上那一串（标签 + 百分比）。
+
+    ⚠️ **标签不许手打**（`position_label` 查常量表）：
+    手打的「半仓」在敞口变成 1.0 之后输出了**自相矛盾**的话（2026-10-21）。
+    ⇒ 判别力（守卫）：`exposure_display(1.0)` 里**不许**出现「半仓」。
+    """
+    try:
+        e = float(exposure)
+    except (TypeError, ValueError):
+        return "—"
+    return "%s %g%%" % (position_label(e), e * 100)
 
 
 def deployed_defaults() -> dict:
@@ -940,9 +1118,15 @@ def deployed_config_payload(reports_dir) -> dict:
 
     ## 🚨 **判决侧的数不许说成「你的年化」**
 
-    判决档是**满仓 10 只 + 8 因子逐年 IC 定权**；
-    实盘是**半仓 5 只 + `DEFAULT_WEIGHTS` 4 因子固定权重**。
+    判决档是**满仓判决档**（`basket_nav_01_2026-10-16.json` 量的那套）；
+    实盘侧是**生产今天真的在跑**的那套（敞口/仓数/K/因子数**逐字取
+    `deployed_defaults()` 与生产常量**，标签由 `position_label(敞口)` 推）。
     两个数**不是同一个量**，**不可混引、不可同图比较**（口径台账纪律）。
+
+    ⚠️ **仓数与仓位不许写死在这段散文里**（2026-10-21）：
+    实盘配置改过一次（半仓 5 只 → 满仓 10 只），
+    而手打的串还在输出「半仓」⇒ **屏上出现自相矛盾的话**。
+    ⇒ 散文只说「哪一套」，**数与标签一律从 `deployed_dim` 推**。
 
     ## 🚨 **端点里一个数都不算**
 
@@ -1037,7 +1221,10 @@ def deployed_config_payload(reports_dir) -> dict:
         return "—"
 
     verdict_display = {
-        "exposure": "满仓 100%" if verdict_dim["exposure"] == 1.0 else "—",
+        # ★ 标签**从数里推**（`position_label`），不许手打
+        #   （2026-10-21：实盘侧的手打串输出过「半仓 100%」这种自相矛盾的话）。
+        "exposure": (exposure_display(verdict_dim["exposure"])
+                     if verdict_dim["exposure"] is not None else "—"),
         "n_positions": f"{verdict_dim['n_positions']} 只" if verdict_dim["n_positions"] else "—",
         "per_position_amount": (f"¥{verdict_dim['per_position_amount']:,.0f} / 只"
                                 if verdict_dim["per_position_amount"] else "—"),
@@ -1048,7 +1235,9 @@ def deployed_config_payload(reports_dir) -> dict:
         "cash_weight": ("0%（全仓）" if verdict_dim["cash_weight"] == 0 else "—"),
     }
     deployed_display = {
-        "exposure": f"半仓 {deployed_dim['exposure'] * 100:g}%",
+        # ★ 同上：标签从敞口推 ⇒ 敞口 1.0 时输出「满仓 100%」，
+        #   **不可能**再输出「半仓 100%」。
+        "exposure": exposure_display(deployed_dim["exposure"]),
         "n_positions": f"{deployed_dim['n_positions']} 只",
         "per_position_amount": f"¥{deployed_dim['per_position_amount']:,.0f} / 只",
         "signal_weights": f"{len(deployed_dim['signal_weights'])} 因子 · 固定权重",
@@ -1096,6 +1285,9 @@ def deployed_config_payload(reports_dir) -> dict:
             "upstream_artifact_pointer": art,
             "dimensions": verdict_dim,
             "sources": verdict_src,
+            # ★ 同上：判决侧的仓位标签也从**数**推（两侧口径一致）。
+            "position_label": position_label(verdict_dim["exposure"]),
+            "exposure": verdict_dim["exposure"],
             "signal_weights_by_year": by_year or None,
             "signal_weights_source": ((upstream or {}).get("years") or [{}])[0].get("weights_source")
             if years else None,
@@ -1123,6 +1315,10 @@ def deployed_config_payload(reports_dir) -> dict:
             "sources": deployed_src,
             "budget": dd,
             "signal_weights": dict(DEFAULT_WEIGHTS),
+            # ★ 仓位标签**从敞口推**（前端一个词都不许手打 ——
+            #   2026-10-21：手打的「半仓」在敞口变成 1.0 后输出了自相矛盾的话）。
+            "position_label": position_label(deployed_dim["exposure"]),
+            "exposure": deployed_dim["exposure"],
         },
         "dimensions": dimensions,
         "deployed_d2_reading": deployed_d2,
@@ -1148,6 +1344,98 @@ def deployed_config_payload(reports_dir) -> dict:
                 "持仓数/权重/换仓频率来自判决产物的上游 "
                 "`wf_weights_backtest_k21.json`（判决产物自己的 `artifact` 字段指认它）。"),
         },
+    }
+
+
+def _holdings_alert_payload(reports_dir) -> dict:
+    """持仓级降级预警 —— **最新一份**产物，逐字递到页面上。
+
+    ## 它回答什么
+
+    「我手上这几只里，哪几只已经掉到最差那一档？」——
+    每只一条动作（REDUCE / WATCH / HOLD / UNDECIDED）**与它自己的判据**。
+
+    ## 三条纪律（页面层）
+
+    ① **判据逐字透传**（`items[i].action_criterion`）：页面**不许**自己
+       重新判定、不许只显示一个标签。
+    ② **「未定」必须显示成「未定」**：`UNDECIDED` = 测不出
+       （缺建仓分 / 不在当日全池），**不许**渲染成「持有」。
+    ③ **产物不在就说没有**：没有产物 ⇒ `available=False` + 一句原因，
+       **不许**拿别的东西顶替。
+
+    ## 新鲜度必须一起递
+
+    产物是**每天自动重跑**的 ⇒ 屏上的读数会过期
+    ⇒ 页面必须能看见「这一份是什么时候生成的、还新不新」。
+    """
+    from . import provenance
+
+    reports_dir = Path(reports_dir)
+    # ⚠️ **sidecar 也叫 `holdings_alert_<日期>.json.provenance.json`** ⇒ 它**也**匹配
+    #   `holdings_alert_*.json`（glob 只看结尾）⇒ 不排掉它就会把**章**当成产物读
+    #   （实测：items 全空、question 为 null、freshness 判「没有 sidecar」）。
+    files = sorted(p for p in reports_dir.glob("holdings_alert_*.json")
+                   if not p.name.endswith(".provenance.json"))
+    if not files:
+        return {
+            "available": False,
+            "note": ("还没有持仓预警产物（每天跑完日频流水线后落盘："
+                     "data/reports/holdings_alert_<信号日>.json）"),
+            "items": [],
+            "summary": None,
+        }
+    path = files[-1]
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        return {"available": False, "note": f"{path.name} 读不出来（{exc!r}）",
+                "items": [], "summary": None}
+
+    labels = {"REDUCE": "减仓（减持/卖出）", "WATCH": "观察",
+              "HOLD": "持有", "UNDECIDED": "未定（测不出）"}
+    items = []
+    for it in doc.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        action = it.get("action")
+        items.append({
+            "code": it.get("code"),
+            "name": it.get("name"),
+            "action": action,
+            "action_label": labels.get(action, "—"),
+            "criterion": it.get("action_criterion"),
+            "score": it.get("score"),
+            "rank_in_universe": it.get("rank_in_universe"),
+            "percentile": it.get("percentile"),
+            "is_in_bottom_decile": it.get("is_in_bottom_decile"),
+            "is_in_bottom_quintile": it.get("is_in_bottom_quintile"),
+            "entry_score": it.get("entry_score"),
+            "relative_to_entry_score": it.get("relative_to_entry_score"),
+        })
+    fresh = {}
+    try:
+        f = provenance.freshness(path, root=Path(__file__).resolve().parents[1])
+        fresh = {"verdict": f.get("verdict"), "reason": f.get("reason"),
+                 "byte_evidence": f.get("byte_evidence"),
+                 "stamped_at": f.get("stamped_at"),
+                 "generator": f.get("generator")}
+    except Exception as exc:      # noqa: BLE001 - 新鲜度读不出来不许带崩整页
+        fresh = {"verdict": "unknown", "reason": f"新鲜度读不出来（{exc!r}）"}
+    return {
+        "available": True,
+        "as_of": doc.get("as_of"),
+        "report": path.name,
+        "question": doc.get("question"),
+        "items": items,
+        "summary": doc.get("summary"),
+        "population": doc.get("population"),
+        "entry": doc.get("entry"),
+        "criteria": doc.get("criteria"),
+        "boundaries": doc.get("boundaries"),
+        "what_this_cannot_prove": doc.get("what_this_cannot_prove"),
+        "freshness": fresh,
+        "note": None,
     }
 
 
@@ -1831,14 +2119,24 @@ def create_app(data_root, llm=None) -> FastAPI:
         """
         return lot_affordability_payload(data_root, reports_dir)
 
+    @app.get("/api/holdings-alert")
+    def holdings_alert():
+        """持仓级降级预警（2026-10-21 接线）。
+
+        🚨 **它不预测涨跌、不算盈亏、不改权重、不改 K、不生成买卖单**：
+        只回答**横截面位次**（今天它在全池里排第几、比建仓那天是好了还是差了）。
+        ⇒ 页面上的标签必须带着这条边界显示。
+        """
+        return _holdings_alert_payload(reports_dir)
+
     @app.get("/api/deployed-config")
     def deployed_config():
         """「判决配置 vs 实盘配置」**三层**差异 —— 逐字摊开。
 
         | 层 | 它是什么 |
         |---|---|
-        | 判决侧 | `basket_nav_01_2026-10-16.json` 量的那套（满仓 / 10 只 / 8 因子逐年 IC 定权） |
-        | 实盘侧 | 生产**今天真的在跑**的那套（半仓 / 5 只 / `DEFAULT_WEIGHTS` 4 因子） |
+        | 判决侧 | `basket_nav_01_2026-10-16.json` 量的那套（**满仓判决档**） |
+        | 实盘侧 | 生产**今天真的在跑**的那套（敞口/仓数/K/因子数**逐字取生产签名与常量**；仓位标签由 `position_label(敞口)` 推，**不许手打**） |
         | 实盘档读数 | 实盘配置下的 D2 年化读数（`deployed_d2_verdict.json`，逐字透传） |
 
         🚨 **不许把满仓判决数说成「你的年化」** —— 两边的数**不是同一个量**，

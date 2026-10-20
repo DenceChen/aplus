@@ -1,0 +1,84 @@
+M1 建仓分被 0 顶替（把「测不出」说成「没有」）	aplus/holdings_entry.py
+    out["scores"] = leg
+=== 变异体 ===
+    out["scores"] = {c: 0.0 for c in leg}
+
+M2 建仓日的权重指纹不再参与可比性判断	aplus/holdings_entry.py
+    if hashes and weights_hash is not None and weights_hash not in hashes:
+=== 变异体 ===
+    if False:
+
+M3 建仓分对拍容差放宽到 1e-3	aplus/holdings_entry.py
+ENTRY_SCORE_PARITY_TOL = 1e-9
+=== 变异体 ===
+ENTRY_SCORE_PARITY_TOL = 1e-3
+
+M4 全池不按合成分降序（位次与分位全错）	aplus/holdings_entry.py
+    df = df[df["score"].notna()].sort_values("score", ascending=False)
+=== 变异体 ===
+    df = df[df["score"].notna()]
+
+M5 全池合成分不再走生产的 composite_score	aplus/holdings_entry.py
+    df["score"] = composite_score(df, weights)
+=== 变异体 ===
+    df["score"] = df["mom20"]
+
+M6 不可比时仍然拿建仓分顶上	aplus/holdings_entry.py
+        entry_scores if comparable else None,
+=== 变异体 ===
+        entry_scores,
+
+M7 生产对拍失败也照样出产物	scripts/run_daily.py
+    if parity.get("verdict") != "MATCHES_PRODUCTION":
+=== 变异体 ===
+    if False:
+
+M8 缺全池时把这一步记成 ok（整轮被判成功）	scripts/run_daily.py
+        steps["holdings_alert"] = "skipped: predict 步骤没有产出全池"
+=== 变异体 ===
+        steps["holdings_alert"] = "ok"
+
+M9 前端取错了端点	aplus/web/index.html
+    renderHoldingsAlert(await jget('/api/holdings-alert'));
+=== 变异体 ===
+    renderHoldingsAlert(await jget('/api/holdings'));
+
+M10 仓位标签表把「满仓」写成「半仓」	aplus/webapp.py
+    (1.0, "满仓"),
+=== 变异体 ===
+    (1.0, "半仓"),
+
+M11 敞口显示串改成手打的「半仓」	aplus/webapp.py
+    return "%s %g%%" % (position_label(e), e * 100)
+=== 变异体 ===
+    return "半仓 %g%%" % (e * 100)
+
+M12 tooltip 的「够窗口」判据被恒真（W 不足也带数）	aplus/web/index.html
+  const has = windows !== null && windows >= minWin;
+=== 变异体 ===
+  const has = true;
+
+M13 years 那道闸被摘掉（只实现 W 闸的半截实现）	aplus/webapp.py
+    ok_years = y is not None and y >= MIN_YEARS_FOR_CAGR
+=== 变异体 ===
+    ok_years = True
+
+M14 年化族不被收口（比率族收了、年化族留着）	aplus/webapp.py
+        for key in UNCITABLE_RATIO_FIELDS + UNCITABLE_ANNUALIZED_FIELDS:
+=== 变异体 ===
+        for key in UNCITABLE_RATIO_FIELDS:
+
+M15 缺口回落成 0（把「测不出」说成「零」）	aplus/webapp.py
+    out["citable"] = citable
+=== 变异体 ===
+    out["citable"] = True
+
+M16 sidecar 被当成产物读（glob 只看结尾）	aplus/webapp.py
+                   if not p.name.endswith(".provenance.json"))
+=== 变异体 ===
+                   if True)
+
+M17 population 的键被改名（页面读到 undefined）	aplus/holdings_entry.py
+            "n_heldings": len(holdings["codes"]),
+=== 变异体 ===
+            "n_holdings": len(holdings["codes"]),
