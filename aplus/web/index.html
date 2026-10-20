@@ -460,6 +460,24 @@
   .alloc-bar .cash { background: rgba(232,228,217,.10); }
   .alloc-legend { display: flex; gap: 22px; padding: 0 20px 6px; font-size: 12px; color: var(--muted); }
   .alloc-legend em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
+  /* 调仓清单（2026-10-20 新增）。
+     ⚠️ 动作**不借用涨跌色**：本页红=涨、绿=跌是**价格方向**，
+     「买入 / 卖出」是**资金动作** —— 借用颜色会凭空多出第四种含义，
+     正好破坏刚建立的「色相只表正负」。
+     ⇒ 动作由**词**承担（买 / 卖 / 留），颜色一律中性。 */
+  .alloc-diff { margin: 16px 20px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .alloc-diff.warn { border-color: rgba(240,74,79,.35); background: rgba(240,74,79,.06);
+                     padding: 12px 14px; font-size: 12.5px; line-height: 1.7; color: var(--muted); }
+  .alloc-diff.warn b { color: var(--up); }
+  .alloc-diff-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+                     padding: 9px 14px; background: var(--panel-2);
+                     border-bottom: 1px solid var(--line); font-size: 12px; }
+  .alloc-diff-head .right { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .alloc-diff table { font-size: 12.5px; }
+  .act-tag { display: inline-block; min-width: 34px; text-align: center; margin-right: 8px;
+             font-size: 11px; padding: 1px 6px; border-radius: 4px;
+             background: rgba(255,255,255,.07); color: var(--text); }
+  .act-tag.keep { background: transparent; color: var(--faint); }
   .notes-list { list-style: none; padding: 12px 20px 16px; }
   .notes-list li { color: var(--muted); font-size: 12.5px; padding: 3px 0; }
   .notes-list li::before { content: "· "; color: var(--seal); font-weight: 700; }
@@ -1216,7 +1234,7 @@ async function loadOverview() {
      同 renderAlloc 的形态：自己的 try、自己的错误文案。 */
   try { renderHeld(status.live); }
   catch (e) { console.error('[持仓区] 渲染失败', e); $('held-box').innerHTML = `<div class="held-why danger">持仓区渲染失败：${esc(e.message)}</div>`; }
-  try { renderAlloc(await jget('/api/allocation/latest')); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
+  try { renderAlloc(await jget('/api/allocation/latest'), status.live?.up?.length ?? null); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
 }
 
 /* 判决板：空态不写「—」，写「还差什么」。
@@ -1696,14 +1714,78 @@ function renderHeld(live) {
     </div>`;
 }
 
-function renderAlloc(a) {
+/* ⚠️ 第二个参数是**依赖注入**，不是可有可无的装饰。
+   调仓清单要对照「你手上现在有哪几只」，而 renderAlloc 只读得到 allocation 载荷。
+   早前一版把它写成**模块级变量** `heldCount` ⇒ 探针把 renderAlloc 抠出来单独跑时
+   那个作用域里没有 heldCount ⇒ ReferenceError ⇒ 5 条守卫当场红
+   （「探针自己跑挂了」—— 探针没错，是这个函数**不可被独立抠出来**）。
+   ⇒ 依赖一律走**参数**：探针只传一个实参时 heldCount 是 undefined，
+   `undefined == null` 为真 ⇒ 自动走「你手上的持仓」那句兜底文案。 */
+function renderAlloc(a, heldCount) {
   const equity = (a.positions || []).reduce((s, p) => s + p.weight, 0);
   // ⚠️ 不再用 `a.date ?? ''`：空串渲染出来是「生成于 」——尾巴上什么都没有，
   //   而那与「这一栏还没加载」在页面上**长得一模一样**。
   //   判不出来就说判不出来；后端已经在 /api/allocation/latest 补上 date，
   //   这里的 `未知` 是第二道闸，不是对后端的替代。
   $('alloc-date').textContent = a.date ? `生成于 ${a.date}` : '生成日期未知';
+
+  /* 🚨 2026-10-20 调仓差异（原先**整块缺失**，而它正是「我该动哪几只」的答案）。
+     根因链：run_daily 调 build_allocation 时没传 current_positions ⇒ rebalance 全是 add、
+     0 remove；而页面**根本不渲染** rebalance ⇒ 用户只看到「目标配置是这 5 只」，
+     看不到「该卖哪 8 只」。更糟的是屏上另一个块（你现在持有 10 只）来自**另一个日期**
+     的名单 —— 两个不相干的篮子并排，谁也说不清该买还是该卖。
+     ⇒ 现在渲染它；拿不到或来源不可信时**明说不可信** ——
+     静默省略正是当初让这个洞活下来的原因（少一块 ⇒ 没人发现少了一块）。 */
+  const rb = Array.isArray(a.rebalance) ? a.rebalance : null;
+  const rbSource = a.rebalance_source ?? null;
+  const rm = rb ? rb.filter(r => r.action === 'remove') : [];
+  const ad = rb ? rb.filter(r => r.action === 'add') : [];
+  const kp = rb ? rb.filter(r => r.action === 'keep') : [];
+  const money = r => r.amount == null ? '—' : Math.round(r.amount).toLocaleString() + ' 元';
+  const actName = { add: '买入', remove: '卖出', keep: '保留' };
+  const heldTxt = heldCount == null ? '你手上的持仓' : `你手上现在的 ${heldCount} 只`;
+  let diffHtml;
+  if (!rb) {
+    diffHtml = `<div class="alloc-diff warn">
+      <b>后端还没有提供调仓清单</b> —— 缺这一块时，下面那张表只说明「目标配置是什么」，
+      <b>不说明「相对${heldTxt}要动什么」</b>。别把它当成「只需要买这 ${a.positions.length} 只」。</div>`;
+  } else if (rbSource !== 'current_positions') {
+    /* 只说**看得见的事实**，不指控成因 ——
+       「只有买入、没有卖出」是**数出来的**（rm=0 / kp=0）；
+       「后端为什么这么算」不在这份载荷里 ⇒ 不写。 */
+    /* ⚠️ 这里写的是 **raw HTML**，不是 Markdown ⇒ 强调只能用 <b>，
+       写 `**` 会把星号原样显示在页面上（我第一版就是这么写错的，
+       浏览器回读 innerText 才发现）。
+       ⚠️ 结论必须**分情况**，不能一句话套上去：
+       「没有卖出/保留」在「你空仓」时是**对的**，在「你有 N 只」时才是「没算当前持仓」。
+       不知道持仓只数时只能说「无法判断」—— 不能默认它是后者。 */
+    const noCur = rm.length === 0 && kp.length === 0;
+    const held = heldCount == null ? null : heldCount;
+    const why = noCur
+      ? (held == null
+          ? '它一条卖出/保留都没有，而页面读不到你当前持仓几只 ⇒ 无法判断这是「你空仓」还是「它没算当前持仓」。'
+          : held > 0
+            ? `它一条<b>卖出/保留</b>都没有，而你手上有 <b>${held}</b> 只 ⇒ 它<b>没把你的当前持仓算进去</b>。`
+            : '它没有卖出/保留，而你当前是空仓 ⇒ 这是对的。')
+      : '后端没标来源（<code>rebalance_source</code> 字段不存在）⇒ 无法确认它是拿你当前持仓算的。';
+    diffHtml = `<div class="alloc-diff warn">
+      <b>调仓清单不可信</b> —— 卖出 ${rm.length} · 买入 ${ad.length} · 保留 ${kp.length}。${why}
+      在它可信之前，下面那张表只是「目标配置」，<b>不是「要动哪几只」</b>。</div>`;
+  } else {
+    const row = r => `<tr><td><span class="act-tag ${esc(r.action)}">${actName[r.action] || esc(r.action)}</span>
+      <b>${esc(r.name ?? r.code)}</b> <span style="color:var(--faint);font-size:11px">${esc(r.code)}</span></td>
+      <td class="num">${r.weight == null ? '—' : (r.weight * 100).toFixed(0) + '%'}</td>
+      <td class="num">${money(r)}</td></tr>`;
+    diffHtml = `<div class="alloc-diff">
+      <div class="alloc-diff-head">调仓清单 · 相对${heldTxt}
+        <span class="right">卖出 ${rm.length} · 买入 ${ad.length} · 保留 ${kp.length}</span></div>
+      <table><thead><tr><th>动作</th><th class="num">权重</th><th class="num">金额</th></tr></thead><tbody>
+        ${rm.map(row).join('')}${ad.map(row).join('')}${kp.map(row).join('')}
+      </tbody></table></div>`;
+  }
+
   $('alloc-body').innerHTML = `
+    ${diffHtml}
     <div class="alloc-bar"><div class="equity" style="width:${equity * 100}%"></div><div class="cash" style="width:${(1 - equity) * 100}%"></div></div>
     <div class="alloc-legend">
       <span>权益 <em>${(equity * 100).toFixed(0)}%</em>（${a.positions.length} 只 × 10%）</span>
