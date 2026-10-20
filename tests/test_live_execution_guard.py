@@ -39,10 +39,11 @@ up, down = build_predictions(universe, top_n=10, bottom_n=10, weights=weights)
 **实盘没有持仓状态机**。今天补上了：
 
 - `run_daily.py` 的持仓写入收进 `if due` 分支（非换仓日沿用旧持仓）
-- `every` 从 `LIVE_REBALANCE_EVERY = 21` 下发，不显式传时 `save_weights`
+- `every` 从 `LIVE_REBALANCE_EVERY` 下发（**2026-10-21 起 = 63**），
+  不显式传时 `save_weights`
   也不再退回 K=1
 
-⇒ 「实盘执行不了月频」这个前提**不再成立**，
+⇒ 「实盘执行不了那个频率」这个前提**不再成立**，
 于是 `test_monthly_champion_is_flagged_as_unexecutable` 的方向翻转成
 `..._is_now_honored_because_live_has_a_state_machine`。
 
@@ -75,7 +76,7 @@ def test_legacy_weights_file_is_honored(tmp_path):
     d = _write(tmp_path, {"weights": {"mom20": 1.0}, "evidence": None})
     st = live_execution_status(d)
     assert st["honored"] is True
-    assert st["rebalance_every"] == LIVE_REBALANCE_EVERY == 21
+    assert st["rebalance_every"] == LIVE_REBALANCE_EVERY == 63
     assert st["buffer_multiple"] is None
 
 
@@ -127,7 +128,10 @@ def test_fallback_default_is_labelled_as_untested_not_blessed(tmp_path):
     assert "未经" in (cfg.get("caveat") or "")
 
 
-def test_monthly_champion_is_now_honored_because_live_has_a_state_machine(tmp_path):
+def test_the_champion_cadence_is_now_honored_because_live_has_a_state_machine(tmp_path):
+    """⚠️ 2026-10-21：实盘换仓周期由 21（月频）改为 **63（季频）**，
+    而**这个守卫的实质不变**：赛马晋级出来的配置，它的换仓频率
+    必须与实盘实际执行的频率**一致**，否则「测的是 A、做的是 B」。"""
     """★ 这条守卫在 2026-10-15 **反转了方向**，理由记在这里。
 
     原断言是 `honored is False`，理由写着「实盘没有持仓状态机」。
@@ -142,12 +146,12 @@ def test_monthly_champion_is_now_honored_because_live_has_a_state_machine(tmp_pa
     """
     from aplus.evolve import live_execution_status
     d = _write(tmp_path, {"weights": {"mom20": -1.0},
-                          "execution": {"rebalance_every": 21, "buffer_multiple": None},
+                          "execution": {"rebalance_every": 63, "buffer_multiple": None},
                           "evidence": {"promoted_on": "2026-10-11"}})
     st = live_execution_status(d)
     assert st["honored"] is True
-    assert st["rebalance_every"] == 21
-    assert "21" in st["reason"]
+    assert st["rebalance_every"] == 63
+    assert "63" in st["reason"]
 
 
 def test_buffer_only_champion_is_also_honored(tmp_path):
@@ -228,7 +232,7 @@ def test_save_weights_round_trips_execution(tmp_path):
     assert cfg["weights"] == {"mom20": -1.0}
 
 
-def test_execution_defaults_to_monthly_on_save(tmp_path):
+def test_execution_defaults_to_the_chosen_cadence_on_save(tmp_path):
     """★ 2026-10-15 改：不显式传 execution 时，落盘的 K 必须是 21 而不是 1。
 
     留一个通往日频的默认后门，等于让「月频换仓」这个决策**只接了一半**：
@@ -239,14 +243,14 @@ def test_execution_defaults_to_monthly_on_save(tmp_path):
     reports = tmp_path / "reports"
     reports.mkdir()
     save_weights(reports, {"mom20": 1.0}, {})
-    assert load_weights(reports)["execution"] == {"rebalance_every": 21,
+    assert load_weights(reports)["execution"] == {"rebalance_every": 63,
                                                    "buffer_multiple": None}
 
 
 def test_load_weights_without_weights_file_has_execution(tmp_path):
     from aplus.evolve import load_weights
     cfg = load_weights(tmp_path / "reports")
-    assert cfg["execution"] == {"rebalance_every": 21, "buffer_multiple": None}
+    assert cfg["execution"] == {"rebalance_every": 63, "buffer_multiple": None}
 
 
 def test_corrupt_execution_field_falls_back_to_daily_loudly(tmp_path):

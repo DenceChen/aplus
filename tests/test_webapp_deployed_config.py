@@ -407,16 +407,33 @@ def test_the_deployed_side_follows_the_production_signature_when_it_changes(verd
 def test_the_two_sides_are_actually_different(verdict_root):
     """★ 判决档与实盘档**必须**在展示前就分得开（不是同一套配置）。
 
-    这是「用户误读 10.56%」的根：两边差在**敞口 / 持仓数 / 权重**三处。
+    这是「用户误读 10.56%」的根。
+
+    ⚠️ **2026-10-21：尺寸维度现在「一样」了** —— 实盘敞口由 0.5 改成 **1.0**、
+    仓数由 5 改成 **10** ⇒ 与判决档的尺寸**一致**（每份都是 ¥5,000、现金都 0%）。
+    ⇒ **这正是改动生效的证据，不是缺陷。**
+    ⇒ 剩下的差异只有两处，**而它们才是必须显示的那两处**：
+      ① **信号权重**：判决档 8 因子逐年 IC 定权 vs 实盘 4 因子固定权重
+      ② **执行模型**：判决档日再平衡 + 小数股 + 换手×费率
+         vs 实盘持有到期 + 整手 + 逐笔成本
+    ⇒ 本守卫现在**两头都钉**：尺寸维度必须**一致**（防止有人把实盘又改回半仓
+    而界面还显示「一样」），信号维度必须**不一致**（防止把两个量混成一个）。
     """
     body = _client(verdict_root).get("/api/deployed-config").json()
     dims = {x["dim"]: x for x in body["dimensions"]}
     assert set(dims) == {"exposure", "n_positions", "per_position_amount",
                           "signal_weights", "rebalance_every", "cash_weight"}
-    assert dims["exposure"]["differs"] is True
-    assert dims["n_positions"]["differs"] is True
+    # 🚨 尺寸维度现在必须**一致**（实盘已改成满仓 10 只）
+    assert dims["exposure"]["differs"] is False, (
+        f"敞口又不一样了：判决 {dims['exposure']['verdict']} vs "
+        f"实盘 {dims['exposure']['deployed']} —— 实盘应当是满仓 1.0")
+    assert dims["n_positions"]["differs"] is False, (
+        f"仓数又不一样了：判决 {dims['n_positions']['verdict']} vs "
+        f"实盘 {dims['n_positions']['deployed']} —— 实盘应当是 10 只")
+    # ⇒ 而「还差在哪」必须仍然显示出来
     assert dims["signal_weights"]["differs"] is True
-    assert dims["cash_weight"]["differs"] is True
+    assert dims["cash_weight"]["differs"] is False, (
+        "满仓后现金占比两边都是 0%")
     # 每个维度都必须带自己的来源（不许「来源不明」）
     for x in body["dimensions"]:
         assert x["verdict_source"], f"{x['dim']} 没有判决侧来源"

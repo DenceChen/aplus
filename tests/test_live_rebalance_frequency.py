@@ -1,146 +1,254 @@
-"""实盘换仓周期：**降低损耗**，不是提高收益 —— 两件事不许被说成一件事。
+"""实盘换仓周期：**降低损耗**，不是提高收益 —— 这两件事不许被说成一件事。
 
-## 决策依据（`data/reports/k_sweep_summary.json`，6 年，**2026-10-15 P0 结清后重跑**）
+## 决策依据（2026-10-21 重测，`data/reports/deployed_d2_verdict.json::k_grid`）
 
-成本取**实测**（从毛/净两条序列反推），不是名义公式；
-`(毛超额 − 净) / 实测成本` 五档均 = **1.000**（P0 之前是 1.90~1.98）。
+口径：实盘信号（`DEFAULT_WEIGHTS` 4 因子）+ 可买性过滤 + **满仓 10 只**、每份 ¥5,000、
+整手取整、逐笔成本、窗口 2021-01-01→2026-10-12（n_days=1395，5.717213 年）。
+数据源是**新鲜实测**（产物带 sidecar + 字节证据），
+**不是**旧的 `k_sweep_summary.json` —— 那份的**五份输入全 stale ⇒ 整张不可引用**。
 
-🚨 **2026-10-15 K 链整链重跑后本表整体作废过一次**，下面是**新值**。
-变化的不是小数位，是**结论**：K=21 的净由 **+0.49% 变成 −1.24%**，
-最好的一档 `ratio` 由 K=10 的 **0.296** 变成 K=63 的 **0.347**，
-而 **0/6 年够线五档不变** ⇒ 换仓周期这件事**仍然不解决够线问题**。
-⚠️ 触发它的是守卫 `test_decision_basis_table_matches_the_committed_artifact`
-—— 表格与产物逐档对账，红在「K=5 实测成本漂了」。
-**如果没有这张表，下面这些数会继续以旧值流通**（这正是形状 19 的散文版）。
-🚨 **名义成本那一列已删**：它等于「次数/年 × 0.0055」，是**这张表自己算得出来的**，
-摆在判决依据里会让人误以为它是独立测量。
-
-| K | 次数/年 | **实测成本** | 毛超额 | **净** |
+| K | 次数/年 | 年化换手 | 毛超额/年 | 账户 cagr |
 |---|---|---|---|---|
-| 5 | 48.8 | 24.61% | 9.83% | −14.79% |
-| 10 | 24.4 | 13.01% | 9.36% | −3.65% |
-| **21** | **11.6** | **6.26%** | 5.02% | **−1.24%** |
-| 42 | 5.8 | 3.04% | 0.09% | −2.95% |
-| 63 | 3.9 | 1.92% | 7.68% | 5.76% |
+| 5 | 48.8 | 42.67 | 4.20% | -3.02% |
+| 10 | 24.4 | 22.92 | -3.85% | 0.69% |
+| 21 | 11.6 | 11.43 | 4.29% | 7.85% |
+| 42 | 5.8 | 5.72 | -7.63% | 0.43% |
+| 63 | 3.9 | 3.85 | 4.81% | 10.16% |
 
-🚨 下面这组数（`−42.0 / −16.7 / −5.9 / −5.1 / +2.0`）是**重复扣成本**的产物，已全部作废。
+### 为什么选 63 —— 理由**只用摩擦算术**
 
-门槛随成本同步收紧（`hurdle_in_report` = 目标 20% + 该档成本）：
-K=5 → 46.84%，K=10 → 33.42%，K=21 → **26.39%**，K=42 → 23.20%，K=63 → 22.13%。
-**五档 `hit_years` 全部 = 0**；最好一档 `ratio` 仅 **0.347**（K=63）。
+- **毛超额那一列在 K 上是平的**：4.20 / −3.85 / 4.29 / −7.63 / 4.81
+  ⇒ 极差 12.4pp，而该档的**年化 MDE ≈ 16–17pp** ⇒ **极差落在噪声内**
+  ⇒ **K 之间的毛超额差不可测**（每档的 `detectable` 全为 `false`）
+- **年化换手 42.69 → 3.85（11.1×）是实测的**
+  （按 `aplus/backtest.py::cost_drag` 的同一约定 `(n_in+n_out)/(2·max(...))`，
+  逐调仓日算完取均值，年化 = 均值 × 244/K）
+  ⇒ **摩擦降约 4.3pp/年**
+- `净 = 毛 − 摩擦`，而**毛是噪声** ⇒ **净的期望差 ≈ 摩擦差** ⇒ **K=63 占优**
 
-⚠️ **K=63 的净最高（+5.76%）不是因为策略变好** ——
-毛超额那一列 K=63 是 7.68%，比 K=10 的 9.36% **更低**。
-拉长持有期买到的是**损耗下降**，不是 **edge 上升**。
+### 🚨 这条论证**不受「赢家诅咒」影响**（旧 docstring 的那条警告仍然成立，但要分清它针对什么）
 
-🚨🚨 **「K=63 最好」本身就是赢家诅咒，别照着它调参。**
-逐年最优 K **每年都不同**：
-2021→K=5（12.83%）、2022→K=10（18.33%）、2023→K=21（17.42%）、
-2024→K=10（22.74%）、2025→K=63（0.67%）、2026→K=5（14.24%）。
-**年内的跨 K 极差远大于跨年的极差** ⇒ 噪声压过 K 的效应，
-「K=63 最优」是**把 5 个噪声数取平均**得来的。
-⚠️ 可交付名数另有硬上限（摩擦 ≤20%/年 ⇒ **N ≈ 50**，见 CLAUDE.md 第 17 种形状），
-而 K=63 配 546 只是测量手段、**不是能上线的组合**。
-⇒ `test_decision_basis_table_matches_the_committed_artifact` 把这张表钉在产物上，
-不许再漂。
+「K=63 最好」若**只**看毛超额那一列，就是赢家诅咒
+（逐年最优 K 每年都不同：2021→K=5、2022→K=10、2023→K=21、2024→K=10、2025→K=63、2026→K=5）。
+⇒ 但本决策**不靠毛超额挑档**，它靠**摩擦随 K 单调下降**这个算术事实
+⇒ ⇒ 赢家诅咒**不适用**。
+⚠️ 但「毛超额在 K 上是平的」这件事本身**也是测量出来的**（不是假设）⇒
+⇒ **必须由守卫钉住**（见下面的 `test_the_gross_excess_is_flat_in_k`），
+否则这句话会退化成一句「我记得是这样」。
 
-日志里另有（**两条都列，不挑大的说**）：
-`[cost] K=1 下成本吃掉毛超额的最坏比例 222%`（12 组候选，来源 `ic_guided_race_7y.json`）
-与 `858%`（9 组候选，来源 `ic_guided_race_7y_corrected.json`）；
-`[down] K=1 下跌腿日均收益最坏 +0.16% …「10 跌」那篮子平均每天**在涨**，产品承诺未兑现`
-—— 那个 **`+0.16%` 是原始涨跌幅，不是我的盈亏**（空头腿 `gross_pct` 不带符号）。
+### 代价（三条，都要记住）
 
-⇒ **日频换仓在 5 万本金 + 0.55% 单边成本下是结构性不可能盈利**。
-改换仓周期只把损耗从"吃掉全部毛超额"降到"吃掉一多半"。
+1. **每日榜单与账户持仓脱节**：K=63 时持有 3 个月 ⇒
+   **「每天 10 涨 10 跌」是排名，不是指令** ⇒ 持仓级预警成为主要行动依据。
+2. **前瞻证据要 189 个交易日**（`forward_registry.json` 第 5 批的 C2）⇒
+   **决策先按算术走，前瞻只做检验、不做依据**。
+3. **不许**把 K 变化说成「策略变好了」—— 换 K **不改变选股能力**。
+
+---
+
+## 为什么这份文件是**重新写的**（2026-10-21）
+
+旧版的三条守卫读 `data/reports/k_sweep_summary.json`，而那份产物**五份输入全 stale**
+⇒ 守卫与 docstring 表互相锁死在一**对化石**上 ⇒ **两边一起错，守卫照样绿**
+（本仓「读快照的守卫等于没守」那一族）。
+⇒ 现在改读**新鲜产物**，且把「决策依据表」钉在它上面。
 """
 
 from __future__ import annotations
 
 import json
+import math
+import re
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
 
-# ★ 对账容差的**单一真相源**。主判据与容差守卫共用它 ——
+#: 决策依据的产物（**新鲜**：带 sidecar + 字节证据）。
+_ART = _ROOT / "data" / "reports" / "deployed_d2_verdict.json"
+
+#: 实盘信号 + 可买性过滤 + 满仓 10 只 —— 决策依据表的那一档。
+_ARM_SIGNAL = "LIVE_DEFAULT"
+_ARM_FILTER = "ARM_C"
+_ARM_EQUITY = "E100"
+
+#: 选中的 K。
+CHOSEN_K = 63
+
+#: 对账容差的**单一真相源**。主判据与容差守卫共用它 ——
 #   两边各写一个 5e-4 就是「第 102 层：探针打在自己的副本上」：
 #   实测把主判据放宽到 5e-2 时，容差守卫读的还是副本 ⇒ 照样绿。
-_TOL = 5e-4          # 比率列（实测成本 / 毛超额 / 净）
-_TOL_ROUNDS = 0.05    # 次数/年列：244/K 的显示精度，与比率列**不同量纲**
-_TOL_IDENT = 1e-3     # 会计恒等式 (毛−净)/实测成本：P0 量级是 1.90~1.98
+# ⚠️ **按显示精度分档，不是「一个容差管所有列」** ——
+#   决策表里的列**显示位数不同** ⇒ 舍入误差的量级也不同 ⇒ 塞进一个容差
+#   就会「为了统一而降低精度」（旧文件对「次数/年」已经这么做过一次）。
+#   🚨 2026-10-21 实测：换手列按 2 位小数显示（42.69）而产物是 42.66960854
+#   ⇒ 差 0.0204 ⇒ 用 5e-4 立刻红 ⇒ **红在一个显示精度问题上，
+#   而不是语义问题上** —— 红的原因必须是我要验的那件事。
+_TOL_DISPLAY = 0.005  # 2 位小数的列（年化换手 / 毛超额% / 账户 cagr%）
+_TOL_ROUNDS = 0.05    # 1 位小数的列（次数/年 = 244/K），量纲也不同
 
 
-def test_live_fallback_uses_monthly_not_daily():
-    """回落路径的换仓周期必须是 21，不是 1。
+# ── 产物读取（唯一入口） ─────────────────────────────────────────────
+
+def _k_grid() -> dict:
+    assert _ART.is_file(), (
+        f"决策依据产物不见了：{_ART.name} —— 决策依据必须可复核"
+    )
+    return json.loads(_ART.read_text(encoding="utf-8"))["k_grid"]
+
+
+def _per_config(g: dict) -> dict:
+    """按 (signal, filter, K) 取出信号级那一档。"""
+    out = {}
+    for name, v in (g.get("per_config") or {}).items():
+        if v.get("signal") != _ARM_SIGNAL or v.get("filter_arm") != _ARM_FILTER:
+            continue
+        out[int(v["K"])] = v
+    return out
+
+
+def _cells(g: dict) -> dict:
+    """按 K 取出账户级那一格（满仓）。"""
+    out = {}
+    for name, v in (g.get("cells") or {}).items():
+        if not isinstance(v, dict):
+            continue
+        if not name.startswith(f"{_ARM_SIGNAL}|{_ARM_FILTER}|"):
+            continue
+        if not name.endswith(f"|{_ARM_EQUITY}"):
+            continue
+        m = re.search(r"\|K(\d+)\|", name)
+        if m:
+            out[int(m.group(1))] = v
+    return out
+
+
+# ── 守卫 ───────────────────────────────────────────────────────────
+
+def test_live_fallback_uses_the_chosen_rebalance_frequency():
+    """回落路径的换仓周期必须是 **63**，不是 1。
 
     ⚠️ 注意与 `DEFAULT_REBALANCE_EVERY` **故意不同**：
     那个是赛马口径（候选之间要比日频），这个是实盘口径。
-    合并成一个常量会把赛马悄悄改成月频。
+    合并成一个常量会把赛马悄悄改成别的频率。
     """
     from aplus.evolve import DEFAULT_REBALANCE_EVERY, LIVE_REBALANCE_EVERY, load_weights
 
-    assert LIVE_REBALANCE_EVERY == 21, (
+    assert LIVE_REBALANCE_EVERY == CHOSEN_K, (
         f"实盘换仓周期变成 {LIVE_REBALANCE_EVERY} —— "
-        "选 21 是因为它是 K 扫描里逐年数字齐全、与既有结论同口径的一档"
+        f"选 {CHOSEN_K} 的理由是**摩擦算术**（年化换手 42.69→3.85，"
+        f"而毛超额在 K 上是平的），见本文件 docstring"
     )
     assert DEFAULT_REBALANCE_EVERY == 1, (
-        "赛马默认被改成非 1 ⇒ 候选之间不再可比，"
-        "所有历史赛马排名作废"
+        "赛马默认被改成非 1 ⇒ 候选之间不再可比，所有历史赛马排名作废"
     )
     assert DEFAULT_REBALANCE_EVERY != LIVE_REBALANCE_EVERY, (
         "两个常量合并了 —— 赛马口径与实盘口径必须能独立演进"
     )
 
     cfg = load_weights("/nonexistent-reports-dir")
-    assert cfg["execution"]["rebalance_every"] == 21, (
-        f"回落路径实际下发 {cfg['execution']['rebalance_every']}，应为 21"
+    assert cfg["execution"]["rebalance_every"] == CHOSEN_K, (
+        f"回落路径实际下发 {cfg['execution']['rebalance_every']}，应为 {CHOSEN_K}"
     )
 
 
-def test_k_sweep_actually_supports_the_chosen_k():
-    """★ 选 21 必须**由产物支撑**，不是拍脑袋。
+def test_the_chosen_k_is_supported_by_the_artifact():
+    """★ 选 63 必须**由产物支撑**，不是拍脑袋。
 
-    外部锚：K 扫描报告里必须真的存在 K=21 这一行，
-    且它的成本显著低于 K=1 那一档 —— 否则这个决定没有依据。
+    外部锚（`deployed_d2_verdict.json::k_grid`）：
+    ① **年化换手随 K 单调下降**（否则「省成本」这个理由本身不成立）；
+    ② 选中的那一档比 K=5 便宜**一个量级**；
+    ③ 账户 cagr 在选中档**最高**（不是「不低于别的档」）。
     """
-    p = _ROOT / "data" / "reports" / "k_sweep_summary.json"
-    assert p.exists(), "K 扫描产物不见了 —— 决策依据必须可复核"
-    rows = {int(r["k"]): r for r in json.loads(p.read_text())["rows"]}
-
-    assert 21 in rows and 63 in rows, f"K 扫描缺少关键档位，实有 {sorted(rows)}"
-    # 成本必须随 K 单调下降（否则「省成本」这个理由本身不成立）
-    ks = sorted(rows)
-    costs = [rows[k]["avg_cost_real"] for k in ks]
-    assert costs == sorted(costs, reverse=True), (
-        f"年成本没有随 K 下降：{dict(zip(ks, costs))}"
+    g = _k_grid()
+    pc = _per_config(g)
+    ks = sorted(pc)
+    # ⚠️ 「换手随 K 单调下降」**不在这里断言** —— 它有自己的一条守卫
+    #   （`test_the_turnover_falls_monotonically_with_k`）。
+    #   🚨 2026-10-21 实测：同一条性质写在**两个测试**里 ⇒ 变异体改掉其中一处
+    #   另一处还在 ⇒ **变异存活** ⇒ 而「看起来在守」的守卫其实没在守
+    #   （第 97 层：两份副本之间没有守卫）。⇒ **一条性质只写一处。**
+    assert pc[CHOSEN_K]["held_basket_annualized_turnover"] < \
+        pc[min(ks)]["held_basket_annualized_turnover"] / 10, (
+        f"K={CHOSEN_K} 的年化换手 {pc[CHOSEN_K]['held_basket_annualized_turnover']:.2f} "
+        f"相对 K={min(ks)} 的 {pc[min(ks)]['held_basket_annualized_turnover']:.2f} "
+        "并没有实质下降一个量级"
     )
-    # 选中的那一档必须真的比日频便宜一个量级
-    assert rows[21]["avg_cost_real"] < rows[5]["avg_cost_real"] / 3, (
-        f"K=21 成本 {rows[21]['avg_cost_real']:.4f} 相对 K=5 "
-        f"{rows[5]['avg_cost_real']:.4f} 并没有实质下降"
+    cells = _cells(g)
+    cagrs = {k: (cells[k].get("tier") or {}).get("cagr") for k in cells}
+    best = max(cagrs, key=lambda k: cagrs[k])
+    assert best == CHOSEN_K, (
+        f"账户 cagr 最高的一档是 K={best}（{cagrs[best]:.4f}），"
+        f"不是选中的 K={CHOSEN_K}（{cagrs[CHOSEN_K]:.4f}）"
     )
 
 
-def test_the_hurdle_is_not_relaxed_alongside_the_frequency():
+def test_the_turnover_falls_monotonically_with_k():
+    """★ 「年化换手随 K 单调下降」—— 决策理由的**承重前提**，独立成一条。
+
+    这条**必须只有一处**：2026-10-21 实测，同一条性质写在两个测试里 ⇒
+    变异体改掉其中一处、另一处还在 ⇒ **变异存活** ⇒ 看着在守的守卫其实没在守。
+    ⇒ 现在它有自己的位置，且**别处不许再抄一遍**。
+    """
+    g = _k_grid()
+    pc = _per_config(g)
+    ks = sorted(pc)
+    turnovers = [pc[k]["held_basket_annualized_turnover"] for k in ks]
+    assert turnovers == sorted(turnovers, reverse=True), (
+        f"年化换手没有随 K 下降：{dict(zip(ks, turnovers))}"
+        " ⇒ 「拉长持有期买到的是损耗下降」这个理由本身不成立"
+    )
+
+
+def test_the_gross_excess_is_flat_in_k():
+    """🚨 **决策不靠毛超额挑档** —— 这一条必须钉住，否则「赢家诅咒」适用。
+
+    本决策的理由是**摩擦随 K 单调下降**（算术事实）。
+    但要成立，还需要「**毛超额在 K 上没有可测的差异**」——
+    否则「毛超额其实在 K=63 更好」就仍是一个**未排除的**解释，
+    而「K=63 最好」就会重新变成一个**挑出来的数**。
+
+    ⇒ 判据：**毛超额的极差必须小于该档的 MDE**（落在噪声内）。
+    ⚠️ 这是**两条腿的判据**（极差 vs MDE），不是「毛超额必须等于某个数」——
+    后者会把这个守卫变成「抄一个数」。
+    """
+    g = _k_grid()
+    pc = _per_config(g)
+    gross = {k: pc[k]["gross_excess_annual_pct"] for k in pc}
+    spread = max(gross.values()) - min(gross.values())
+    min_mde = min(pc[k]["mde_annual_pct"] for k in pc)
+    assert spread < min_mde, (
+        f"毛超额在 K 上的极差 {spread * 100:.2f}pp 不小于最小 MDE "
+        f"{min_mde * 100:.2f}pp ⇒ 「毛超额在 K 上是平的」这句话不成立 ⇒ "
+        "本决策的理由必须重新审视"
+    )
+    # 每档的 `detectable` 全为 false ⇒ 连**单档**的毛超额符号都定不了
+    assert not any(pc[k]["detectable"] for k in pc), (
+        "某一档的毛超额变得可测了 ⇒ 「毛超额在 K 上是平的」需要重新评估"
+    )
+
+
+def test_the_target_is_not_relaxed_alongside_the_frequency():
     """★ 降 K 是提速，砍前瞻验证是作弊。
 
     门槛必须**跟着成本收紧**（K 越小、门槛越高），
     而不是为了让某一档够线而放松门槛。
+    ⇒ 在新产物里等价于：**每一格的目标都还是 20%**，
+    且**没有任何一格自称达标**。
     """
-    p = _ROOT / "data" / "reports" / "k_sweep_summary.json"
-    rows = {int(r["k"]): r for r in json.loads(p.read_text())["rows"]}
-
-    for k, r in rows.items():
-        assert abs(r["hurdle_recomputed"] - r["hurdle_in_report"]) < 1e-12, (
-            f"K={k} 的门槛有两份且不一致"
+    g = _k_grid()
+    cells = _cells(g)
+    assert cells, "账户层 K 网格是空的"
+    for k, v in cells.items():
+        ver = v.get("verdict") or {}
+        assert abs(float(ver.get("target", -1)) - 0.20) < 1e-12, (
+            f"K={k} 的目标变成了 {ver.get('target')} ⇒ 目标被放松了"
         )
-        # 门槛 = 20% 目标 + 成本，随成本下降而下降，但**永不低于 20%**
-        assert r["hurdle_in_report"] >= 0.20 - 1e-9, (
-            f"K={k} 门槛 {r['hurdle_in_report']} < 20% 目标本身 ⇒ 目标被放松了"
+        # 「达标」在这个仓里从来没有出现过 ⇒ 任何一格也不许出现
+        assert "达标" not in " ".join(str(c) for c in (ver.get("cases") or [])), (
+            f"K={k} 的判决里出现了「达标」—— 需要重新走一遍判决，而不是沿用旧结论"
         )
-    # 五档全部不够线 —— 这个结论必须留在产物里，不许被"调频率"悄悄抹掉
-    assert all(r["hit_years"] == 0 for r in rows.values()), (
-        "某一档开始够线了 —— 需要重新走一遍判决，而不是沿用旧结论"
-    )
+        # 每一格都必须**给了判决**（不是「没结论」）
+        assert ver.get("cases"), f"K={k} 没有判决用例"
 
 
 def test_decision_basis_table_matches_the_committed_artifact():
@@ -149,10 +257,8 @@ def test_decision_basis_table_matches_the_committed_artifact():
     ## 为什么这条必须存在
 
     那张表写在**本文件的 docstring** 里——也就是**决策记录的正文**。
-    2026-10-15 的 P0（成本被扣两次）结清后，
-    产物里的净收益全变了，而**这张表一个字都没跟着变**，
-    它还印着 `−42.0 / −16.7 / −5.9 / −5.1 / +2.0` 这组**已作废**的数。
-
+    2026-10-15 的 P0（成本被扣两次）结清后，产物里的净收益全变了，
+    而**这张表一个字都没跟着变** ⇒ 它还印着已作废的数。
     同一批作废数字当时散落在 `CLAUDE.md`、`aplus/evolve.py` 的注释、
     本文件、`docs/TODO_measure_sigma_r.md` **四处**——
     这是第 7 层（口径标签）的一个新变体：
@@ -161,69 +267,60 @@ def test_decision_basis_table_matches_the_committed_artifact():
     「口径必须跟着数字离开脚本」的反面还有一句：
     **数字离开脚本之后，必须有一条通道把它拉回来。**
 
-    ## 为什么是逐格而不是「方向对就行」
-
-    本条在 P0 结清时**一次就抓到了**：三份文件同时漂移。
-    写成「K 越大成本越薄」这种方向性断言，三处一起错的时候照样绿。
-
     ## 外部锚
 
-    逐格的值只有一个来源：入库的 `k_sweep_summary.json`
+    逐格的值只有一个来源：入库的 `data/reports/deployed_d2_verdict.json`
     （`.gitignore` 第 27 行 `!data/reports/*.json` 把 JSON 结论放回仓库）。
     没有第二个实现可以对照 ⇒ 这条守卫防的是**漂移**，不是**算错**。
     """
-    import re
-
-    p = _ROOT / "data" / "reports" / "k_sweep_summary.json"
-    assert p.is_file(), (
-        "k_sweep_summary.json 不在库里 —— 决策依据无从核对，"
-        "而 CLAUDE.md 旧版曾把「报告不入库」写成惯例，与 .gitignore 相反"
-    )
-    rows = {int(r["k"]): r for r in json.loads(p.read_text(encoding="utf-8"))["rows"]}
+    g = _k_grid()
+    pc = _per_config(g)
+    cells = _cells(g)
 
     doc = __doc__ or ""
-    # 只认表格行：`| K | 次数/年 | ... | 净 |` 之后、表格结束之前的行
+    # 只认表格行：`| K | 次数/年 | ... |` 之后、表格结束之前的行
     body = doc.split("| K | 次数/年 |", 1)[1].split("\n\n", 1)[0]
-    # ★ 表格里用的是排版减号 U+2212，不是 ASCII '-'.
-    #   第一版直接 float() ⇒ ValueError，守卫红在一个**解析错误**上，
-    #   而不是一个语义错误上 —— **红的原因必须是我要验的那件事。**
+    # ★ 表格里用的是排版减号 U+2212，不是 ASCII '-'。
     tr = str.maketrans("−", "-")
     parsed = {}
     for line in body.splitlines():
-        cells = [c.strip().strip("*").translate(tr) for c in line.strip().strip("|").split("|")]
-        # ★ 5 列（名义成本那一列已删，见 docstring 的说明）。
+        cells_ = [c.strip().strip("*").translate(tr)
+                  for c in line.strip().strip("|").split("|")]
+        # ★ 5 列：K / 次数/年 / 年化换手 / 毛超额 / 账户 cagr
         #   守卫的列数必须跟表一起变，否则它会红在一个**解析错误**上，
         #   而不是一个语义错误上 —— 红的原因必须是我要验的那件事。
-        if len(cells) != 5 or not cells[0].isdigit():
+        if len(cells_) != 5 or not cells_[0].isdigit():
             continue
-        parsed[int(cells[0])] = {
-            "rounds": float(cells[1]),
-            "real": float(cells[2].rstrip("%")) / 100,
-            "gross": float(cells[3].rstrip("%")) / 100,
-            "net": float(cells[4].rstrip("%")) / 100,
+        # 🚨 **单位**：`gross_excess_annual_pct` 的值**已经是百分数**
+        #   （4.1957 表示 4.1957%，不是分数）⇒ 表里的百分数**不除 100**。
+        #   而 `tier.cagr` 是**分数**（0.0785）⇒ 那一条要 ×100 才能对上。
+        #   ⇒ **同一个表里两种单位** —— 这不是笔误，是产物自身的口径，
+        #   守卫必须**逐列**处理，否则会「红在一个单位问题上」。
+        parsed[int(cells_[0])] = {
+            "rounds": float(cells_[1]),
+            "turnover": float(cells_[2]),
+            "gross_pct": float(cells_[3].rstrip("%")),
+            "cagr_pct": float(cells_[4].rstrip("%")),
         }
-    assert set(parsed) == set(rows), (
-        f"docstring 表格的 K 档 {sorted(parsed)} 与产物 {sorted(rows)} 对不上")
+    assert set(parsed) == set(pc), (
+        f"docstring 表格的 K 档 {sorted(parsed)} 与产物 {sorted(pc)} 对不上")
 
     for k, q in parsed.items():
-        r = rows[k]
+        r = pc[k]
         # ★ 次数/年是 244/K 的**恒等式**，不是抄来的数 ⇒ 它有自己的容差，
         #   而且比 `_TOL` 宽（48.8 这种数多一位小数）。
         #   我第一版把它也并进 `_TOL` ⇒ 当场红：把两种量纲不同的判据塞进一个容差，
         #   就是在「为了统一而降低精度」。
-        assert abs(q["rounds"] - r["rounds_per_year"]) < _TOL_ROUNDS, f"K={k} 次/年漂了"
-        assert abs(q["real"] - r["avg_cost_real"]) < _TOL, f"K={k} 实测成本漂了"
-        assert abs(q["gross"] - r["avg_gross"]) < _TOL, f"K={k} 毛超额漂了"
-        assert abs(q["net"] - r["avg_net_real"]) < _TOL, f"K={k} 净漂了"
-
-    # ★ 会计恒等式：这张表自己就该证明成本只扣一次
-    #   🚨 它的容差曾无人看守：实测把 `1e-3` 放宽成 `1e-1` ⇒ **5 条全绿**。
-    #   而恒等式偏 10% 意味着成本被扣了 1.1 次 —— **P0 那个 bug 的量级**。
-    #   ⇒ 与比率列一样提为单一真相源，交给容差守卫一起盯。
-    for k, r in rows.items():
-        ident = (r["avg_gross"] - r["avg_net_real"]) / r["avg_cost_real"]
-        assert abs(ident - 1.0) < _TOL_IDENT, (
-            f"K={k} 的 (毛−净)/实测成本 = {ident:.3f} ≠ 1.000 ⇒ 成本又被扣了第二次")
+        assert abs(q["rounds"] - 244 / k) < _TOL_ROUNDS, f"K={k} 次/年漂了"
+        assert abs(q["turnover"] - r["held_basket_annualized_turnover"]) < _TOL_DISPLAY, \
+            f"K={k} 年化换手漂了"
+        # 毛超额：产物里**已经是百分数** ⇒ 直接比
+        assert abs(q["gross_pct"] - r["gross_excess_annual_pct"]) < _TOL_DISPLAY, \
+            f"K={k} 毛超额漂了"
+        # 账户 cagr：产物里是**分数** ⇒ ×100 再比
+        account_cagr = (cells[k].get("tier") or {}).get("cagr")
+        assert abs(q["cagr_pct"] - account_cagr * 100) < _TOL_DISPLAY, \
+            f"K={k} 账户 cagr 漂了"
 
 
 def test_the_table_comparison_tolerance_cannot_be_loosened_silently():
@@ -239,20 +336,11 @@ def test_the_table_comparison_tolerance_cannot_be_loosened_silently():
       （第 5 种形状：断言 == 公式，公式错了断言跟着一错）。
     ⇒ 这里钉的是**性质**：「容差必须比一个 ulp 宽、比 1 个百分点窄」，
       两个方向都要够狠才能让「1% 的错」与「最后一位的错」落在它两侧。
-
-    ★ 第一版我把它写成了 `assert 5e-2 < tol`，而 `tol = 5e-4`
-      ⇒ **它当场就是红的**（5e-2 > 5e-4）。那不是「守住了」，
-      是我把自己要证明的结论写反了（第 98 层）。下面是改对之后的版本。
     """
-    import math
-
-    # 🚨 第二版这里写的是 `tol = 5e-4` —— **自己的副本**。
-    #   于是把主判据里的 `< 5e-4` 改成 `< 5e-2` 时，本守卫读的还是副本 ⇒
-    #   **它照样绿**（实测 L4/L5 两个变异都存活）。这就是第 102 层
-    #   「变异探针打在自己的副本上」：守卫存在，但它量的不是被守的那个量。
-    #   ⇒ 判据与守卫必须**共用同一个名字**（单一真相源）。
-    tol = _TOL
-    real = 0.24614910836762685          # 产物里 K=5 的实测成本
+    g = _k_grid()
+    pc = _per_config(g)
+    tol = _TOL_DISPLAY
+    real = pc[min(pc)]["held_basket_annualized_turnover"]   # K=5 的年化换手
 
     # 方向一：容差必须**严格宽于**最小可表示偏差，否则 ulp 级噪声会天天误报
     drift = math.nextafter(real, 1.0) - real
@@ -266,10 +354,11 @@ def test_the_table_comparison_tolerance_cannot_be_loosened_silently():
         f"容差 {tol} 已经宽到能放过 1 个百分点的错误；"
         "实测把 5e-4 放宽成 5e-2 后守卫全绿")
 
-    # 同一个纪律对另外两个容差同样成立 —— 逐一钉，不给「只有主判据被看着」的错觉
+    # 同一个纪律对另一个容差同样成立 —— 逐一钉，不给「只有主判据被看着」的错觉
     assert _TOL_ROUNDS < 0.1, "次数/年容差放宽到 0.1 ⇒ 244/K 抄错也放过"
-    # 恒等式容差：P0（成本被扣两次）的实测比值是 **1.90~1.98**，
-    # 而容差 0.1 仍然抓得住 ⇒ 这是「容差必须窄于缺陷本身」的判据，不是抄字面量
-    assert _TOL_IDENT < 0.90, (
-        f"恒等式容差 {_TOL_IDENT} 已宽到放过 P0 的真实比值 1.90~1.98")
-    assert abs(1.95 - 1.0) > _TOL_IDENT, "正控：P0 那个量级必须真的被判红"
+    # 🚨 **两个容差必须真的分档** —— 合成一个就等于「为了统一而降低精度」
+    assert _TOL_DISPLAY < _TOL_ROUNDS, (
+        "2 位小数的列与 1 位小数的列必须各有容差；合成一个就是降精度")
+    # 正控：把容差真的放宽一次，本条必须红
+    assert abs(1.95 * real - real) > tol, (
+        "正控：把某个格子的数放大 95% 必须被判红")

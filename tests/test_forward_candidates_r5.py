@@ -116,17 +116,23 @@ def test_the_three_candidates_are_the_live_config_plus_two_single_parameter_arms
     assert len(cands) == 3
 
     c1, c2, c3 = cands
-    # ① 实盘那一支
+    # ① 当时的实盘那一支（K=21，**显式钉**）
+    # ⚠️ 2026-10-21：实盘换仓周期改成了 63 ⇒ ① 降级为**对照臂**，
+    # **② 才是现在实盘那一支**。而本批**已冻结带 seal** ⇒ ①/③ 的 K
+    # 必须**显式钉 21**，**不许**再从 `LIVE_REBALANCE_EVERY` 派生
+    # （派生 ⇒ 重跑把 ① 变成 63 ⇒ 与 ② 撞成同一支 ⇒ 批次语义被改写）。
     assert c1["weights"] == dict(DEFAULT_WEIGHTS)
-    assert c1["rebalance_every"] == LIVE_REBALANCE_EVERY
+    assert c1["rebalance_every"] == 21
     assert c1["buffer_multiple"] is None
-    # ② 成本臂：只改 K
+    # ② 成本臂：只改 K —— ⚠️ **它现在是实盘那一支**（K=63）
     assert c2["weights"] == dict(DEFAULT_WEIGHTS)
     assert c2["rebalance_every"] == 63
     assert c2["buffer_multiple"] is None
+    assert c2["rebalance_every"] == LIVE_REBALANCE_EVERY, (
+        "实盘的换仓周期与本批 ② 必须一致 ⇒ 前瞻证据测的必须就是实盘那一支")
     # ③ 单参数对照：只改缓冲
     assert c3["weights"] == dict(DEFAULT_WEIGHTS)
-    assert c3["rebalance_every"] == LIVE_REBALANCE_EVERY
+    assert c3["rebalance_every"] == 21   # 显式钉（冻结），不从 LIVE 派生
     assert c3["buffer_multiple"] == BUFFER_MULTIPLE
 
     # 三组的权重**完全相同** ⇒ 任何两组的差别都是单参数的（受控对照）
@@ -165,10 +171,21 @@ def test_the_registered_weights_follow_default_weights_when_the_sign_flips(tmp_p
     assert got != original
 
 
-def test_the_registered_k_follows_live_rebalance_every(tmp_path, monkeypatch):
-    """**行为守卫**：K 是从 `LIVE_REBALANCE_EVERY` import 的。
+def test_the_registered_k_does_NOT_follow_live_rebalance_every(tmp_path, monkeypatch):
+    """★ **反向**行为守卫：改 `LIVE_REBALANCE_EVERY` ⇒ 本批的 ①/③ **不许**跟着变。
 
-    与上一条同形：改 `aplus.evolve.LIVE_REBALANCE_EVERY` ⇒ 注册结果跟着变。
+    ## 为什么这条要**反过来**（2026-10-21）
+
+    旧版叫 `..._follows_live_rebalance_every`，断言「K 从 LIVE import ⇒ 跟着变」。
+    而本批**已冻结并带 seal**（注册于 2026-10-20）⇒
+    跟着变就意味着**重跑会改写一个已冻结的批次**（① 会从 21 变成 63
+    ⇒ **与 ② 撞成同一支** ⇒ 这一批的语义被改写 ⇒ 第 25 层）。
+
+    ⇒ 冻结的批次只能**复现**，不能**改写** ⇒ ①/③ 的 K **显式钉 21**。
+    ⇒ 而「实盘那一支」现在由 **②（K=63）** 承担 ⇒ 它的 embargo 起点
+    （2026-10-23）与新配置上线同步 ⇒ **前瞻证据一天都不浪费**。
+
+    ⇒ 这条守卫现在守的是**冻结纪律**，不是「跟着 LIVE 变」。
     """
     import aplus.evolve
 
@@ -181,9 +198,14 @@ def test_the_registered_k_follows_live_rebalance_every(tmp_path, monkeypatch):
 
     from aplus.forward import load_registry
     rec = load_registry(tmp_path)[-1]
-    c1, _c2, c3 = rec["candidates"]
-    assert c1["rebalance_every"] == 10
-    assert c3["rebalance_every"] == 10
+    c1, c2, c3 = rec["candidates"]
+    # 🚨 改了 LIVE 也**不许**变 —— 这正是「冻结」的意思
+    assert c1["rebalance_every"] == 21, (
+        f"① 的 K 跟着 LIVE 变了 ⇒ 已冻结的批次被改写（第 25 层）")
+    assert c3["rebalance_every"] == 21, (
+        f"③ 的 K 跟着 LIVE 变了 ⇒ 已冻结的批次被改写（第 25 层）")
+    # ⇒ 而「实盘那一支」是 ②
+    assert c2["rebalance_every"] == 63
 
 
 # ── 追加式：前 4 批一个字都不许变 ──────────────────────────────────

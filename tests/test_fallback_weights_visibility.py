@@ -101,7 +101,7 @@ def test_caveat_must_not_claim_the_old_measurement_belongs_to_the_current_weight
 def test_fallback_must_expose_execution_parameters(client):
     """回落时必须返回 execution——它决定成本量级。
 
-    ⚠️ 2026-10-15 起这个值是 **21** 而不是 1。
+    ⚠️ 2026-10-15 起这个值不是 1；**2026-10-21 起是 63**（季频）而不是 21（月频）。
 
     原来钉 K=1 的理由是「台账第 19 条实测日频与月频差 276 个百分点」——
     那条论据**今天被 `k_sweep_summary.json` 正面推翻了**：K 扫描五档
@@ -110,7 +110,9 @@ def test_fallback_must_expose_execution_parameters(client):
     （K=5 成本 26.84%/年 vs 毛超额 9.78%/年）。
 
     ⇒ 继续按日频回落不是「保守」，是**结构性不可能盈利**。
-    换仓周期定为 21（`LIVE_REBALANCE_EVERY`），理由见 `aplus/evolve.py` 同名常量。
+    换仓周期定为 **63**（`LIVE_REBALANCE_EVERY`，季频），理由**只用摩擦算术**
+    （年化换手 42.69→3.85，而毛超额在 K 上是平的 ⇒ 净的期望差 ≈ 摩擦差），
+    见 `aplus/evolve.py` 同名常量与 `docs/DELIVERY_DECISIONS_2026-10-20.md` §10。
     """
     from aplus.evolve import LIVE_REBALANCE_EVERY
 
@@ -120,7 +122,7 @@ def test_fallback_must_expose_execution_parameters(client):
     exec_ = body["execution"]
     assert "rebalance_every" in exec_, "缺 rebalance_every（K 值）"
     assert "buffer_multiple" in exec_, "缺 buffer_multiple"
-    assert exec_["rebalance_every"] == LIVE_REBALANCE_EVERY == 21, (
+    assert exec_["rebalance_every"] == LIVE_REBALANCE_EVERY == 63, (
         f"回落路径下发 K={exec_['rebalance_every']}，应为 {LIVE_REBALANCE_EVERY}。"
         "改这个值必须同时改 aplus/evolve.py 的注释表与 k_sweep_summary 的依据")
 
