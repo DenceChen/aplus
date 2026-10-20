@@ -1121,7 +1121,7 @@ def step_stats(reports_dir, today):
     # ⚠️ 用 `resolve_attribution_context`（两个基准都算）而不是单算一个
     # ⇒ 底稿只带得动另一个基准时（老底稿没有 `signal_id` 列）
     # **换基准**而不是回落。
-    from signal_scope import resolve_attribution_context, scope_block, scope_ledger
+    from scripts.signal_scope import resolve_attribution_context, scope_block, scope_ledger
 
     ctx = resolve_attribution_context(reports_dir)
     scoped = scope_ledger(history, ctx.signal_id, ctx.weights_fingerprint)

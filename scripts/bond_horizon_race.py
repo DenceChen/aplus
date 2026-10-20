@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from aplus.bond_horizon import build_horizon_cache, cheap_rotation_backtest
-from bond_race import load_bond_map, window_of
+from scripts.bond_race import load_bond_map, window_of
 
 HORIZONS = [1, 3, 5, 10, 20]
 COST_WAN15 = 0.003   # 万 15/边 × 双边（平台保守费率——判定口径）

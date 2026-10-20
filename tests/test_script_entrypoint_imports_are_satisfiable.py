@@ -50,8 +50,37 @@ _SCRIPTS = _ROOT / "scripts"
 _LOCAL_PREFIXES = ("aplus.", "aplus")
 
 
+def _module_level_imports(tree: ast.Module):
+    """**只**收模块级的 import 语句。
+
+    🚨 2026-10-21：原实现用 `ast.walk(tree)`（**全树**）⇒
+    把**函数体内的惰性 import**也算成「导入期依赖」
+    ⇒ 实测误报 `scripts/_fundamental_family_stats.py`：
+    它的 `from aplus.factor_fundamental import bare_code` 在**函数体内**（惰性）
+    ⇒ 导入期**不跑** ⇒ 调用时调用方早已把仓根放进 sys.path ⇒ **那个文件是对的**。
+
+    ⇒ 而一条**过严的守卫比恒真的更危险**：它会让人去「修」本来正确的代码
+    （本仓第 112 层）⇒ ⇒ **只收模块级**。
+    ⚠️ 模块级的 `if`/`try` 里的 import **也算**（导入期会跑）
+    ⇒ 递归进它们，但不进 `FunctionDef`/`ClassDef`。
+    """
+    def walk_body(body):
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue                      # 惰性 import：导入期不跑
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                yield node
+                continue
+            for attr in ("body", "orelse", "finalbody", "handlers"):
+                sub = getattr(node, attr, None)
+                if isinstance(sub, list):
+                    yield from walk_body(sub)
+
+    return list(walk_body(tree.body))
+
+
 def _imports_local_module(tree: ast.Module) -> bool:
-    for node in ast.walk(tree):
+    for node in _module_level_imports(tree):
         mods: list[str] = []
         if isinstance(node, ast.Import):
             mods = [a.name for a in node.names]
@@ -225,4 +254,56 @@ def test_the_module_namespace_evaluation_can_actually_resolve_a_real_insert():
     assert str(_ROOT) in inserted, (
         f"★ 求值器解不出 `{py.name}` 的仓库根（只解出 {sorted(inserted)}）"
         f" ⇒ 上一条守卫的判决不可信"
+    )
+
+
+def test_no_script_imports_a_sibling_script_module_by_bare_name():
+    """★ 兄弟模块（`scripts/*.py`）**不许裸 import**。
+
+    ## 为什么这是一个真的坑（2026-10-21 实测）
+
+    `scripts/run_daily.py` 里写 `from signal_scope import ...` ⇒
+    **直接跑脚本时**成立（`sys.path[0]` 就是 `scripts/`），
+    **被当模块 import 时**崩（`sys.path[0]` 是仓根或 cwd ⇒ 那里没有 `scripts/`）
+    ⇒ ⇒ **同一个文件，两种跑法，两个结果** —— 而生产跑的是脚本、测试跑的是模块。
+
+    ⇒ **正确写法是包形式** `from scripts.signal_scope import ...`
+    ⇒ 仓根在 sys.path 上时它**两种跑法都成立**
+    （仓根已由 `run_daily.py` 自己插入；命名空间包不需要 `scripts/__init__.py`）。
+
+    ⚠️ 这条守卫**锚在 AST 的 import 节点上**，不是全文子串
+    —— 否则一个提到 `signal_scope` 的注释就会把它判成违规（第 13 条）。
+    """
+    offenders = []
+    for py in sorted(_SCRIPTS.rglob("*.py")):
+        try:
+            tree = ast.parse(py.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        # ⚠️ **形态 B 豁免**：仓里既定的合法形态是「插 `scripts/` + `from _bootstrap import …`」
+        # （见 `factor_width_mde.py:50`）⇒ 那种脚本的**裸**兄弟 import 是**对的**
+        # （`scripts/` 在 sys.path 上）⇒ 不许被本守卫判成违规
+        # —— 否则又是一条**过严的守卫**（第 112 层）。
+        if str(_SCRIPTS) in _inserted_paths(tree, _module_namespace(tree, py)):
+            continue
+        for node in _module_level_imports(tree):
+            mods: list[str] = []
+            if isinstance(node, ast.Import):
+                mods = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                mods = [node.module or ""]
+                if node.level:
+                    continue          # 相对 import：天然在同包内
+            for m in mods:
+                if not m or m.startswith("scripts."):
+                    continue
+                if m == "_bootstrap":
+                    continue          # 形态 B 的入口模块：仓里指定的 bootstrap
+                if (_SCRIPTS / f"{m}.py").exists():
+                    offenders.append(
+                        f"{py.relative_to(_ROOT)}：裸 import `{m}`（兄弟模块）"
+                        f" ⇒ 直接跑脚本时成立、被当模块 import 时崩"
+                        f" ⇒ 改成 `from scripts.{m} import …`（包形式，两种跑法都成立）")
+    assert not offenders, (
+        "★ 这些脚本用裸名 import 兄弟模块：\n   " + "\n   ".join(offenders)
     )
