@@ -1,0 +1,171 @@
+{
+ "generator": "scripts/collect_dividend_pit.py",
+ "day": "2026-10-21",
+ "shard": {
+  "i": 3,
+  "n": 5,
+  "root": "data/reports/dividend_pit/shard=3-of-5",
+  "announced_root": "data/reports/dividend_pit/announced",
+  "deterministic": "按**排序后的代码清单**连续切片 ⇒ 同一份清单 ⇒ 同一片 ⇒ 可复现、可续采",
+  "n_codes_in_shard": 1092,
+  "n_codes_in_pool": 5460
+ },
+ "scope": {
+  "n_codes": 1092,
+  "n_years": 8,
+  "years": [
+   2019,
+   2020,
+   2021,
+   2022,
+   2023,
+   2024,
+   2025,
+   2026
+  ],
+  "partial": false,
+  "n_calls": 8736,
+  "n_calls_meaning": "**本次**的调用数。续跑（单元账已满）时它接近 0；判「累计采了多少」看 `n_cells_attempted_cumulative`。",
+  "n_cells_attempted_cumulative": 8736,
+  "n_skipped_resume": 0,
+  "quota_stopped": false,
+  "max_calls_gate": 15000,
+  "seconds": 1401.936880350113,
+  "per_call_mean_s": 0.09506796696138033,
+  "per_call_mean_s_source": "this_run",
+  "per_call_max_s": 1.7986931800842285,
+  "serial_no_concurrency": true,
+  "sleep_between_calls_s": 0.05,
+  "two_phase": {
+   "A_daily_sweep": {
+    "what": "全池 × 当年预案公告年份（「当时读到的」那一层）",
+    "n_codes": 5460,
+    "years": [
+     2026
+    ],
+    "n_calls": 0,
+    "n_failed": 0,
+    "quota_stopped": false,
+    "root": "data/reports/dividend_pit/daily"
+   },
+   "B_shard_full_history": {
+    "what": "片 3/5 × 全部年份（事件库 + 修订轨迹）",
+    "n_codes": 1092,
+    "years": [
+     2019,
+     2020,
+     2021,
+     2022,
+     2023,
+     2024,
+     2025,
+     2026
+    ],
+    "n_calls": 8736,
+    "n_failed": 0,
+    "quota_stopped": false,
+    "root": "data/reports/dividend_pit/shard=3-of-5"
+   },
+   "total_calls_today": 8736,
+   "gate_shared": "两个阶段**共享**同一个配额闸 ⇒ 全天合计 ≤ --max-calls"
+  }
+ },
+ "coverage": {
+  "n_events": 16765,
+  "n_codes_with_events": 2847,
+  "cells_total": 8736,
+  "cells_ok": 8736,
+  "cells_failed": 0,
+  "cells_empty_no_dividend": 3805,
+  "cell_coverage_pct": 1.0,
+  "failed_cells": [],
+  "n_failed_codes": 0,
+  "n_codes_fully_covered": 1092,
+  "dup_dropped": 0,
+  "events_missing_announce_date": 0,
+  "events_missing_operate_date": 0,
+  "events_unparsable_cash": 0,
+  "events_no_cash_plan": 155,
+  "cash_status_counts": {
+   "parsed": 16610,
+   "no_cash": 155
+  },
+  "n_same_plan_amount_conflicts": 3,
+  "n_plan_identity_duplicates_left": 0
+ },
+ "pit_anchor": {
+  "field": "dividPlanAnnounceDate",
+  "field_cn": "预案公告日",
+  "rule": "plan_announce_date 存在 且 <= as_of",
+  "why": "分红有「预案公告日」与「除权除息日」两个日期；信号日 D 只应看得见 D 之前已公告的方案 ⇒ 锚必须是公告日。用除权日当锚会把整个方案往后推一个季度。",
+  "rejected_field": "dividPreNoticeDate（预披露日）",
+  "why_rejected": "源站没有任何字段能说明「金额在预披露日是否已公开」；实测样本里该列 74/74 全空。用它当锚 = 猜，而 PIT 错的方向是乐观的。"
+ },
+ "yield_caliber": {
+  "formula": "dividend_yield(D) = TTM_cash_ps(D) / close_unadjusted(D)",
+  "numerator": "近 12 个月内**已实施**（除权除息日落在 (D-365, D]）的每股**税前**现金分红合计；PIT 过滤：plan_announce_date <= D",
+  "numerator_source_field": "dividCashPsBeforeTax",
+  "tax": "**税前**。理由：(a) 源站区分税前/税后，而 A 股红利税是**持股期限**相关的差别税率（持股 ≤1 月 20%，1 月–1 年 10%，>1 年免征）⇒ 税后口径引入一个与股价无关的持股期变量；(b) 实测税后字段形如 '0.288或0.32'，**不可解析**；(c) 本项目是**选股**不是算到手多少钱。⚠️ 税前 ≠ 到手，引用时必须带这句话。",
+  "denominator": "**不复权** close（D 当天）。理由：分子是名义现金，后复权价被历史分红抬高 ⇒ 收益率被系统性压低；且与全市场口径（近 12 月分红总额 / 当前总市值）一致。",
+  "window": "滚动 365 天，按**除权除息日**归集；与方案所属会计年度无关",
+  "cross_year_rule": "「2025 年度方案在 2026 年公告」⇒ 除权日在 2026 年，于是它落在 2026 年的窗口、**不在 2025 年的窗口**。用财年分桶会把一条 2026 年除权的方案记到 2025 年，而 2025 年那天它还没公告 ⇒ 前视。",
+  "missing_data_rule": "三态：observed / collected_no_payout_in_window / not_collected。**缺数据一律 NaN，不许编 0** —编 0 会让它看起来像「零股息」⇒ 被动持有。"
+ },
+ "pit_self_proof": {
+  "ok": true,
+  "n_checked": 200,
+  "visible_at_anchor": 200,
+  "invisible_before_anchor": 200,
+  "failures": []
+ },
+ "cost_account": {
+  "this_shard": {
+   "n_codes": 1092,
+   "n_years": 8,
+   "n_calls": 8736,
+   "per_call_measured_s": 0.09506796696138033,
+   "sleep_between_calls_s": 0.05,
+   "per_call_total_s": 0.14506796696138033,
+   "estimated_seconds": 1267.3137593746185,
+   "estimated_hours": 0.3520315998262829,
+   "baostock_daily_call_cap_note": "baostock 有日调用上限且禁并发；本估算按**单日跑完全池**计算，若超过日上限必须跨日分批（每日一个 date= 分区，追加式，不冲突）。"
+  },
+  "full_pool": {
+   "n_codes": 5460,
+   "n_years": 8,
+   "n_calls": 43680,
+   "per_call_measured_s": 0.09506796696138033,
+   "sleep_between_calls_s": 0.05,
+   "per_call_total_s": 0.14506796696138033,
+   "estimated_seconds": 6336.568796873093,
+   "estimated_hours": 1.7601579991314147,
+   "baostock_daily_call_cap_note": "baostock 有日调用上限且禁并发；本估算按**单日跑完全池**计算，若超过日上限必须跨日分批（每日一个 date= 分区，追加式，不冲突）。"
+  },
+  "quota_gate": {
+   "max_calls_per_run": 15000,
+   "n_shards": 5,
+   "calls_per_shard": 8736,
+   "calls_daily_sweep": 5460,
+   "calls_total_per_day": 14196,
+   "fits_in_gate": true,
+   "why": "baostock 日限 5 万次、禁并发、超限黑名单 6 小时起；本机 18:30 的日行情采集要占 5,460 次 ⇒ 分红一次吃满 43,680 会逼近上限 ⇒ 一次超限就**打坏 D1 的每日交付** ⇒ **D1 的交付优先级高于数据采集** ⇒ 每日配额 ≤ 15,000。"
+  },
+  "decision": "按片采：每片 ≤ 15,000 次，跨日分批；**不许**一天吃完全池。"
+ },
+ "freshness_note": "本产物**没有**登记进 `aplus/provenance.py::DEFAULT_GENERATORS`（本轮不许改 `aplus/` 下任何模块）⇒ `provenance.freshness()`**不传 generator 会判 `unknown`**。⇒ 验新鲜度必须**显式传生成器**：`provenance.freshness(<本文件路径>, generator='scripts/collect_dividend_pit.py')`。🚨 `unknown` 与「数据坏了」长得一模一样 ⇒ 不传就等于没验。",
+ "two_layers": {
+  "event_layer": "`shard=*/date=*/financial.parquet` = 分片的全量历史（可回溯到 2021，但金额是**今天读到的** ⇒ 带修订风险）",
+  "announced_layer": "`announced/shard=*/date=*/financial.parquet` = **当天新公告**的方案（逐日忠实，只覆盖从今天起）",
+  "rule": "**两条腿不许混引**（第 7 层：两份各自都对的数不许混比）"
+ },
+ "what_this_cannot_prove": [
+  "本产物只证明**数据管道**的覆盖率与 PIT 可见性，不证明因子有效。",
+  "**不许**把石川书里的多空数（IVOL 等权月均超额 1.27%，t=8.64，cn_factor_lines.txt:9885）当成本项目的可达目标 —— 空腿散户做不了。",
+  "事件层读到的金额是「**今天读到的**」，不等于「当时公告的**」；「当时读到的」靠 `announced/` 那一层逐日累积（从今天起）。",
+  "覆盖率低 ⇒ 因子在**未覆盖的票**上是**缺数据**，不是零股息；低覆盖率下的横截面排名会被系统性偏置（银行/煤炭这类高股息票最容易被采到）。"
+ ],
+ "gaps": [
+  "本产物只覆盖**一片**；全池要等所有片跑完（进度见 `data/reports/dividend_pit/_shard_progress.jsonl`）。",
+  "分红 PIT 的**修订轨迹**从今天起才能观测（需要第二份快照）。"
+ ]
+}
