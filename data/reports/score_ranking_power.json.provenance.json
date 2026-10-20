@@ -1,13 +1,13 @@
 {
-  "code_sha": "206880d7a1339478eac0e7a2078f4e1a52d0ae83",
+  "code_sha": "07af4fe28d51912fc39cc3bb877a8bd511a660c8",
   "code_dirty": true,
   "code_file_sha256": "238e4ad2ffbd7e1abb41b513ca4cd71cc03ecbbab505519afc9a4472e873d85a",
-  "data_fp": "5460:1792234664.723070",
+  "data_fp": "5460:1792410494.603305",
   "data_dir": "data/master/daily",
   "generator": "scripts/score_ranking_power.py",
-  "stamped_at": "2026-10-17T13:51:38+00:00",
+  "stamped_at": "2026-10-20T07:19:45+00:00",
   "verdict": "NOT_PASSED_POWERLESS",
   "publish_allowed": false,
   "source_parquet": "data/reports/verification.parquet",
-  "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037"
+  "source_parquet_sha256": "bcc57847ffdd0118e02b26c7715e0902fde372bc3595cd9b40b1179e3c403e8a"
 }

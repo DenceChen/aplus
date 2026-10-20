@@ -23,9 +23,9 @@
   "turnover": {
     "observation_unit": "entry_date",
     "why_not_pred_date": "6 个 pred_date 只对应 4 个 entry_date；按 pred_date 相邻对算会把没有产生成交的配对算进去",
-    "n_pred_dates": 6,
-    "n_entry_dates": 4,
-    "n_rebalances": 3,
+    "n_pred_dates": 7,
+    "n_entry_dates": 5,
+    "n_rebalances": 4,
     "basket_size_per_rebalance": 10,
     "per_rebalance": [
       {
@@ -48,25 +48,32 @@
         "kept": 0,
         "bought": 10,
         "one_side_turnover": 1.0
+      },
+      {
+        "entry_date": "2026-10-16",
+        "held": 10,
+        "kept": 5,
+        "bought": 5,
+        "one_side_turnover": 0.5
       }
     ],
-    "turnover_point_estimate": 0.7333333333333334,
-    "turnover_min_measured": 0.6,
+    "turnover_point_estimate": 0.675,
+    "turnover_min_measured": 0.5,
     "turnover_max_measured": 1.0
   },
   "friction_by_turnover": {
     "at_measured_min": {
-      "one_side_turnover": 0.6,
-      "rebalances_per_year": 146.4,
-      "annual_friction_pct_of_capital": 0.8081280000000001,
-      "gross_excess_needed_pct_of_equity": 1.0081280000000001,
+      "one_side_turnover": 0.5,
+      "rebalances_per_year": 122.0,
+      "annual_friction_pct_of_capital": 0.67344,
+      "gross_excess_needed_pct_of_equity": 0.87344,
       "role": "判决臂（区间下端）"
     },
     "at_point_estimate": {
-      "one_side_turnover": 0.7333333333333334,
-      "rebalances_per_year": 178.93333333333334,
-      "annual_friction_pct_of_capital": 0.9877119999999999,
-      "gross_excess_needed_pct_of_equity": 1.1877119999999999,
+      "one_side_turnover": 0.675,
+      "rebalances_per_year": 164.70000000000002,
+      "annual_friction_pct_of_capital": 0.9091440000000001,
+      "gross_excess_needed_pct_of_equity": 1.1091440000000001,
       "role": "点估计·不进判决"
     },
     "at_measured_max": {
@@ -86,19 +93,19 @@
   },
   "required_turnover_for_target": 0.14849132810643859,
   "verdict": "SINGLE_SIDED_UNREACHABLE",
-  "verdict_text": "即便取实测最省的一档，年摩擦 80.81% 仍 ≥ 目标 20% ⇒ 交付形态单边不可达",
+  "verdict_text": "即便取实测最省的一档，年摩擦 67.34% 仍 ≥ 目标 20% ⇒ 交付形态单边不可达",
   "verdict_rule": "预注册 §3 D2 三档，顺序即判据；入参取实测换手区间的**下端**（D3）",
   "caliber": {
     "no_mde_needed": "🚨 本判决**不需要 MDE**：摩擦是已公布费率的确定性算术，换手是底稿计数，两者都不含随机成分 ⇒ 没有「样本量不足」这一格",
     "deterministic_is_not_reliable": "⚠️ 确定性 ≠ 可靠：失效模式是费率表错或换手测错，那两件事由守卫钉，不靠样本量兜底",
     "recommend_daily_is_not_trade_daily": "「每天推荐」≠「每天交易」：推荐可每日，持仓周期必须拉长。K=21 下同一只票的年摩擦是日频口径的 1/21",
-    "turnover_is_a_point_estimate": "换手点估计基于 3 次调仓，按 §3 D3 不进判决；判决只用实测区间",
+    "turnover_is_a_point_estimate": "换手点估计基于 4 次调仓，按 §3 D3 不进判决；判决只用实测区间",
     "two_denominators": "annual_friction_pct_of_capital 与 gross_excess_needed_pct_of_equity 🚨 **分母不同**，不得相除或并列成同一个「%」"
   },
   "what_this_cannot_prove": [
     "本产物**不回答**「策略毛超额能不能到 154%」——那是另一个量，且仓里实测多头毛超额天花板约 11%/年",
     "本产物**不回答**「K=21 能不能到 20%」——K=21 是另一个口径，其摩擦单列（见 friction_by_holding_period）",
-    "换手只有 3 次调仓的样本 ⇒ 点估计不可引用，只支持「区间下端已超过目标」这一个**形状**陈述"
+    "换手只有 4 次调仓的样本 ⇒ 点估计不可引用，只支持「区间下端已超过目标」这一个**形状**陈述"
   ],
   "friction_by_holding_period": {
     "K=1": {

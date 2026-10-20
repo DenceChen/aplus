@@ -1,22 +1,22 @@
 {
   "verdict": "POWERLESS",
-  "n_blocks": 4,
-  "n_pred_dates": 6,
-  "mean_excess_pct_per_block": 0.00715735587541434,
-  "sd_pct": 0.017926546287290845,
-  "se_pct": 0.008963273143645423,
-  "t_stat": 0.7985203352291678,
-  "mde_pct": 0.01756801536154503,
-  "abs_mean_over_mde": 0.4074083343005958,
-  "ci95_low_pct": -0.01041065948613069,
-  "ci95_high_pct": 0.024725371236959368,
+  "n_blocks": 5,
+  "n_pred_dates": 7,
+  "mean_excess_pct_per_block": 0.006586623737608636,
+  "sd_pct": 0.015577210026458755,
+  "se_pct": 0.006966340103790615,
+  "t_stat": 0.9454927034103083,
+  "mde_pct": 0.013654026603429605,
+  "abs_mean_over_mde": 0.4823942364338308,
+  "ci95_low_pct": -0.007067402865820968,
+  "ci95_high_pct": 0.02024065034103824,
   "ci_method": "normal_approx_z=1.96",
   "sensitivity_student_t": {
     "role": "sensitivity",
     "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；判决仍用 1.96",
-    "t_crit_95": 3.182,
-    "ci95_low_pct": -0.021363779267665396,
-    "ci95_high_pct": 0.035678491018494074
+    "t_crit_95": 2.776,
+    "ci95_low_pct": -0.012751936390514109,
+    "ci95_high_pct": 0.025925183865731383
   },
   "sensitivity_observation_unit": {
     "role": "sensitivity",
@@ -24,24 +24,24 @@
     "observation_unit": "pred_date",
     "observation_unit_vs_main": "entry_date 给更少的块但块间 sd 更小；pred_date 给更多的块但块间 sd 更大⇒ 「哪个更宽松」不能一句话回答，判决只用 R1",
     "verdict": "POWERLESS",
-    "n_blocks": 6,
-    "n_pred_dates": 6,
-    "n_entry_dates": 4,
-    "mean_excess_pct_per_block": 0.0025407895755066704,
-    "sd_pct": 0.024930604873619682,
-    "se_pct": 0.010177876819885287,
-    "t_stat": 0.24963846787205538,
-    "mde_pct": 0.019948638566975162,
-    "abs_mean_over_mde": 0.12736656524084458,
-    "ci95_low_pct": -0.01740784899146849,
-    "ci95_high_pct": 0.022489428142481834,
+    "n_blocks": 7,
+    "n_pred_dates": 7,
+    "n_entry_dates": 5,
+    "mean_excess_pct_per_block": 0.0027926332342036926,
+    "sd_pct": 0.022768176461956117,
+    "se_pct": 0.008605561817824335,
+    "t_stat": 0.32451492340911775,
+    "mde_pct": 0.016866901162935696,
+    "abs_mean_over_mde": 0.1655688384740397,
+    "ci95_low_pct": -0.014074267928732004,
+    "ci95_high_pct": 0.01965953439713939,
     "ci_method": "normal_approx_z=1.96",
     "sensitivity_student_t": {
       "role": "sensitivity",
       "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；本臂同样不用它判决",
-      "t_crit_95": 2.571,
-      "ci95_low_pct": -0.023626531728418405,
-      "ci95_high_pct": 0.028708110879431748
+      "t_crit_95": 2.447,
+      "ci95_low_pct": -0.018265176534012457,
+      "ci95_high_pct": 0.023850443002419845
     },
     "blocks": [
       {
@@ -79,6 +79,12 @@
         "excess_mean_pct": -0.009219179888668614,
         "n_legs": 10,
         "n_pred_dates": 1
+      },
+      {
+        "pred_date": "2026-10-15",
+        "excess_mean_pct": 0.004303695186385824,
+        "n_legs": 10,
+        "n_pred_dates": 1
       }
     ]
   },
@@ -104,6 +110,12 @@
     {
       "entry_date": "2026-10-15",
       "excess_mean_pct": -0.009219179888668614,
+      "n_legs": 10,
+      "n_pred_dates": 1
+    },
+    {
+      "entry_date": "2026-10-16",
+      "excess_mean_pct": 0.004303695186385824,
       "n_legs": 10,
       "n_pred_dates": 1
     }
@@ -133,5 +145,5 @@
     "this_does_not_answer": "「年化够不够 20%」——本样本量下任何外推年化都是无源之水；产物里刻意没有任何外推年化字段（R5）"
   },
   "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
-  "source_parquet_sha256": "6b9e8e04732d7bc5ad86a86ce52988a91fb416f7541200acb774c7dc324d7037"
+  "source_parquet_sha256": "bcc57847ffdd0118e02b26c7715e0902fde372bc3595cd9b40b1179e3c403e8a"
 }

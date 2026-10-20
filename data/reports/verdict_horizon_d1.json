@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-10-16T11:23:32",
+  "generated_at": "2026-10-20T17:24:07",
   "question": "D1（命中率）的判决需要多少个独立成交窗口",
   "source_artifact": "data/reports/hit_rate_diagnosis.json",
   "independent_unit": "成交窗口（exit_date 去重）——不是交易行",
   "criterion_A_bitwise_readback": {
     "unit": "🚨 下面 `recomputed` / `in_artifact` 都是**半宽 half_width**，**不是命中率**。命中率在 `p_display_field_for_reference`（= 产物里 `round(p,4)` 的显示值）——两者量纲差约 1.08 倍，曾被读成同一个数而误判「产物与复算矛盾」。",
     "formula": "half_width = 1.96 · √(p(1−p)/W)  （diagnose_hit_rate.py:200）",
-    "p_used": 0.5208333333333334,
+    "p_used": 0.5220588235294118,
     "p_used_derivation": "hits/n（**不是** `rate` 字段——那是 round(p,4) 的显示值）",
-    "p_display_field_for_reference": 0.5208,
-    "W_from_artifact": 3,
-    "recomputed": 0.565312,
-    "in_artifact": 0.565312,
+    "p_display_field_for_reference": 0.5221,
+    "W_from_artifact": 5,
+    "recomputed": 0.437843,
+    "in_artifact": 0.437843,
     "bitwise_equal": true,
     "rule": "不相等即抛错退出，不出结论"
   },
@@ -19,132 +19,136 @@
     "criterion_was_designed_after_seeing_the_numbers": true,
     "why_that_is_not_a_broken_preregistration": "判据 A 不是阈值判断而是口径确认：它只回答「产物那个数是不是这个公式算出来的」，没有通过/不通过判决臂 ⇒ 不存在「看到不利结论后改门槛」。反解形式 1/√W 复用 verdict_horizon.py::required_n（那里先于 D2 的数确立）。本文件无判决臂，不回答命中率是否优于 50%。",
     "this_file_has_no_judgement_arm": true,
-    "verdict_about_hit_rate_is_owned_by": "hit_rate_diagnosis.json::overall.ci95（现读数 [0.0, 1.0]，evidence=「薄（独立成交窗口 3 <10，聚类区间宽到不能当结论用）」）"
+    "verdict_about_hit_rate_is_owned_by": "hit_rate_diagnosis.json::overall.ci95（现读数 [0.0, 1.0]，evidence=「薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）」）"
   },
   "current_reading": {
-    "rate": 0.5208333333333334,
-    "n_rows": 96,
-    "n_windows": 3,
-    "row_to_window_inflation": 5.656854,
-    "inflation_factor_note": "5.656854 = √(96/3) ⇒ 行级区间被窗口叠加虚增 4.66 倍",
+    "rate": 0.5220588235294118,
+    "n_rows": 136,
+    "n_windows": 5,
+    "row_to_window_inflation": 5.215362,
+    "inflation_factor_note": "5.215362 = √(136/5) ⇒ 行级区间被窗口叠加虚增 4.22 倍",
     "window_rates": [
       0.3929,
       0.65,
-      0.75
+      0.75,
+      0.45,
+      0.6
     ],
     "window_sizes": [
       56,
       20,
+      20,
+      20,
       20
     ],
-    "first_window_absorbs": "56/96 行 （2026-10-13：10-09/10-10/10-11 三个信号日 与 10-12 落在同一笔成交）",
+    "first_window_absorbs": "56/136 行 （2026-10-13：10-09/10-10/10-11 三个信号日 与 10-12 落在同一笔成交）",
     "ci95": [
-      0.0,
-      1.0
+      0.0842,
+      0.9599
     ],
-    "ci95_clipped": true,
-    "evidence_grade": "薄（独立成交窗口 3 <10，聚类区间宽到不能当结论用）"
+    "ci95_clipped": false,
+    "evidence_grade": "薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）"
   },
   "horizon": {
     "law": "半宽 ∝ 1/√W（与 verdict_horizon.py 的 M ∝ 1/√n 同形式）",
     "judgement_arm_binomial": {
       "role": "产物口径的判据臂",
-      "se": 0.288424,
-      "half_width": 0.565312,
+      "se": 0.223389,
+      "half_width": 0.437843,
       "ladder": [
         {
           "target_half_width": 0.2,
           "W_required": 24,
           "years_required": 0.09836065573770492,
-          "multiple_of_now": 8.0
+          "multiple_of_now": 4.8
         },
         {
           "target_half_width": 0.1,
           "W_required": 96,
           "years_required": 0.39344262295081966,
-          "multiple_of_now": 32.0
+          "multiple_of_now": 19.2
         },
         {
           "target_half_width": 0.05,
           "W_required": 384,
           "years_required": 1.5737704918032787,
-          "multiple_of_now": 128.0
+          "multiple_of_now": 76.8
         },
         {
           "target_half_width": 0.02,
           "W_required": 2397,
           "years_required": 9.823770491803279,
-          "multiple_of_now": 799.0
+          "multiple_of_now": 479.4
         }
       ]
     },
     "control_arm_cluster": {
       "role": "⚠️ 对照臂，非判决臂。1.96·sd(窗口率)/√W，**不是**产物口径。",
-      "se": 0.106359,
-      "half_width": 0.208464,
+      "se": 0.065366,
+      "half_width": 0.128117,
       "ladder": [
         {
           "target_half_width": 0.2,
-          "W_required": 4,
-          "years_required": 0.01639344262295082,
-          "multiple_of_now": 1.3
+          "W_required": 3,
+          "years_required": 0.012295081967213115,
+          "multiple_of_now": 0.6
         },
         {
           "target_half_width": 0.1,
-          "W_required": 14,
-          "years_required": 0.05737704918032787,
-          "multiple_of_now": 4.7
+          "W_required": 9,
+          "years_required": 0.036885245901639344,
+          "multiple_of_now": 1.8
         },
         {
           "target_half_width": 0.05,
-          "W_required": 53,
-          "years_required": 0.21721311475409835,
-          "multiple_of_now": 17.7
+          "W_required": 33,
+          "years_required": 0.13524590163934427,
+          "multiple_of_now": 6.6
         },
         {
           "target_half_width": 0.02,
-          "W_required": 326,
-          "years_required": 1.3360655737704918,
-          "multiple_of_now": 108.7
+          "W_required": 206,
+          "years_required": 0.8442622950819673,
+          "multiple_of_now": 41.2
         }
       ],
-      "ratio_vs_judgement_arm": 2.712,
-      "overdispersion_or_under": "sd(窗口率)=0.184219 vs 二项预期 0.499566 ⇒ 欠离散（实际更集中 ⇒ 判据臂区间偏宽 ⇒ 反解出的 W 是上界）"
+      "ratio_vs_judgement_arm": 3.418,
+      "overdispersion_or_under": "sd(窗口率)=0.146163 vs 二项预期 0.499513 ⇒ 欠离散（实际更集中 ⇒ 判据臂区间偏宽 ⇒ 反解出的 W 是上界）"
     },
     "spread_between_arms": {
-      "ratio_at_0.05": 7.25,
-      "reading": "两个口径在目标半宽 0.05 处差 7.2 倍"
+      "ratio_at_0.05": 11.64,
+      "reading": "两个口径在目标半宽 0.05 处差 11.6 倍"
     },
     "per_target_bands": [
       {
         "target_half_width": 0.2,
         "judgement_arm_years": 0.09836065573770492,
-        "control_arm_years": 0.01639344262295082,
-        "control_judgement_ratio": 6.0
+        "control_arm_years": 0.012295081967213115,
+        "control_judgement_ratio": 8.0
       },
       {
         "target_half_width": 0.1,
         "judgement_arm_years": 0.39344262295081966,
-        "control_arm_years": 0.05737704918032787,
-        "control_judgement_ratio": 6.86
+        "control_arm_years": 0.036885245901639344,
+        "control_judgement_ratio": 10.67
       },
       {
         "target_half_width": 0.05,
         "judgement_arm_years": 1.5737704918032787,
-        "control_arm_years": 0.21721311475409835,
-        "control_judgement_ratio": 7.25
+        "control_arm_years": 0.13524590163934427,
+        "control_judgement_ratio": 11.64
       },
       {
         "target_half_width": 0.02,
         "judgement_arm_years": 9.823770491803279,
-        "control_arm_years": 1.3360655737704918,
-        "control_judgement_ratio": 7.35
+        "control_arm_years": 0.8442622950819673,
+        "control_judgement_ratio": 11.64
       }
     ]
   },
   "what_this_is_not": {
     "is_not_a_verdict": "本文件不判命中率是否优于 50%，那是 ci95 的事",
-    "is_not_a_point_estimate": "🚨 结论只能是**形状陈述**：W=3 时估 sd 只有 2 个自由度，其抽样误差远大于两臂之间那几倍差 ⇒ 两个口径在 W=3 时都不可信。任何单一年数都是把两个不可信口径之一当真，禁止引用。",
+    "is_not_a_point_estimate": "🚨 结论只能是**形状陈述**：W=5 时估 sd 只有 4 个自由度，其抽样误差远大于两臂之间那几倍差 ⇒ 两个口径在 W=5 时都不可信。任何单一年数都是把两个不可信口径之一当真，禁止引用。",
     "does_not_change_any_threshold": "不改 diagnose_hit_rate.py 的 THIN_WINDOWS / MDE_Z_SUM / NULL_RATE，不写 hit_rate_diagnosis.json",
     "contradiction_policy": "若与本文件结论相反，只加对照臂，不改判据臂"
   },
@@ -155,5 +159,5 @@
     "ratio": 16.8,
     "reading": "⚠️ 两个交付物都被独立观测数卡住，但卡的量不同、尺度差 17 倍以上。**不许**把它们合并成一句「样本不够」——D1 在 1~2 年尺度上可判决，D2 在人类寿命内不可判决。"
   },
-  "reading": "判据 A 逐位相等 = True；命中率 p=0.5208（n=96 行）只落在 **W=3 个成交窗口**上，CI95 [0.0, 1.0] 覆盖整个 [0,1]。\n半宽 ∝ 1/√W ⇒ 要收到半宽 0.05（判定 0.5208 与 0.5 相差 0.0208 的同量级）：\n  判据臂（二项 se，产物口径）需 W=384 ≈ 1.57 年；\n  对照臂（聚类 se）      需 W=53 ≈ 0.22 年；\n  ⇒ 同一目标半宽下两臂差 7.2 倍。\n🚨 **不给单一年数**：W=3 时估 sd 只有 2 个自由度，两臂都不可信。全部目标半宽下的跨度是 **0.02 ~ 9.8 年**（下界=对照臂最宽目标，上界=判据臂最宽目标）。\n对照 D2：判符号需 26.4 年 ⇒ **D1 与 D2 的可行性差一个数量级以上**。"
+  "reading": "判据 A 逐位相等 = True；命中率 p=0.5221（n=136 行）只落在 **W=5 个成交窗口**上，CI95 [0.0842, 0.9599] 覆盖整个 [0,1]。\n半宽 ∝ 1/√W ⇒ 要收到半宽 0.05（判定 0.5221 与 0.5 相差 0.0221 的同量级）：\n  判据臂（二项 se，产物口径）需 W=384 ≈ 1.57 年；\n  对照臂（聚类 se）      需 W=33 ≈ 0.14 年；\n  ⇒ 同一目标半宽下两臂差 11.6 倍。\n🚨 **不给单一年数**：W=5 时估 sd 只有 4 个自由度，两臂都不可信。全部目标半宽下的跨度是 **0.01 ~ 9.8 年**（下界=对照臂最宽目标，上界=判据臂最宽目标）。\n对照 D2：判符号需 26.4 年 ⇒ **D1 与 D2 的可行性差一个数量级以上**。"
 }
