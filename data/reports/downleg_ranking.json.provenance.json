@@ -1,12 +1,12 @@
 {
-  "code_sha": "07af4fe28d51912fc39cc3bb877a8bd511a660c8",
+  "code_sha": "eec415797b8437bec39d767e1793acb04dde5da5",
   "code_dirty": true,
-  "code_file_sha256": "e80bff8c13dc0b3e3b2df730a5acfc39cfc5f5f6f88812662a2fe13956f72f6b",
-  "data_fp": "5460:1792410494.603305",
+  "code_file_sha256": "f71fff155ecffd55a4859eaa05160423234f5232308bcdeb4690d5a4e13a38c1",
+  "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_downleg_ranking.py",
-  "stamped_at": "2026-10-20T08:26:53+00:00",
-  "source_parquet_sha256": "bcc57847ffdd0118e02b26c7715e0902fde372bc3595cd9b40b1179e3c403e8a",
+  "stamped_at": "2026-10-20T15:46:43+00:00",
+  "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a",
   "source_parquet_path": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
   "data_fp_is_NOT_my_input": "章里的 data_fp 是 master/daily 的目录指纹，本脚本没读它。判断输入有没有变，只认 source_parquet_sha256。",
   "role": "CONTROL_ARM_NOT_THE_VERDICT_ARM"

@@ -1,0 +1,39 @@
+D1 方向写反（跌腿判成「分越高命中率越高」）	scripts/measure_downleg_ranking.py
+    monotone = all(seq_by_score_asc[i] >= seq_by_score_asc[i + 1]
+=== 变异体 ===
+    monotone = all(seq_by_score_asc[i] <= seq_by_score_asc[i + 1]
+
+D2 三态塌成两态（POWERLESS 与 MEASURED 合并，丢掉「下一步该做什么」）	scripts/measure_downleg_ranking.py
+            else VERDICT_MEASURED)
+=== 变异体 ===
+            else VERDICT_POWERLESS)
+
+D3 检出力下限改成手打常数（不再是置换零分布的 95 分位）	scripts/measure_downleg_ranking.py
+        "null_abs_rho_q95_power_floor": q95,
+=== 变异体 ===
+        "null_abs_rho_q95_power_floor": 0.2348,
+
+D4 avoidance_list_publish_allowed 写死 True（闸门形同虚设）	scripts/measure_downleg_ranking.py
+        "avoidance_list_publish_allowed": kind == VERDICT_PASS,
+=== 变异体 ===
+        "avoidance_list_publish_allowed": True,
+
+D5 闸门臂从 down 换成 up（把跌腿的判决拿到涨腿上）	scripts/measure_downleg_ranking.py
+GATE_ARM = "down"
+=== 变异体 ===
+GATE_ARM = "up"
+
+D6 四分位从组内切成全局（把「哪天」混进「分数高」，第 22 层）	scripts/measure_downleg_ranking.py
+    q = scored.groupby(["pred_date", "direction"], group_keys=False)[score_col].apply(
+=== 变异体 ===
+    q = scored.groupby(["direction"], group_keys=False)[score_col].apply(
+
+D7 缺 entry_date 时回落成 pred_date（显式缺失被悄悄换成同形的数）	scripts/measure_downleg_ranking.py
+"role": "control_only_not_the_verdict_arm",
+            "available": False,
+            "unavailable_reason": (
+=== 变异体 ===
+"role": "control_only_not_the_verdict_arm",
+            "available": True,
+            "n_groups_fallback_to_pred_date": int(scored["pred_date"].nunique()),
+            "unavailable_reason": (

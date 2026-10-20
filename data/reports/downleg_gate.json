@@ -1,0 +1,179 @@
+{
+  "prereg": "docs/PREREG_DOWNLEG_GATE_2026-10-20.md",
+  "role": "跌腿的**闸门产物**（G4 镜像）。⚠️ **不是涨腿的判据臂** —— 涨腿的闸门是 `scripts/score_ranking_power.py`（`GATE_ARM=\"up\"`），产物是 `data/reports/score_ranking_power.json`。本文件判的是 D1 交付物的另一半（每天 10 只跌股）。",
+  "arm": "down",
+  "score_col": "score",
+  "verdict": "NOT_PASSED_POWERLESS",
+  "verdict_reason": "跌腿：命中率未随 score 升高而下降；点二列 ρ=-0.1177（跌腿期望符号为负），置换 p=0.4095，零分布 95 分位（检出力下限）=0.1660 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许当回避清单发布，先攒前瞻期",
+  "avoidance_list_publish_allowed": false,
+  "publish_allowed_field_note": "⚠️ 本产物的 `avoidance_list_publish_allowed` **不是**涨腿臂的 `publish_allowed`：前者是「允许作为『**该回避/该减仓**』清单发布」，后者是「允许作为『**该买**』清单发布」⇒ 两者语义不同，**不许混用、也不许互相引用**。",
+  "monotone_direction": "decreasing",
+  "monotone_direction_means": "🚨 `decreasing` 指的是：**命中率随 `score` 升高而下降**（score ↑ ⇒ 「命中『它真的跌了』」的概率 ↓）。它**不是**指「Q 编号的序列递减」—— Q1 是**最高分**（见 `quartile_label_convention`），所以在 Q 标签上这条规则读作**非递减**（`Q1 <= Q2 <= Q3 <= Q4`）。⇒ 🚨 这与涨腿臂 `all(seq[i] <= seq[i+1])` 的**代数形式逐字相同、含义相反** ⇒ 两边都只读这个字段，**不许靠代码长得像去推断方向**。",
+  "quartile_label_convention": "Q1 = 组内最高分, Q4 = 组内最低分（与 score_ranking_power._within_group_quartile 同源）",
+  "monotone_test": "按 score 升序的命中率序列**非递增**（decreasing：score ↑ ⇒ 命中率 ↓）；在 Q 标签上（Q1=最高分）等价于 hit_rate(Q1) <= hit_rate(Q2) <= hit_rate(Q3) <= hit_rate(Q4)",
+  "mirror_of_up_arm": "涨腿的 `hit` = 真的**涨**（期望 ρ 为正），跌腿的 `hit` = 真的**跌**（期望 ρ 为**负**）⇒ 同一件事（排序力）在两个臂上**符号相反** ⇒ 涨腿臂的守卫**不能直接套用**（第 143 层：口径被更正后，引用它的每一处都没有留下标记）。",
+  "up_arm_orientation_note": "🚨 涨腿臂 `scripts/score_ranking_power.py` 的判定是 `all(seq[i] <= seq[i+1])`，`seq` 按 Q1(=最高分)→Q4(=最低分) 排 ⇒ 它判的是「**分越低命中率越高**」；而 `predict.py:271`（分越高越看涨）+ `verify.py:94-95`（up 的 `hit`=真涨）推出涨腿的期望是「**分越高命中率越高**」⇒ **两者方向相反**。⇒ 本产物**不复制**涨腿臂的判据臂，只复用它的**统计实现**（同源）。⚠️ 今天的**数字**没有因此翻转：涨腿臂当前的 Q1→Q4 序列在**两个方向下都不单调** ⇒ 判决 `NOT_PASSED_POWERLESS` 在两个口径下**相同**（实测见 `up_arm_cross_reference` 的两个单调标志）。🚨 但那是**运气**不是保险：若将来涨腿臂只在一个方向下单调，那枚 PASS 会是一枚**反向的绿灯** ⇒ 已登记为欠账（`docs/PREREG_DOWNLEG_GATE_2026-10-20.md` §9 第 4 条）。",
+  "criterion": {
+    "id": "G4-mirror",
+    "source": "docs/PREREG_DOWNLEG_GATE_2026-10-20.md §2",
+    "rule": "按 score 升序的命中率序列**非递增**（decreasing：score ↑ ⇒ 命中率 ↓）；在 Q 标签上（Q1=最高分）等价于 hit_rate(Q1) <= hit_rate(Q2) <= hit_rate(Q3) <= hit_rate(Q4)（分段单调即可，非严格）",
+    "monotone_direction": "decreasing",
+    "alpha": 0.05,
+    "n_perm": 20000,
+    "seed": 42,
+    "p_formula": "(b+1)/(B+1)  —— 不用 b/B，否则零假设下会报 p=0",
+    "power_floor": "零分布 95 分位（同一套置换，与涨腿臂同源）",
+    "statistic": "点二列相关（score ↔ 命中指示变量）",
+    "reused_from": "scripts/score_ranking_power.py 的 `_permutation_p` / `_point_biserial` / `_within_group_quartile` / `_groups_by`（**只 import，不改它一个字**）⇒ 同源才有可比性。"
+  },
+  "measurement": {
+    "arm": "down",
+    "score_col": "score",
+    "n_rows_total": 80,
+    "n_rows_judgeable": 77,
+    "n_rows_dropped_undecidable": 3,
+    "dropped_breakdown": {
+      "flat": 3
+    },
+    "n_rows_score_missing": 0,
+    "n_rows_scored": 77,
+    "n_independent_pred_dates": 8,
+    "independence_caliber": {
+      "verdict_arm_unit": "pred_date（判决臂，预注册 G4 口径，一个字未改）",
+      "control_arm_unit": "entry_date（**对照臂，不是判决臂**：更接近「独立成交窗口」的真身）",
+      "n_pred_dates": 8,
+      "n_entry_dates": 6,
+      "pred_to_entry_dates": {
+        "2026-10-09": [
+          "2026-10-12"
+        ],
+        "2026-10-10": [
+          "2026-10-12"
+        ],
+        "2026-10-11": [
+          "2026-10-12"
+        ],
+        "2026-10-12": [
+          "2026-10-13"
+        ],
+        "2026-10-13": [
+          "2026-10-14"
+        ],
+        "2026-10-14": [
+          "2026-10-15"
+        ],
+        "2026-10-15": [
+          "2026-10-16"
+        ],
+        "2026-10-16": [
+          "2026-10-19"
+        ]
+      },
+      "n_entry_dates_claimed_by_several_pred_dates": 1,
+      "note": "⚠️ 同一个 `entry_date` 出现在多个 `pred_date` 下 ⇒ 那些天的名单押的是**同一个成交窗口**，按 `pred_date` 数会**虚高独立事件数**。误差方向**不是定律**：分组变粗 ⇒ 置换自由度**大体**更大 ⇒ `q95` 更高，**但方向由组大小分布决定，不是组数的单调函数**（实测两臂比值方向相反）⇒ 逐臂实测比值见 `_stats.control_arm_entry_date.q95_over_verdict_arm_q95`。"
+    },
+    "quartile_rule": "组内（pred_date × direction）按 score 名次切 4 段",
+    "quartile_label_convention": "Q1 = 组内最高分, Q4 = 组内最低分（与 score_ranking_power._within_group_quartile 同源）",
+    "monotone_direction": "decreasing",
+    "monotone_test": "按 score 升序的命中率序列**非递增**（decreasing：score ↑ ⇒ 命中率 ↓）；在 Q 标签上（Q1=最高分）等价于 hit_rate(Q1) <= hit_rate(Q2) <= hit_rate(Q3) <= hit_rate(Q4)",
+    "quartiles": {
+      "Q1": {
+        "n": 23,
+        "hit_rate": 0.6086956521739131
+      },
+      "Q2": {
+        "n": 16,
+        "hit_rate": 0.625
+      },
+      "Q3": {
+        "n": 23,
+        "hit_rate": 0.5217391304347826
+      },
+      "Q4": {
+        "n": 15,
+        "hit_rate": 0.6
+      },
+      "_stats": {
+        "hit_rate_sequence_q1_to_q4": [
+          0.6086956521739131,
+          0.625,
+          0.5217391304347826,
+          0.6
+        ],
+        "hit_rate_sequence_by_score_ascending": [
+          0.6,
+          0.5217391304347826,
+          0.625,
+          0.6086956521739131
+        ],
+        "monotone_decreasing_in_score": false,
+        "monotone_direction": "decreasing",
+        "monotone_test": "按 score 升序的命中率序列**非递增**（decreasing：score ↑ ⇒ 命中率 ↓）；在 Q 标签上（Q1=最高分）等价于 hit_rate(Q1) <= hit_rate(Q2) <= hit_rate(Q3) <= hit_rate(Q4)",
+        "point_biserial_rho": -0.11774517790006403,
+        "expected_rho_sign": "negative",
+        "permutation_p_two_sided": 0.4095295235238238,
+        "null_abs_rho_q95_power_floor": 0.16598722383395212,
+        "detectable_at_alpha05": false,
+        "control_arm_entry_date": {
+          "role": "control_only_not_the_verdict_arm",
+          "available": true,
+          "group_by": "entry_date（独立**成交窗口**；判决臂按 pred_date）",
+          "n_groups": 6,
+          "n_rows_unassigned": 0,
+          "permutation_p_two_sided": 0.36608169591520423,
+          "null_abs_rho_q95_power_floor": 0.16228054900312733,
+          "detectable_at_alpha05": false,
+          "q95_over_verdict_arm_q95": 0.9776689148405011,
+          "note": "分组变粗 ⇒ 组内置换自由度**大体**更大 ⇒ `q95` 更高 ⇒ 更容易判 `POWERLESS`。⚠️ **但这不是定律**：方向由组大小分布决定，不是组数的单调函数（涨腿臂实测两臂比值方向相反）⇒ 读这一个数要看同臂的 `q95_over_verdict_arm_q95`，不许当成单向保证。"
+        }
+      }
+    }
+  },
+  "up_arm_cross_reference": {
+    "role": "cross_reference_only_NOT_a_second_source_of_truth",
+    "available": true,
+    "source_of_truth": "涨腿的判决、ρ、置换 p、检出力下限在 `data/reports/score_ranking_power.json`（`scripts/score_ranking_power.py`）⇒ 本块**不重复**它们，只报分位序列与方向标志。",
+    "quartile_hit_rates_q1_to_q4": [
+      {
+        "quartile": "Q1",
+        "n": 24,
+        "hit_rate": 0.7083333333333334
+      },
+      {
+        "quartile": "Q2",
+        "n": 16,
+        "hit_rate": 0.375
+      },
+      {
+        "quartile": "Q3",
+        "n": 22,
+        "hit_rate": 0.4090909090909091
+      },
+      {
+        "quartile": "Q4",
+        "n": 16,
+        "hit_rate": 0.625
+      }
+    ],
+    "monotone_increasing_in_score": false,
+    "monotone_decreasing_in_score": false
+  },
+  "executable": {
+    "directly_executable": false,
+    "why": "石川《因子投资方法与实践》`data/books/cn_factor_lines.txt:768` 逐字：「不合理考虑做空限制，也会高估因子的收益。」⇒ A 股散户融不到券 ⇒ 跌腿不能直接空掉。",
+    "honest_boundary": "⚠️「5 万拿不到融资融券额度」是**外部常识，本仓未核实**（`grep` 全仓融券相关代码命中 0）⇒ 不许当已验证前提引用，只当口径声明。",
+    "so_the_only_useful_product_is": "「这 10 只不该买 / 该从持仓里减掉」，而**不是**「空掉这 10 只」。⇒ 跌腿的价值必须由**信息价值**证明，而不由可执行性假设。"
+  },
+  "s2_status": {
+    "role": "止血决定的现状（本闸门不解除它）",
+    "decision": "S2 撤掉逆大盘臂：`docs/TODO_reverse_scoring_2026-10-15.md` §2.1 记「`down` 臂在逆大盘时命中率 27.3%（p=0.0034）」⇒ 已停用。",
+    "what_was_stopped": "🚨 **停用的是「拿它当发布闸门」这件事，不是「停止出单」** —— 跌腿每天仍在出单（底稿里每天 10 只 `direction=\"down\"`）。",
+    "this_gate_does_not_measure_it": "⚠️ 本闸门测的是**整体**四分位单调性，**不测**「逆大盘时」那个条件 ⇒ **即使 PASS 也不解除 S2**。"
+  },
+  "what_this_cannot_prove": [
+    "**不能**把 `NOT_PASSED_POWERLESS` 读成「跌腿没有预测力」——判据臂只有 8 个**出单日**，而真实独立成交窗口 **6** 个（出单日≠成交日，见 `independence_caliber`）；「测不到」与「被证伪」是两件事",
+    "**不能**用条目数 80 当独立观测数 —— 它是 8 个出单日× 每臂 10 只，而那 8 个出单日只对应 **6** 个成交窗口",
+    "**不能**把跌腿当成可做空的收益来源 —— 石川《因子投资方法与实践》`data/books/cn_factor_lines.txt:768` 逐字「不合理考虑做空限制，也会高估因子的收益。」⇒ 跌腿的价值必须由**信息价值**证明，而不由可执行性假设（见 `executable` 块）",
+    "**本产物不是涨腿的判据臂** —— 涨腿的上线闸门是 `scripts/score_ranking_power.py`（`GATE_ARM=\"up\"`），它的产物是 `data/reports/score_ranking_power.json`；本文件判的是 D1 交付物的**另一半**（每天 10 只跌股）"
+  ]
+}

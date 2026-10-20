@@ -36,21 +36,28 @@
         "gross_mean": -0.019373269731459097,
         "market_mean": -0.0018174558909185175,
         "n_legs": 10
+      },
+      {
+        "entry_date": "2026-10-19",
+        "excess_mean": -0.04403466809611783,
+        "gross_mean": -0.033936053344763364,
+        "market_mean": 0.010098614751354469,
+        "n_legs": 10
       }
     ],
     "stats": {
-      "n": 5,
-      "point": -0.006150293176382061,
-      "sd": 0.007955598966510238,
-      "se": 0.0035578520181687927,
-      "t_stat": -1.728653452975142,
-      "mde": 0.0069733899556108335,
-      "ratio": 0.8819660474362969,
-      "lo": -0.013123683131992895,
-      "hi": 0.0008230967792287724,
-      "t_crit": 2.776,
-      "sens_lo": -0.01602689037881863,
-      "sens_hi": 0.0037263040260545072
+      "n": 6,
+      "point": -0.01246435566300469,
+      "sd": 0.017024616132019006,
+      "se": 0.006950270431700264,
+      "t_stat": -1.7933626878969513,
+      "mde": 0.013622530046132517,
+      "ratio": 0.9149809632127303,
+      "lo": -0.026086885709137204,
+      "hi": 0.0011581743831278277,
+      "t_crit": 2.571,
+      "sens_lo": -0.03033350094290607,
+      "sens_hi": 0.00540478961689669
     },
     "verdict": "POWERLESS"
   },
@@ -106,32 +113,42 @@
         "lowest_gross_mean": -0.00976218047185753,
         "highest_gross_mean": -0.028984358991060666,
         "spread": -0.01922217851920314
+      },
+      {
+        "entry_date": "2026-10-19",
+        "n_legs": 10,
+        "n_each_half": 5,
+        "lowest_score_mean": -7.787018460984788,
+        "highest_score_mean": -5.3323532132841445,
+        "lowest_gross_mean": -0.05364845048383489,
+        "highest_gross_mean": -0.014223656205691836,
+        "spread": 0.03942479427814305
       }
     ],
     "stats": {
-      "n": 5,
-      "point": -0.0029309009575718137,
-      "sd": 0.010259338945262663,
-      "se": 0.0045881158571636615,
-      "t_stat": -0.6388027348951197,
-      "mde": 0.008992707080040777,
-      "ratio": 0.32591976270159173,
-      "lo": -0.01192360803761259,
-      "hi": 0.006061806122468963,
-      "t_crit": 2.776,
-      "sens_lo": -0.015667510577058136,
-      "sens_hi": 0.009805708661914509
+      "n": 6,
+      "point": 0.004128381581713997,
+      "sd": 0.019575598286944378,
+      "se": 0.007991704535452369,
+      "t_stat": 0.5165833600829326,
+      "mde": 0.015663740889486643,
+      "ratio": 0.2635629388178228,
+      "lo": -0.011535359307772646,
+      "hi": 0.01979212247120064,
+      "t_crit": 2.571,
+      "sens_lo": -0.016418290778934044,
+      "sens_hi": 0.024675053942362038
     },
     "verdict": "POWERLESS"
   },
-  "blocks_needed_to_leave_powerless": 1,
-  "role": "⚠️ **对照臂 / 诊断，不是判决臂。** 判决臂是 `scripts/score_ranking_power.py`（GATE_ARM=\"up\"），本文件不改它一字。这里判的是 D1 交付物的**另一半**（每天 10 只跌股），此前从未被测过。",
+  "blocks_needed_to_leave_powerless": 0,
+  "role": "⚠️ **对照臂 / 诊断，不是判决臂。** 涨腿的判决臂是 `scripts/score_ranking_power.py`（GATE_ARM=\"up\"），本文件不改它一字；跌腿自己的闸门是**另一个产物** `data/reports/downleg_gate.json`（同脚本写出，G4 镜像，预注册 `docs/PREREG_DOWNLEG_GATE_2026-10-20.md`）。这里判的是 D1 交付物的**另一半**（每天 10 只跌股），此前从未被测过。",
   "caliber": {
     "observation_unit": "一个成交窗口（entry_date）",
     "why_not_pred_date": "同一天下的多张名单映射到同一个 entry_date；按 pred_date 切会把同一个成交窗口数成多个独立观测。",
-    "n_windows": 5,
+    "n_windows": 6,
     "windows_per_year_report_only": 244,
-    "years_report_only": 0.020491803278688523,
+    "years_report_only": 0.02459016393442623,
     "years_is_NOT_a_gate": "⚠️ years **不参与判决**。若用 `years >= 1.0` 当结构闸门，它要求 244 个窗口 ⇒ 永久压过 MIN_BLOCKS=6 ⇒ 判决永久 POWERLESS⇒ 那等于宣布「跌腿不可测」，而「测不到」只等于缺样本。守卫 test_the_years_field_cannot_reach_the_verdict_branch 钉住这一条。",
     "sign_convention": "排序力臂的 `spread = 最高一半的毛收益 − 最低一半的毛收益`。⚠️ **spread > 0 ⟺ 有排序力** —— 因为生产发的是**分数最低**的（`aplus/predict.py:276` 的 `ranked.tail(bottom_n)`），而打分器「分越高越看涨」⇒ 越负的才越该跌。",
     "excess_convention": "超额臂的 `excess = gross_pct − market_pct`，**> 0 ⟺ 跌腿比市场跌得多**（不是「跌腿在赚钱」）。",
@@ -147,7 +164,7 @@
     "honest_boundary": "⚠️「5 万拿不到融资融券额度」是**外部常识，本仓未核实**（`grep` 全仓融券相关代码命中 0）⇒ 不许当已验证前提引用，只当口径声明。",
     "so_the_only_useful_product_is": "「这 10 只不该买 / 该从持仓里减掉」，而**不是**「空掉这 10 只」。⇒ 跌腿的价值必须由**信息价值**证明，而不由可执行性假设。"
   },
-  "verdict_about_downleg": "样本不足（5 个成交窗口 < 6），不给方向；还差 1 个成交窗口才开判。",
+  "verdict_about_downleg": "排序力判决：POWERLESS（6 个窗口）。",
   "structurally_the_gate_is": 6,
   "overlap_check": {
     "same_pred_date_same_code_in_both_legs": 0,
