@@ -201,6 +201,20 @@ def main() -> int:
     if args.status_only:
         dates = []
     else:
+        # 🚨 **写库锁在场 ⇒ 此刻主库正在被改写 ⇒ 面板会是「撕裂读」**。
+        #   撕裂读不是损坏：parquet 读到的是**写了一半**的那一份 ⇒
+        #   算出来的窗口读数是错的 ⇒ 而它会被**写进前瞻台账** ⇒
+        #   前瞻证据被静默污染（这正是「两个采集器写同一路径」那一族）。
+        #   ⇒ 宁可不判：今晚跳过，等下一班。
+        #   ⚠️ 与 `run_daily.py::predict_block_reason` **同一把尺子**
+        #   （同一个 `bootstrap.lock` 文件 ⇒ 「锁」不指两件事）。
+        #   ⇒ 定时任务在 21:00 跑，而守卫补跑可能到 21:12 ⇒
+        #   launchd 另配 22:30 的第二班 ⇒ 撞上就跳，不丢夜。
+        _lock = args.data_root / "bootstrap.lock"
+        if _lock.exists():
+            print(f"⚠️ 写库锁在场（{_lock}）⇒ 主库正在被改写 ⇒ "
+                  f"此刻建面板会读到**撕裂读** ⇒ 本轮不判（等下一班）")
+            return 0
         # 只为「前瞻窗口」建面板：窗口从最早的注册日之后开始，
         # 数据量远小于全历史赛马，跑得快很多。
         earliest = min(r["registered_on"] for r in rows if r.get("registered_on"))
