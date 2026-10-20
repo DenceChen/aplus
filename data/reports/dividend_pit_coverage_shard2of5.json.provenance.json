@@ -1,0 +1,18 @@
+{
+  "code_sha": "fe02f5f865f4b6605c7c5762acbb01ef8f6ce11b",
+  "code_dirty": true,
+  "code_file_sha256": "30aca133a43190d0eb966517feeaefd57c4d76238b2d0fd1879884ae2dff800f",
+  "data_fp": null,
+  "data_dir": "data/reports/dividend_pit",
+  "generator": "scripts/collect_dividend_pit.py",
+  "stamped_at": "2026-10-20T21:29:57+00:00",
+  "day": "2026-10-21",
+  "shard": "2/5",
+  "n_codes": 1092,
+  "n_years": 8,
+  "n_calls": 8736,
+  "quota_stopped": false,
+  "max_calls_gate": 15000,
+  "n_events": 11216,
+  "data_fp_caliber": "本脚本的输入是**抓取当时的 baostock 源站**；章里的 data_fp 描述的是它**写入**的分红 PIT 存储，不是它读进来的东西。价格侧（不复权 close）本轮**没有**参与计算。⚠️ `data_fp` 实测为 `null`：本存储是**分区式**（parquet 在 `date=*/` 子目录里），而 `provenance.data_fingerprint` 只扫一层 `*.parquet` ⇒ 它的内容摘要改由 `aplus.vintage` 的**追加式 manifest** 承担（`data/reports/dividend_pit/shard=*/_manifest.jsonl::sha256`），并由 `vintage.verify_integrity()` 逐份核对。"
+}

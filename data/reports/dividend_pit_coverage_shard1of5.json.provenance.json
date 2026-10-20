@@ -1,11 +1,11 @@
 {
-  "code_sha": "113ab16faba4753cd0348b791160d917dc45d7b7",
+  "code_sha": "0357a7f786d35a95361a6608a1a17505bfd366e0",
   "code_dirty": true,
   "code_file_sha256": "30aca133a43190d0eb966517feeaefd57c4d76238b2d0fd1879884ae2dff800f",
   "data_fp": null,
   "data_dir": "data/reports/dividend_pit",
   "generator": "scripts/collect_dividend_pit.py",
-  "stamped_at": "2026-10-20T19:33:10+00:00",
+  "stamped_at": "2026-10-20T20:55:33+00:00",
   "day": "2026-10-21",
   "shard": "1/5",
   "n_codes": 1092,
