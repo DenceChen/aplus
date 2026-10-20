@@ -17,11 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 
 from aplus.alloc import build_allocation
-from aplus.pipeline import SyncPipeline
+from aplus.pipeline import AllSourcesFailed, SyncPipeline
 from aplus.predict import build_predictions, filter_universe
 from aplus.reports import (
     OUTCOME_FAILED,
     OUTCOME_OK,
+    OUTCOME_UPSTREAM_UNAVAILABLE,
     append_verification,
     build_run_status,
     current_signal_id,
@@ -145,6 +146,96 @@ def reduce_run_status(steps: dict[str, str]) -> str:
     return "ok" if all(v == "ok" for v in steps.values()) else "partial"
 
 
+# ── 采集源可用性（2026-10-21）──────────────────────────────────────
+# 🚨 2026-10-20 实测**断供一整天**：000001.SZ 的拉取超时（akshare 打印
+# 「服务器连接失败 / timed out / 接收数据异常」）⇒ 探针分支把它读成
+# 「无新数据（非交易日或数据未就绪）」⇒ **全市场跳过更新** ⇒ 闸门判
+# WORKDAY_NOT_IN_STORE ⇒ rc=2 ⇒ **当天没出单**（而当晚仓里其实已经有
+# 5207 只的当日数据，只是没人再去拉一次）。
+#
+# ⇒ 三处一起改（**缺一处还是断供**）：
+#   ① 探针**多票**（不许单票定全池）—— 形状 18/23 的采集版
+#   ② 探针失败**重试**（网络抖动是瞬时的，实测 3 次里通常第 2 次就好）
+#   ③ 「源抛异常」与「源返回空帧」**结构化**分开：
+#      前者 = **数据源不可用** ⇒ rc=3（可重试，且要有人来看）
+#      后者 = 今天没有这一天的数据 ⇒ 交给交易日闸去判「是不是交易日」
+UPDATE_UPSTREAM_UNAVAILABLE = "upstream_unavailable"
+UPDATE_NO_NEW_DATA = "no_new_data"
+UPDATE_UP_TO_DATE = "up_to_date"
+UPDATE_DONE = "updated"
+
+#: 探针票的**候选数**。🚨 一只票的网络超时不该决定另外 5459 只的命运。
+PROBE_CANDIDATES = 5
+#: 探针重试次数与间隔（秒）。
+PROBE_RETRIES = 3
+PROBE_RETRY_SLEEP = 20.0
+
+
+def _spread_probe_files(files, n=PROBE_CANDIDATES):
+    """从池子里**分散**取 n 只探针票（保序、去重）。
+
+    🚨 不取前 n 只：它们可能同属一个板块、同批上市、同一状态 ⇒
+    一只挂了就整批挂 ⇒ 「分散」是这里唯一有意义的取法。
+    """
+    files = list(files)
+    if len(files) <= n:
+        return files
+    idx = sorted({round(i * (len(files) - 1) / (n - 1)) for i in range(n)})
+    return [files[i] for i in idx]
+
+
+def _probe_market(pipeline, probes, today):
+    """探针：**多票** + **重试** ⇒ `(status, detail, advanced_codes)`。
+
+    `advanced_codes` = 探针里**真的把数据拉到今天**的那些票（`set`）。
+    ⇒ 上层据此知道哪些票已经更新过，不必再拉一遍（也不必把它们算成已完成
+    而其实没更新 —— 那正是「一只票定全池」的另一种形态）。
+
+    🚨 **判据是「数据有没有前进」，不是「调用有没有抛异常」**：
+    非交易日拉取会返回含旧日期的**非空**帧（≠ 有新数据）⇒ 必须实读推进后的末根。
+    """
+    advanced: set[str] = set()
+    upstream_errors: list[str] = []
+    for attempt in range(1, PROBE_RETRIES + 1):
+        advanced = set()
+        upstream_errors = []
+        for path in probes:
+            code = path.stem
+            last = _safe_last_date(pd.read_parquet(path))
+            if last is None:
+                continue
+            if last >= today:
+                advanced.add(code)
+                return UPDATE_UP_TO_DATE, f"{code} 已是最新（{last}）", advanced
+            try:
+                pipeline.sync_daily(code, last, today)
+            except AllSourcesFailed as exc:
+                if not exc.all_empty:
+                    # 🚨 **结构化**区分：源抛了异常 ⇒ 数据源不可用 ⇒ 该重试
+                    upstream_errors.append(f"{code}: {exc.errors}")
+                continue
+            except RuntimeError as exc:  # noqa: BLE001 — 其它形态的源失败
+                upstream_errors.append(f"{code}: {exc!r}")
+                continue
+            new_last = _safe_last_date(pd.read_parquet(path))
+            if new_last and new_last > last:
+                advanced.add(code)
+        if advanced:
+            return UPDATE_DONE, f"{len(advanced)} 只探针票已前进", advanced
+        if upstream_errors:
+            if attempt < PROBE_RETRIES:
+                print(f"[update] 探针数据源不可用（第 {attempt}/{PROBE_RETRIES} 次），"
+                      f"{PROBE_RETRY_SLEEP:.0f}s 后重试：{upstream_errors[0][:140]}")
+                time.sleep(PROBE_RETRY_SLEEP)
+                continue
+            return (UPDATE_UPSTREAM_UNAVAILABLE,
+                    "；".join(upstream_errors)[:400], advanced)
+        # 所有探针都返回空帧 ⇒ 今天没有这一天的数据（非交易日 / 上游未就绪）
+        return (UPDATE_NO_NEW_DATA,
+                f"{len(probes)} 只探针票全部无新数据", advanced)
+    return UPDATE_UPSTREAM_UNAVAILABLE, "；".join(upstream_errors)[:400], advanced
+
+
 def step_incremental_update(store, sources, today, data_root):
     # **真正持锁**，不是 exists() 预检查。这个函数自己要写 5460 个 parquet，
     # 而检查与写入之间隔着整个网络往返——回填在那个窗口里拿到锁并开始
@@ -161,55 +252,47 @@ def step_incremental_update(store, sources, today, data_root):
         # "ok" ⇒ status="ok" ⇒ 守卫打「已成功执行，无需补跑」。
         raise StepSkipped(msg)
     try:
-        _incremental_update_locked(store, sources, today)
+        return _incremental_update_locked(store, sources, today)
     finally:
         lock.release()
 
 
 def _incremental_update_locked(store, sources, today):
+    """增量更新。返回**状态字符串**（`UPDATE_*` 之一）。
+
+    🚨 **返回值不许省**：调用方要靠它区分「今天没数据」（交给交易日闸）
+    与「**数据源不可用**」（该重试、且必须有人来看）——
+    2026-10-20 断供就是这两者被压成一个 `RuntimeError` 造成的。
+    """
     pipeline = SyncPipeline(sources, store)  # 短窗口严格覆盖
     daily_dir = store.root / "master" / "daily"
     files = sorted(daily_dir.glob("*.parquet"))
     if not files:
         print("[update] 主库为空，跳过")
-        return
+        return UPDATE_NO_NEW_DATA
 
-    # 探针：先更新参考股票——无新数据（非交易日/未到更新时间）则整体跳过，
-    # 避免对 5546 只股票做无效拉取（2026-10-10 周六实测教训）
-    probe_code = files[0].stem
-    probe_last = _safe_last_date(pd.read_parquet(files[0]))
-    if probe_last is None:
-        # 探针票读坏了 → **换一只**，而不是整体放弃更新。
-        # `files[0]` 是 000001.SZ，而它正是 INCIDENTS 里记的
-        # 「只剩 17 行」截断缺陷的受害者之一——拿一只可能坏掉的票
-        # 当全市场的判据，等于让一只票决定 5459 只的命运。
-        for alt in files[1:]:
-            cand = _safe_last_date(pd.read_parquet(alt))
-            if cand is not None:
-                probe_code, probe_last = alt.stem, cand
-                break
-        else:
-            print("[update] 所有股票的日期列都读不出来，整体跳过——"
-                  "主库已损坏，需要 bootstrap 重灌")
-            return
-    if probe_last >= today:
-        print(f"[update] 参考股票 {probe_code} 已是最新（{probe_last}），跳过")
-        return
-    try:
-        pipeline.sync_daily(probe_code, probe_last, today)
-        # 探针必须验证数据真的前进：周末拉取会返回含旧日期的非空帧（≠有新数据）
-        new_last = str(pd.read_parquet(files[0])["date"].max())
-        if new_last <= probe_last:
-            print(f"[update] 参考股票 {probe_code} 数据未前进（{probe_last} → {new_last}），整体跳过")
-            return
-    except RuntimeError:
-        print(f"[update] 参考股票 {probe_code} 无新数据（非交易日或数据未就绪），整体跳过")
-        return
+    # 探针：先更新**几只**参考股票——全都没新数据（非交易日/未到更新时间）
+    # 则整体跳过，避免对 5546 只股票做无效拉取（2026-10-10 周六实测教训）。
+    # 🚨 **多票**：2026-10-20 实测，一只票的网络超时把整个市场跳过了。
+    probes = _spread_probe_files(files)
+    status, detail, advanced = _probe_market(pipeline, probes, today)
+    if status == UPDATE_UP_TO_DATE:
+        print(f"[update] 参考股票已是最新（{detail}），跳过")
+        return UPDATE_UP_TO_DATE
+    if status == UPDATE_UPSTREAM_UNAVAILABLE:
+        print(f"[update] 🚨 **数据源不可用**（不是「今天没这一天的数据」）：{detail}")
+        return UPDATE_UPSTREAM_UNAVAILABLE
+    if status == UPDATE_NO_NEW_DATA:
+        print(f"[update] {detail}（非交易日或数据未就绪），整体跳过")
+        return UPDATE_NO_NEW_DATA
+    print(f"[update] 探针：{detail}")
 
-    done = 1
+    done = len(advanced)
     unreadable = 0
-    for path in files[1:]:
+    for path in files:
         code = path.stem
+        if code in advanced:
+            continue  # 探针已经拉到今天，不必再拉
         # ── 单票隔离（2026-10-11 上午）──────────────────────────────
         # 2026-10-10 的生产日志：`[update] 步骤失败：TypeError("'>=' not
         # supported between instances of 'float' and 'str'")`，之后
@@ -239,6 +322,7 @@ def _incremental_update_locked(store, sources, today):
     if unreadable:
         print(f"[update] ⚠️ {unreadable} 只股票读不出合法日期，**未更新**——"
               f"它们的末根仍是旧值，下游因子会在这些票上退化")
+    return UPDATE_DONE
 
 
 def _last_two_bars(store, code, after_date, factors_map=None):
@@ -1440,8 +1524,38 @@ def _pipeline(args, run):
             steps[name] = classify_step(None)
             log.event("step_done", step=name, elapsed=round(_t.time() - t0, 1))
 
+    update_status = None
     if not args.skip_update:
-        run_step("update", lambda: step_incremental_update(store, default_sources(), today, args.data_root))
+        holder: dict = {}
+
+        def _do_update():
+            holder["status"] = step_incremental_update(
+                store, default_sources(), today, args.data_root)
+
+        run_step("update", _do_update)
+        update_status = holder.get("status")
+
+    # 🚨 **数据源不可用 ⇒ 立刻中止，退出码 3**（不是 2）。
+    #    2 = 「工作日但仓里没这一天」⇒ 要人裁决今天该不该出单；
+    #    3 = 「数据源不可用」⇒ **晚些时候重试就能补上**，而且要有人来看。
+    #    ⇒ 绝不能让它落到交易日闸上：闸会把它误判成「今天不是交易日 /
+    #    仓里没数据」（2026-10-20 那次断供正是这个误判造成的 ——
+    #    诊断错了 ⇒ 没人知道该重试 ⇒ 整天没出单）。
+    if update_status == UPDATE_UPSTREAM_UNAVAILABLE:
+        msg = ("🚨 **数据源不可用**（网络/服务器），今天没采到任何新数据 ⇒ "
+               "**不出单**。这不是「今天不是交易日」，是**该重试**："
+               "查 data/run_daily.err.log 的上游报错，或等晚间补跑班次。")
+        print(f"[update] {msg}")
+        run.log(msg, level="error", step="update",
+                outcome=OUTCOME_UPSTREAM_UNAVAILABLE)
+        write_run_status(reports_dir, build_run_status(
+            attempted_date=today,
+            outcome=OUTCOME_UPSTREAM_UNAVAILABLE,
+            outcome_reason=msg,
+            status="failed", steps=steps,
+            updated_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+        ))
+        raise SystemExit(3)
 
     # 🚨 闸必须在 update **之后**、verify **之前**（理由见 run_day_gate 的 docstring）
     _gated = run_day_gate(today, args.data_root, run)

@@ -461,9 +461,21 @@ OUTCOME_FAILED = "failed"                # 跑了，但某一步炸了 ⇒ 没�
 # 而且会把排查方向指错（用户去查「完全没采到」，而真因是「采了一半」）。
 OUTCOME_PARTIAL_COVERAGE = "partial_coverage"
 
+#: 🚨 **2026-10-21 新增**：「**数据源不可用**」必须与「工作日但仓里没数据」分开。
+#:
+#: 两者在**产出上**一样（都没出单），在**应对上**相反：
+#: 「仓里没数据」是**结果**（可能是法定节假日，本来就不该有单）；
+#: 「数据源不可用」是**原因**（网络/服务器挂了 ⇒ 晚些时候重试就能补上）。
+#: ⇒ 2026-10-20 实测的断供就栽在这里：`000001.SZ` 的一次网络超时被读成
+#: 「非交易日或数据未就绪」⇒ 全市场跳过更新 ⇒ rc=2 ⇒ **整天没出单**，
+#: 而当晚仓里其实已有 5207 只的当日数据。
+#: ⇒ 这一态让「该重试」这件事**有一个可读的字段**，而不是混进 `data_missing`。
+OUTCOME_UPSTREAM_UNAVAILABLE = "upstream_unavailable"
+
 RUN_STATUS_OUTCOMES = (OUTCOME_OK, OUTCOME_NOT_A_WORKDAY,
                         OUTCOME_DATA_MISSING, OUTCOME_FAILED,
-                        OUTCOME_PARTIAL_COVERAGE)
+                        OUTCOME_PARTIAL_COVERAGE,
+                        OUTCOME_UPSTREAM_UNAVAILABLE)
 
 
 def outcome_for_run_day(verdict: str, coverage: float | None = None) -> tuple[str, str]:

@@ -38,6 +38,35 @@ def _emit(event: str, **fields) -> None:
     _log.get_logger("pipeline").event(event, **fields)
 
 
+class AllSourcesFailed(RuntimeError):
+    """**所有**采集源都没交出数据。
+
+    🚨 为什么要有这个类型（而不是继续抛裸 `RuntimeError`）：
+    上层要区分两种**完全不同**的失败，而它们的应对**相反**：
+
+    | 情况 | 含义 | 该做什么 |
+    |---|---|---|
+    | `all_empty=True` | 每个源都返回了**空帧**（没抛异常） | 今天没有这一天的数据（非交易日 / 上游还没发） |
+    | `all_empty=False` | **至少一个源抛了异常** | **数据源不可用**（网络/服务器）⇒ **该重试** |
+
+    ⇒ 把两者压成一个 `RuntimeError` 就是 **2026-10-20 的断供**：
+    `000001.SZ` 的一次网络超时（akshare 打印「服务器连接失败 / timed out /
+    接收数据异常」）被上层读成「无新数据（非交易日或数据未就绪）」⇒
+    **全市场跳过更新** ⇒ 闸门判 `WORKDAY_NOT_IN_STORE` ⇒ rc=2 ⇒
+    **当天没出单**（而当晚仓里其实已有 5207 只的当日数据）。
+
+    ⚠️ `all_empty` 是**结构化**的（数一数有几个源抛了异常），
+    **不靠 `repr(exc)` 里的字符串去猜** —— 「靠文本区分」是本仓反复踩的坑
+    （找错了不崩，只是自信地说一句胡说）。
+    """
+
+    def __init__(self, code: str, errors: dict, all_empty: bool):
+        self.code = code
+        self.errors = dict(errors)
+        self.all_empty = bool(all_empty)
+        super().__init__(f"all sources failed for {code}: {errors}")
+
+
 @dataclass
 class SyncResult:
     code: str
@@ -61,12 +90,14 @@ class SyncPipeline:
     def sync_daily(self, code: str, start: str, end: str) -> SyncResult:
         frames = {}
         errors = {}
+        n_empty = 0
         for src in self.sources:
             try:
                 fetched = src.fetch_daily(code, start, end)
                 if fetched is None or fetched.empty:
                     # 空结果（未上市/已退市/区间无数据）≠ 成功——按源失败处理，
                     # 否则空 parquet 会让每日增量的 date.max() 变 NaN 崩溃
+                    n_empty += 1
                     errors[src.name] = "empty result (no data in range)"
                 else:
                     frames[src.name] = fetched
@@ -74,7 +105,10 @@ class SyncPipeline:
                 errors[src.name] = repr(exc)
 
         if not frames:
-            raise RuntimeError(f"all sources failed for {code}: {errors}")
+            # 🚨 `all_empty` **结构化**给出：每个源都返回空帧 ⇒「今天没这一天的数据」；
+            # 只要有一个源抛了异常 ⇒「数据源不可用」⇒ 上层该**重试**而不是跳过。
+            raise AllSourcesFailed(code, errors,
+                                   all_empty=(n_empty == len(self.sources)))
 
         degraded_from = [s.name for s in self.sources if s.name in errors]
         names = list(frames)  # 采集顺序即优先级，故 names[0] 是优先级最高的存活源
