@@ -1,0 +1,25 @@
+{
+  "code_sha": "8557f3c74d7a218df1f0708e14156ffc318bb0b0",
+  "code_dirty": true,
+  "code_file_sha256": "6c09037d7b4510eb0dce902858ff752997e4ca80240a23cc472df1a24bd7a467",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_fundamental_mechanism_armR.py",
+  "stamped_at": "2026-10-20T20:20:56+00:00",
+  "arm": "armR_full_pool_5460",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "k_arms": [
+    21,
+    63
+  ],
+  "financial_source": "aplus.vintage.pit_frame(/Users/airboom/opencode/aplus/data/reports/financial_vintage, '2026-10-20')",
+  "panel_cache": "/private/tmp/aplus_fund_full.pkl",
+  "panel_cache_sha256": "49bb5ced31077614ed8f0dca5cb75a1a513c2cab20cf6780f4dcb1a4db0bac77",
+  "factor_module": "scripts/fundamental_family_factors.py",
+  "factor_module_sha256": "5c33ddc0e4042c82ff0fc622a7e7830a47b0a304ebe1d5ad37f42a966fc6ebce",
+  "n_A_primary": 10,
+  "n_A_source": "/Users/airboom/opencode/aplus/data/reports/forward_registry.json::[2026-10-21].candidates"
+}

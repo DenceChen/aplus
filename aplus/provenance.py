@@ -565,6 +565,10 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "fundamental_factor_family_cross_section_2026-10-20.json":
         "scripts/measure_fundamental_factor_family_cross_section.py",
     "bm_ic_attribution_reduced_2026-10-21.json": "scripts/bm_ic_attribution.py",
+    # 2026-10-21 登记：BM 的 canonical 归因（轮次 B 的 B3 刷新件，**基名固定**）。
+    # 🚨 同样是被 `test_every_stamped_report_resolves_back_to_a_registered_generator`
+    #   点名的：盖了章却解析不出生成器 ⇒ 按仓内规矩**不可引用**。
+    "bm_ic_attribution.json": "scripts/bm_ic_attribution.py",
     # 每晚复盘产物（最新 + 每日归档）
     "daily_review.json": "scripts/daily_review.py",
     "dividend_lowvol_longleg.json": "scripts/measure_dividend_lowvol_longleg.py",
@@ -596,6 +600,12 @@ PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     #   「数据坏了」长得一模一样（形状 16：盖一个解析不出生成器的章比不盖更坏）。
     (re.compile(r"^holdings_alert_\d{4}-\d{2}-\d{2}\.json$"),
      "scripts/measure_holdings_alert.py"),
+    # 2026-10-21 登记：基本面族**轮次 B**的机理全集（臂 R）。
+    # 文件名带**批次标签**（`armR` / `armR_fullpool` + 日期）⇒ 走**模式表**：
+    # 枚举写法下「再加一臂就又漏登记」（形状 17）。
+    # ⚠️ `bm_ic_attribution.json` 走**精确表**（基名固定，不带标签）。
+    (re.compile(r"^fundamental_mechanism_armR[\w-]*\.json$"),
+     "scripts/measure_fundamental_mechanism_armR.py"),
 ]
 
 

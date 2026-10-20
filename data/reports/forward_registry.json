@@ -234,5 +234,83 @@
       }
     ],
     "sealed_sha256": "dee2900fb2a5480ee8e79267316eedad07734bd67a7cee3748665169d4ad82bb"
+  },
+  {
+    "registered_on": "2026-10-21",
+    "note": "第六批前瞻验证候选：**基本面族 A（F1–F5）**，\n**在看到任何 2026-10-21 之后的行情之前**冻结。\n\n## 为什么是这一批\n\n预注册 `docs/PREREG_FUNDAMENTAL_FAMILY_2026-10-21.md` §5.2 第 191 行逐字：\n「`n_A` = 候选组数 × K 档数，**由 `aplus/forward.py::register` 的候选表长度算出来，\n不许手打**」⇒ ⇒ **顺序不可调换**：先注册（候选集冻结）→ 再从注册表长度算 `n_A` → 再判。\n\n## 十组候选是什么\n\n族 A 的**五个**因子 × **两个** K（21 / 63）= 10 组，每组权重 = `{因子: 1.0}`。\n\n- F1 `bm` = log(BPS/close)、F2 `ep` = log(EPSJB/close)、\n  F3 `roe` = ROEJQ、F4 `size` = -log(close × a_shares)、F5 `q` = MGJYXJJE/BPS。\n- 🚨 **F4 `size` 是对照因子**（预注册 §2.5：它是 BM/EP 的最强竞争解释，\n  **不进入**基本面族的「晋级」），但**必须每批都带上**。\n- 🚨 **K 写死 {21, 63}**，不从 `LIVE_REBALANCE_EVERY` 派生\n  （它已是 63 ⇒ 派生会少一组 ⇒ 本批假设数从 10 掉到 5 ⇒ 门槛被悄悄放松）。\n\n## 为什么 `ep` 也在里面（**最要紧的一条**）\n\n轮次 A 实测 EP 有**选择偏差**：500 只覆盖池 vs 全池的因子分档占比\n最大绝对偏差 **5.556pp** > 随机零假设 95 分位 **4.444pp**；\n对照臂分解 = **selection +5.556pp / vintage +0.000pp**\n⇒ 偏差来自「**挑了哪些票**」，**不是因子本身**。\n\n⇒ 500 只池是**臂 R（后修值历史臂）**的池子；**前瞻臂的池子是全池 5,460 只**\n⇒ **偏差在前瞻臂上不存在** ⇒ 把 EP 踢出族，就把一个**可修的缓存问题**\n变成一个**永久的因子缺口**。\n\n## ⚠️ 前瞻面板必须提供 F2/F3/F4/F5 四列\n\n`aplus/factor.py::composite_score` 对缺失的因子列会 **KeyError**\n⇒ 本批的 8 组候选需要前瞻面板额外挂上 `ep / roe / size / q`\n（`scripts/fundamental_family_factors.py::attach_forward_factors`；\n口径与 `aplus/factor_fundamental.py::attach_pit_bm` 同构：\n那天没有 PIT 快照 ⇒ 该列全为 NaN ⇒ 那天**不出信号**，不是出零信号）。\n\n## 这是「检验」，不是「采纳」\n\n冻结候选 ≠ 相信候选。前瞻验证**只裁决，不晋级实盘**（预注册 §8.3）。\n本批的判决对象是族 A 五因子 × 两个 K；门槛由\n`aplus/evolve_race.py::bonferroni_t` 从**本批候选数（10）**推导。\n\n## 仍然不能回答的\n\n① 不能回答「年化能否到 20%」（前瞻底稿是逐笔收益，没有净值/年化字段）；\n② 不能回答「哪个因子更好」（K 不同 ⇒ 独立周期数不同 ⇒ 跨臂比 t 是两个不同量的比）；\n③ 不能在本批上出**采纳**结论（后修值历史臂的读数不可引用）；\n④ 不能替代臂 F 的判决力要求：**3 个独立调仓周期**\n（K=21 要 63 个交易日、K=63 要 189 个交易日）。\n",
+    "evidence": "docs/PREREG_FUNDAMENTAL_FAMILY_2026-10-20.md §2.1/§2.5/§4.3/§5.2/§8.2 + docs/PREREG_FUNDAMENTAL_FAMILY_ROUNDB_2026-10-21.md §2 D-1 / §4.1 / §7 / data/reports/fundamental_coverage_axes_2026-10-20.json::factor_distributions （EP 选择偏差 5.556pp > 随机 95 分位 4.444pp；selection +5.556pp / vintage +0.000pp）/ data/reports/fundamental_factor_family_cross_section_2026-10-20.json::family_a_n_A_inputs",
+    "candidates": [
+      {
+        "weights": {
+          "bm": 1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "bm": 1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "ep": 1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "ep": 1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "roe": 1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "roe": 1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "size": 1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "size": 1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "q": 1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "q": 1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      }
+    ],
+    "sealed_sha256": "54f6e754bd308829340663de85a8ae52a0a9e1e8f22efe42c063ad3d1caa8e65"
   }
 ]

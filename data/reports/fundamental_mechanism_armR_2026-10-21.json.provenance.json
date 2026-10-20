@@ -1,0 +1,25 @@
+{
+  "code_sha": "df93960a7dfc3b6fe7764e240848fc6748d4f06f",
+  "code_dirty": true,
+  "code_file_sha256": "6c09037d7b4510eb0dce902858ff752997e4ca80240a23cc472df1a24bd7a467",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_fundamental_mechanism_armR.py",
+  "stamped_at": "2026-10-20T20:18:49+00:00",
+  "arm": "armR500",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "k_arms": [
+    21,
+    63
+  ],
+  "financial_source": "/Users/airboom/opencode/aplus/data/reports/financial_annual_cache.parquet",
+  "panel_cache": "/private/tmp/aplus_fund_armR500.pkl",
+  "panel_cache_sha256": "6cd463a520076cdc28e14427b61ef7ba10b2729d632f8c6c00004547a88e2979",
+  "factor_module": "scripts/fundamental_family_factors.py",
+  "factor_module_sha256": "5c33ddc0e4042c82ff0fc622a7e7830a47b0a304ebe1d5ad37f42a966fc6ebce",
+  "n_A_primary": 10,
+  "n_A_source": "/Users/airboom/opencode/aplus/data/reports/forward_registry.json::[2026-10-21].candidates"
+}

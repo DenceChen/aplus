@@ -1,0 +1,3053 @@
+{
+  "kind": "fundamental_mechanism_armR",
+  "prereg": "docs/PREREG_FUNDAMENTAL_FAMILY_ROUNDB_2026-10-21.md",
+  "prereg_base": "docs/PREREG_FUNDAMENTAL_FAMILY_2026-10-20.md",
+  "prereg_sections": [
+    "§2 D-1/D-2/D-3",
+    "§3 臂",
+    "§4 判据",
+    "§5 不做"
+  ],
+  "arm": "armR500",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "k_arms": [
+    21,
+    63
+  ],
+  "financial_source": "/Users/airboom/opencode/aplus/data/reports/financial_annual_cache.parquet",
+  "panel_cache": "/private/tmp/aplus_fund_armR500.pkl",
+  "panel_cache_sha256": "6cd463a520076cdc28e14427b61ef7ba10b2729d632f8c6c00004547a88e2979",
+  "coverage": {
+    "bm": {
+      "n_days": 58,
+      "mean_n": 348.63793103448273,
+      "median_n": 356.5,
+      "min_n": 0,
+      "max_n": 436
+    },
+    "ep": {
+      "n_days": 58,
+      "mean_n": 308.62068965517244,
+      "median_n": 322.5,
+      "min_n": 0,
+      "max_n": 369
+    },
+    "roe": {
+      "n_days": 58,
+      "mean_n": 349.0689655172414,
+      "median_n": 357.5,
+      "min_n": 0,
+      "max_n": 436
+    },
+    "size": {
+      "n_days": 58,
+      "mean_n": 349.8448275862069,
+      "median_n": 358.5,
+      "min_n": 0,
+      "max_n": 436
+    },
+    "q": {
+      "n_days": 58,
+      "mean_n": 348.63793103448273,
+      "median_n": 356.5,
+      "min_n": 0,
+      "max_n": 436
+    }
+  },
+  "factors": {
+    "bm": {
+      "definition": "越大越便宜 ⇒ 长腿取**最大**的一端"
+    },
+    "ep": {
+      "definition": "越大越便宜 ⇒ 长腿取**最大**的一端"
+    },
+    "roe": {
+      "definition": "越大越好 ⇒ 长腿取**最大**的一端"
+    },
+    "size": {
+      "definition": "越小越好 ⇒ 长腿取**最小**的一端（§2.5：对照因子）"
+    },
+    "q": {
+      "definition": "越大越好 ⇒ 长腿取**最大**的一端（代理变量）"
+    }
+  },
+  "n_A": {
+    "primary": {
+      "n_A": 10,
+      "source": "/Users/airboom/opencode/aplus/data/reports/forward_registry.json::[2026-10-21].candidates",
+      "registered_on": "2026-10-21",
+      "note": "**程序从注册表长度算出**，不是手打的。候选集在看到判决数据之前就已冻结（注册即冻结）"
+    },
+    "controls": {
+      "prereg_literal": {
+        "n_A": 8,
+        "rule": "族 A 四因子（F1,F2,F3,F5）× K 档数（§5.2 字面）"
+      },
+      "effective_dimension": {
+        "n_A": 5.334626394650736,
+        "rule": "参与比 × K 档数（§8.1 A3）",
+        "detail": {
+          "participation_ratio": 2.667313197325368,
+          "source": "/Users/airboom/opencode/aplus/data/reports/fundamental_factor_family_cross_section_2026-10-20.json::correlations.family_a_subset.spearman_matrix"
+        }
+      }
+    }
+  },
+  "thresholds": {
+    "primary": {
+      "d1_friction_annual_pct": 0.06413714285714285,
+      "d1_source": "/Users/airboom/opencode/aplus/data/reports/factor_width_mde.json::widths['10'].friction_width_aware_annual_pct",
+      "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+      "d2_required_gross_annual_pct": 0.1555710793961524,
+      "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+      "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+      "d2_headline_percent_form": 15.55710793961524,
+      "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+      "d1_vs_d2_row_friction_diff": 0.0,
+      "source_version": "与 D1 产物同源同口径的那一版（git 历史里 friction_at_50k 与 D1 逐位相等者）",
+      "source_sha": "e9f9449a53d047c2030c77be3ee770cd56f170e4",
+      "k_caliber": null,
+      "d2_row_n10": {
+        "friction_at_50k": 0.06413714285714285,
+        "friction_floor": 0.047870476190476186,
+        "required_gross_at_50k": 0.1555710793961524,
+        "required_gross_at_infinite_capital": 0.13930441272948574
+      }
+    },
+    "control_working_tree": {
+      "d1_friction_annual_pct": 0.02137904761904762,
+      "d1_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].friction_at_50k",
+      "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+      "d2_required_gross_annual_pct": 0.11281298415805717,
+      "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+      "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+      "d2_headline_percent_form": 11.281298415805717,
+      "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+      "d1_vs_d2_row_friction_diff": null,
+      "source_version": "当前版本（另一个 agent 在本轮期间换过口径）",
+      "source_sha": null,
+      "k_caliber": 63,
+      "d2_row_n10": {
+        "friction_at_50k": 0.02137904761904762,
+        "friction_floor": 0.015956825396825396,
+        "required_gross_at_50k": 0.11281298415805717,
+        "required_gross_at_infinite_capital": 0.10739076193583495
+      }
+    },
+    "notes": [
+      "🚨 **交付阈值有两套口径，本轮整套报、绝不混用**：主判据 D1=6.4137% / D2=15.5571%（K=21（预注册 §5.1 A4），= 预注册 §5.1 A4 / §5.3 引用的那一版）；对照 D1=2.1379% / D2=11.2813%（K=63）。⇒ 本轮运行期间 `d2_signal_requirement.json` 被另一个 agent 换过口径（换手次数变了 ⇒ 摩擦与所需毛超额一起变）⇒ 第 7 层：两个各自都对的数放一起比是不许的"
+    ],
+    "d1_friction_annual_pct": 0.06413714285714285,
+    "d2_required_gross_annual_pct": 0.1555710793961524,
+    "d3_lot_affordability": {
+      "n": 10,
+      "per_position_notional": 5000.0,
+      "max_price_for_one_lot": 50.0,
+      "affordable_count": 445,
+      "affordable_pct": 0.8917835671342685
+    },
+    "d3_note": "预注册 §5.3 的 D3 **没有给「足够」的数值门槛** ⇒ 本轮只报读数，**不判布尔**；D1/D2 先封口，D3 不参与四态",
+    "family_b_critical": "预注册 §6.3 引用「族 B 的临界」但**未给数值** ⇒ 本轮用与族 A 同一 crit（来自 n_A），并在产物里标明这是**自选口径**"
+  },
+  "family_a_cells": {
+    "bm@K21": {
+      "factor": "bm",
+      "k": 21,
+      "n_ic": 55,
+      "mean_ic": 0.07025615657499584,
+      "ic_sd": 0.17725379103532135,
+      "ic_t": 2.939477903729652,
+      "t_crit": 2.9269649641151627,
+      "mde_ic": 0.06995708610276892,
+      "effect_over_mde": 1.0042750561649691,
+      "long_leg_legend": "越大越便宜 ⇒ 长腿取**最大**的一端",
+      "new_or_replication": "replication（该因子在臂 R 上的读数在本轮之前已存在于 fundamental_ic.json / bm_ic_attribution.json）",
+      "trimmed_ic": {
+        "mean": 0.06780547816335274,
+        "t": 3.107916973480269,
+        "n": 55,
+        "trim": 0.05,
+        "mean_retention": 0.9651179550502866,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.00355,
+          "2": 0.00043,
+          "3": 0.00487,
+          "4": 0.00298,
+          "5": 0.00923,
+          "6": 0.009,
+          "7": 0.0069,
+          "8": 0.00798,
+          "9": 0.00937,
+          "10": 0.0078
+        },
+        "win_rate": {
+          "1": 0.491,
+          "2": 0.473,
+          "3": 0.545,
+          "4": 0.509,
+          "5": 0.491,
+          "6": 0.564,
+          "7": 0.509,
+          "8": 0.509,
+          "9": 0.545,
+          "10": 0.509
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.006531821057254253,
+          "gross_annual_pct": -0.07589353990333512,
+          "sd_per_k": 0.04600393714125324,
+          "t": -1.052981211022256,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.018156460140340305,
+          "mde_annual_pct": 0.210960774963954,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.011987824895845703,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": 0.0016687285058312382,
+          "gross_annual_pct": 0.019389035972515338,
+          "sd_per_k": 0.03811793690265957,
+          "t": 0.32466662222360626,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.015044077637966521,
+          "mde_annual_pct": 0.17479785446018242,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.08329475098000473,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": 0.0024226955458904248,
+          "gross_annual_pct": 0.02814941491415541,
+          "sd_per_k": 0.02444147678965357,
+          "t": 0.7351106971462437,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.009646363478408766,
+          "mde_annual_pct": 0.11208155660627328,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.09205512992164484,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": 0.0031088857591841496,
+          "gross_annual_pct": 0.03612229167813964,
+          "sd_per_k": 0.016258577448024197,
+          "t": 1.4180892478152574,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.00641680325028036,
+          "mde_annual_pct": 0.07455714252706705,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.10002800668562906,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": -0.00823526397881476,
+        "gross_annual_pct": -0.09568592432527626,
+        "t": -1.4333195856651602,
+        "trimmed": {
+          "end": "因子值最小的一端（= 最贵）",
+          "share": 0.2
+        }
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": -0.008357178979234164,
+        "gross_annual_pct": -0.09710246052062553,
+        "t": -1.2388731420808878,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 55,
+          "mean_ic": 0.1085821668656553,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2030176137.7106962,
+          "median_n": 74.0
+        },
+        "2": {
+          "n_cells": 55,
+          "mean_ic": 0.08752782263027171,
+          "cap_lo": 2030176137.7106962,
+          "cap_hi": 3187029770.321055,
+          "median_n": 73.0
+        },
+        "3": {
+          "n_cells": 55,
+          "mean_ic": 0.08037798562778685,
+          "cap_lo": 3187029770.321055,
+          "cap_hi": 5950289956.436052,
+          "median_n": 73.0
+        },
+        "4": {
+          "n_cells": 55,
+          "mean_ic": 0.05603501171733984,
+          "cap_lo": 5950289956.436052,
+          "cap_hi": 12162382941.415924,
+          "median_n": 73.0
+        },
+        "5": {
+          "n_cells": 55,
+          "mean_ic": 0.04338475820998129,
+          "cap_lo": 12162382941.415924,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 74.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": 0.1085821668656553,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2030176137.7106962
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": 0.04338475820998129,
+            "cap_lo": 12162382941.415924,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 2.502772202627475
+        },
+        "measured_shape": "小市值档档内 IC 更大",
+        "agrees_with_prior": true,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 1.7166798606380163,
+        "n": 55,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 55,
+        "alpha": -0.004880391288570548,
+        "beta": 0.6997445201951031,
+        "alpha_t": -0.006046966520793235,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 9,
+          "mean_ic": 0.015981633870396614
+        },
+        "2020": {
+          "n": 12,
+          "mean_ic": 0.009898332518886895
+        },
+        "2021": {
+          "n": 11,
+          "mean_ic": 0.10882879085471373
+        },
+        "2022": {
+          "n": 12,
+          "mean_ic": 0.09571893289577539
+        },
+        "2023": {
+          "n": 11,
+          "mean_ic": 0.11415727476485488
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.012939983194641754,
+        "late_mean_ic": 0.10623499950511467,
+        "same_sign": true,
+        "magnitude_ratio": 8.209825152563175,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_pct": -0.07589353990333512,
+        "long_leg_annual_pct": -0.011987824895845703,
+        "market_leg_annual_pct": 0.06390571500748939,
+        "t": -1.052981211022256,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "bm@K63": {
+      "factor": "bm",
+      "k": 63,
+      "n_ic": 19,
+      "mean_ic": 0.09508007521313852,
+      "ic_sd": 0.18140744603244172,
+      "ic_t": 2.2846054473651582,
+      "t_crit": 3.1965742222552205,
+      "mde_ic": 0.13303413848852108,
+      "effect_over_mde": 0.7147043329885024,
+      "long_leg_legend": "越大越便宜 ⇒ 长腿取**最大**的一端",
+      "new_or_replication": "replication（该因子在臂 R 上的读数在本轮之前已存在于 fundamental_ic.json / bm_ic_attribution.json）",
+      "trimmed_ic": {
+        "mean": 0.0865809780193453,
+        "t": 2.367097416981878,
+        "n": 19,
+        "trim": 0.05,
+        "mean_retention": 0.9106111645921502,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.00966,
+          "2": -0.00484,
+          "3": 0.00513,
+          "4": 0.01678,
+          "5": 0.01911,
+          "6": 0.03345,
+          "7": 0.01399,
+          "8": 0.01281,
+          "9": 0.02651,
+          "10": 0.01146
+        },
+        "win_rate": {
+          "1": 0.474,
+          "2": 0.474,
+          "3": 0.368,
+          "4": 0.421,
+          "5": 0.579,
+          "6": 0.579,
+          "7": 0.526,
+          "8": 0.526,
+          "9": 0.632,
+          "10": 0.474
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.02577992702002162,
+          "gross_annual_pct": -0.09984606655373453,
+          "sd_per_k": 0.09771787790114396,
+          "t": -1.1499645619178187,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.07166086059764261,
+          "mde_annual_pct": 0.2775436505686476,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.05165409205939646,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.0047360305872439475,
+          "gross_annual_pct": -0.018342721639484496,
+          "sd_per_k": 0.06715773856638835,
+          "t": -0.3073938933025058,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.04924975290936544,
+          "mde_annual_pct": 0.190745074760082,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.02984925285485358,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": 0.005308898956163828,
+          "gross_annual_pct": 0.020561449925459906,
+          "sd_per_k": 0.04623992367895688,
+          "t": 0.5004539845708658,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.03390979006068418,
+          "mde_annual_pct": 0.1313331551556657,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.06875342441979798,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": 0.0080124625514356,
+          "gross_annual_pct": 0.03103239464365534,
+          "sd_per_k": 0.03191526758273944,
+          "t": 1.0943199664570706,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.023404883428771006,
+          "mde_annual_pct": 0.09064748502571628,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.07922436913799341,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": -0.030456284455213586,
+        "gross_annual_pct": -0.11795767312812881,
+        "t": -1.4574347275345105,
+        "trimmed": {
+          "end": "因子值最小的一端（= 最贵）",
+          "share": 0.2
+        }
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": -0.018860410613970008,
+        "gross_annual_pct": -0.07304666967950288,
+        "t": -0.8455653609990355,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 19,
+          "mean_ic": 0.15592940779907433,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2020327326.4399884,
+          "median_n": 74.0
+        },
+        "2": {
+          "n_cells": 19,
+          "mean_ic": 0.1189196707288035,
+          "cap_lo": 2020327326.4399884,
+          "cap_hi": 3185359858.1087503,
+          "median_n": 74.0
+        },
+        "3": {
+          "n_cells": 19,
+          "mean_ic": 0.10116698919592586,
+          "cap_lo": 3185359858.1087503,
+          "cap_hi": 5932891850.236169,
+          "median_n": 74.0
+        },
+        "4": {
+          "n_cells": 19,
+          "mean_ic": 0.08776047461422187,
+          "cap_lo": 5932891850.236169,
+          "cap_hi": 12115793521.88828,
+          "median_n": 73.0
+        },
+        "5": {
+          "n_cells": 19,
+          "mean_ic": 0.042485727040241714,
+          "cap_lo": 12115793521.88828,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 75.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": 0.15592940779907433,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2020327326.4399884
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": 0.042485727040241714,
+            "cap_lo": 12115793521.88828,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 3.6701598080546156
+        },
+        "measured_shape": "小市值档档内 IC 更大",
+        "agrees_with_prior": true,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 1.6167908704263168,
+        "n": 19,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 19,
+        "alpha": -0.017802672791616285,
+        "beta": 0.3588967338674465,
+        "alpha_t": -0.020860142349785893,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 3,
+          "mean_ic": -0.04083504825166258
+        },
+        "2020": {
+          "n": 4,
+          "mean_ic": 0.005268498221909168
+        },
+        "2021": {
+          "n": 4,
+          "mean_ic": 0.20257390305062634
+        },
+        "2022": {
+          "n": 4,
+          "mean_ic": 0.1375056097691061
+        },
+        "2023": {
+          "n": 4,
+          "mean_ic": 0.13690863240951334
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": -0.017783275014876705,
+        "late_mean_ic": 0.1589960484097486,
+        "same_sign": false,
+        "magnitude_ratio": 8.940763063987905,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_pct": -0.09984606655373453,
+        "long_leg_annual_pct": -0.05165409205939646,
+        "market_leg_annual_pct": 0.04819197449433807,
+        "t": -1.1499645619178187,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "ep@K21": {
+      "factor": "ep",
+      "k": 21,
+      "n_ic": 55,
+      "mean_ic": 0.035869728098827054,
+      "ic_sd": 0.1348694874656391,
+      "ic_t": 1.9724033082488546,
+      "t_crit": 2.9269649641151627,
+      "mde_ic": 0.053229193531831996,
+      "effect_over_mde": 0.6738732210431917,
+      "long_leg_legend": "越大越便宜 ⇒ 长腿取**最大**的一端",
+      "new_or_replication": "new（本轮第一次测这个因子）",
+      "trimmed_ic": {
+        "mean": 0.03572144158471987,
+        "t": 2.0735046135344444,
+        "n": 55,
+        "trim": 0.05,
+        "mean_retention": 0.9958659705002884,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": 0.00143,
+          "2": 0.00639,
+          "3": 0.00806,
+          "4": 0.00663,
+          "5": 0.00186,
+          "6": 0.0078,
+          "7": 0.00897,
+          "8": 0.00706,
+          "9": 0.00659,
+          "10": 0.00307
+        },
+        "win_rate": {
+          "1": 0.545,
+          "2": 0.509,
+          "3": 0.564,
+          "4": 0.527,
+          "5": 0.491,
+          "6": 0.545,
+          "7": 0.527,
+          "8": 0.527,
+          "9": 0.527,
+          "10": 0.473
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.008918248472791341,
+          "gross_annual_pct": -0.1036215536838613,
+          "sd_per_k": 0.046935782560020296,
+          "t": -1.4091487821020312,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.018524233319206575,
+          "mde_annual_pct": 0.21523394904220972,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.03637319315795782,
+          "market_leg_annual_pct": 0.06724836052590344
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.0036345453673905016,
+          "gross_annual_pct": -0.04222995569729916,
+          "sd_per_k": 0.032501797401000364,
+          "t": -0.8293236685455544,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.012827545329190998,
+          "mde_annual_pct": 0.14904386001536207,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.025018404828604273,
+          "market_leg_annual_pct": 0.06724836052590344
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": 0.000826362058792431,
+          "gross_annual_pct": 0.009601540111683484,
+          "sd_per_k": 0.019160370942990244,
+          "t": 0.31985106491123344,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.007562059530521738,
+          "mde_annual_pct": 0.08786392978320497,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.07684990063758688,
+          "market_leg_annual_pct": 0.06724836052590344
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": 0.0007183112116395672,
+          "gross_annual_pct": 0.008346092173335925,
+          "sd_per_k": 0.00972035263993334,
+          "t": 0.5480396358399754,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.0038363498044766157,
+          "mde_annual_pct": 0.04457473106153782,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.07559445269923934,
+          "market_leg_annual_pct": 0.06724836052590344
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": -0.009530455494613182,
+        "gross_annual_pct": -0.1107348162231246,
+        "t": -1.604749893082665,
+        "trimmed": {
+          "end": "因子值最小的一端（= 最贵）",
+          "share": 0.2
+        }
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": -0.008692939600442073,
+        "gross_annual_pct": -0.10100367916704123,
+        "t": -1.3410144283869436,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 36,
+          "mean_ic": -0.002185333474700889,
+          "cap_lo": 608351969.6969697,
+          "cap_hi": 2392105903.1541896,
+          "median_n": 69.5
+        },
+        "2": {
+          "n_cells": 36,
+          "mean_ic": 0.02729815906437666,
+          "cap_lo": 2392105903.1541896,
+          "cap_hi": 4027089981.0305343,
+          "median_n": 69.0
+        },
+        "3": {
+          "n_cells": 37,
+          "mean_ic": 0.11053907149400259,
+          "cap_lo": 4117046449.984222,
+          "cap_hi": 6719435397.3681965,
+          "median_n": 68.0
+        },
+        "4": {
+          "n_cells": 36,
+          "mean_ic": 0.060159393866617256,
+          "cap_lo": 6381352029.282454,
+          "cap_hi": 14699904559.83042,
+          "median_n": 69.0
+        },
+        "5": {
+          "n_cells": 37,
+          "mean_ic": 0.08159878473380443,
+          "cap_lo": 16785146455.480759,
+          "cap_hi": 2131354221933.3875,
+          "median_n": 69.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.002185333474700889,
+            "cap_lo": 608351969.6969697,
+            "cap_hi": 2392105903.1541896
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": 0.08159878473380443,
+            "cap_lo": 16785146455.480759,
+            "cap_hi": 2131354221933.3875
+          },
+          "ratio_small_over_large": -0.02678144633930507
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 2.200654157834307,
+        "n": 55,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 55,
+        "alpha": -0.007238781728458322,
+        "beta": 0.7098248355140845,
+        "alpha_t": -0.008683690875396404,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 9,
+          "mean_ic": 0.014822933017791326
+        },
+        "2020": {
+          "n": 12,
+          "mean_ic": 0.037911575950438654
+        },
+        "2021": {
+          "n": 11,
+          "mean_ic": 0.05437082954493017
+        },
+        "2022": {
+          "n": 12,
+          "mean_ic": 0.029308667376438714
+        },
+        "2023": {
+          "n": 11,
+          "mean_ic": 0.039518782123509615
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.02636725448411499,
+        "late_mean_ic": 0.041066093014959504,
+        "same_sign": true,
+        "magnitude_ratio": 1.557465645112951,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": false
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_pct": -0.1036215536838613,
+        "long_leg_annual_pct": -0.03637319315795782,
+        "market_leg_annual_pct": 0.06724836052590344,
+        "t": -1.4091487821020312,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "ep@K63": {
+      "factor": "ep",
+      "k": 63,
+      "n_ic": 19,
+      "mean_ic": 0.05208883021988447,
+      "ic_sd": 0.1489780006624398,
+      "ic_t": 1.5240501685224157,
+      "t_crit": 3.1965742222552205,
+      "mde_ic": 0.10925218564802282,
+      "effect_over_mde": 0.47677609295340573,
+      "long_leg_legend": "越大越便宜 ⇒ 长腿取**最大**的一端",
+      "new_or_replication": "new（本轮第一次测这个因子）",
+      "trimmed_ic": {
+        "mean": 0.05446376856121979,
+        "t": 1.6102418821289304,
+        "n": 19,
+        "trim": 0.05,
+        "mean_retention": 1.045594004152328,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.00343,
+          "2": 0.01945,
+          "3": 0.0273,
+          "4": 0.00253,
+          "5": 0.01792,
+          "6": 0.00542,
+          "7": 0.02449,
+          "8": 0.01384,
+          "9": 0.02097,
+          "10": 0.01094
+        },
+        "win_rate": {
+          "1": 0.421,
+          "2": 0.474,
+          "3": 0.579,
+          "4": 0.421,
+          "5": 0.579,
+          "6": 0.526,
+          "7": 0.474,
+          "8": 0.579,
+          "9": 0.579,
+          "10": 0.526
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.02501044644126513,
+          "gross_annual_pct": -0.09686585605823321,
+          "sd_per_k": 0.08646369813882908,
+          "t": -1.2608529465772809,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.06340767065522557,
+          "mde_annual_pct": 0.2455789149186514,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.042908522994378306,
+          "market_leg_annual_pct": 0.05395733306385494
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.004529393265779713,
+          "gross_annual_pct": -0.01754241201349603,
+          "sd_per_k": 0.07382492501271763,
+          "t": -0.26743227328285574,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.05413909689401722,
+          "mde_annual_pct": 0.20968158162127304,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.03641492105035889,
+          "market_leg_annual_pct": 0.05395733306385494
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": 0.0020696441556021608,
+          "gross_annual_pct": 0.008015764666141702,
+          "sd_per_k": 0.043765541011752625,
+          "t": 0.2061295145634513,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.03209521533609665,
+          "mde_annual_pct": 0.12430527844456479,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.06197309772999664,
+          "market_leg_annual_pct": 0.05395733306385494
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": 0.0013320610970212507,
+          "gross_annual_pct": 0.00515909377259024,
+          "sd_per_k": 0.021703988289456924,
+          "t": 0.26752316814316,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.01591649872705056,
+          "mde_annual_pct": 0.06164485221270376,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05911642683644518,
+          "market_leg_annual_pct": 0.05395733306385494
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": -0.0265587598215912,
+        "gross_annual_pct": -0.10286249835663892,
+        "t": -1.4467067952475077,
+        "trimmed": {
+          "end": "因子值最小的一端（= 最贵）",
+          "share": 0.2
+        }
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": 0.04238844172571416,
+        "gross_annual_pct": 0.1641711076360993,
+        "t": 1.6437827201182158,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 12,
+          "mean_ic": -0.039696573185013476,
+          "cap_lo": 717968490.6353287,
+          "cap_hi": 2100242040.9943306,
+          "median_n": 69.0
+        },
+        "2": {
+          "n_cells": 12,
+          "mean_ic": 0.0036372935698173003,
+          "cap_lo": 2100242040.9943306,
+          "cap_hi": 3381191451.4514513,
+          "median_n": 68.5
+        },
+        "3": {
+          "n_cells": 12,
+          "mean_ic": 0.1776214207803485,
+          "cap_lo": 3381191451.4514513,
+          "cap_hi": 6062153457.078036,
+          "median_n": 69.0
+        },
+        "4": {
+          "n_cells": 12,
+          "mean_ic": 0.11211252893280983,
+          "cap_lo": 6062153457.078036,
+          "cap_hi": 15471474561.122244,
+          "median_n": 68.5
+        },
+        "5": {
+          "n_cells": 12,
+          "mean_ic": 0.08734683217129992,
+          "cap_lo": 15471474561.122244,
+          "cap_hi": 2624163625380.711,
+          "median_n": 69.5
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.039696573185013476,
+            "cap_lo": 717968490.6353287,
+            "cap_hi": 2100242040.9943306
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": 0.08734683217129992,
+            "cap_lo": 15471474561.122244,
+            "cap_hi": 2624163625380.711
+          },
+          "ratio_small_over_large": -0.4544706682339972
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 2.3182182441577655,
+        "n": 19,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 19,
+        "alpha": -0.019736661854420717,
+        "beta": 0.6214517980059776,
+        "alpha_t": -0.022167652161723565,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 3,
+          "mean_ic": 0.0005104656205439465
+        },
+        "2020": {
+          "n": 4,
+          "mean_ic": 0.03312301248478634
+        },
+        "2021": {
+          "n": 4,
+          "mean_ic": 0.11506384339222486
+        },
+        "2022": {
+          "n": 4,
+          "mean_ic": 0.016115527015431355
+        },
+        "2023": {
+          "n": 4,
+          "mean_ic": 0.08273671143660069
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.016816739052665144,
+        "late_mean_ic": 0.0713053606147523,
+        "same_sign": true,
+        "magnitude_ratio": 4.240141943776651,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_pct": -0.09686585605823321,
+        "long_leg_annual_pct": -0.042908522994378306,
+        "market_leg_annual_pct": 0.05395733306385494,
+        "t": -1.2608529465772809,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "roe@K21": {
+      "factor": "roe",
+      "k": 21,
+      "n_ic": 55,
+      "mean_ic": -0.008663406255163411,
+      "ic_sd": 0.12329161658503034,
+      "ic_t": -0.5211184843077072,
+      "t_crit": 2.9269649641151627,
+      "mde_ic": 0.04865973352000021,
+      "effect_over_mde": 0.17804056102367602,
+      "long_leg_legend": "越大越好 ⇒ 长腿取**最大**的一端",
+      "new_or_replication": "replication（该因子在臂 R 上的读数在本轮之前已存在于 fundamental_ic.json / bm_ic_attribution.json）",
+      "trimmed_ic": {
+        "mean": -0.006602895479371744,
+        "t": -0.40512286936095726,
+        "n": 55,
+        "trim": 0.05,
+        "mean_retention": 0.762159280645116,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": 0.00201,
+          "2": 0.00769,
+          "3": 0.00795,
+          "4": 0.00647,
+          "5": 0.00943,
+          "6": 0.00365,
+          "7": 0.01006,
+          "8": 0.0037,
+          "9": 0.00697,
+          "10": -0.00251
+        },
+        "win_rate": {
+          "1": 0.455,
+          "2": 0.564,
+          "3": 0.618,
+          "4": 0.564,
+          "5": 0.545,
+          "6": 0.6,
+          "7": 0.509,
+          "8": 0.564,
+          "9": 0.491,
+          "10": 0.418
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.015143829051655986,
+          "gross_annual_pct": -0.17595687088590767,
+          "sd_per_k": 0.04101307346082591,
+          "t": -2.73838638815987,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.016186706612477748,
+          "mde_annual_pct": 0.18807411492593193,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.11171141995512958,
+          "market_leg_annual_pct": 0.06424545093077805
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.009533489644030693,
+          "gross_annual_pct": -0.11077007014968994,
+          "sd_per_k": 0.029006695376562475,
+          "t": -2.437445926085406,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.011448126859022197,
+          "mde_annual_pct": 0.13301633112387695,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.0465246192189119,
+          "market_leg_annual_pct": 0.06424545093077805
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": -0.00345117199505651,
+          "gross_annual_pct": -0.04009933175208517,
+          "sd_per_k": 0.01745769425770617,
+          "t": -1.466091463776613,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.006890060930199224,
+          "mde_annual_pct": 0.08005594604612432,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.024146119178692884,
+          "market_leg_annual_pct": 0.06424545093077805
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": -0.000983482973890984,
+          "gross_annual_pct": -0.011427135506161909,
+          "sd_per_k": 0.00959079573019547,
+          "t": -0.7604900727987882,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.0037852173359590032,
+          "mde_annual_pct": 0.04398062047495223,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05281831542461613,
+          "market_leg_annual_pct": 0.06424545093077805
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": false,
+        "reason": "本臂是「剔贵留便宜」，而 roe/q 的长腿是「越大越好」，**没有「价格贵贱」轴** ⇒ 剔贵在这两个因子上无定义。（bm/ep 是价值因子：越大越便宜 ⇒ 最贵 = 因子值最小的那端）"
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": 0.0009701805130799747,
+        "gross_annual_pct": 0.011272573580548277,
+        "t": 0.0980578100958948,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 55,
+          "mean_ic": -0.07033715233645312,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2030176137.7106962,
+          "median_n": 74.0
+        },
+        "2": {
+          "n_cells": 55,
+          "mean_ic": -0.0013964537208586718,
+          "cap_lo": 2030176137.7106962,
+          "cap_hi": 3187029770.321055,
+          "median_n": 73.0
+        },
+        "3": {
+          "n_cells": 55,
+          "mean_ic": 0.04002433705885409,
+          "cap_lo": 3187029770.321055,
+          "cap_hi": 5950289956.436052,
+          "median_n": 74.0
+        },
+        "4": {
+          "n_cells": 55,
+          "mean_ic": 0.03959402286790221,
+          "cap_lo": 5950289956.436052,
+          "cap_hi": 12162382941.415924,
+          "median_n": 73.0
+        },
+        "5": {
+          "n_cells": 55,
+          "mean_ic": -0.003353759002871624,
+          "cap_lo": 12162382941.415924,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 74.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.07033715233645312,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2030176137.7106962
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": -0.003353759002871624,
+            "cap_lo": 12162382941.415924,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 20.97263168767571
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 1.972636661644778,
+        "n": 55,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 55,
+        "alpha": -0.014964075297078109,
+        "beta": 0.9674908121293554,
+        "alpha_t": -0.019572518202080134,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 9,
+          "mean_ic": 0.06297387644852875
+        },
+        "2020": {
+          "n": 12,
+          "mean_ic": 0.08439438970518019
+        },
+        "2021": {
+          "n": 11,
+          "mean_ic": -0.07014716553302472
+        },
+        "2022": {
+          "n": 12,
+          "mean_ic": -0.03805719667320564
+        },
+        "2023": {
+          "n": 11,
+          "mean_ic": -0.07524361159919718
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.07368413307685448,
+        "late_mean_ic": -0.061149324601809184,
+        "same_sign": false,
+        "magnitude_ratio": 0.8298845633160783,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_pct": -0.17595687088590767,
+        "long_leg_annual_pct": -0.11171141995512958,
+        "market_leg_annual_pct": 0.06424545093077805,
+        "t": -2.73838638815987,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "roe@K63": {
+      "factor": "roe",
+      "k": 63,
+      "n_ic": 19,
+      "mean_ic": -0.007516526206734676,
+      "ic_sd": 0.14836313268875717,
+      "ic_t": -0.22083503865050416,
+      "t_crit": 3.1965742222552205,
+      "mde_ic": 0.10880127564982779,
+      "effect_over_mde": 0.06908490881050229,
+      "long_leg_legend": "越大越好 ⇒ 长腿取**最大**的一端",
+      "new_or_replication": "replication（该因子在臂 R 上的读数在本轮之前已存在于 fundamental_ic.json / bm_ic_attribution.json）",
+      "trimmed_ic": {
+        "mean": -0.002770083640921476,
+        "t": -0.0806393742278114,
+        "n": 19,
+        "trim": 0.05,
+        "mean_retention": 0.3685324263806237,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -4e-05,
+          "2": 0.00405,
+          "3": 0.02167,
+          "4": 0.0204,
+          "5": 0.0217,
+          "6": 0.00571,
+          "7": 0.03545,
+          "8": 0.01017,
+          "9": 0.01407,
+          "10": -0.00757
+        },
+        "win_rate": {
+          "1": 0.526,
+          "2": 0.632,
+          "3": 0.632,
+          "4": 0.684,
+          "5": 0.632,
+          "6": 0.579,
+          "7": 0.526,
+          "8": 0.526,
+          "9": 0.474,
+          "10": 0.421
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.04441748720873421,
+          "gross_annual_pct": -0.17202963299890708,
+          "sd_per_k": 0.06556384228166184,
+          "t": -2.9530200081491547,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.04808087796119642,
+          "mde_annual_pct": 0.1862180035322528,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.12339872022141632,
+          "market_leg_annual_pct": 0.048630912777490765
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.02155874451227558,
+          "gross_annual_pct": -0.08349735969833717,
+          "sd_per_k": 0.055582111747391715,
+          "t": -1.6906948247253513,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.04076083156126134,
+          "mde_annual_pct": 0.15786734763409155,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.0348664469208464,
+          "market_leg_annual_pct": 0.048630912777490765
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": -0.00938014985926507,
+          "gross_annual_pct": -0.036329469296201226,
+          "sd_per_k": 0.04149124251978948,
+          "t": -0.985439886315826,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.030427371225166647,
+          "mde_annual_pct": 0.11784569172921686,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.012301443481289557,
+          "market_leg_annual_pct": 0.048630912777490765
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": -0.0010021817021539983,
+          "gross_annual_pct": -0.0038814656400885015,
+          "sd_per_k": 0.021076223574983836,
+          "t": -0.20726714855786055,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.015456130975946872,
+          "mde_annual_pct": 0.059861840605254554,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.04474944713740227,
+          "market_leg_annual_pct": 0.048630912777490765
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": false,
+        "reason": "本臂是「剔贵留便宜」，而 roe/q 的长腿是「越大越好」，**没有「价格贵贱」轴** ⇒ 剔贵在这两个因子上无定义。（bm/ep 是价值因子：越大越便宜 ⇒ 最贵 = 因子值最小的那端）"
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": 0.037793515055156816,
+        "gross_annual_pct": 0.14637488370568671,
+        "t": 1.5916957332992459,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 19,
+          "mean_ic": -0.11951501375488265,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2020327326.4399884,
+          "median_n": 75.0
+        },
+        "2": {
+          "n_cells": 19,
+          "mean_ic": -0.021753749543056058,
+          "cap_lo": 2020327326.4399884,
+          "cap_hi": 3185359858.1087503,
+          "median_n": 74.0
+        },
+        "3": {
+          "n_cells": 19,
+          "mean_ic": 0.06836457458041914,
+          "cap_lo": 3185359858.1087503,
+          "cap_hi": 5932891850.236169,
+          "median_n": 74.0
+        },
+        "4": {
+          "n_cells": 19,
+          "mean_ic": 0.06715939387163841,
+          "cap_lo": 5932891850.236169,
+          "cap_hi": 12115793521.88828,
+          "median_n": 74.0
+        },
+        "5": {
+          "n_cells": 19,
+          "mean_ic": -0.009315221477777592,
+          "cap_lo": 12115793521.88828,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 75.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.11951501375488265,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2020327326.4399884
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": -0.009315221477777592,
+            "cap_lo": 12115793521.88828,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 12.830077528483661
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 2.0180589957045107,
+        "n": 19,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 19,
+        "alpha": -0.0418801008133785,
+        "beta": 0.7979199397273938,
+        "alpha_t": -0.05993676365120916,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 3,
+          "mean_ic": 0.09928121144485857
+        },
+        "2020": {
+          "n": 4,
+          "mean_ic": 0.12215992539790671
+        },
+        "2021": {
+          "n": 4,
+          "mean_ic": -0.10374729708899799
+        },
+        "2022": {
+          "n": 4,
+          "mean_ic": -0.08343620383521524
+        },
+        "2023": {
+          "n": 4,
+          "mean_ic": -0.04514083253932706
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.11072056842138264,
+        "late_mean_ic": -0.07744144448784678,
+        "same_sign": false,
+        "magnitude_ratio": 0.6994314208460213,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_pct": -0.17202963299890708,
+        "long_leg_annual_pct": -0.12339872022141632,
+        "market_leg_annual_pct": 0.048630912777490765,
+        "t": -2.9530200081491547,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "size@K21": {
+      "factor": "size",
+      "k": 21,
+      "n_ic": 55,
+      "mean_ic": 0.034981875662817026,
+      "ic_sd": 0.1388856143502127,
+      "ic_t": 1.8679582804895076,
+      "t_crit": 2.9269649641151627,
+      "mde_ic": 0.05481424586060152,
+      "effect_over_mde": 0.6381894909542252,
+      "long_leg_legend": "越小越好 ⇒ 长腿取**最小**的一端（§2.5：对照因子）",
+      "new_or_replication": "new（本轮第一次测这个因子）",
+      "trimmed_ic": {
+        "mean": 0.0365065471205627,
+        "t": 2.1508555304683643,
+        "n": 55,
+        "trim": 0.05,
+        "mean_retention": 1.0435846114268332,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.00174,
+          "2": -0.00028,
+          "3": 0.0082,
+          "4": -0.00339,
+          "5": 0.00484,
+          "6": 0.0064,
+          "7": 0.00816,
+          "8": 0.01268,
+          "9": 0.01173,
+          "10": 0.00917
+        },
+        "win_rate": {
+          "1": 0.436,
+          "2": 0.418,
+          "3": 0.545,
+          "4": 0.436,
+          "5": 0.564,
+          "6": 0.509,
+          "7": 0.455,
+          "8": 0.564,
+          "9": 0.582,
+          "10": 0.582
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.008069362595377532,
+          "gross_annual_pct": -0.09375830825105323,
+          "sd_per_k": 0.04850247988574241,
+          "t": -1.2338337093822842,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.019142564690695717,
+          "mde_annual_pct": 0.22241837069189307,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.029290148801829875,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.007250149225148591,
+          "gross_annual_pct": -0.08423982909220268,
+          "sd_per_k": 0.034963718485069746,
+          "t": -1.5378383090953294,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.013799196340153827,
+          "mde_annual_pct": 0.16033351938083493,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.019771669642979325,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": -0.00502125379919159,
+          "gross_annual_pct": -0.058342187000130864,
+          "sd_per_k": 0.02006645896628231,
+          "t": -1.8557641331467651,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.007919666989814382,
+          "mde_annual_pct": 0.09201898788165282,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.006125972449092482,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": -0.004333477228892419,
+          "gross_annual_pct": -0.05035087827855954,
+          "sd_per_k": 0.010860518929062589,
+          "t": -2.9591520882832634,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.004286341371902076,
+          "mde_annual_pct": 0.04980320451162412,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.014117281170663798,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": false,
+        "reason": "本臂是「剔贵留便宜」，而 roe/q 的长腿是「越大越好」，**没有「价格贵贱」轴** ⇒ 剔贵在这两个因子上无定义。（bm/ep 是价值因子：越大越便宜 ⇒ 最贵 = 因子值最小的那端）"
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": -0.008815395884036417,
+        "gross_annual_pct": -0.10242650455737551,
+        "t": -0.9848875257413909,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 55,
+          "mean_ic": -0.010620336798994356,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2030176137.7106962,
+          "median_n": 74.0
+        },
+        "2": {
+          "n_cells": 55,
+          "mean_ic": 0.019809028222189384,
+          "cap_lo": 2030176137.7106962,
+          "cap_hi": 3187029770.321055,
+          "median_n": 74.0
+        },
+        "3": {
+          "n_cells": 55,
+          "mean_ic": 0.009741234352406878,
+          "cap_lo": 3187029770.321055,
+          "cap_hi": 5950289956.436052,
+          "median_n": 73.0
+        },
+        "4": {
+          "n_cells": 55,
+          "mean_ic": -0.04170112927457265,
+          "cap_lo": 5950289956.436052,
+          "cap_hi": 12162382941.415924,
+          "median_n": 74.0
+        },
+        "5": {
+          "n_cells": 55,
+          "mean_ic": -0.008170261629906665,
+          "cap_lo": 12162382941.415924,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 74.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.010620336798994356,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2030176137.7106962
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": -0.008170261629906665,
+            "cap_lo": 12162382941.415924,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 1.2998771985611042
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 23.955868243306355,
+        "n": 55,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 55,
+        "alpha": -0.006829150505490636,
+        "beta": 0.776477513035499,
+        "alpha_t": -0.0077716515383345584,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 9,
+          "mean_ic": -0.03295811833520932
+        },
+        "2020": {
+          "n": 12,
+          "mean_ic": -0.04031221413277961
+        },
+        "2021": {
+          "n": 11,
+          "mean_ic": 0.07555954068787106
+        },
+        "2022": {
+          "n": 12,
+          "mean_ic": 0.03276528592959498
+        },
+        "2023": {
+          "n": 11,
+          "mean_ic": 0.1345485833948595
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": -0.036635166233994466,
+        "late_mean_ic": 0.08095780333744185,
+        "same_sign": false,
+        "magnitude_ratio": 2.2098385693230336,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_pct": -0.09375830825105323,
+        "long_leg_annual_pct": -0.029290148801829875,
+        "market_leg_annual_pct": 0.06446815944922334,
+        "t": -1.2338337093822842,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "size@K63": {
+      "factor": "size",
+      "k": 63,
+      "n_ic": 19,
+      "mean_ic": 0.021469421552698643,
+      "ic_sd": 0.1604465094471053,
+      "ic_t": 0.583266281372978,
+      "t_crit": 3.1965742222552205,
+      "mde_ic": 0.11766255258325416,
+      "effect_over_mde": 0.18246605297388552,
+      "long_leg_legend": "越小越好 ⇒ 长腿取**最小**的一端（§2.5：对照因子）",
+      "new_or_replication": "new（本轮第一次测这个因子）",
+      "trimmed_ic": {
+        "mean": 0.02689040704243052,
+        "t": 0.8180620564046894,
+        "n": 19,
+        "trim": 0.05,
+        "mean_retention": 1.2524979760831272,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.00054,
+          "2": 0.00483,
+          "3": 0.01376,
+          "4": 0.00024,
+          "5": 0.00182,
+          "6": 0.02197,
+          "7": 0.01142,
+          "8": 0.01869,
+          "9": 0.03791,
+          "10": 0.01529
+        },
+        "win_rate": {
+          "1": 0.474,
+          "2": 0.474,
+          "3": 0.579,
+          "4": 0.474,
+          "5": 0.579,
+          "6": 0.526,
+          "7": 0.632,
+          "8": 0.632,
+          "9": 0.632,
+          "10": 0.526
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.020900411223850862,
+          "gross_annual_pct": -0.08094762442253349,
+          "sd_per_k": 0.0910125270746445,
+          "t": -1.0009916583075498,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.06674352897770941,
+          "mde_annual_pct": 0.2584987471517634,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.032554538209285284,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.012861191911301311,
+          "gross_annual_pct": -0.049811600418373334,
+          "sd_per_k": 0.08079886382171224,
+          "t": -0.6938295067928982,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.05925339601247978,
+          "mde_annual_pct": 0.22948934328642961,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.001418514205125125,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": -0.010275927343030641,
+          "gross_annual_pct": -0.039798829709515496,
+          "sd_per_k": 0.04417812537279364,
+          "t": -1.0138893052040008,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.03239778177548697,
+          "mde_annual_pct": 0.1254771230669654,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.008594256503732717,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": -0.0060012715104373225,
+          "gross_annual_pct": -0.023243019818201694,
+          "sd_per_k": 0.019842822908484315,
+          "t": -1.3183071868046081,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.014551623478224932,
+          "mde_annual_pct": 0.056358668709315614,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.025150066395046532,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": false,
+        "reason": "本臂是「剔贵留便宜」，而 roe/q 的长腿是「越大越好」，**没有「价格贵贱」轴** ⇒ 剔贵在这两个因子上无定义。（bm/ep 是价值因子：越大越便宜 ⇒ 最贵 = 因子值最小的那端）"
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": -0.013375289009610748,
+        "gross_annual_pct": -0.051802706640397184,
+        "t": -0.6006264769849853,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 19,
+          "mean_ic": -0.03792036859603063,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2020327326.4399884,
+          "median_n": 75.0
+        },
+        "2": {
+          "n_cells": 19,
+          "mean_ic": 0.0015988727179678866,
+          "cap_lo": 2020327326.4399884,
+          "cap_hi": 3185359858.1087503,
+          "median_n": 74.0
+        },
+        "3": {
+          "n_cells": 19,
+          "mean_ic": 0.01235826806321124,
+          "cap_lo": 3185359858.1087503,
+          "cap_hi": 5932891850.236169,
+          "median_n": 75.0
+        },
+        "4": {
+          "n_cells": 19,
+          "mean_ic": -0.06132587219546095,
+          "cap_lo": 5932891850.236169,
+          "cap_hi": 12115793521.88828,
+          "median_n": 74.0
+        },
+        "5": {
+          "n_cells": 19,
+          "mean_ic": -0.007997608313513649,
+          "cap_lo": 12115793521.88828,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 75.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.03792036859603063,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2020327326.4399884
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": -0.007997608313513649,
+            "cap_lo": 12115793521.88828,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 4.741463586301939
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 24.14044887856008,
+        "n": 19,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 19,
+        "alpha": -0.015331115964035857,
+        "beta": 0.5542758143647691,
+        "alpha_t": -0.017062978765374055,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 3,
+          "mean_ic": -0.05088948942826468
+        },
+        "2020": {
+          "n": 4,
+          "mean_ic": -0.06680732312987453
+        },
+        "2021": {
+          "n": 4,
+          "mean_ic": 0.10129568967077864
+        },
+        "2022": {
+          "n": 4,
+          "mean_ic": 0.07546055170821273
+        },
+        "2023": {
+          "n": 4,
+          "mean_ic": 0.030197951197400222
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": -0.05884840627906961,
+        "late_mean_ic": 0.0689847308587972,
+        "same_sign": false,
+        "magnitude_ratio": 1.1722446744209067,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_pct": -0.08094762442253349,
+        "long_leg_annual_pct": -0.032554538209285284,
+        "market_leg_annual_pct": 0.04839308621324821,
+        "t": -1.0009916583075498,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "q@K21": {
+      "factor": "q",
+      "k": 21,
+      "n_ic": 55,
+      "mean_ic": 0.01913560300653276,
+      "ic_sd": 0.08096228903910672,
+      "ic_t": 1.752833717413349,
+      "t_crit": 2.9269649641151627,
+      "mde_ic": 0.0319535384394538,
+      "effect_over_mde": 0.598857088794447,
+      "long_leg_legend": "越大越好 ⇒ 长腿取**最大**的一端（代理变量）",
+      "new_or_replication": "new（本轮第一次测这个因子）",
+      "trimmed_ic": {
+        "mean": 0.021696506014773343,
+        "t": 1.842030114523036,
+        "n": 55,
+        "trim": 0.05,
+        "mean_retention": 1.1338292295971184,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.00231,
+          "2": 0.00562,
+          "3": 0.00515,
+          "4": 0.00637,
+          "5": 0.00924,
+          "6": 0.00547,
+          "7": 0.00756,
+          "8": 0.00839,
+          "9": 0.00749,
+          "10": 0.00225
+        },
+        "win_rate": {
+          "1": 0.473,
+          "2": 0.491,
+          "3": 0.564,
+          "4": 0.527,
+          "5": 0.491,
+          "6": 0.509,
+          "7": 0.564,
+          "8": 0.527,
+          "9": 0.6,
+          "10": 0.564
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.0053764317470286005,
+          "gross_annual_pct": -0.06246901648928469,
+          "sd_per_k": 0.04117377554533559,
+          "t": -0.9684000182199375,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.016250131205527485,
+          "mde_annual_pct": 0.18881104829279552,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.0014366985182047041,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.004333907677041512,
+          "gross_annual_pct": -0.05035587967610138,
+          "sd_per_k": 0.02562332655679014,
+          "t": -1.2543695092224547,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.010112806342266243,
+          "mde_annual_pct": 0.11750117845299826,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.013549835331388043,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": 0.00020475953552295765,
+          "gross_annual_pct": 0.0023791107936953176,
+          "sd_per_k": 0.013851363778702375,
+          "t": 0.10963089135660756,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.005466743717285934,
+          "mde_annual_pct": 0.06351835557227467,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.06628482580118472,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": 0.0010023125419329126,
+          "gross_annual_pct": 0.011645917153887174,
+          "sd_per_k": 0.007422329408514866,
+          "t": 1.0014846213309216,
+          "t_crit": 2.9269649641151627,
+          "mde_per_k": 0.002929384666368679,
+          "mde_annual_pct": 0.0340366599330456,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.07555163216137659,
+          "market_leg_annual_pct": 0.06390571500748939
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": false,
+        "reason": "本臂是「剔贵留便宜」，而 roe/q 的长腿是「越大越好」，**没有「价格贵贱」轴** ⇒ 剔贵在这两个因子上无定义。（bm/ep 是价值因子：越大越便宜 ⇒ 最贵 = 因子值最小的那端）"
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 55,
+        "mean_per_k": -0.00765080548395091,
+        "gross_annual_pct": -0.08889507324209628,
+        "t": -0.675350164624902,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 55,
+          "mean_ic": -0.0004441219355511039,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2030176137.7106962,
+          "median_n": 74.0
+        },
+        "2": {
+          "n_cells": 55,
+          "mean_ic": 0.014046565843665532,
+          "cap_lo": 2030176137.7106962,
+          "cap_hi": 3187029770.321055,
+          "median_n": 73.0
+        },
+        "3": {
+          "n_cells": 55,
+          "mean_ic": 0.01467744487373783,
+          "cap_lo": 3187029770.321055,
+          "cap_hi": 5950289956.436052,
+          "median_n": 73.0
+        },
+        "4": {
+          "n_cells": 55,
+          "mean_ic": 0.05705415335470494,
+          "cap_lo": 5950289956.436052,
+          "cap_hi": 12162382941.415924,
+          "median_n": 73.0
+        },
+        "5": {
+          "n_cells": 55,
+          "mean_ic": 0.04785906589066393,
+          "cap_lo": 12162382941.415924,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 74.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": -0.0004441219355511039,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2030176137.7106962
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": 0.04785906589066393,
+            "cap_lo": 12162382941.415924,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": -0.009279786959605926
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 1.0634518651420495,
+        "n": 55,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 55,
+        "alpha": -0.004532183574139083,
+        "beta": 0.8465026215269221,
+        "alpha_t": -0.006003536733386361,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 9,
+          "mean_ic": 0.05102002408912833
+        },
+        "2020": {
+          "n": 12,
+          "mean_ic": 0.06885030083412223
+        },
+        "2021": {
+          "n": 11,
+          "mean_ic": -0.01304698897680562
+        },
+        "2022": {
+          "n": 12,
+          "mean_ic": -0.01447376006305466
+        },
+        "2023": {
+          "n": 11,
+          "mean_ic": 0.007661485277199829
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.05993516246162528,
+        "late_mean_ic": -0.0066197545875534836,
+        "same_sign": false,
+        "magnitude_ratio": 0.11044859671135317,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": true
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_pct": -0.06246901648928469,
+        "long_leg_annual_pct": 0.0014366985182047041,
+        "market_leg_annual_pct": 0.06390571500748939,
+        "t": -0.9684000182199375,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    },
+    "q@K63": {
+      "factor": "q",
+      "k": 63,
+      "n_ic": 19,
+      "mean_ic": 0.04232896791157445,
+      "ic_sd": 0.1031785024815557,
+      "ic_t": 1.7882377537308387,
+      "t_crit": 3.1965742222552205,
+      "mde_ic": 0.07566537916924745,
+      "effect_over_mde": 0.5594231916408361,
+      "long_leg_legend": "越大越好 ⇒ 长腿取**最大**的一端（代理变量）",
+      "new_or_replication": "new（本轮第一次测这个因子）",
+      "trimmed_ic": {
+        "mean": 0.03657735656945724,
+        "t": 1.6130142833229646,
+        "n": 19,
+        "trim": 0.05,
+        "mean_retention": 0.8641211532931212,
+        "note": "机理①的判据是**截尾 IC 序列自己的 t**（不是尾部对照的 t —— 变量遮蔽已修）"
+      },
+      "deciles": {
+        "mean": {
+          "1": -0.01578,
+          "2": 0.01167,
+          "3": 0.01309,
+          "4": 0.01413,
+          "5": 0.01858,
+          "6": 0.01424,
+          "7": 0.02218,
+          "8": 0.02115,
+          "9": 0.0195,
+          "10": 0.00587
+        },
+        "win_rate": {
+          "1": 0.474,
+          "2": 0.579,
+          "3": 0.474,
+          "4": 0.632,
+          "5": 0.526,
+          "6": 0.632,
+          "7": 0.579,
+          "8": 0.474,
+          "9": 0.526,
+          "10": 0.526
+        },
+        "monotonic_decreasing": false
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.013011916155747707,
+          "gross_annual_pct": -0.050395357809562544,
+          "sd_per_k": 0.09388907600447038,
+          "t": -0.6040918709438358,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.06885303008733326,
+          "mde_annual_pct": 0.2666688784334812,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.0022033833152244765,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.0075956645671263825,
+          "gross_annual_pct": -0.02941812943458472,
+          "sd_per_k": 0.05465938850413576,
+          "t": -0.6057282227852105,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.040084157618627596,
+          "mde_annual_pct": 0.15524657871341482,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.01877384505975335,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": 0.002731977338893568,
+          "gross_annual_pct": 0.010580991598254454,
+          "sd_per_k": 0.026133374748265374,
+          "t": 0.45567835195378537,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.01916476457538252,
+          "mde_annual_pct": 0.0742254374030688,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05877296609259254,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": 0.004264590985956859,
+          "gross_annual_pct": 0.016516828580531325,
+          "sd_per_k": 0.01827863811736701,
+          "t": 1.0169751719991993,
+          "t_crit": 3.1965742222552205,
+          "mde_per_k": 0.013404537288135883,
+          "mde_annual_pct": 0.05191598568738342,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §5.1 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.06470880307486941,
+          "market_leg_annual_pct": 0.04819197449433807
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "drop_expensive_4c": {
+        "applicable": false,
+        "reason": "本臂是「剔贵留便宜」，而 roe/q 的长腿是「越大越好」，**没有「价格贵贱」轴** ⇒ 剔贵在这两个因子上无定义。（bm/ep 是价值因子：越大越便宜 ⇒ 最贵 = 因子值最小的那端）"
+      },
+      "cheap_x_quality_4d": {
+        "applicable": true,
+        "n": 19,
+        "mean_per_k": -0.02038480860777078,
+        "gross_annual_pct": -0.07895068730628682,
+        "t": -0.553477995945102,
+        "quality_factor": "roe"
+      },
+      "cap_strata_ic_5a": {
+        "1": {
+          "n_cells": 19,
+          "mean_ic": 0.013586519446278969,
+          "cap_lo": 589800000.0,
+          "cap_hi": 2020327326.4399884,
+          "median_n": 74.0
+        },
+        "2": {
+          "n_cells": 19,
+          "mean_ic": -0.021341540090374266,
+          "cap_lo": 2020327326.4399884,
+          "cap_hi": 3185359858.1087503,
+          "median_n": 74.0
+        },
+        "3": {
+          "n_cells": 19,
+          "mean_ic": 0.07352618917925276,
+          "cap_lo": 3185359858.1087503,
+          "cap_hi": 5932891850.236169,
+          "median_n": 74.0
+        },
+        "4": {
+          "n_cells": 19,
+          "mean_ic": 0.10566322106946548,
+          "cap_lo": 5932891850.236169,
+          "cap_hi": 12115793521.88828,
+          "median_n": 73.0
+        },
+        "5": {
+          "n_cells": 19,
+          "mean_ic": 0.06674950725878112,
+          "cap_lo": 12115793521.88828,
+          "cap_hi": 1136859699914.1416,
+          "median_n": 75.0
+        }
+      },
+      "book_prior_5b": {
+        "prior_shape": "小市值档的档内 IC 更大（小市值更强）",
+        "prior_values_from_the_book": {
+          "small_cap_t": 4.76,
+          "large_cap_t": 1.22
+        },
+        "prior_source": "data/books/cn_factor_lines.txt:5949-5950, 5968-5976（石川：High−Low 在 Small 档 t=4.76、Large 档 t=1.22）",
+        "why_only_the_shape": "🚨 石川的 t 是**他的池与口径**下的数 ⇒ **不许**当本仓的先验（预注册 §2.3）；只比「小市值档是否更强」这个形状（预注册 §6.4 5b）",
+        "measured": {
+          "smallest_cap_bucket": {
+            "bucket": 1,
+            "mean_ic": 0.013586519446278969,
+            "cap_lo": 589800000.0,
+            "cap_hi": 2020327326.4399884
+          },
+          "largest_cap_bucket": {
+            "bucket": 5,
+            "mean_ic": 0.06674950725878112,
+            "cap_lo": 12115793521.88828,
+            "cap_hi": 1136859699914.1416
+          },
+          "ratio_small_over_large": 0.20354486503706162
+        },
+        "measured_shape": "大市值档档内 IC 更大",
+        "agrees_with_prior": false,
+        "conflict_note": "若形状与先验相反 ⇒ **必须解释**，**不许默默改判据**（预注册 §6.4 5b）"
+      },
+      "cap_exposure_5c": {
+        "cap_exposure_ratio": 1.0569865497487327,
+        "n": 19,
+        "direction": "偏大盘",
+        "direction_note": "🚨 `> 1` = **偏大盘**（第 142 层：方向别读反）"
+      },
+      "alpha_beta_7": {
+        "n": 19,
+        "alpha": -0.007587629746176875,
+        "beta": 0.5640695865964089,
+        "alpha_t": -0.008102884239198409,
+        "market_leg": "同一个覆盖池的等权均值",
+        "caliber": "α、β 都是**每 K 日**口径（不是年化）"
+      },
+      "ic_by_year": {
+        "2019": {
+          "n": 3,
+          "mean_ic": 0.0909436998597183
+        },
+        "2020": {
+          "n": 4,
+          "mean_ic": 0.12518217479218285
+        },
+        "2021": {
+          "n": 4,
+          "mean_ic": -0.032359861581654825
+        },
+        "2022": {
+          "n": 4,
+          "mean_ic": -0.010232988258774178
+        },
+        "2023": {
+          "n": 4,
+          "mean_ic": 0.05026549773343606
+        }
+      },
+      "year_segments_6": {
+        "early_years": [
+          "2019",
+          "2020"
+        ],
+        "late_years": [
+          "2021",
+          "2022",
+          "2023"
+        ],
+        "early_mean_ic": 0.10806293732595057,
+        "late_mean_ic": 0.0025575492976690184,
+        "same_sign": true,
+        "magnitude_ratio": 0.023667219871644565,
+        "criterion": "符号相同且量级比 < 3 ⇒ 不是 regime 断点；符号不同**或**量级比 > 3 ⇒ 是 regime 不是因子（预注册 §6.5）",
+        "regime_break": false
+      },
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_pct": -0.050395357809562544,
+        "long_leg_annual_pct": -0.0022033833152244765,
+        "market_leg_annual_pct": 0.04819197449433807,
+        "t": -0.6040918709438358,
+        "caliber": "**多头口径**：长腿（涨腿 top-10，等权）− 市场腿（同一覆盖池等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是本项目的可达目标**"
+      }
+    }
+  },
+  "replication_check": {
+    "available": true,
+    "caliber": "**旧脚本的函数原样调用**（`load_annual` / `attach_to_cross_sections` / `ic_series`）⇒ 差异只可能来自本轮的新代码",
+    "note": "本臂是**复现**对照，不是发现。旧产物 `fundamental_ic.json`（bm/roe）与 `bm_ic_attribution.json`（bm 的分档/截尾）都是本轮之前就存在的读数",
+    "rows": [
+      {
+        "cell": "bm@K21",
+        "new_mean_ic": 0.07028608125575454,
+        "new_ic_t": 2.940798199239549,
+        "new_n_ic": 55,
+        "old_mean_ic": 0.07028608125575454,
+        "old_ic_t": 2.940798199239549,
+        "old_n_ic": 55,
+        "old_t_crit": 2.58412706973329,
+        "bitwise_equal": true,
+        "diff_mean_ic": 0.0
+      },
+      {
+        "cell": "bm@K63",
+        "new_mean_ic": 0.09505284009672062,
+        "new_ic_t": 2.2838218786117377,
+        "new_n_ic": 19,
+        "old_mean_ic": 0.09505284009672062,
+        "old_ic_t": 2.2838218786117377,
+        "old_n_ic": 19,
+        "old_t_crit": 2.774528771933695,
+        "bitwise_equal": true,
+        "diff_mean_ic": 0.0
+      },
+      {
+        "cell": "roe@K21",
+        "new_mean_ic": -0.008896357932697224,
+        "new_ic_t": -0.5355044800657918,
+        "new_n_ic": 55,
+        "old_mean_ic": -0.008896357932697224,
+        "old_ic_t": -0.5355044800657918,
+        "old_n_ic": 55,
+        "old_t_crit": 2.58412706973329,
+        "bitwise_equal": true,
+        "diff_mean_ic": 0.0
+      },
+      {
+        "cell": "roe@K63",
+        "new_mean_ic": -0.00799602096133105,
+        "new_ic_t": -0.23384560964065804,
+        "new_n_ic": 19,
+        "old_mean_ic": -0.00799602096133105,
+        "old_ic_t": -0.23384560964065804,
+        "old_n_ic": 19,
+        "old_t_crit": 2.774528771933695,
+        "bitwise_equal": true,
+        "diff_mean_ic": 0.0
+      }
+    ],
+    "bm_trimmed_ic": {
+      "k": 21,
+      "new_mean": 0.06719696684340001,
+      "new_t": 3.0761460884793435,
+      "new_n": 55,
+      "old_mean": 0.06719696684340001,
+      "old_n": 55,
+      "old_t_field": 3.0761460884793435,
+      "mean_bitwise_equal": true,
+      "old_t_field_note": "🚨 旧产物的 `trimmed_ic::t` **不是**截尾 IC 的 t：它被 G 节尾部对照循环的 `t` 覆盖了（变量遮蔽）⇒ 旧值 = `tail_contrasts::q1_minus_pool::t`。**本轮的 `new_t` 是截尾 IC 序列自己的 t（第一次算出来）**",
+      "retention": 0.9560494146612902,
+      "retention_note": "均值保留率 = **截尾 IC 均值 ÷ 原始 IC 均值**（机理①的判据是「均值保留 ≥ 80%」）"
+    },
+    "bm_ic_attribution_old_deciles_mean": {
+      "1": -0.00355,
+      "2": 0.00043,
+      "3": 0.00487,
+      "4": 0.00298,
+      "5": 0.00923,
+      "6": 0.009,
+      "7": 0.0069,
+      "8": 0.00798,
+      "9": 0.00937,
+      "10": 0.0078
+    }
+  },
+  "verdict": {
+    "calibers": {
+      "primary": {
+        "n_A": 10,
+        "n_A_label": "注册表长度（第 6 批候选数，程序读出）",
+        "by_cell": {
+          "bm@K21": {
+            "state": "FUNDAMENTAL_SIG_NOT_DELIVERABLE",
+            "reason": "族 A 过线（|t| = 2.94 ≥ 2.93）**但吃不到**（长腿年化毛超额 -7.5894% vs D1 摩擦 6.4137% / D2 所需 15.5571%） ⇒ 查是否可作**增量腿**",
+            "effect_over_mde": 1.0042750561649691,
+            "d1_pass": false,
+            "d2_pass": false
+          },
+          "bm@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0951 < MDE_IC 0.1330（比值 0.715 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.7147043329885024,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0359 < MDE_IC 0.0532（比值 0.674 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6738732210431917,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0521 < MDE_IC 0.1093（比值 0.477 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.47677609295340573,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0087 < MDE_IC 0.0487（比值 0.178 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.17804056102367602,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0075 < MDE_IC 0.1088（比值 0.069 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.06908490881050229,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0350 < MDE_IC 0.0548（比值 0.638 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6381894909542252,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0215 < MDE_IC 0.1177（比值 0.182 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.18246605297388552,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0191 < MDE_IC 0.0320（比值 0.599 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.598857088794447,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0423 < MDE_IC 0.0757（比值 0.559 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.5594231916408361,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          }
+        },
+        "state_counts": {
+          "FUNDAMENTAL_SIG_NOT_DELIVERABLE": 1,
+          "FUNDAMENTAL_POWERLESS": 9
+        },
+        "cells_pass_family_a": 1
+      },
+      "control_prereg_literal": {
+        "n_A": 8,
+        "n_A_label": "2026-10-20 预注册 §5.2 字面（族 A 四因子 × K 档数）",
+        "by_cell": {
+          "bm@K21": {
+            "state": "FUNDAMENTAL_SIG_NOT_DELIVERABLE",
+            "reason": "族 A 过线（|t| = 2.94 ≥ 2.93）**但吃不到**（长腿年化毛超额 -7.5894% vs D1 摩擦 6.4137% / D2 所需 15.5571%） ⇒ 查是否可作**增量腿**",
+            "effect_over_mde": 1.0042750561649691,
+            "d1_pass": false,
+            "d2_pass": false
+          },
+          "bm@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0951 < MDE_IC 0.1330（比值 0.715 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.7147043329885024,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0359 < MDE_IC 0.0532（比值 0.674 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6738732210431917,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0521 < MDE_IC 0.1093（比值 0.477 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.47677609295340573,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0087 < MDE_IC 0.0487（比值 0.178 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.17804056102367602,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0075 < MDE_IC 0.1088（比值 0.069 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.06908490881050229,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0350 < MDE_IC 0.0548（比值 0.638 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6381894909542252,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0215 < MDE_IC 0.1177（比值 0.182 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.18246605297388552,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0191 < MDE_IC 0.0320（比值 0.599 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.598857088794447,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0423 < MDE_IC 0.0757（比值 0.559 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.5594231916408361,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          }
+        },
+        "state_counts": {
+          "FUNDAMENTAL_SIG_NOT_DELIVERABLE": 1,
+          "FUNDAMENTAL_POWERLESS": 9
+        },
+        "cells_pass_family_a": 1
+      },
+      "control_effective_dimension": {
+        "n_A": 5.334626394650736,
+        "n_A_label": "参与比（有效维数）× K 档数（预注册 §8.1 A3）",
+        "by_cell": {
+          "bm@K21": {
+            "state": "FUNDAMENTAL_SIG_NOT_DELIVERABLE",
+            "reason": "族 A 过线（|t| = 2.94 ≥ 2.93）**但吃不到**（长腿年化毛超额 -7.5894% vs D1 摩擦 6.4137% / D2 所需 15.5571%） ⇒ 查是否可作**增量腿**",
+            "effect_over_mde": 1.0042750561649691,
+            "d1_pass": false,
+            "d2_pass": false
+          },
+          "bm@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0951 < MDE_IC 0.1330（比值 0.715 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.7147043329885024,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0359 < MDE_IC 0.0532（比值 0.674 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6738732210431917,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0521 < MDE_IC 0.1093（比值 0.477 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.47677609295340573,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0087 < MDE_IC 0.0487（比值 0.178 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.17804056102367602,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0075 < MDE_IC 0.1088（比值 0.069 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.06908490881050229,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0350 < MDE_IC 0.0548（比值 0.638 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6381894909542252,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0215 < MDE_IC 0.1177（比值 0.182 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.18246605297388552,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0191 < MDE_IC 0.0320（比值 0.599 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.598857088794447,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0423 < MDE_IC 0.0757（比值 0.559 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.5594231916408361,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          }
+        },
+        "state_counts": {
+          "FUNDAMENTAL_SIG_NOT_DELIVERABLE": 1,
+          "FUNDAMENTAL_POWERLESS": 9
+        },
+        "cells_pass_family_a": 1
+      },
+      "control_thresholds_working_tree": {
+        "n_A": 10,
+        "n_A_label": "n_A 同主口径，但交付阈值取**工作区当前**的 D2 产物（另一个 agent 在本轮期间改了摩擦模型）",
+        "by_cell": {
+          "bm@K21": {
+            "state": "FUNDAMENTAL_SIG_NOT_DELIVERABLE",
+            "reason": "族 A 过线（|t| = 2.94 ≥ 2.93）**但吃不到**（长腿年化毛超额 -7.5894% vs D1 摩擦 2.1379% / D2 所需 11.2813%） ⇒ 查是否可作**增量腿**",
+            "effect_over_mde": 1.0042750561649691,
+            "d1_pass": false,
+            "d2_pass": false
+          },
+          "bm@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0951 < MDE_IC 0.1330（比值 0.715 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.7147043329885024,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0359 < MDE_IC 0.0532（比值 0.674 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6738732210431917,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "ep@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0521 < MDE_IC 0.1093（比值 0.477 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.47677609295340573,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0087 < MDE_IC 0.0487（比值 0.178 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.17804056102367602,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "roe@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0075 < MDE_IC 0.1088（比值 0.069 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.06908490881050229,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0350 < MDE_IC 0.0548（比值 0.638 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.6381894909542252,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "size@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0215 < MDE_IC 0.1177（比值 0.182 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.18246605297388552,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K21": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0191 < MDE_IC 0.0320（比值 0.599 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.598857088794447,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          },
+          "q@K63": {
+            "state": "FUNDAMENTAL_POWERLESS",
+            "reason": "MDE 闸先判：|平均IC| 0.0423 < MDE_IC 0.0757（比值 0.559 < 1） ⇒ 本设计**测不到**这个量级的效应",
+            "effect_over_mde": 0.5594231916408361,
+            "wording": "这只等于『测不到』，不等于『没有超额』。"
+          }
+        },
+        "state_counts": {
+          "FUNDAMENTAL_SIG_NOT_DELIVERABLE": 1,
+          "FUNDAMENTAL_POWERLESS": 9
+        },
+        "cells_pass_family_a": 1
+      }
+    },
+    "primary": {
+      "n_A": 10,
+      "family_state": "FUNDAMENTAL_SIG_NOT_DELIVERABLE",
+      "family_state_rule": "族级标签 = **逐格分布**（过线格数 / 各态计数），**不取极值**（第 143 层：跨格取极值会抹掉它从哪一行来）",
+      "state_counts": {
+        "FUNDAMENTAL_SIG_NOT_DELIVERABLE": 1,
+        "FUNDAMENTAL_POWERLESS": 9
+      },
+      "cells_pass_family_a": 1,
+      "n_cells": 10
+    }
+  },
+  "wording_guard": {
+    "powerless_wording": "这只等于『测不到』，不等于『没有超额』。",
+    "note": "`FUNDAMENTAL_POWERLESS` 读作「**这个设计测不到**」，**不是**「因子无效」「已证伪」「没有超额」"
+  },
+  "no_promotion": "**臂 R 是后修值臂**（预注册 §4.1）⇒ 本产物**不产生任何采纳结论**；§5.4 的四态是**族 A 的判决**，不是实盘晋级。🚨 本产物**不宣称**基本面族能独立达到年化 20% —— D2 所需毛超额 15.5571% 是一道很厚的墙",
+  "what_this_cannot_prove": [
+    "臂 R 的读数出自**后修值**财务缓存 ⇒ 不能作为**晋级依据**（预注册 §3.2/§8.4）",
+    "**不显著**只等于「没检出」，不等于「不存在」（预注册 §7.1 逐字）",
+    "「族 A 过线」只说明**因子在历史上测得到预测力**，不说明**扣掉摩擦后吃得到**（D1/D2 另判）",
+    "**多空口径不是本项目的可达目标**（融券不可得）⇒ 本产物只报多头口径"
+  ],
+  "scope": {
+    "reads": "面板缓存（pickle）+ 财务缓存 / PIT 帧；未建面板",
+    "no_panel_build": true
+  }
+}

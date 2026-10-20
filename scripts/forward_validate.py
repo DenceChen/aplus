@@ -42,6 +42,7 @@ from aplus.backtest import ENTRY_LAG, build_cross_sections, evaluate_weights
 from aplus.evolve_race import (breadth_tstat, down_excess_tstat, excess_tstat,
                                race)
 from aplus.factor_fundamental import attach_pit_bm
+from scripts.fundamental_family_factors import attach_forward_factors
 from aplus.forward import (FORWARD_EMBARGO_DAYS, forward_status, forward_window,
                        load_registry, needs_forward_panel,
                            merge_results)
@@ -233,6 +234,27 @@ def main() -> int:
                   f" · PIT BM 可用 {bm_report.get('n_with_bm')} 天"
                   + (f" · 无 PIT 快照（BM 列全 NaN）{len(_bm_gap)} 天："
                      f"{_bm_gap[0]} ~ {_bm_gap[-1]}" if _bm_gap else ""),
+                  flush=True)
+            # ── PIT 基本面族 F2/F3/F4/F5 挂进横截面（批次 6 起）──────
+            # 🚨 为什么必须挂：`aplus/factor.py::composite_score` 对**缺失的因子列
+            # 会 KeyError** ⇒ 前瞻台账第 6 批登记了 `{ep:1.0}` / `{roe:1.0}` /
+            # `{size:1.0}` / `{q:1.0}` 四类候选，而面板只有 `bm` 列 ⇒
+            # **崩的是整个前瞻验证**（连不带这些因子的老批次一起陪葬）。
+            #
+            # 口径与 `attach_pit_bm` **同构**：那天没有 PIT 快照 ⇒ 该列**全为 NaN**
+            # ⇒ `composite_score` 的 `min_count` 规则把那天全部剔掉 ⇒
+            # **那天不出信号**（不是出零信号）。
+            # 🚨 **不许抛异常**：这个函数跑在每晚的定时任务里 ⇒ 失败退化成
+            # 全 NaN 列并在返回值里报出（`attach_forward_factors` 内部已兜）。
+            fam_report = attach_forward_factors(xs, root=vintage_root,
+                                                 daily_map=daily_map)
+            _fam_gap = fam_report.get("unavailable_days") or []
+            _fam_err = fam_report.get("errors") or []
+            print(f" · PIT 基本面族(F2/F3/F4/F5)可用 "
+                  f"{fam_report.get('n_with_factors')} 天"
+                  + (f" · 无快照 {len(_fam_gap)} 天" if _fam_gap else "")
+                  + (f" · ⚠️ {len(_fam_err)} 天出错（已退化成 NaN 列）"
+                     if _fam_err else ""),
                   flush=True)
             dates = list(xs["_dates"])
 

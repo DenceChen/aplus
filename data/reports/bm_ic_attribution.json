@@ -78,32 +78,32 @@
   },
   "trimmed_ic": {
     "mean": 0.06719696684340001,
-    "t": -1.6119787074299516,
+    "t": 3.0761460884793435,
     "n": 55,
     "trim": 0.05
   },
   "pool_bias": {
     "2019": {
       "day": "2019-07-05",
-      "pool_total": 3422,
+      "pool_total": 3423,
       "pool_covered": 312,
       "share": 0.091
     },
     "2020": {
       "day": "2020-07-07",
-      "pool_total": 3494,
+      "pool_total": 3495,
       "pool_covered": 317,
       "share": 0.091
     },
     "2021": {
       "day": "2021-07-06",
-      "pool_total": 4008,
+      "pool_total": 4009,
       "pool_covered": 361,
       "share": 0.09
     },
     "2022": {
       "day": "2022-07-07",
-      "pool_total": 4416,
+      "pool_total": 4417,
       "pool_covered": 401,
       "share": 0.091
     },
