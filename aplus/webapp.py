@@ -463,15 +463,63 @@ LOT_SHARES_STAR_MARKET = 200
 LOT_SHARES_DEFAULT = 100
 
 
+#: 板块 → 一手股数 + **交易权限门槛**。
+#:
+#: 🚨 **权限门槛是外部常识·本仓未核实** ——
+#: 「50 万资产 + 2 年经验」这类门槛**全仓 grep 命中 0** ⇒
+#: 本仓**没有**权限模型，也**无法**从任何仓内数据推断出用户有没有权限
+#: ⇒ ⇒ 只能**标出来**，让用户自己去核 ⇒ **不许**据此把票自动剔除
+#: （那是拿一条未核实的外部常识去改用户的持仓）。
+#: ⇒ 唯一**确定**的是**一手多少股**（交易所规则，本仓按代码前缀实现）。
+BOARD_RULES: dict[str, dict] = {
+    "STAR_688_689": {
+        "label": "科创板",
+        "lot_shares": LOT_SHARES_STAR_MARKET,
+        "permission": "需开通科创板权限（50 万资产 + 2 年经验）",
+    },
+    "CHINEXT_300_301": {
+        "label": "创业板",
+        "lot_shares": LOT_SHARES_DEFAULT,
+        "permission": "需开通创业板权限（10 万资产 + 2 年经验）",
+    },
+    "BSE_8_4": {
+        "label": "北交所",
+        "lot_shares": LOT_SHARES_DEFAULT,
+        "permission": "需开通北交所权限（50 万资产 + 2 年经验）",
+    },
+    "MAIN": {
+        "label": "主板",
+        "lot_shares": LOT_SHARES_DEFAULT,
+        "permission": None,
+    },
+}
+
+
+def board_of(code) -> str:
+    """这只票在哪个板。**唯一一份**板块判定。
+
+    🚨 前端**不许**自己按代码前缀再判一次板块
+    （那是第二份真相源，第 97 层）⇒ 端点算好递过去，前端只渲染。
+    """
+    c = str(code or "").strip()
+    if c[:3] in ("688", "689"):
+        return "STAR_688_689"
+    if c[:3] in ("300", "301"):
+        return "CHINEXT_300_301"
+    if c[:1] in ("8", "4"):
+        return "BSE_8_4"
+    return "MAIN"
+
+
 def lot_shares_for(code) -> int:
     """一手多少股：**688/689 = 200，其余 = 100**。
 
     688xxx/689xxx = 科创板（申报数量 200 股起）；
     主板 600/601/603/605、深主板 000/001/002、创业板 300、
     北交所 8xxxxx/4xxxxx 都是 100 股一手。
+    ⇒ **从 `board_of` 派生**（单一真相源）：板块规则只写一处。
     """
-    c = str(code or "").strip()
-    return LOT_SHARES_STAR_MARKET if c[:3] in ("688", "689") else LOT_SHARES_DEFAULT
+    return int(BOARD_RULES[board_of(code)]["lot_shares"])
 
 
 def close_as_of(store, code, as_of):
@@ -684,6 +732,10 @@ def lot_affordability_payload(data_root, reports_dir) -> dict:
                 "close": close,
                 "close_date": bar_date,
                 "lot_shares": shares,
+                # 板块与**权限门槛**（🚨 外部常识·本仓未核实 ⇒ 只标不剔）
+                "board": BOARD_RULES[board_of(code)]["label"],
+                "permission_note": BOARD_RULES[board_of(code)]["permission"],
+                "permission_verified": False,
                 "lot_cost": lot_cost,
                 "affordable_at_5000": None if lot_cost is None else lot_cost <= per_pos,
                 "affordable_at_10000": None if lot_cost is None else lot_cost <= per_pos2,

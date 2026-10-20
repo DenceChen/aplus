@@ -548,6 +548,25 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #     `--gate-out` → `downleg_gate.json` 闸门）⇒ 与它兄弟那条**同一生成器**。
     # ⚠️ 登记只是让 `freshness()` **能判**；它**仍无章** ⇒ 仍判 `unknown` = 不可引用。
     "downleg_gate.json": "scripts/measure_downleg_ranking.py",
+    # ── 2026-10-21 登记：本轮新产出的判决/测量产物 ──────────────────
+    # 每一个都**盖了真章**（sidecar 的 code_file_sha256 与当前生成器字节逐位相同）
+    # ⇒ 不登记 ⇒ `freshness()` 判 unknown ⇒ 按仓规**不可引用**
+    # ⇒ 而「盖了章却解析不出生成器」比「没盖章」更坏：读者无从判断它出自哪份代码。
+    "bond_deployed_nav.json": "scripts/measure_bond_deployed_nav.py",
+    "pool_board_exposure_2026-10-21.json": "scripts/measure_pool_board_exposure.py",
+    "dividend_pit_coverage_shard1of5.json": "scripts/collect_dividend_pit.py",
+    # 50 只小样本那一份（第一批采集的产物）—— 它是**真实历史**，
+    # 按第 25 层「不删不改不抹历史」⇒ 登记而不是删 sidecar。
+    "dividend_pit_coverage_2026-10-21.json": "scripts/collect_dividend_pit.py",
+    "fundamental_contamination_concentration_2026-10-20.json":
+        "scripts/measure_fundamental_contamination_concentration.py",
+    "fundamental_coverage_axes_2026-10-20.json":
+        "scripts/measure_fundamental_coverage_axes.py",
+    "fundamental_factor_family_cross_section_2026-10-20.json":
+        "scripts/measure_fundamental_factor_family_cross_section.py",
+    "bm_ic_attribution_reduced_2026-10-21.json": "scripts/bm_ic_attribution.py",
+    # 每晚复盘产物（最新 + 每日归档）
+    "daily_review.json": "scripts/daily_review.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；

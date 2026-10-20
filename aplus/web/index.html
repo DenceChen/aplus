@@ -1429,10 +1429,21 @@ function renderLotAffordability(d) {
     const lotCell = it.lot_cost == null ? '—' : money(it.lot_cost);
     const shares = it.lot_shares == null ? '' : `<span class="lot-sub">${it.lot_shares} 股一手</span>`;
     const priceNote = it.close_date ? ` title="收盘价取 ${it.close_date} 那一根 bar"` : '';
+    /* 🚨 2026-10-21 板块与**交易权限**（权限门槛是**外部常识·本仓未核实**）。
+       ⇒ 只**标出来**，不许据此把票自动剔除（那是拿一条未核实的外部常识改用户持仓）。
+       ⇒ 板块与一手股数由**端点**算好递过来（`board` / `permission_note`），
+       前端**不许**自己按代码前缀再判一次（第二份真相源，第 97 层）。 */
+    const boardCell = it.board
+      ? `<span class="lot-sub">${esc(it.board)}</span>`
+        + (it.permission_note
+            ? `<div class="lot-na" title="⚠️ 外部常识·本仓未核实（全仓没有权限模型，grep 命中 0）">${esc(it.permission_note)}</div>`
+            : '')
+      : '';
     return `<tr class="${isUp ? 'lot-up' : 'lot-down'}">`
       + `<td>${esc(it.name || '')}</td>`
       + `<td${priceNote}>${esc(it.code || '')}</td>`
       + `<td><span class="lot-dir${isUp ? '' : ' lot-dir-down'}">${isUp ? '看涨·要买' : '看跌·回避'}</span></td>`
+      + `<td>${boardCell}</td>`
       + `<td class="num">${closeCell}</td>`
       + `<td class="num">${lotCell}${shares}</td>`
       + `<td>${verdict}</td>`
@@ -1456,7 +1467,7 @@ function renderLotAffordability(d) {
   box.innerHTML = `<div class="lot-wrap">`
     + `<div class="lot-head">${head}${extra}${missing}</div>`
     + `<div class="lot-table"><table><thead><tr>`
-      + `<th>名称</th><th>代码</th><th>方向</th><th class="num">收盘</th>`
+      + `<th>名称</th><th>代码</th><th>方向</th><th>板块/权限</th><th class="num">收盘</th>`
       + `<th class="num">1 手要</th><th>买得起吗</th>`
       + `</tr></thead><tbody>${rows}</tbody></table></div>`
     + `<div class="lot-note">⚠️ 这是<b>本钱</b>问题，不是信号问题：名单再准，<b>买不进就等于没信号</b>。`
@@ -2134,7 +2145,25 @@ function renderAlloc(a, heldCount) {
   const actName = { add: '买入', remove: '卖出', keep: '保留' };
   const heldTxt = heldCount == null ? '你手上的持仓' : `你手上现在的 ${heldCount} 只`;
   let diffHtml;
-  if (!rb) {
+  /* 🚨 2026-10-21 **非调仓日**：必须**明说**「今天不动」。
+     实盘每 K（现 K=63）个交易日才换一次仓 ⇒ 非调仓日 `rebalance` 是**空的**。
+     ⇒ 若让它落进下面的分支，会渲染成「卖出 0 · 买入 0 · 保留 0」，
+     那会被读成「**没事要做**」，而真相是「**今天不该动**」
+     —— 而这两件事的行动含义完全相反。
+     ⇒ 另：非调仓日 `positions` 是**沿用的持仓**（score 为 null），
+     所以下面那张「目标配置」表在那天描述的是「我持有什么」，不是「我要换成什么」。
+     ⚠️ `a.is_rebalance_day` 缺失（旧产物）⇒ **不能**当成非调仓日
+     ⇒ 那时按「不知道」处理，不猜。 */
+  if (a.is_rebalance_day === false) {
+    const since = a.held_since ? a.held_since : '未知';
+    const prog = (a.days_since_rebalance != null && a.rebalance_every != null)
+      ? `距上次换仓 <b>${a.days_since_rebalance}</b> / <b>${a.rebalance_every}</b> 个交易日`
+      : '距上次换仓的进度未知';
+    diffHtml = `<div class="alloc-diff">
+      <b>今天不是调仓日 ⇒ 什么都不用动。</b>${prog}；持仓沿用 <b>${esc(since)}</b> 那份名单。
+      下面那张表是「<b>你现在持有什么</b>」，<b>不是</b>「要换成什么」——
+      每天的 10 涨 10 跌名单是<b>参考</b>，换仓日才动。</div>`;
+  } else if (!rb) {
     diffHtml = `<div class="alloc-diff warn">
       <b>后端还没有提供调仓清单</b> —— 缺这一块时，下面那张表只说明「目标配置是什么」，
       <b>不说明「相对${heldTxt}要动什么」</b>。别把它当成「只需要买这 ${a.positions.length} 只」。</div>`;

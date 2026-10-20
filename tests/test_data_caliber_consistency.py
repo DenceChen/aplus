@@ -600,6 +600,14 @@ def test_e2_load_run_dot_actually_reads_the_date_field():
 #: （实测 `alloc_2026-10-14.json` 顶层键 = capital / cash_weight / positions /
 #: rebalance / risk_notes，逐层扫过，**没有任何**日期字段）。
 _ALLOC_DATE = "2026-10-09"
+#: 端到端 JS 探针的 preamble（**唯一一份**，各处测试共用 —— 不许各处重写）。
+#: ⚠️ 用**三引号原始字符串**：这个 JS 里同时有 `'` 与 `"`，
+#:    放进普通 Python 字符串就得层层转义 ⇒ 转义一乱就是 SyntaxError，
+#:    而**红在一个语法错误上**而不是语义错误上（第 98 层的教训）。
+_JS_PRE = """const $ = id => global.document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+"""
+
 _ALLOC_PAYLOAD = {
     "capital": 50000,
     "positions": [{"code": "600641.SH", "name": "先导基电", "weight": 0.1,
@@ -679,9 +687,7 @@ def test_e3_the_alloc_panel_renders_a_non_empty_generation_date(alloc_client, tm
     body = _code_block(_fn(_body(src, "function renderAlloc(")))
     script = (
         "(async () => {\n"
-        + "const $ = id => global.document.getElementById(id);\n"
-        + "const esc = s => String(s ?? '').replace(/[&<>\"']/g, c =>\n"
-        + "  ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\n"
+        + _JS_PRE
         + body + "\n"
         + "renderAlloc(" + _js_literal(payload) + ");\n"
         + "console.log(global.__text('alloc-date'));\n"
@@ -706,9 +712,7 @@ def test_e3_a_missing_date_renders_unknown_not_a_bare_label(tmp_path):
     payload = dict(_ALLOC_PAYLOAD)          # 故意**不给** date
     script = (
         "(async () => {\n"
-        + "const $ = id => global.document.getElementById(id);\n"
-        + "const esc = s => String(s ?? '').replace(/[&<>\"']/g, c =>\n"
-        + "  ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\n"
+        + _JS_PRE
         + body + "\n"
         + "renderAlloc(" + _js_literal(payload) + ");\n"
         + "console.log(global.__text('alloc-date'));\n"
@@ -719,6 +723,48 @@ def test_e3_a_missing_date_renders_unknown_not_a_bare_label(tmp_path):
         f"#alloc-date 渲染成 {out!r} —— 一个不报错、不留痕的空值（E3）"
     )
     assert "未知" in out, f"缺 date 时应明说未知，实得 {out!r}"
+
+
+def test_e3_a_non_rebalance_day_says_do_not_touch_anything(tmp_path):
+    """🚨 非调仓日必须**明说「今天不动」**。
+
+    实盘每 K 个交易日（现 K=63）才换一次仓 ⇒ **非调仓日 `rebalance` 是空的**。
+    ⇒ 若让它落进通用分支，页面会渲染成「卖出 0 · 买入 0 · 保留 0」，
+    那会被读成「**没事要做**」；而真相是「**今天不该动**」
+    —— 这两件事的**行动含义完全相反**（前者是「照做」，后者是「别动」）。
+
+    ⇒ 这条守的是**分支**，不是文案：把 `a.is_rebalance_day === false`
+    那个分支删掉 ⇒ 红。
+    """
+    src = _html()
+    body = _code_block(_fn(_body(src, "function renderAlloc(")))
+    payload = dict(_ALLOC_PAYLOAD)
+    payload.update({
+        "is_rebalance_day": False,
+        "held_since": "2026-10-15",
+        "days_since_rebalance": 3,
+        "rebalance_every": 63,
+        "rebalance": [],            # 非调仓日**没有订单**
+    })
+    script = (
+        "(async () => {\n"
+        + _JS_PRE
+        + body + "\n"
+        + "renderAlloc(" + _js_literal(payload) + ");\n"
+        # ⚠️ 用 `__html`（读 innerHTML）而不是 `__text`（读 textContent）——
+        #    `renderAlloc` 写的是 `$('alloc-body').innerHTML` ⇒ `__text` 读到的
+        #    永远是空串 ⇒ 断言会**红在一个「探针读错地方」上**，
+        #    而不是一个语义错误上（第 98 层的教训：红的原因必须是我要验的那件事）。
+        + "console.log(global.__html('alloc-body'));\n"
+        "})();\n"
+    )
+    out = _run_js(tmp_path, script).strip()
+    assert "不是调仓日" in out, (
+        f"非调仓日没有明说「今天不动」，实得 {out[:200]!r}")
+    assert "卖出 0" not in out, (
+        "非调仓日落进了通用分支（渲染成「卖出 0 · 买入 0 · 保留 0」）"
+        " ⇒ 会被读成「没事要做」，而真相是「今天不该动」")
+    assert "2026-10-15" in out, "非调仓日必须说清持仓沿用哪一份名单"
 
 
 def test_e3_render_alloc_reads_the_date_field_of_the_payload():
