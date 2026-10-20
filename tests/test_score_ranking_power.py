@@ -29,6 +29,10 @@ from pathlib import Path
 
 import pytest
 
+# 🚨 对账守卫必须与**生产者**读**同一个口径**的样本
+#   （底稿是追加式的 ⇒ 归属后只应看到当前信号的那一段）。
+from scripts.signal_scope import scoped_ledger_frame  # noqa: E402
+
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -186,7 +190,7 @@ def test_the_independent_event_count_is_reported_and_recomputable(art):
     而不是读产物自己写的那个字段（第 118 层：读落盘 json 等于没问）。
     """
     import pandas as pd
-    df = pd.read_parquet(VERIFY)
+    df = scoped_ledger_frame(_ROOT / "data" / "reports", VERIFY)
     for col, res in art["by_score_col"].items():
         assert "n_independent_pred_dates" in res, f"{col} 没报独立事件数"
         assert res["n_independent_pred_dates"] == int(df["pred_date"].nunique()), (
@@ -275,7 +279,7 @@ def test_the_artifact_reconciles_with_a_fresh_measurement(art):
     """
     import pandas as pd
     from scripts import score_ranking_power as M
-    df = pd.read_parquet(VERIFY)
+    df = scoped_ledger_frame(_ROOT / "data" / "reports", VERIFY)
     for col, rec in art["by_score_col"].items():
         got = M.measure(df, col, n_perm=rec["criterion"]["n_perm"],
                         seed=rec["criterion"]["seed"])

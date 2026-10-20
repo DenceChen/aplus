@@ -52,6 +52,17 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不自己实现**过滤逻辑（第 97 层），也**不自己实现**指纹（第二份真相源）。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    not_decidable_note,
+    resolve_attribution_context,
+    attribution_block,
+    scope_block,
+    scope_ledger,
+    upstream_scope_verdict,
+)
 from aplus.verify import compounded_stats, daily_portfolio_returns  # noqa: E402
 
 GENERATOR = "scripts/measure_portfolio_nav.py"
@@ -274,6 +285,10 @@ def main() -> int:
                     default=ROOT / "data/reports/hit_rate_diagnosis.json")
     ap.add_argument("--out", type=Path,
                     default=ROOT / "data/reports/portfolio_nav.json")
+    ap.add_argument(
+        "--reports-dir", type=Path, default=None,
+        help="生产报告目录（用于从**生产的真实配置**算当前信号 id）。"
+             "默认取 --verification 的父目录。")
     a = ap.parse_args()
     for p, what in ((a.verification, "底稿"), (a.diagnosis, "命中率诊断")):
         if not p.is_file():
@@ -284,9 +299,69 @@ def main() -> int:
     #   抓在**跑之前**；传 None 会让 stamp() **整项跳过**字节检查而无人察觉。
     expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
 
-    history = pd.read_parquet(a.verification)
+    # 🚨🚨 **信号作用域**（预注册 §2 / §3）。
+    #   底稿是**追加式**的 ⇒ 组合净值**只由当前信号**的行算出来。
+    reports_dir = a.reports_dir if a.reports_dir else a.verification.parent
+    ctx = resolve_attribution_context(reports_dir)
+    # 🚨 **读口留在调用点**（既有守卫钉住：expect_bytes 必须抓在它之前）。
+    frame = pd.read_parquet(a.verification)
+    # 🚨 **过滤只走共享入口**（第 97 层）。
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
     diagnosis = json.loads(a.diagnosis.read_text(encoding="utf-8"))
+
+    # 🚨 **两个输入必须同一个作用域**：`measure()` 会拿底稿的 `excluded`
+    #   与诊断产物的 `excluded` **逐字相等**做交叉核对 ⇒ 两者不同源时
+    #   那条核对是**拿两个不同的量比**（第 7 层）。
+    diag_scope = upstream_scope_verdict(
+        diagnosis, ctx.signal_id, ctx.weights_fingerprint)
+    not_decidable_reason = None
+    if not scoped.has_evidence:
+        not_decidable_reason = scoped.reason
+    elif not diag_scope["ok"]:
+        not_decidable_reason = (
+            "🚨 命中率诊断产物的作用域与当前信号不一致 ⇒ "
+            "**两个输入不同源** ⇒ 交叉核对（`excluded` 逐字相等）"
+            "会拿两个不同的量比 ⇒ **不可判定**。\n   " + diag_scope["reason"])
+
+    if not_decidable_reason is not None:
+        res = {
+            "verdict_about_20pct": (
+                f"{VERDICT_NOT_DECIDABLE}：{not_decidable_reason}"),
+            "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有报任何年化读数**（`cagr` / `mde` 都没有）。"
+                "作用域不对 ⇒ 判据**根本没有资格**跑。",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「达不到 20%」或"
+                "「离 20% 还差多少」——它说的是"
+                "「**这份证据不属于当前信号**」。",
+                "🚨 **本产物不写 `cagr` 字段** ⇒ 任何按 `cagr` 取数的消费者"
+                "会取不到值（**显式缺失**，不是 0.0）。",
+            ],
+        }
+        a.out.parent.mkdir(parents=True, exist_ok=True)
+        a.out.write_text(json.dumps(res, ensure_ascii=False, indent=2),
+                         encoding="utf-8")
+        provenance.stamp(
+            a.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+            extra={
+                "source_parquet": str(a.verification),
+                "source_parquet_sha256": _sha256_of(a.verification),
+                "diagnosis": str(a.diagnosis),
+                "diagnosis_sha256": _sha256_of(a.diagnosis),
+                "verdict": VERDICT_NOT_DECIDABLE,
+                "signal_scope_status": scoped.status,
+                "signal_id": scoped.current_signal_id,
+            })
+        print(not_decidable_note(scoped))
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    history = scoped.frame
     res = measure(history, diagnosis)
+    # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）。
+    res["signal_scope"] = scope_block(scoped)
+    res["attribution"] = attribution_block(scoped)
 
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(res, ensure_ascii=False, indent=2),
@@ -301,6 +376,8 @@ def main() -> int:
             "diagnosis": str(a.diagnosis),
             "diagnosis_sha256": _sha256_of(a.diagnosis),
             "n_days_measured": res["读数"]["n_days"],
+            "signal_scope_status": scoped.status,
+            "signal_id": scoped.current_signal_id,
         })
     print(json.dumps(res, ensure_ascii=False, indent=2))
     return 0

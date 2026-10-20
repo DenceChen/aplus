@@ -1,11 +1,13 @@
 {
-  "code_sha": "ce50d714272c9b12c87594fae0dc443478012326",
+  "code_sha": "5d3463ab48212e0ba556b3131809ed2b86058f5a",
   "code_dirty": true,
-  "code_file_sha256": "5ee8de8a8007d5f2f18a8fac28f429e24d82a36223d34a77a476c44e03548730",
+  "code_file_sha256": "e0509eee88ade0b9d2c23a7a570b3ad6a1825972745bad410c2ba64031357dc9",
   "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_portfolio_exec.py",
-  "stamped_at": "2026-10-20T13:59:06+00:00",
+  "stamped_at": "2026-10-20T18:43:49+00:00",
   "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a",
-  "n_days_measured": 6
+  "n_days_measured": 3,
+  "signal_scope_status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+  "signal_id": "0df5828c"
 }

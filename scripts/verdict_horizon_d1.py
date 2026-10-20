@@ -74,12 +74,37 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不读底稿**，它读**上游产物** ⇒ 只能要求上游自报作用域
+#   （预注册 §5.2），**不许**「块缺失就按老口径继续用」。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    attribution_block,
+    resolve_attribution_context,
+    upstream_scope_verdict,
+)
+
 SRC = ROOT / "data/reports/hit_rate_diagnosis.json"
 OUT = ROOT / "data/reports/verdict_horizon_d1.json"
+
+
+def _rel(path: Path) -> str:
+    """相对仓根的路径；**不在仓内**（测试用 tmp_path）时用绝对路径。
+
+    ⚠️ `Path.relative_to` 在不是祖先时会**抛 ValueError** ——
+    而本仓踩过：「路径假设写死在仓内 ⇒ 一个测试就能把它逼出来」。
+    """
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
 #: 自己的路径，写进溯源章 —— `code_file_sha256` 算的就是这份文件的字节。
 GENERATOR = "scripts/verdict_horizon_d1.py"
@@ -152,9 +177,18 @@ def bitwise_readback(o: dict) -> tuple[bool, float, float, float]:
 
 
 def main() -> None:
-    import sys
-    sys.path.insert(0, str(ROOT))
+    import argparse
     from aplus import provenance
+
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--src", type=Path, default=SRC,
+                    help="上游 hit_rate_diagnosis.json")
+    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument(
+        "--reports-dir", type=Path, default=None,
+        help="生产报告目录（用于从**生产的真实配置**算当前信号 id）。"
+             "默认取 --src 的父目录。")
+    args = ap.parse_args()
 
     # 🚨 第 125 层：盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节。
     #   抓在**读任何数据之前**（`main()` 最开头）。传 None 会让 stamp()
@@ -163,7 +197,66 @@ def main() -> None:
 
     from scripts.measure_basket_nav_01 import R
 
-    d = json.loads(SRC.read_text(encoding="utf-8"))
+    d = json.loads(args.src.read_text(encoding="utf-8"))
+
+    # 🚨🚨 **信号作用域**（预注册 §5.2）。
+    #   本脚本**不读底稿** ⇒ 它无法自己过滤 ⇒ 只能**要求上游自报作用域**。
+    #   上游的作用域不是当前信号 ⇒ **拒绝反解**（否则算出来的是
+    #   「**别的信号**还要攒多久」）。
+    reports_dir = args.reports_dir if args.reports_dir else args.src.parent
+    ctx = resolve_attribution_context(reports_dir)
+    scope_check = upstream_scope_verdict(
+        d, ctx.signal_id, ctx.weights_fingerprint)
+    if not scope_check["ok"]:
+        out = {
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "verdict": VERDICT_NOT_DECIDABLE,
+            "verdict_reason": scope_check["reason"],
+            "question": "D1（命中率）的判决需要多少个独立成交窗口",
+            "source_artifact": str(args.src),
+            "current_signal_id": ctx.signal_id,
+            "current_weights_fingerprint": ctx.weights_fingerprint,
+            "upstream_signal_scope": scope_check["upstream_scope"],
+            "signal_scope": {
+                "status": "MISSING_UPSTREAM_SCOPE",
+                "current_signal_id": ctx.signal_id,
+                "current_weights_fingerprint": ctx.weights_fingerprint,
+                "source": ("上游产物自报（间接消费者不读底稿 ⇒ "
+                           "它自己过滤不了 ⇒ 只能要求上游自报）"),
+                "upstream_signal_scope": scope_check["upstream_scope"],
+            },
+            "attribution": {
+                "basis": "none",
+                "current_signal_id": ctx.signal_id,
+                "current_weights_fingerprint": ctx.weights_fingerprint,
+                "note": ("上游的作用域不可用 ⇒ 本产物**不做任何外推/反解** ⇒ "
+                         "**无归属依据**。"),
+            },
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有做任何反解。** 上游的作用域不是当前信号 ⇒ "
+                "**拒绝反解**。",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「还要攒很久」——"
+                "它说的是「**上游的读数不属于当前信号**」。",
+            ],
+        }
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+        provenance.stamp(
+            args.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+            extra={
+                "data_fp_applicability": DATA_FP_NOT_APPLICABLE,
+                "source_src": str(args.src),
+                "source_src_sha256": hashlib.sha256(
+                    args.src.read_bytes()).hexdigest(),
+                "verdict": VERDICT_NOT_DECIDABLE,
+                "current_signal_id": ctx.signal_id,
+                "current_weights_fingerprint": ctx.weights_fingerprint,
+            })
+        print(f"\n🚨🚨🚨 **不可判定：拒绝反解** 🚨🚨🚨\n  {scope_check['reason']}\n")
+        print(f"→ {args.out}")
+        return
+
     o = d["overall"]
     W = int(o["n_windows"])
     win_rates = [float(w["rate"]) for w in o["windows"]]
@@ -197,7 +290,7 @@ def main() -> None:
     out = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "question": "D1（命中率）的判决需要多少个独立成交窗口",
-        "source_artifact": str(SRC.relative_to(ROOT)),
+        "source_artifact": _rel(args.src),
         "independent_unit": "成交窗口（exit_date 去重）——不是交易行",
         "criterion_A_bitwise_readback": {
             "unit": (
@@ -322,20 +415,41 @@ def main() -> None:
         f"对照 D2：判符号需 26.4 年 ⇒ **D1 与 D2 的可行性差一个数量级以上**。"
     )
     out["horizon"]["per_target_bands"] = bands
+    # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）：
+    #   间接消费者的作用域**来自上游**（它自己不读底稿）。
+    out["signal_scope"] = {
+        "status": scope_check["upstream_scope"].get("status"),
+        "current_signal_id": ctx.signal_id,
+        "current_weights_fingerprint": ctx.weights_fingerprint,
+        "source": ("上游产物自报（间接消费者不读底稿 ⇒ "
+                   "它自己过滤不了 ⇒ 只能要求上游自报）"),
+        "upstream_signal_scope": scope_check["upstream_scope"],
+    }
+    out["attribution"] = {
+        "basis": "upstream",
+        "current_signal_id": ctx.signal_id,
+        "current_weights_fingerprint": ctx.weights_fingerprint,
+        "note": ("间接消费者**不读底稿** ⇒ 它自己归属不了 ⇒ "
+                 "它的作用域**来自上游产物自报**，见 "
+                 "`upstream_signal_scope`。"),
+    }
 
-    OUT.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2),
+                        encoding="utf-8")
 
     # 🚨 第 166 层：章必须盖在**本脚本真正读过的那份字节**上，
     #   而不是 `stamp()` 默认的 `master/daily`（5460 个 parquet，本脚本一个都没读）。
     #   `extra` 里逐字声明「`data_fp` 不适用」+ 自报真实输入的 sha256。
     provenance.stamp(
-        OUT, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+        args.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
         extra={
             "data_fp_applicability": DATA_FP_NOT_APPLICABLE,
-            "source_src": str(SRC.relative_to(ROOT)),
-            "source_src_sha256": hashlib.sha256(SRC.read_bytes()).hexdigest(),
+            "source_src": _rel(args.src),
+            "source_src_sha256": hashlib.sha256(
+                args.src.read_bytes()).hexdigest(),
         })
-    print(f"→ {OUT.relative_to(ROOT)}")
+    print(f"→ {_rel(args.out)}")
     print(out["reading"])
 
 

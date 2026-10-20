@@ -1,14 +1,16 @@
 {
-  "code_sha": "ce50d714272c9b12c87594fae0dc443478012326",
+  "code_sha": "5d3463ab48212e0ba556b3131809ed2b86058f5a",
   "code_dirty": true,
-  "code_file_sha256": "79bb7e48133c45674dacd28c96654bedf0c99a68b3b100ad718e7001ea9e5cb7",
+  "code_file_sha256": "02387f97d8f5f12078a1f627012c547a321c6407d1ec979ef54eee15a4771724",
   "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_portfolio_nav.py",
-  "stamped_at": "2026-10-20T13:59:08+00:00",
+  "stamped_at": "2026-10-20T18:43:46+00:00",
   "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
   "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a",
   "diagnosis": "/Users/airboom/opencode/aplus/data/reports/hit_rate_diagnosis.json",
-  "diagnosis_sha256": "2a21e824e5af97184f76679211bd50331cf4dfe9fe2739331c7b607a6189d360",
-  "n_days_measured": 6
+  "diagnosis_sha256": "3604b397a9c7dd96f012d4a3fe747736aedd116232773bb68f2067f6b711be10",
+  "n_days_measured": 3,
+  "signal_scope_status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+  "signal_id": "0df5828c"
 }

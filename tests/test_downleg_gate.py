@@ -45,6 +45,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+# 🚨 对账守卫必须与**生产者**读**同一个口径**的样本。
+from scripts.signal_scope import scoped_ledger_frame  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "measure_downleg_ranking.py"
 ART = ROOT / "data" / "reports" / "downleg_gate.json"
@@ -284,7 +287,7 @@ def test_the_power_floor_is_the_permutation_null_quantile_not_a_literal(art):
     两条证据：① 与**同 seed 同 n_perm** 的重算**逐位相等**；
     ② **换种子会变** ⇒ 它是算出来的量，不是写死的数。
     """
-    df = pd.read_parquet(VERIFY)
+    df = scoped_ledger_frame(ROOT / "data" / "reports", VERIFY)
     crit = art["criterion"]
     leg = df[(df["direction"] == "down") & df["result"].isin(JUDGEABLE)
              & df["score"].notna()]
@@ -341,7 +344,7 @@ def test_the_gate_artifact_reconciles_with_a_fresh_measurement(art):
     这是唯一一条能让**源码变异**当场变红的守卫：产物层读 json，
     跑完之后才与代码有关（第 96 / 118 层）。本条在测试里**现算一遍**。
     """
-    df = pd.read_parquet(VERIFY)
+    df = scoped_ledger_frame(ROOT / "data" / "reports", VERIFY)
     crit = art["criterion"]
     got = M.gate_measure(df, art["score_col"], n_perm=crit["n_perm"],
                           seed=crit["seed"])
@@ -418,7 +421,7 @@ def test_the_real_artifact_reports_the_entry_window_count_and_not_pred_dates(art
     cal = art["measurement"]["independence_caliber"]
     assert cal["n_entry_dates"] is not None
     assert isinstance(cal["n_entry_dates"], int)
-    df = pd.read_parquet(VERIFY)
+    df = scoped_ledger_frame(ROOT / "data" / "reports", VERIFY)
     leg = df[df["direction"] == "down"]
     assert cal["n_entry_dates"] == int(leg["entry_date"].nunique()), (
         "产物里的独立成交窗口数与 parquet 重算不符")

@@ -111,6 +111,17 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不自己实现**过滤逻辑（第 97 层：两份副本之间没有守卫），
+#   也不自己实现指纹（那会变成第二份真相源）。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    not_decidable_note,
+    resolve_attribution_context,
+    attribution_block,
+    scope_block,
+    scope_ledger,
+)
 
 ART_NAME = "score_ranking_power.json"
 #: 默认的判据字段 —— G4 原文写的是 `score`，**不是** `adjusted_score`。
@@ -490,13 +501,74 @@ def main(argv=None) -> int:
     ap.add_argument("--verification",
                     default="data/reports/verification.parquet")
     ap.add_argument("--out", default=f"data/reports/{ART_NAME}")
+    ap.add_argument(
+        "--reports-dir", default=None,
+        help="生产报告目录（用于从**生产的真实配置**算当前信号 id）。"
+             "默认取 --verification 的父目录。")
     args = ap.parse_args(argv)
 
     src = Path(args.verification)
     if not src.exists():
         print(f"🚨 {src} 不存在 —— G4 无法测量，**不许回落**", file=sys.stderr)
         return 2
-    df = pd.read_parquet(src)
+
+    # 🚨🚨 **信号作用域**（预注册 §2 / §3）。
+    #   底稿是**追加式**的，而 D1 的信号定义即将改变（可买性过滤启用）
+    #   ⇒ 同一本底稿里会同时装着两个信号产生的行。
+    #   ⇒ 本闸门**只问当前信号**的行；作用域不对 ⇒ **判据根本没资格跑**。
+    reports_dir = Path(args.reports_dir) if args.reports_dir else src.parent
+    ctx = resolve_attribution_context(reports_dir)
+    # 🚨 **读口留在调用点**：既有守卫钉的是「`expect_bytes` 必须抓在读底稿之前」
+    #   （第 125 层：盖章那一刻盘上的字节 ≠ 这次执行真正跑的那些字节）——
+    #   那个性质**只有在读口可见于调用点时**才验得到。
+    frame = pd.read_parquet(src)
+    # 🚨 **过滤只走共享入口**（第 97 层：两份副本之间没有守卫）。
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
+
+    if not scoped.has_evidence:
+        # 🚨 作用域不对 ⇒ **不许**拿整本底稿判「现在这个打分器有没有排序力」
+        #   （那判的是另一个信号）。⇒ 写一份**不可判定**的产物，
+        #   覆盖掉那份按整本底稿判出来的旧判决（留着旧判决 = 假证据）。
+        payload = {
+            "prereg": "docs/TODO_reverse_scoring_2026-10-15.md",
+            "gate": "G4 / S3 —— 上线闸门，与收益高低无关",
+            "verification_source": str(src),
+            "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
+            "primary_score_col": DEFAULT_SCORE_COL,
+            "by_score_col": {},
+            "verdict": VERDICT_NOT_DECIDABLE,
+            "verdict_reason": scoped.reason,
+            "publish_allowed": False,
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有对当前信号做任何测量。** "
+                "作用域不对 ⇒ 判据（以及其他六个判据）**根本没有资格跑**。",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「打分没有排序力」—— "
+                "它说的是「**这份证据不属于当前信号**」，"
+                "**不是**「当前信号没有排序力」（第 16 种形状："
+                "「测不出」不许写成「没有」）。",
+                "**不能**引用本仓任何**按整本底稿**算出来的旧读数"
+                "（旧读数属于旧信号）。",
+            ],
+        }
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, ensure_ascii=False, indent=2),
+                       encoding="utf-8")
+        provenance.stamp(out, "scripts/score_ranking_power.py", root=ROOT,
+                         expect_bytes=expect_bytes,
+                         extra={"verdict": VERDICT_NOT_DECIDABLE,
+                                "publish_allowed": False,
+                                "signal_scope_status": scoped.status,
+                                "source_parquet": str(src),
+                                "source_parquet_sha256": _sha256_of(src)})
+        print(not_decidable_note(scoped))
+        print(f"判决（G4 / {DEFAULT_SCORE_COL} 口径）: {VERDICT_NOT_DECIDABLE}")
+        print(f"  允许发布: False")
+        print(f"→ {out}")
+        return 0
+
+    df = scoped.frame
 
     # 两个口径一起测：`score` 是 G4 原文的字段；`adjusted_score` 是 §0 引用的字段
     # （它只有 20/80 非 NaN ⇒ 引用它的那句结论样本量只有四分之一）。
@@ -509,6 +581,10 @@ def main(argv=None) -> int:
         "prereg": "docs/TODO_reverse_scoring_2026-10-15.md",
         "gate": "G4 / S3 —— 上线闸门，与收益高低无关",
         "verification_source": str(src),
+        # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）：
+        #   读的人必须能一眼看出「这份判决是哪个信号的窗口判出来的」。
+        "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
         "primary_score_col": DEFAULT_SCORE_COL,
         "by_score_col": results,
         "verdict": kind,
@@ -527,6 +603,8 @@ def main(argv=None) -> int:
                      expect_bytes=expect_bytes,
                      extra={"verdict": kind,
                             "publish_allowed": payload["publish_allowed"],
+                            "signal_scope_status": scoped.status,
+                            "signal_id": scoped.current_signal_id,
                             "source_parquet": str(src),
                             "source_parquet_sha256": _sha256_of(src)})
 

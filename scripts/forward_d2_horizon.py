@@ -106,6 +106,15 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不读底稿**，它读**上游产物** ⇒ 只能要求上游自报作用域
+#   （预注册 §5.2），**不许**「块缺失就按老口径继续用」。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    attribution_block,
+    resolve_attribution_context,
+    upstream_scope_verdict,
+)
 from scripts.forward_d2_verdict import (  # noqa: E402
     MIN_BLOCKS_FOR_ANY_SIGN,
     UP,
@@ -493,6 +502,61 @@ def main() -> None:
     upstream = json.loads(up_path.read_text(encoding="utf-8"))
     upstream["_path"] = str(up_path)
 
+    # 🚨🚨 **信号作用域**（预注册 §5.2）。
+    #   本脚本**不读底稿** ⇒ 它无法自己过滤 ⇒ 只能**要求上游自报作用域**。
+    #   上游的作用域不是当前信号 ⇒ **拒绝外推**（那会把**别的信号**的判决
+    #   外推成「当前信号还要攒多久」）。
+    reports_dir = Path(args.data_root) / "reports"
+    ctx = resolve_attribution_context(reports_dir)
+    scope_check = upstream_scope_verdict(
+        upstream, ctx.signal_id, ctx.weights_fingerprint)
+    if not scope_check["ok"]:
+        out_path = Path(args.out) if args.out else \
+            Path(args.data_root) / "reports" / "forward_d2_horizon.json"
+        out_doc = {
+            "verdict": VERDICT_NOT_DECIDABLE,
+            "verdict_reason": scope_check["reason"],
+            "upstream": UPSTREAM_NAME,
+            "upstream_path": str(up_path),
+            "current_signal_id": ctx.signal_id,
+            "current_weights_fingerprint": ctx.weights_fingerprint,
+            "upstream_signal_scope": scope_check["upstream_scope"],
+            "signal_scope": {
+                "status": "MISSING_UPSTREAM_SCOPE",
+                "current_signal_id": ctx.signal_id,
+                "current_weights_fingerprint": ctx.weights_fingerprint,
+                "source": ("上游产物自报（间接消费者不读底稿 ⇒ "
+                           "它自己过滤不了 ⇒ 只能要求上游自报）"),
+                "upstream_signal_scope": scope_check["upstream_scope"],
+            },
+            "attribution": {
+                "basis": "none",
+                "current_signal_id": ctx.signal_id,
+                "current_weights_fingerprint": ctx.weights_fingerprint,
+                "note": ("上游的作用域不可用 ⇒ 本产物**不做任何外推/反解** ⇒ "
+                         "**无归属依据**。"),
+            },
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有做任何外推。** 上游的作用域不是当前信号 ⇒ "
+                "**拒绝外推**。",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「还要攒很久」或"
+                "「快到了」——它说的是「**上游的判决不属于当前信号**」。",
+            ],
+        }
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(out_doc, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+        provenance.stamp(out_path, GENERATOR, root=ROOT,
+                         data_root=args.data_root, daily_subdir=DAILY_SUBDIR,
+                         expect_bytes=expect_bytes,
+                         extra={"upstream": UPSTREAM_NAME,
+                                "verdict": VERDICT_NOT_DECIDABLE,
+                                "current_signal_id": ctx.signal_id,
+                                "current_weights_fingerprint": ctx.weights_fingerprint})
+        print(f"\n🚨🚨🚨 **不可判定：拒绝外推** 🚨🚨🚨\n  {scope_check['reason']}\n")
+        print(f"→ {out_path}")
+        return
+
     # 🚨 缺字段必须报错，绝不 .get(默认值) 回落（第 114 层：契约从没被写下来过）
     for key in ("n_blocks", "abs_mean_over_mde", "t_stat", "ci_method", "blocks",
                 "sensitivity_student_t", "source_parquet", "source_parquet_sha256",
@@ -501,6 +565,24 @@ def main() -> None:
             raise SystemExit(f"上游 {up_path.name} 缺必需字段 {key!r} ⇒ 拒绝外推")
 
     out_doc = horizon(upstream)
+    # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）：
+    #   间接消费者的作用域**来自上游**（它自己不读底稿）。
+    out_doc["signal_scope"] = {
+        "status": scope_check["upstream_scope"].get("status"),
+        "current_signal_id": ctx.signal_id,
+        "current_weights_fingerprint": ctx.weights_fingerprint,
+        "source": ("上游产物自报（间接消费者不读底稿 ⇒ "
+                   "它自己过滤不了 ⇒ 只能要求上游自报）"),
+        "upstream_signal_scope": scope_check["upstream_scope"],
+    }
+    out_doc["attribution"] = {
+        "basis": "upstream",
+        "current_signal_id": ctx.signal_id,
+        "current_weights_fingerprint": ctx.weights_fingerprint,
+        "note": ("间接消费者**不读底稿** ⇒ 它自己归属不了 ⇒ "
+                 "它的作用域**来自上游产物自报**，见 "
+                 "`upstream_signal_scope`。"),
+    }
 
     out_path = Path(args.out) if args.out else \
         Path(args.data_root) / "reports" / "forward_d2_horizon.json"

@@ -90,6 +90,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不自己实现**过滤逻辑（第 97 层），也**不自己实现**指纹（第二份真相源）。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    not_decidable_note,
+    resolve_attribution_context,
+    attribution_block,
+    scope_block,
+    scope_ledger,
+)
 
 GENERATOR = "scripts/diagnose_hit_rate.py"
 
@@ -398,8 +408,17 @@ def diagnose_verdicts(df) -> dict:
     return out
 
 
-def diagnose(path: Path) -> dict:
-    return diagnose_verdicts(pd.read_parquet(path))
+def diagnose(scoped) -> dict:
+    """对**已按信号身份过滤**的底稿做分层诊断。
+
+    🚨 传入的是**作用域过滤后**的那一段（`ScopedLedger`）——
+    本函数**不读**底稿，也**不自己实现**过滤（第 97 层）：
+    过滤的唯一实现是 `scripts/signal_scope.py::scope_ledger`。
+    """
+    if not scoped.has_evidence:
+        raise ValueError(
+            f"底稿作用域不可用（{scoped.status}）：{scoped.reason}")
+    return diagnose_verdicts(scoped.frame)
 
 
 def _sha256_of(path: Path) -> str:
@@ -423,6 +442,10 @@ def main() -> int:
                     default=ROOT / "data/reports/verification.parquet")
     ap.add_argument("--out", type=Path,
                     default=ROOT / "data/reports/hit_rate_diagnosis.json")
+    ap.add_argument(
+        "--reports-dir", type=Path, default=None,
+        help="生产报告目录（用于从**生产的真实配置**算当前信号 id）。"
+             "默认取 --verification 的父目录。")
     a = ap.parse_args()
     if not a.verification.is_file():
         print(f"✗ 缺档：{a.verification} —— 没有它就不能报命中率（缺档必须报错）")
@@ -432,16 +455,61 @@ def main() -> int:
     #   抓在**跑之前**，比对在**盖章时**；不一致就拒绝盖章（反向的错误证据）。
     expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
 
-    res = diagnose(a.verification)
+    # 🚨🚨 **信号作用域**（预注册 §2 / §3）。
+    #   底稿是**追加式**的 ⇒ 改动落地后同一本底稿会装着**两个信号**的行。
+    #   ⇒ 命中率**只报当前信号**的行；作用域不对 ⇒ **不报命中率**。
+    reports_dir = a.reports_dir if a.reports_dir else a.verification.parent
+    ctx = resolve_attribution_context(reports_dir)
+    # 🚨 **读口留在调用点**（既有守卫钉住：expect_bytes 必须抓在它之前）。
+    frame = pd.read_parquet(a.verification)
+    # 🚨 **过滤只走共享入口**（第 97 层）。
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
+
+    if not scoped.has_evidence:
+        # 🚨 作用域不对 ⇒ **不许**报命中率（那报的是别的信号）。
+        #   写一份**不可判定**的产物，覆盖掉按整本底稿算出来的旧读数
+        #   （留着旧读数 = 一份「看起来有结论」的化石）。
+        res = {
+            "verdict": VERDICT_NOT_DECIDABLE,
+            "verdict_reason": scoped.reason,
+            "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有报任何命中率。** 作用域不对 ⇒ 命中率"
+                "**没有资格**被算出来。",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「命中率低」或"
+                "「命中率是 0」——它说的是「**这份证据不属于当前信号**」。",
+                "**不能**引用任何**按整本底稿**算出来的旧读数（旧读数属于旧信号）。",
+            ],
+        }
+        txt = json.dumps(res, ensure_ascii=False, indent=2)
+        a.out.parent.mkdir(parents=True, exist_ok=True)
+        a.out.write_text(txt, encoding="utf-8")
+        # 🚨 第 156 层：`stamp()` 默认把 `data_fp` 指向 `master/daily`（5460 个文件），
+        #   而本脚本读的是**单个文件** `verification.parquet` ⇒ 那样盖出来的章
+        #   指的是一个本脚本没读过的数据根，而真正要抓的输入漂移落在视野之外。
+        #   底稿是**追加式**的（实测 80 行/4 日 → 100 行/5 日），
+        #   所以必须由本脚本**自己声明**它读的那份字节。
+        provenance.stamp(
+            a.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+            extra={
+                "source_parquet": str(a.verification),
+                "source_parquet_sha256": _sha256_of(a.verification),
+                "verdict": VERDICT_NOT_DECIDABLE,
+                "signal_scope_status": scoped.status,
+                "signal_id": scoped.current_signal_id,
+            })
+        print(not_decidable_note(scoped))
+        print(txt)
+        return 0
+
+    res = diagnose(scoped)
+    # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）。
+    res["signal_scope"] = scope_block(scoped)
+    res["attribution"] = attribution_block(scoped)
     txt = json.dumps(res, ensure_ascii=False, indent=2)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(txt, encoding="utf-8")
-
-    # 🚨 第 156 层：`stamp()` 默认把 `data_fp` 指向 `master/daily`（5460 个文件），
-    #   而本脚本读的是**单个文件** `verification.parquet` ⇒ 那样盖出来的章
-    #   指的是一个本脚本没读过的数据根，而真正要抓的输入漂移落在视野之外。
-    #   底稿是**追加式**的（实测 80 行/4 日 → 100 行/5 日），
-    #   所以必须由本脚本**自己声明**它读的那份字节。
     provenance.stamp(
         a.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
         extra={
@@ -452,6 +520,8 @@ def main() -> int:
             # 🚨 独立观测数也进章：它是本轮判决的**分母**，而章不记它的话，
             #   底稿从 100 行长到 130 行而没人知道长的是窗口还是行。
             "windows_measured": res["n_windows"],
+            "signal_scope_status": scoped.status,
+            "signal_id": scoped.current_signal_id,
         })
     print(txt)
     return 0

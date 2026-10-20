@@ -58,6 +58,16 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不自己实现**过滤逻辑（第 97 层），也**不自己实现**指纹（第二份真相源）。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    not_decidable_note,
+    resolve_attribution_context,
+    attribution_block,
+    scope_block,
+    scope_ledger,
+)
 
 GENERATOR = "scripts/forward_d2_verdict.py"
 
@@ -431,9 +441,39 @@ def main(argv=None) -> int:
     if not src.exists():
         print(f"🚨 找不到前瞻底稿：{src}", file=sys.stderr)
         return 2
-    frame = pd.read_parquet(src)
 
-    out = measure(leg_rows(frame))
+    # 🚨🚨 **信号作用域**（预注册 §2 / §3）。
+    #   底稿是**追加式**的 ⇒ D1 的信号定义一变，同一本底稿就装着**两个信号**的行。
+    #   ⇒ 本判决**只问当前信号**的行。
+    reports_dir = Path(args.data_root) / "reports"
+    ctx = resolve_attribution_context(reports_dir)
+    # 🚨 **读口留在调用点**（既有守卫钉住：expect_bytes 必须抓在它之前）。
+    frame = pd.read_parquet(src)
+    # 🚨 **过滤只走共享入口**（第 97 层）。
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
+
+    if not scoped.has_evidence:
+        # 🚨 作用域不对 ⇒ **不许**拿整本底稿判「现在能不能定出超额符号」
+        #   （那判的是另一个信号）⇒ 写一份**不可判定**的产物。
+        out = {
+            "verdict": VERDICT_NOT_DECIDABLE,
+            "n_blocks": 0,
+            "n_pred_dates": 0,
+            "blocks": [],
+            "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
+            "verdict_reason": scoped.reason,
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有对当前信号做任何测量。**",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「没有超额」或"
+                "「超额为零」——它说的是「**这份证据不属于当前信号**」。",
+            ],
+        }
+    else:
+        out = measure(leg_rows(scoped.frame))
+        # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）。
+        out["signal_scope"] = scope_block(scoped)
+        out["attribution"] = attribution_block(scoped)
     out["caliber"] = caliber()
     out["source_parquet"] = str(src)
     # 🚨 第 166 层：盖章只盖代码不盖输入 ⇒ 追加式底稿在判决落盘后合法变长时
@@ -451,6 +491,11 @@ def main(argv=None) -> int:
 
     v = out["verdict"]
     print(f"判决 → {v}")
+    if v == VERDICT_NOT_DECIDABLE:
+        # 🚨 作用域不对 ⇒ 本产物**没有**任何读数可印（印了就是另一个信号的数字）。
+        print(not_decidable_note(scoped))
+        print(f"→ {outp}")
+        return 0
     if v != VERDICT_NO_DATA:
         print(f"  独立观测（entry_date 块） = {out['n_blocks']}"
               f"  （信号日 {out['n_pred_dates']} 个）")

@@ -75,6 +75,16 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不自己实现**过滤逻辑（第 97 层），也**不自己实现**指纹（第二份真相源）。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    not_decidable_note,
+    resolve_attribution_context,
+    attribution_block,
+    scope_block,
+    scope_ledger,
+)
 from forward_d2_verdict import (  # noqa: E402
     MIN_BLOCKS_FOR_ANY_SIGN, REQUIRED_COLUMNS, VERDICT_POWERLESS,
     stats_of, verdict_of,
@@ -665,9 +675,100 @@ def main(argv=None) -> int:
     # 🚨 闸门产物是**新文件**，**不覆盖**对照臂那份（那个是诊断，不是判决）。
     ap.add_argument("--gate-out", type=Path,
                     default=ROOT / "data" / "reports" / GATE_ART_NAME)
+    ap.add_argument(
+        "--reports-dir", type=Path, default=None,
+        help="生产报告目录（用于从**生产的真实配置**算当前信号 id）。"
+             "默认取 --verification 的父目录。")
     args = ap.parse_args(argv)
 
+    # 🚨🚨 **信号作用域**（预注册 §2 / §3）。
+    #   底稿是**追加式**的 ⇒ D1 的信号定义一变，同一本底稿就装着**两个信号**的行。
+    #   ⇒ 跌腿的对照臂与**闸门**都只问**当前信号**的行。
+    reports_dir = Path(args.reports_dir) if args.reports_dir else \
+        Path(args.verification).parent
+    ctx = resolve_attribution_context(reports_dir)
+    # 🚨 **读口留在调用点**（既有守卫钉住：expect_bytes 必须抓在它之前）。
     frame = pd.read_parquet(args.verification)
+    # 🚨 **过滤只走共享入口**（第 97 层）。
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
+
+    if not scoped.has_evidence:
+        # 🚨 作用域不对 ⇒ **不许**判「跌腿有没有排序力」（那判的是另一个信号）
+        #   ⇒ 两份产物都写**不可判定**。
+        scope = scope_block(scoped)
+        out = {
+            "role": (
+                "⚠️ **对照臂 / 诊断，不是判决臂。** "
+                "涨腿的判决臂是 `scripts/score_ranking_power.py`"
+                "（`GATE_ARM=\"up\"`），本文件不改它一字。"),
+            "verdict_about_downleg": (
+                f"{VERDICT_NOT_DECIDABLE}：{scoped.reason}"),
+            "signal_scope": scope,
+            "attribution": attribution_block(scoped),
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有对当前信号做任何测量。**",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「跌腿没有排序力」——"
+                "它说的是「**这份证据不属于当前信号**」。",
+            ],
+        }
+        gate = {
+            "prereg": "docs/PREREG_DOWNLEG_GATE_2026-10-20.md",
+            "role": "跌腿的**闸门产物**（G4 镜像）",
+            "arm": GATE_ARM,
+            "score_col": GATE_SCORE_COL,
+            "verdict": VERDICT_NOT_DECIDABLE,
+            "verdict_reason": scoped.reason,
+            # 🚨 字段名与涨腿臂**语义不同**（见下方 `publish_allowed_field_note`）。
+            "avoidance_list_publish_allowed": False,
+            "publish_allowed_field_note": (
+                "⚠️ 本产物的 `avoidance_list_publish_allowed` **不是**涨腿臂的 "
+                "`publish_allowed`：前者是「允许作为『**该回避/该减仓**』清单发布」，"
+                "后者是「允许作为『**该买**』清单发布」⇒ 两者语义不同，"
+                "**不许混用、也不许互相引用**。"),
+            "monotone_direction": MONOTONE_DIRECTION,
+            "signal_scope": scope,
+            "attribution": attribution_block(scoped),
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有对当前信号做任何测量。**",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「跌腿没有排序力」。",
+            ],
+        }
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+        gate_out = Path(args.gate_out)
+        gate_out.parent.mkdir(parents=True, exist_ok=True)
+        gate_out.write_text(json.dumps(gate, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+        provenance.stamp(
+            args.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+            extra={"source_parquet_sha256": hashlib.sha256(
+                args.verification.read_bytes()).hexdigest(),
+                "source_parquet_path": str(args.verification),
+                "verdict": VERDICT_NOT_DECIDABLE,
+                "signal_scope_status": scoped.status,
+                "signal_id": scoped.current_signal_id,
+                "role": "CONTROL_ARM_NOT_THE_VERDICT_ARM"})
+        provenance.stamp(
+            gate_out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+            extra={"source_parquet_sha256": hashlib.sha256(
+                args.verification.read_bytes()).hexdigest(),
+                "source_parquet_path": str(args.verification),
+                "verdict": VERDICT_NOT_DECIDABLE,
+                "signal_scope_status": scoped.status,
+                "signal_id": scoped.current_signal_id,
+                "role": "DOWNLEG_GATE_ARM",
+                "avoidance_list_publish_allowed": False,
+                "monotone_direction": MONOTONE_DIRECTION,
+                "prereg": gate["prereg"]})
+        print(not_decidable_note(scoped))
+        print(f"→ {args.out}")
+        print(f"→ {gate_out}")
+        return 0
+
+    # 🚨 **下游所有读 `frame` 的地方都必须是作用域内的那一段**
+    #   （`overlap_check` 与 `gate_payload` 都吃 `frame` ⇒ 不 rebind 就是漏过滤）。
+    frame = scoped.frame
     leg = down_leg_rows(frame)
     if leg.empty:
         raise SystemExit("跌腿剔完不可判定行之后为空 —— 不许出判决")
@@ -683,6 +784,9 @@ def main(argv=None) -> int:
         f"`data/reports/{GATE_ART_NAME}`（同脚本写出，G4 镜像，"
         "预注册 `docs/PREREG_DOWNLEG_GATE_2026-10-20.md`）。"
         "这里判的是 D1 交付物的**另一半**（每天 10 只跌股），此前从未被测过。")
+    # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）。
+    out["signal_scope"] = scope_block(scoped)
+    out["attribution"] = attribution_block(scoped)
     out["caliber"] = caliber(out["ranking_arm"]["stats"]["n"])
     out["executable"] = executable_block()
     out["verdict_about_downleg"] = verdict_about_downleg(out)
@@ -717,6 +821,9 @@ def main(argv=None) -> int:
     # ── 跌腿闸门（G4 镜像） ─────────────────────────────────────────
     # 🚨 **另一个产物、另一个文件** ⇒ 不覆盖上面的对照臂。
     gate = gate_payload(frame, GATE_N_PERM, GATE_SEED)
+    # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）。
+    gate["signal_scope"] = scope_block(scoped)
+    gate["attribution"] = attribution_block(scoped)
     gate_out = Path(args.gate_out)
     gate_out.parent.mkdir(parents=True, exist_ok=True)
     gate_out.write_text(json.dumps(gate, ensure_ascii=False, indent=2),

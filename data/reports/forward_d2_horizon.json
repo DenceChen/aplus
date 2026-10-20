@@ -11,20 +11,20 @@
     "name": "forward_d2_verdict.json",
     "path": "/Users/airboom/opencode/aplus/data/reports/forward_d2_verdict.json",
     "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
-    "source_parquet_sha256": "bcc57847ffdd0118e02b26c7715e0902fde372bc3595cd9b40b1179e3c403e8a",
+    "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a",
     "verdict": "POWERLESS",
-    "n_blocks": 5,
-    "n_pred_dates": 7,
-    "abs_mean_over_mde": 0.4823942364338308,
-    "t_stat_reported": 0.9454927034103083,
+    "n_blocks": 3,
+    "n_pred_dates": 3,
+    "abs_mean_over_mde": 0.12864211764478603,
+    "t_stat_reported": 0.2521385505837806,
     "ci_method": "normal_approx_z=1.96",
     "read_only_fields": "本脚本只**读**上游的 n_blocks / abs_mean_over_mde / t_stat / ci_method / blocks / sensitivity_student_t；**不使用** sd_pct、se_pct、mde_pct 重算任何上游量（第 109 层：核对产物时用公式重算而不是读字段）"
   },
   "t_obs_derivation": {
     "formula": "t_obs = abs_mean_over_mde × z（因 MDE = z · se）",
     "z": 1.96,
-    "t_obs_implied": 0.9454927034103083,
-    "t_stat_reported": 0.9454927034103083,
+    "t_obs_implied": 0.2521385505837806,
+    "t_stat_reported": 0.2521385505837806,
     "rel_diff": 0.0,
     "what_this_check_is": "**漂移探测器，不是正确性证明**。这条式子是恒等式，对任何实现都成立 （第 176 层）⇒ 它证明不了判决链对。它只证明「我要外推的那个输入量与判决链落盘的 t 同源」；两者一旦脱源，本脚本**拒绝出产物**。",
     "what_this_check_is_not": "🚨 不许读成「两条独立实现对拍 ⇒ 上游判决链没问题」"
@@ -34,34 +34,34 @@
       "t_target": 1.96,
       "t_target_source": "上游 ci_method 自报（normal_approx_z=1.96）",
       "t_target_meaning": "双侧 5% 定出符号 —— 与判决臂的 POWERLESS 条件同口径",
-      "t_obs_implied": 0.9454927034103083,
-      "n_blocks_now": 5,
-      "n_needed_by_power": 21.48650524607083,
+      "t_obs_implied": 0.2521385505837806,
+      "n_blocks_now": 3,
+      "n_needed_by_power": 181.28208748393817,
       "n_needed_by_min_blocks_gate": 6.0,
       "min_blocks_gate_source": "从 scripts/forward_d2_verdict.py import MIN_BLOCKS_FOR_ANY_SIGN = 6（不手打）",
       "which_binds": "power",
-      "n_needed": 21.48650524607083,
+      "n_needed": 181.28208748393817,
       "alpha_scenarios": [
         {
           "alpha": 1.0,
           "label": "实测点估计就是真的（未被证明的前提）",
-          "t_obs": 0.9454927034103083,
-          "n_needed": 21.48650524607083,
-          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [5, 21.5] 区间内"
+          "t_obs": 0.2521385505837806,
+          "n_needed": 181.28208748393817,
+          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [3, 181.3] 区间内"
         },
         {
           "alpha": 0.5,
           "label": "真超额只有实测的 50%",
-          "t_obs": 0.47274635170515417,
-          "n_needed": 85.94602098428332,
-          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [5, 85.9] 区间内"
+          "t_obs": 0.1260692752918903,
+          "n_needed": 725.1283499357527,
+          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [3, 725.1] 区间内"
         },
         {
           "alpha": 0.25,
           "label": "真超额只有实测的 25%",
-          "t_obs": 0.23637317585257708,
-          "n_needed": 343.7840839371333,
-          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [5, 343.8] 区间内"
+          "t_obs": 0.06303463764594515,
+          "n_needed": 2900.5133997430107,
+          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [3, 2900.5] 区间内"
         },
         {
           "alpha": 0.0,
@@ -74,29 +74,29 @@
       "calendar_days_needed_by_rate": [
         {
           "mode": "naive_all_blocks",
-          "n_blocks_in_mode": 5,
-          "entry_first": "2026-10-12",
-          "entry_last": "2026-10-16",
-          "n_intervals": 4,
+          "n_blocks_in_mode": 3,
+          "entry_first": "2026-10-15",
+          "entry_last": "2026-10-19",
+          "n_intervals": 2,
           "span_calendar_days": 4,
-          "new_blocks_per_calendar_day": 1.0,
+          "new_blocks_per_calendar_day": 0.5,
           "rate_is": "n_intervals / span_calendar_days（**间隔数**除以跨度）⇒ 可用本行印出的字段直接除出来核对",
           "note": "全部块都参与；第一块含 3 个信号日的并集 ⇒ 它压低的是**每块平均腿数**，**不是速率**（entry 轴上第一块仍然只占一格）",
-          "days_needed_at_alpha_1": 20.48650524607083,
-          "days_needed_at_alpha_0_5": 84.94602098428332
+          "days_needed_at_alpha_1": 360.56417496787634,
+          "days_needed_at_alpha_0_5": 1448.2566998715054
         },
         {
           "mode": "steady_single_pred_date_blocks",
-          "n_blocks_in_mode": 4,
-          "entry_first": "2026-10-13",
-          "entry_last": "2026-10-16",
-          "n_intervals": 3,
-          "span_calendar_days": 3,
-          "new_blocks_per_calendar_day": 1.0,
+          "n_blocks_in_mode": 3,
+          "entry_first": "2026-10-15",
+          "entry_last": "2026-10-19",
+          "n_intervals": 2,
+          "span_calendar_days": 4,
+          "new_blocks_per_calendar_day": 0.5,
           "rate_is": "n_intervals / span_calendar_days（**间隔数**除以跨度）⇒ 可用本行印出的字段直接除出来核对",
           "note": "只用 n_pred_dates == 1 的块 ⇒ 每信号日一个块。⚠️ 仍是点估计，**不是**稳态速率的估计",
-          "days_needed_at_alpha_1": 20.48650524607083,
-          "days_needed_at_alpha_0_5": 84.94602098428332
+          "days_needed_at_alpha_1": 360.56417496787634,
+          "days_needed_at_alpha_0_5": 1448.2566998715054
         }
       ],
       "rate_scenarios_identical": true,
@@ -105,37 +105,37 @@
       "more_conservative_meaning": "按**日历日 ETA 更长**判（速率越低越保守），由数算出来；两档 ETA 相等时它就是 first/naive 那一档 —— 这不是「朴素档更保守」的证据，是「本窗口分不出来」的证据"
     },
     {
-      "t_target": 2.776,
+      "t_target": 4.303,
       "t_target_source": "上游 sensitivity_student_t.t_crit_95（t 分布，df = n_blocks-1）",
       "t_target_meaning": "n 小时正态近似低估真实临界值 ⇒ 这条要求更多样本；它是上游自标的 sensitivity，**不是**判决臂口径",
-      "t_obs_implied": 0.9454927034103083,
-      "n_blocks_now": 5,
-      "n_needed_by_power": 43.10151787045634,
+      "t_obs_implied": 0.2521385505837806,
+      "n_blocks_now": 3,
+      "n_needed_by_power": 873.7464876545944,
       "n_needed_by_min_blocks_gate": 6.0,
       "min_blocks_gate_source": "从 scripts/forward_d2_verdict.py import MIN_BLOCKS_FOR_ANY_SIGN = 6（不手打）",
       "which_binds": "power",
-      "n_needed": 43.10151787045634,
+      "n_needed": 873.7464876545944,
       "alpha_scenarios": [
         {
           "alpha": 1.0,
           "label": "实测点估计就是真的（未被证明的前提）",
-          "t_obs": 0.9454927034103083,
-          "n_needed": 43.10151787045634,
-          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [5, 43.1] 区间内"
+          "t_obs": 0.2521385505837806,
+          "n_needed": 873.7464876545944,
+          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [3, 873.7] 区间内"
         },
         {
           "alpha": 0.5,
           "label": "真超额只有实测的 50%",
-          "t_obs": 0.47274635170515417,
-          "n_needed": 172.40607148182536,
-          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [5, 172.4] 区间内"
+          "t_obs": 0.1260692752918903,
+          "n_needed": 3494.9859506183775,
+          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [3, 3495.0] 区间内"
         },
         {
           "alpha": 0.25,
           "label": "真超额只有实测的 25%",
-          "t_obs": 0.23637317585257708,
-          "n_needed": 689.6242859273015,
-          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [5, 689.6] 区间内"
+          "t_obs": 0.06303463764594515,
+          "n_needed": 13979.94380247351,
+          "note": "上界：假设 sd 不随均值折价而缩小 ⇒ 真实所需落在 [3, 13979.9] 区间内"
         },
         {
           "alpha": 0.0,
@@ -148,29 +148,29 @@
       "calendar_days_needed_by_rate": [
         {
           "mode": "naive_all_blocks",
-          "n_blocks_in_mode": 5,
-          "entry_first": "2026-10-12",
-          "entry_last": "2026-10-16",
-          "n_intervals": 4,
+          "n_blocks_in_mode": 3,
+          "entry_first": "2026-10-15",
+          "entry_last": "2026-10-19",
+          "n_intervals": 2,
           "span_calendar_days": 4,
-          "new_blocks_per_calendar_day": 1.0,
+          "new_blocks_per_calendar_day": 0.5,
           "rate_is": "n_intervals / span_calendar_days（**间隔数**除以跨度）⇒ 可用本行印出的字段直接除出来核对",
           "note": "全部块都参与；第一块含 3 个信号日的并集 ⇒ 它压低的是**每块平均腿数**，**不是速率**（entry 轴上第一块仍然只占一格）",
-          "days_needed_at_alpha_1": 42.10151787045634,
-          "days_needed_at_alpha_0_5": 171.40607148182536
+          "days_needed_at_alpha_1": 1745.4929753091888,
+          "days_needed_at_alpha_0_5": 6987.971901236755
         },
         {
           "mode": "steady_single_pred_date_blocks",
-          "n_blocks_in_mode": 4,
-          "entry_first": "2026-10-13",
-          "entry_last": "2026-10-16",
-          "n_intervals": 3,
-          "span_calendar_days": 3,
-          "new_blocks_per_calendar_day": 1.0,
+          "n_blocks_in_mode": 3,
+          "entry_first": "2026-10-15",
+          "entry_last": "2026-10-19",
+          "n_intervals": 2,
+          "span_calendar_days": 4,
+          "new_blocks_per_calendar_day": 0.5,
           "rate_is": "n_intervals / span_calendar_days（**间隔数**除以跨度）⇒ 可用本行印出的字段直接除出来核对",
           "note": "只用 n_pred_dates == 1 的块 ⇒ 每信号日一个块。⚠️ 仍是点估计，**不是**稳态速率的估计",
-          "days_needed_at_alpha_1": 42.10151787045634,
-          "days_needed_at_alpha_0_5": 171.40607148182536
+          "days_needed_at_alpha_1": 1745.4929753091888,
+          "days_needed_at_alpha_0_5": 6987.971901236755
         }
       ],
       "rate_scenarios_identical": true,
@@ -196,5 +196,50 @@
     "n_needed_is_an_upper_bound": "n_needed 假设 sd 不随 n 变大而变小。若块均值 sd 在更长样本上系统性变小，所需块数**少于**本式 ⇒ 表里每行只能读成「**至少**要这么多块」",
     "alpha_table_is_the_point": "真值折价情景是本产物的价值核心：单点 n 恒等地假设「真实超额 = 实测超额」，而上游 verdict=POWERLESS ⇒ 连符号都定不了 ⇒ 那个前提零证据。n ∝ 1/α² ⇒ α 减半则所需样本 ×4",
     "speed_is_from_three_gaps": "速率由 3 个间隔估出，其抽样误差比块数本身还大 ⇒ 只作情景，不给 CI"
+  },
+  "signal_scope": {
+    "status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+    "current_signal_id": "0df5828c",
+    "current_weights_fingerprint": "c2178335be6d",
+    "source": "上游产物自报（间接消费者不读底稿 ⇒ 它自己过滤不了 ⇒ 只能要求上游自报）",
+    "upstream_signal_scope": {
+      "status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+      "current_signal_id": "0df5828c",
+      "current_weights_fingerprint": "c2178335be6d",
+      "attribution_basis": "weights_hash",
+      "signal_ids_in_ledger": [
+        "c2178335be6d"
+      ],
+      "reason": "当前值 'c2178335be6d' 在这份底稿里有 60 行 / 3 个出单日 / 3 个独立成交窗口（整本底稿 160 行 / 8 出单日 / 6 成交窗口；另有 100 行不可归属、0 行不匹配）。 本底稿**没有 `signal_id` 列**（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` **逐行**判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。",
+      "verdict_if_not_attributable": "NOT_DECIDABLE_NO_SIGNAL_SCOPE",
+      "note": "🚨 **归属不对 ⇒ 判据根本没资格跑。** `status` 不是 `OK` / `ATTRIBUTED_BY_WEIGHTS_HASH` 时，本产物**不给**任何关于当前信号的判决，只报告「这份底稿是什么」与「它为什么不可用」。（判定「测不出」不许写成「没有」。）",
+      "ledger_rows_total": 160,
+      "ledger_pred_dates": 8,
+      "ledger_entry_dates": 6,
+      "ledger_date_range": {
+        "pred_date_min": "2026-10-09",
+        "pred_date_max": "2026-10-16",
+        "entry_date_min": "2026-10-12",
+        "entry_date_max": "2026-10-19"
+      },
+      "rows_in_scope": 60,
+      "pred_dates_in_scope": 3,
+      "entry_dates_in_scope": 3,
+      "date_range_in_scope": {
+        "pred_date_min": "2026-10-14",
+        "pred_date_max": "2026-10-16",
+        "entry_date_min": "2026-10-15",
+        "entry_date_max": "2026-10-19"
+      },
+      "rows_unattributed": 100,
+      "rows_other_signals": 0,
+      "independent_unit": "entry_date（独立成交窗口）——出单日 ≠ 成交日"
+    }
+  },
+  "attribution": {
+    "basis": "upstream",
+    "current_signal_id": "0df5828c",
+    "current_weights_fingerprint": "c2178335be6d",
+    "note": "间接消费者**不读底稿** ⇒ 它自己归属不了 ⇒ 它的作用域**来自上游产物自报**，见 `upstream_signal_scope`。"
   }
 }

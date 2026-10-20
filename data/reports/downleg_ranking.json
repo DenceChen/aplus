@@ -3,27 +3,6 @@
     "what_it_measures": "跌腿的毛超额（跌得是否比市场多）",
     "per_window": [
       {
-        "entry_date": "2026-10-12",
-        "excess_mean": 0.00457726067083219,
-        "gross_mean": 0.008758755156195386,
-        "market_mean": 0.004181494485363197,
-        "n_legs": 30
-      },
-      {
-        "entry_date": "2026-10-13",
-        "excess_mean": -0.004884044379119131,
-        "gross_mean": -0.02361225842797767,
-        "market_mean": -0.018728214048858542,
-        "n_legs": 10
-      },
-      {
-        "entry_date": "2026-10-14",
-        "excess_mean": -0.008208447011955671,
-        "gross_mean": -0.03646642207558528,
-        "market_mean": -0.02825797506362961,
-        "n_legs": 10
-      },
-      {
         "entry_date": "2026-10-15",
         "excess_mean": -0.0046804213211271125,
         "gross_mean": 0.0003389480089386776,
@@ -46,54 +25,24 @@
       }
     ],
     "stats": {
-      "n": 6,
-      "point": -0.01246435566300469,
-      "sd": 0.017024616132019006,
-      "se": 0.006950270431700264,
-      "t_stat": -1.7933626878969513,
-      "mde": 0.013622530046132517,
-      "ratio": 0.9149809632127303,
-      "lo": -0.026086885709137204,
-      "hi": 0.0011581743831278277,
-      "t_crit": 2.571,
-      "sens_lo": -0.03033350094290607,
-      "sens_hi": 0.00540478961689669
+      "n": 3,
+      "point": -0.022090301085928507,
+      "sd": 0.020065153020614027,
+      "se": 0.01158462149778254,
+      "t_stat": -1.906864293335514,
+      "mde": 0.02270585813565378,
+      "ratio": 0.9728899455793438,
+      "lo": -0.04479615922158228,
+      "hi": 0.0006155570497252717,
+      "t_crit": 4.303,
+      "sens_lo": -0.07193892739088678,
+      "sens_hi": 0.027758325219029767
     },
     "verdict": "POWERLESS"
   },
   "ranking_arm": {
     "what_it_measures": "score 的排序力：**分数最低**的一半是否跌得更多",
     "per_window": [
-      {
-        "entry_date": "2026-10-12",
-        "n_legs": 30,
-        "n_each_half": 15,
-        "lowest_score_mean": -1.0514283912071922,
-        "highest_score_mean": -0.5631284355371279,
-        "lowest_gross_mean": 0.006716519319956286,
-        "highest_gross_mean": 0.010800990992434485,
-        "spread": 0.004084471672478199
-      },
-      {
-        "entry_date": "2026-10-13",
-        "n_legs": 10,
-        "n_each_half": 5,
-        "lowest_score_mean": -1.342066272471004,
-        "highest_score_mean": -1.2070727674627488,
-        "lowest_gross_mean": -0.02664063077849168,
-        "highest_gross_mean": -0.020583886077463663,
-        "spread": 0.006056744701028016
-      },
-      {
-        "entry_date": "2026-10-14",
-        "n_legs": 10,
-        "n_each_half": 5,
-        "lowest_score_mean": -1.286714739027232,
-        "highest_score_mean": -1.143109657342022,
-        "lowest_gross_mean": -0.03686103961197238,
-        "highest_gross_mean": -0.036071804539198185,
-        "spread": 0.0007892350727741956
-      },
       {
         "entry_date": "2026-10-15",
         "n_legs": 10,
@@ -126,29 +75,71 @@
       }
     ],
     "stats": {
-      "n": 6,
-      "point": 0.004128381581713997,
-      "sd": 0.019575598286944378,
-      "se": 0.007991704535452369,
-      "t_stat": 0.5165833600829326,
-      "mde": 0.015663740889486643,
-      "ratio": 0.2635629388178228,
-      "lo": -0.011535359307772646,
-      "hi": 0.01979212247120064,
-      "t_crit": 2.571,
-      "sens_lo": -0.016418290778934044,
-      "sens_hi": 0.024675053942362038
+      "n": 3,
+      "point": 0.00461327934800119,
+      "sd": 0.030825674786771687,
+      "se": 0.017797211636094493,
+      "t_stat": 0.2592136028008459,
+      "mde": 0.034882534806745205,
+      "ratio": 0.13225183816369687,
+      "lo": -0.030269255458744017,
+      "hi": 0.03949581415474639,
+      "t_crit": 4.303,
+      "sens_lo": -0.07196812232211341,
+      "sens_hi": 0.0811946810181158
     },
     "verdict": "POWERLESS"
   },
-  "blocks_needed_to_leave_powerless": 0,
+  "blocks_needed_to_leave_powerless": 3,
   "role": "⚠️ **对照臂 / 诊断，不是判决臂。** 涨腿的判决臂是 `scripts/score_ranking_power.py`（GATE_ARM=\"up\"），本文件不改它一字；跌腿自己的闸门是**另一个产物** `data/reports/downleg_gate.json`（同脚本写出，G4 镜像，预注册 `docs/PREREG_DOWNLEG_GATE_2026-10-20.md`）。这里判的是 D1 交付物的**另一半**（每天 10 只跌股），此前从未被测过。",
+  "signal_scope": {
+    "status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+    "current_signal_id": "0df5828c",
+    "current_weights_fingerprint": "c2178335be6d",
+    "attribution_basis": "weights_hash",
+    "signal_ids_in_ledger": [
+      "c2178335be6d"
+    ],
+    "reason": "当前值 'c2178335be6d' 在这份底稿里有 60 行 / 3 个出单日 / 3 个独立成交窗口（整本底稿 160 行 / 8 出单日 / 6 成交窗口；另有 100 行不可归属、0 行不匹配）。 本底稿**没有 `signal_id` 列**（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` **逐行**判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。",
+    "verdict_if_not_attributable": "NOT_DECIDABLE_NO_SIGNAL_SCOPE",
+    "note": "🚨 **归属不对 ⇒ 判据根本没资格跑。** `status` 不是 `OK` / `ATTRIBUTED_BY_WEIGHTS_HASH` 时，本产物**不给**任何关于当前信号的判决，只报告「这份底稿是什么」与「它为什么不可用」。（判定「测不出」不许写成「没有」。）",
+    "ledger_rows_total": 160,
+    "ledger_pred_dates": 8,
+    "ledger_entry_dates": 6,
+    "ledger_date_range": {
+      "pred_date_min": "2026-10-09",
+      "pred_date_max": "2026-10-16",
+      "entry_date_min": "2026-10-12",
+      "entry_date_max": "2026-10-19"
+    },
+    "rows_in_scope": 60,
+    "pred_dates_in_scope": 3,
+    "entry_dates_in_scope": 3,
+    "date_range_in_scope": {
+      "pred_date_min": "2026-10-14",
+      "pred_date_max": "2026-10-16",
+      "entry_date_min": "2026-10-15",
+      "entry_date_max": "2026-10-19"
+    },
+    "rows_unattributed": 100,
+    "rows_other_signals": 0,
+    "independent_unit": "entry_date（独立成交窗口）——出单日 ≠ 成交日"
+  },
+  "attribution": {
+    "basis": "weights_hash",
+    "current_weights_fingerprint": "c2178335be6d",
+    "current_signal_id": "0df5828c",
+    "rows_matched": 60,
+    "rows_unmatched": 0,
+    "rows_unattributable": 100,
+    "note": "本底稿没有 `signal_id` 列（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` 逐行判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。"
+  },
   "caliber": {
     "observation_unit": "一个成交窗口（entry_date）",
     "why_not_pred_date": "同一天下的多张名单映射到同一个 entry_date；按 pred_date 切会把同一个成交窗口数成多个独立观测。",
-    "n_windows": 6,
+    "n_windows": 3,
     "windows_per_year_report_only": 244,
-    "years_report_only": 0.02459016393442623,
+    "years_report_only": 0.012295081967213115,
     "years_is_NOT_a_gate": "⚠️ years **不参与判决**。若用 `years >= 1.0` 当结构闸门，它要求 244 个窗口 ⇒ 永久压过 MIN_BLOCKS=6 ⇒ 判决永久 POWERLESS⇒ 那等于宣布「跌腿不可测」，而「测不到」只等于缺样本。守卫 test_the_years_field_cannot_reach_the_verdict_branch 钉住这一条。",
     "sign_convention": "排序力臂的 `spread = 最高一半的毛收益 − 最低一半的毛收益`。⚠️ **spread > 0 ⟺ 有排序力** —— 因为生产发的是**分数最低**的（`aplus/predict.py:276` 的 `ranked.tail(bottom_n)`），而打分器「分越高越看涨」⇒ 越负的才越该跌。",
     "excess_convention": "超额臂的 `excess = gross_pct − market_pct`，**> 0 ⟺ 跌腿比市场跌得多**（不是「跌腿在赚钱」）。",
@@ -164,7 +155,7 @@
     "honest_boundary": "⚠️「5 万拿不到融资融券额度」是**外部常识，本仓未核实**（`grep` 全仓融券相关代码命中 0）⇒ 不许当已验证前提引用，只当口径声明。",
     "so_the_only_useful_product_is": "「这 10 只不该买 / 该从持仓里减掉」，而**不是**「空掉这 10 只」。⇒ 跌腿的价值必须由**信息价值**证明，而不由可执行性假设。"
   },
-  "verdict_about_downleg": "排序力判决：POWERLESS（6 个窗口）。",
+  "verdict_about_downleg": "样本不足（3 个成交窗口 < 6），不给方向；还差 3 个成交窗口才开判。",
   "structurally_the_gate_is": 6,
   "overlap_check": {
     "same_pred_date_same_code_in_both_legs": 0,

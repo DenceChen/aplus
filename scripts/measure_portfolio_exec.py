@@ -56,6 +56,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from aplus import provenance  # noqa: E402
+# 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
+#   本脚本**不自己实现**过滤逻辑（第 97 层），也**不自己实现**指纹（第二份真相源）。
+from scripts.signal_scope import (  # noqa: E402
+    VERDICT_NOT_DECIDABLE,
+    not_decidable_note,
+    resolve_attribution_context,
+    attribution_block,
+    scope_block,
+    scope_ledger,
+)
 
 GENERATOR = "scripts/measure_portfolio_exec.py"
 DEFAULT_OUT = ROOT / "data" / "reports" / "portfolio_exec.json"
@@ -275,12 +285,64 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="组合资金可执行性：¥5 万开不写得出来")
     p.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    p.add_argument("--verification", type=Path, default=None,
+                   help="前瞻底稿路径（默认 = 模块常量 VERIFY）。")
+    p.add_argument(
+        "--reports-dir", type=Path, default=None,
+        help="生产报告目录（用于从**生产的真实配置**算当前信号 id）。"
+             "默认取 --verification 的父目录。")
     args = p.parse_args(argv)
 
     # 🚨 盖章要的是「这次跑真正跑的那些字节」，所以**先抓**再跑（第 125 层）。
     expect_bytes = provenance.code_file_sha256(ROOT, GENERATOR)
 
-    history = pd.read_parquet(VERIFY)
+    # ⚠️ `--verification` 缺省 ⇒ 用模块常量 `VERIFY`（老口径）。
+    #    两条分支**都可达**（不是恒真假开关）。
+    VERIFY_PATH = args.verification if args.verification is not None else VERIFY
+
+    # 🚨🚨 **信号作用域**（预注册 §2 / §3）。
+    #   底稿是**追加式**的 ⇒ 逐窗口投入率**只由当前信号**的行算出来。
+    reports_dir = args.reports_dir if args.reports_dir else VERIFY_PATH.parent
+    ctx = resolve_attribution_context(reports_dir)
+    # 🚨 **读口留在调用点**（既有守卫钉住：expect_bytes 必须抓在它之前）。
+    frame = pd.read_parquet(VERIFY_PATH)
+    # 🚨 **过滤只走共享入口**（第 97 层）。
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
+
+    if not scoped.has_evidence:
+        # 🚨 作用域不对 ⇒ **不许**报逐窗口投入率（那报的是另一个信号）。
+        out = {
+            "generated_by": GENERATOR,
+            "上游产物": "data/reports/portfolio_nav.json",
+            "本产物算什么": "只算「投得进去多少 / 闲置多少 / 开不开得出来」；"
+                       "**不算任何收益**——收益归 portfolio_nav.json（第 109 层）",
+            "verdict_about_exec": (
+                f"{VERDICT_NOT_DECIDABLE}：{scoped.reason}"),
+            "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
+            "逐窗口": {},
+            "what_this_cannot_prove": [
+                "🚨 **本产物没有报任何投入率**。作用域不对 ⇒ "
+                "**没有资格**被算出来。",
+                f"**不能**把 {VERDICT_NOT_DECIDABLE} 读成「买不进」或"
+                "「闲置现金很高」——它说的是「**这份证据不属于当前信号**」。",
+            ],
+        }
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+        provenance.stamp(
+            args.out, GENERATOR, root=ROOT, expect_bytes=expect_bytes,
+            extra={"source_parquet_sha256": _sha256_of(VERIFY_PATH),
+                   "verdict": VERDICT_NOT_DECIDABLE,
+                   "signal_scope_status": scoped.status,
+                   "signal_id": scoped.current_signal_id,
+                   "n_days_measured": 0})
+        print(not_decidable_note(scoped))
+        print(f"→ {args.out}")
+        return 0
+
+    history = scoped.frame
     res = measure(history, args.data_root)
     windows = res["逐窗口"]
 
@@ -319,14 +381,19 @@ def main(argv: list[str] | None = None) -> int:
             "**将来能不能开出来**——3 个成交窗口、且 entry 价格只在这几天量过。",
         ],
         "预注册": "docs/PREREG_PORTFOLIO_EXEC_2026-10-16.md",
+        # 🚨 **作用域随数字一起离开产物**（预注册 §2.3）。
+        "signal_scope": scope_block(scoped),
+            "attribution": attribution_block(scoped),
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     provenance.stamp(
         args.out, GENERATOR, root=ROOT,
         data_root=args.data_root, expect_bytes=expect_bytes,
-        extra={"source_parquet_sha256": _sha256_of(VERIFY),
-               "n_days_measured": len(windows)},
+        extra={"source_parquet_sha256": _sha256_of(VERIFY_PATH),
+               "n_days_measured": len(windows),
+               "signal_scope_status": scoped.status,
+               "signal_id": scoped.current_signal_id},
     )
     print(f"写入 {args.out}")
     for d, w in windows.items():

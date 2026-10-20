@@ -23,6 +23,9 @@ from pathlib import Path
 
 import pytest
 
+# 🚨 对账守卫必须与**生产者**读**同一个口径**的样本。
+from scripts.signal_scope import scoped_ledger_frame  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 ART = ROOT / "data/reports/hit_rate_diagnosis.json"
 NULL_RATE = 0.5
@@ -399,7 +402,7 @@ def test_the_window_count_in_the_landed_artifact_is_a_measurement_not_a_typed_nu
     if not ver.is_file():
         pytest.skip("verification.parquet 尚未生成（它不入库）⇒ 无法对账成交窗口数")
     a = _artifact()
-    df = pd.read_parquet(ver)
+    df = scoped_ledger_frame(ROOT / "data" / "reports", ver)
     m = df[df["result"].isin(["hit", "miss"])]
     # ⚠️ 只在底稿带 `exit_date` 时对账：旧行退回 `pred_date` 并加 `legacy:`
     #   前缀，分组规则见 `diagnose_hit_rate.py::_cluster_of`。
