@@ -23,8 +23,12 @@
     /* 「无值槽」与「故障」必须长得不一样。
        裸 `—` 在暗底上和一个没渲染出来的数字完全同形 ⇒ 读者会把它
        归因于故障并开始怀疑整个页面。这里给它一个实心点 + 冷色，
-       与「真的坏了」（字体缺失导致的空框）拉开距离。 */
-    --void: #4E5A6B;
+       与「真的坏了」（字体缺失导致的空框）拉开距离。
+       ⚠️ 2026-10-20：原值 #4E5A6B 在实际底色 #0A0D12 上只有 **2.78:1**，
+       低于 WCAG AA 的 4.5:1（11.5px 小字）⇒ 空槽标签**读不清**。
+       提到 #727E8C = **4.71:1**，同时仍明显暗于 --faint(5.28:1) / --muted(6.59:1)
+       ⇒ 「空」的语义没丢，标签可读了。 */
+    --void: #727E8C;
     --focus: #7FB2FF;
     --up: #F04A4F;
     --up-soft: rgba(240,74,79,.12);
@@ -180,6 +184,10 @@
      换成实心点 + 虚线底纹，形状本身就与数字不同 ⇒ 不必 hover 也读得出
      「这里本来就没有数」，而不是「这里坏了」。 */
   .docket .fig.void b { color: var(--void); font-size: 15px; letter-spacing: .12em; }
+  /* 视觉隐藏但**读屏可读**的口径正文（`aria-describedby` 指向它）。
+     绝对定位 ⇒ 不占布局、不影响图元的排版。 */
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+             overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .docket .fig.void span { color: var(--void); }
 
   /* ── Tab 导航（去掉一二三四五序号——那是装饰不是信息） ── */
@@ -357,6 +365,29 @@
   .evo-entry code { font-family: var(--mono); font-size: 11.5px; color: var(--text);
                     background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
   .evo-entry .md-p, .evo-entry .md-list { color: var(--muted); }
+  /* ── D2 判决区间图 ──
+     这张图的全部意义：**让人一眼看出「目标线落在误差带内」**。
+     任何「点估计 + 一根目标线」但没有带宽的画法，都在宣称「知道自己差多少」——
+     而 20% 落在 CI 里、连符号都定不了 ⇒ 那种画法是骗人的。
+     配色：带宽是**中性冷色**（它是「不知道」的量，不是好坏）；
+     点估计是**金**（判决板的判决色）；目标线是**红**（A 股红=目标/警示），
+     三者各司其职，不复用涨跌色。 */
+  .d2-band-wrap { padding: 6px 20px 18px; }
+  .d2-band-wrap svg { width: 100%; height: auto; display: block; }
+  .d2-band-wrap text { font-family: var(--sans); font-size: 11px; fill: var(--muted); }
+  .d2-band-wrap .axis { stroke: var(--line-strong); stroke-width: 1; }
+  .d2-band-wrap .band { fill: rgba(127,178,255,.13); stroke: rgba(127,178,255,.34); stroke-width: 1; }
+  .d2-band-wrap .band-edge { stroke: rgba(127,178,255,.5); stroke-width: 1; stroke-dasharray: 3 3; }
+  .d2-band-wrap .pt { fill: var(--seal); }
+  .d2-band-wrap .target { stroke: var(--up); stroke-width: 1.5; }
+  .d2-band-wrap .t-label { fill: var(--up); font-size: 11.5px; }
+  .d2-band-wrap .pt-label { fill: var(--seal); font-size: 11.5px; }
+  .d2-band-wrap .band-label { fill: var(--muted); font-size: 11px; }
+  .d2-band-verdict { margin: 2px 20px 0; padding: 11px 14px; border-left: 2px solid var(--seal);
+                     background: var(--panel-2); font-size: 12.5px; line-height: 1.75; color: var(--muted); }
+  .d2-band-verdict b { color: var(--text); }
+  .d2-band-verdict code { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+  .d2-band-note { margin: 8px 20px 0; font-size: 11.5px; color: var(--faint); line-height: 1.7; }
 
   /* 涨跌双栏台账：各栏独立成表，看涨看跌的边界由结构给出，不靠颜色和 ▲▼ 自己找 */
   .ledger { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
@@ -367,12 +398,27 @@
                 border-bottom: 1px solid var(--line); }
   .legend-row .lg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   .legend-row .lg i { display: inline-block; }
-  .legend-row .lg-bar { width: 3px; height: 12px; background: var(--up); border-radius: 1px; }
+  .legend-row .lg-bar { width: 3px; height: 12px; border-radius: 1px;
+                         /* 两色：栏方向可以是涨栏(红)或跌栏(绿) ⇒ 色样不能只画红色，
+                            那样图例自己在说谎。 */
+                         background: linear-gradient(var(--up) 0 50%, var(--down) 50% 100%); }
   .legend-row .lg-num { width: 9px; height: 9px; border-radius: 2px; }
   .legend-row .lg-num.up { background: var(--up); }
   .legend-row .lg-num.down { background: var(--down); }
   .legend-row .lg-note { color: var(--faint); }
   .legend-row .lg-note b { color: var(--muted); font-weight: 600; }
+  /* 台账检索框。样式跟页面其它输入一致；焦点环用 --focus，
+     不用浏览器默认环（暗底上默认环几乎看不见）。 */
+  .ledger-filter { padding: 0 20px 10px; align-items: center; }
+  .ledger-filter input[type="search"] {
+    flex: 0 1 340px; min-width: 200px; padding: 5px 9px; font-size: 12.5px;
+    font-family: var(--sans); color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line-strong); border-radius: 5px;
+  }
+  .ledger-filter input[type="search"]::placeholder { color: var(--faint); }
+  .ledger-filter input[type="search"]:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus);
+  }
   @media (max-width: 860px) { .ledger { grid-template-columns: 1fr; } }
   .ledger-col:first-child { border-right: 1px solid var(--line); }
   @media (max-width: 860px) { .ledger-col:first-child { border-right: 0; border-bottom: 1px solid var(--line); } }
@@ -677,7 +723,7 @@
            图例把「色条 = 栏方向」「数字色 = 正负」写死在一处，
            而不是让读者从两栏的对照里自己推。 -->
       <div class="legend-row" role="note" aria-label="颜色含义">
-        <span class="lg"><i class="lg-bar"></i>左色条 = 本栏方向（红涨绿跌）</span>
+        <span class="lg"><i class="lg-bar"></i>左色条与栏头 = 本栏方向</span>
         <span class="lg"><i class="lg-num up"></i>数字为正</span>
         <span class="lg"><i class="lg-num down"></i>数字为负</span>
         <span class="lg-note">本策略取反（买超跌）⇒ 看涨栏里多是绿数字，那是<b>过去</b>在跌，不是今天要跌</span>
@@ -760,6 +806,20 @@
         <span class="sub">跑了多少轮 · 晋级几次 · 现在线上这组有没有被验收过</span></div>
       <div class="weights-row" id="evo-verdict"><div class="skeleton">加载…</div></div>
     </div>
+    <!-- D2 判决区间（2026-10-20 新增）。
+         ⚠️ 放「进化」页而不是「概览」页：D1 的送达页不能被推下去 ——
+         概览只留「今天的名单 + 能不能下结论」；「为什么不能下结论」是**判决能力**的问题。
+         ⚠️ 这张图**必须**把误差带画出来：只画「8.34% vs 20% 目标线」等于宣称
+         「知道自己差 11.66pp」—— 而 20% **落在 CI 里面**、连符号都定不了 ⇒ 那根条是骗人的。
+         数字**全部逐字取自产物**（verdict_reading / verdict_mde_annual /
+         verdict_upper_one_sided_95 / target / verdict_cases_fired），
+         前端**不重算**任何口径（禁：用公式重算来「验证」产物）。 -->
+    <div class="panel">
+      <div class="panel-head"><h2>年化 20% 的判决区间</h2>
+        <span class="sub">点估计 ± 测不出带宽 · 目标线落在带宽内就只能说「测不出」</span>
+        <span class="right" id="d2-band-note"></span></div>
+      <div id="d2-band"><div class="skeleton">加载判决区间…</div></div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h2>当前策略</h2><span class="sub" id="w-source"></span>
         <span class="right" id="w-date"></span></div>
@@ -773,6 +833,11 @@
     <div class="panel">
       <div class="panel-head"><h2>改进台账</h2>
         <span class="sub">每次自进化修掉了什么 · 数字从多少变成多少（含让数字变差的）</span></div>
+      <div class="filter-row ledger-filter">
+        <input type="search" id="ledger-q" placeholder="搜改进台账：标题 / 说明 / 指标 / 分类"
+               aria-label="搜索改进台账">
+        <span class="lg-note" id="ledger-count" role="status"></span>
+      </div>
       <div id="ledger-body"><div class="skeleton">加载…</div></div>
     </div>
   </section>
@@ -1381,15 +1446,15 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
          判定条数（<b>${judged}</b> 条）不参与这道门槛 —— 数条数会把一次交易数三遍。`;
   } else if (rate >= 0.55) {
     word.textContent = '初步有效';
-    why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>。
+    why.innerHTML = `已判定 <b>${judged}</b> 条，命中率 <b>${(rate * 100).toFixed(1)}%</b>。
       样本还小，别当结论——继续看它能不能扛住下一段行情。`;
   } else if (rate >= 0.45) {
     word.textContent = '与抛硬币无异';
-    why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>，落在 45%~55% 的噪声带里。
+    why.innerHTML = `已判定 <b>${judged}</b> 条，命中率 <b>${(rate * 100).toFixed(1)}%</b>，落在 45%~55% 的噪声带里。
       这一档说明模型目前没有证明自己能预测方向。`;
   } else {
     word.textContent = '暂时跑输';
-    why.innerHTML = `已判定 <b>${judged}</b> 笔，命中率 <b>${(rate * 100).toFixed(1)}%</b>，低于抛硬币。
+    why.innerHTML = `已判定 <b>${judged}</b> 条，命中率 <b>${(rate * 100).toFixed(1)}%</b>，低于抛硬币。
       不加仓，等下一轮权重赛马换掉它。`;
   }
 
@@ -1474,19 +1539,38 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
   const hitDown = stats?.hit_rate_down ?? null;
   const costDrag = stats?.avg_cost_drag ?? null;
   const p2 = v => v == null ? '—' : fmtPct(v, 2);
+  /* 摩擦是**被扣掉**的量 ⇒ 不能带 `+` 号。`fmtPct` 会给正数加 `+`，
+     于是页面会写出「每笔已扣 **+0.30%** 摩擦」—— 读起来像**加了** 0.30%。 */
+  const pAbs = v => v == null ? '—' : (Math.abs(v) * 100).toFixed(2) + '%';
   const n1 = v => v == null ? '—' : fmtNum(v);
   const tipHit = `涨腿 ${n1(hitUp)} · 跌腿 ${n1(hitDown)} 合并。产品承诺的是涨腿那一半`
-    + `（每天 10 只会涨）；跌腿是回避清单。`;
-  const tipUp = '净超额：每笔已扣 ' + (costDrag == null ? '—' : fmtPct(costDrag, 2)) + ' 摩擦。'
+    + `（每天 10 只会涨）；跌腿是回避清单。`
+    + `⚠️ 合并是**按判定条目数加权**（不是两个率的平均）⇒ 两腿分母不同，`
+    + `别拿两个率取平均当验算。`;
+  const tipUp = '净超额：每笔已扣 ' + pAbs(costDrag) + ' 摩擦。'
     + (grossUp == null ? '' : '同口径毛超额 ' + p2(grossUp) + '，')
     + (costShare == null ? '' : '摩擦占毛超额的 ' + (costShare * 100).toFixed(0) + '%。')
     + (costShare != null && costShare >= 1 ? '净数因此把符号都吃掉了。' : '')
     + '口径是逐笔平均，不是按日等权组合。';
   const tipDown = '跌篮子相对大盘的超额：正 = 挑出的确实跑输市场，回避有效。'
-    + '这条腿是回避清单，不做空也能兑现 —— 与「多空价差」不是一回事。';
+    + '这条腿是回避清单，不做空也能兑现 —— 与「多空价差」不是一回事。'
+    + `⚠️ **这一腿不扣摩擦**（回避清单不持仓 ⇒ 没有摩擦）`
+    + `⇒ 与涨腿那个「净」**不是同一个口径**。`;
   const tipBreadth = '涨篮子减跌篮子。市场涨跌不影响这个数 —— 它是排序有没有区分度的度量。'
-    + '注意：兑现它需要空头腿，5 万本金做不了空，所以它不是可兑现收益。';
-  const fig = (cls, val, label, tip) => `<div class="fig ${cls}"${tip ? ` title="${esc(tip)}"` : ''}><b>${val}</b><span>${label}</span></div>`;
+    + '注意：兑现它需要空头腿，5 万本金做不了空，所以它不是可兑现收益。'
+    + `⚠️ 它是**两个不同口径相减**（涨腿净、跌腿不扣摩擦）⇒ 这个差值本身是混合口径。`;
+  /* 口径说明**不能只挂在 `title` 上**：`title` 键盘不可达、读屏软件通常不朗读、
+     触屏要长按才出 ⇒ 口径披露的唯一通道对一部分用户是关着的。
+     ⇒ 图元可聚焦（tabindex=0）+ `aria-describedby` 指向一段**视觉隐藏**的正文
+     （读屏能读到）+ `title`（鼠标能看）。三个通道各管一类用户。 */
+  let figSeq = 0;
+  const fig = (cls, val, label, tip) => {
+    if (!tip) return `<div class="fig ${cls}"><b>${val}</b><span>${label}</span></div>`;
+    const id = `figtip${++figSeq}`;
+    return `<div class="fig ${cls}" tabindex="0" aria-describedby="${id}" title="${esc(tip)}">`
+      + `<b>${val}</b><span>${label}</span>`
+      + `<span class="sr-only" id="${id}">${esc(tip)}</span></div>`;
+  };
   /* 无值槽。措辞由**上面的判据**算出来，不手写 —— 手写就会在
      MIN_WINDOWS 改动后静默过期（第 140 层），而这里说的正是
      「为什么没数」，过期之后会变成一句假话。
@@ -2292,6 +2376,35 @@ function md(src) {
   return out.join('');
 }
 
+/* 改进台账的检索（2026-10-20）。
+   实测：95 条按日期折成 5 折，**最密的一折 40 条** ⇒ 只靠折叠找东西等于没给路。
+   ⇒ 输入即筛；命中的条目**自动展开所在折**（命中了却还折着 = 过滤等于没做）。
+   ⚠️ 过滤**只改可见性**：不删条目、不改内容、不改任何数字。
+   ⚠️ 关键词用 `textContent` 全文匹配（含「作废」清单里的文件名）⇒ 搜得到证据本身。 */
+function wireLedgerFilter() {
+  const q = $('ledger-q'), box = $('ledger-body'), cnt = $('ledger-count');
+  if (!q || !box) return;
+  const entries = [...box.querySelectorAll('.evo-entry')];
+  const folds = [...box.querySelectorAll('details.ledger-fold')];
+  const apply = () => {
+    const kw = q.value.trim().toLowerCase();
+    let shown = 0;
+    for (const fold of folds) {
+      let n = 0;
+      for (const e of fold.querySelectorAll('.evo-entry')) {
+        const hit = !kw || e.textContent.toLowerCase().includes(kw);
+        e.hidden = !hit;
+        if (hit) n++;
+      }
+      shown += n;
+      if (kw && n > 0) fold.open = true;
+    }
+    if (cnt) cnt.textContent = kw ? `命中 ${shown} / ${entries.length} 条` : '';
+  };
+  q.addEventListener('input', apply);
+  apply();
+}
+
 function loadLedger() {
   jget('/api/evolution/ledger').then(d => {
     const box = $('ledger-body');
@@ -2353,13 +2466,79 @@ function loadLedger() {
         ${list.map(entryHtml).join('')}
       </details>`).join('');
     box.innerHTML = banner + groups;
+    wireLedgerFilter();   // 折好了还要能搜：95 条、最密一折 40 条 ⇒ 光折叠等于没给路
   }).catch((e) => {
     console.error('[改进台账] 加载失败', e);
     $('ledger-body').innerHTML = '<div class="empty">加载失败（详见控制台）</div>';
   });
 }
 
+/* ── D2 判决区间 ───────────────────────────────────────────────
+   画的全部依据来自 `/api/d2-verdict` **逐字透传**的产物字段：
+     verdict_reading（点估计 c）、verdict_mde_annual（带宽 MDE）、
+     verdict_upper_one_sided_95（95% 单侧上界 U）、target（目标 T）、
+     verdict_text（判决文案）、verdict_cases_fired（真触发了哪几条）。
+   ⚠️ 前端**不重算判定**：哪条规则触发由产物的 `verdict_cases_fired` 说了算。
+     前端只做一件事：把 [c−M, U] 画成一条带，把 T 画成一根线，让「T 在带内」可见。
+     ⚠️ `c−M` 那一头是**算术下界**（产物只给了 95% 单侧上界）⇒ 图上必须写清这个口径，
+     否则读者会以为两端都是 95% 界。 */
+function renderD2Band(v) {
+  const c = v.verdict_reading, M = v.verdict_mde_annual;
+  const U = v.verdict_upper_one_sided_95, T = v.target;
+  if ([c, M, U, T].some(x => typeof x !== 'number' || !isFinite(x))) {
+    $('d2-band').innerHTML = '<div class="empty">判决区间字段不全，暂不画图（避免画出半张误导人的图）</div>';
+    return;
+  }
+  const lo = Math.min(c - M, 0), hi = Math.max(U, T);
+  const pad = (hi - lo) * 0.10;
+  const x0 = lo - pad, x1 = hi + pad;
+  const W = 720, H = 176, L = 58, R = 30, AY = 128;
+  const sx = val => L + (val - x0) / (x1 - x0) * (W - L - R);
+  const pc = v => (v * 100).toFixed(2) + '%';
+  const inside = T >= (c - M) && T <= U;
+  const zero = sx(0);
+  const bandX = sx(c - M), bandW = Math.max(2, sx(U) - bandX);
+
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="年化目标的判决区间：点估计 ${pc(c)}，带宽 ${pc(M)}，95% 单侧上界 ${pc(U)}，目标 ${pc(T)}">
+    <text x="${L}" y="22" class="band-label">目标 ${pc(T)} 落在带宽内 ⇒ 只能说「测不出」</text>
+    <rect x="${bandX}" y="46" width="${bandW}" height="52" rx="3" class="band"/>
+    <line x1="${sx(c - M)}" y1="46" x2="${sx(c - M)}" y2="98" class="band-edge"/>
+    <line x1="${sx(U)}" y1="46" x2="${sx(U)}" y2="98" class="band-edge"/>
+    <polygon points="${sx(c)},38 ${sx(c) - 5},30 ${sx(c) + 5},30" class="pt"/>
+    <line x1="${sx(c)}" y1="30" x2="${sx(c)}" y2="98" stroke="var(--seal)" stroke-width="1" opacity=".6"/>
+    <line x1="${sx(T)}" y1="26" x2="${sx(T)}" y2="106" class="target"/>
+    <text x="${sx(T)}" y="20" text-anchor="middle" class="t-label">目标 ${pc(T)}</text>
+    <text x="${sx(c)}" y="120" text-anchor="middle" class="pt-label">点估计 ${pc(c)}</text>
+    <text x="${bandX}" y="112" text-anchor="start" class="band-label">算术下界 ${pc(c - M)}</text>
+    <text x="${sx(U)}" y="112" text-anchor="end" class="band-label">95% 单侧上界 ${pc(U)}</text>
+    <line x1="${L}" y1="${AY}" x2="${W - R}" y2="${AY}" class="axis"/>
+    <line x1="${zero}" y1="${AY - 4}" x2="${zero}" y2="${AY + 4}" class="axis"/>
+    <text x="${zero}" y="${AY + 18}" text-anchor="middle" class="band-label">0%</text>
+    <text x="${L}" y="${AY + 18}" text-anchor="start" class="band-label">${pc(x0)}</text>
+    <text x="${W - R}" y="${AY + 18}" text-anchor="end" class="band-label">${pc(x1)}</text>
+  </svg>`;
+
+  const cases = Array.isArray(v.verdict_cases_fired) && v.verdict_cases_fired.length
+    ? `<div style="margin-top:6px">产物记录的触发分支：${v.verdict_cases_fired.map(c => `<code>${esc(c)}</code>`).join('<br>')}</div>` : '';
+  $('d2-band').innerHTML = `<div class="d2-band-wrap">${svg}</div>
+    <div class="d2-band-verdict"><b>判决：</b>${esc(v.verdict_text || '')}${cases}</div>
+    <div class="d2-band-note">口径：带宽 = 点估计 ± MDE（MDE = ${pc(M)}）；左端是<b>算术下界</b>（产物只给了 95% 单侧上界），
+      右端 ${pc(U)} 是产物自带的 95% 单侧上界。判定规则（预注册）：<code>${esc(v.verdict_rule || '')}</code>
+      ${inside ? '本图上目标线落在带宽内 ⇒ 与 0 不可区分。' : '本图上目标线在带宽外。'}</div>`;
+  const note = $('d2-band-note');
+  if (note) note.textContent = `判决档 · 点估计 ${pc(c)} · 目标 ${pc(T)}`;
+}
+
+function loadD2Verdict() {
+  jget('/api/d2-verdict').then(v => { if (v) renderD2Band(v); })
+    .catch(e => {
+      $('d2-band').innerHTML = `<div class="empty">判决区间取不到（${esc(e.message || e)}）</div>`;
+    });
+}
+
 async function loadEvolution() {
+  loadD2Verdict();
   loadLedger();
   let evoSummary = null;
   try {
