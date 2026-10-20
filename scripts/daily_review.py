@@ -246,7 +246,9 @@ def collect_d2() -> dict:
     if sig is None:
         out["notes"].append(miss)
         out["deliverable_50k"] = {
-            "what": "5 万可交付档（宽度 10、满仓、真实摩擦）",
+            "what": "理想档（5 万可交付档：宽度 10、**满仓假设**、真实摩擦）"
+                   " —— ⚠️ **公式上界**：假设 **100% 部署**，"
+                   "**不含**整手与闲置现金的代价 ⇒ 比实盘档**乐观**",
             "account_annual_at_50k_pct": {
                 "value": None,
                 "at": "headline::account_annual_ceiling_pct::at_deliverable_width_and_50k"},
@@ -262,7 +264,9 @@ def collect_d2() -> dict:
         }
     else:
         out["deliverable_50k"] = {
-            "what": "5 万可交付档（宽度 10、满仓、真实摩擦）",
+            "what": "理想档（5 万可交付档：宽度 10、**满仓假设**、真实摩擦）"
+                   " —— ⚠️ **公式上界**：假设 **100% 部署**，"
+                   "**不含**整手与闲置现金的代价 ⇒ 比实盘档**乐观**",
             "account_annual_at_50k_pct": _cell(
                 sig, "headline::account_annual_ceiling_pct::at_deliverable_width_and_50k"),
             "gap_to_target_pp": _cell(
@@ -272,6 +276,41 @@ def collect_d2() -> dict:
             "measured_gross_at_deliverable_width": _cell(
                 sig, "headline::measured_gross_best::at_deliverable_width"),
             "at": "data/reports/d2_signal_requirement.json::headline",
+        }
+
+    # ── 实盘档（生产**今天真的在跑**的那一档）────────────────────────
+    # 🚨 2026-10-21 补：原来这份复盘只报**理想档**（台账的公式上界，
+    #   假设 100% 部署 ⇒ **不含**整手与闲置现金的代价）
+    #   ⇒ 用户看到的「离 20% 差多少」**偏乐观**。
+    # ⇒ 实盘档 = `deployed_d2_verdict.json::verdict`（满仓 10 只 × ¥5,000 +
+    #   实盘 4 因子 + 配置层整手过滤 + K=63 + 逐笔成本 + 闲置现金 0 计息）。
+    dep, miss2 = _read_json("data/reports/deployed_d2_verdict.json")
+    dep_what = ("实盘档（生产配置：满仓 10 只 × ¥5,000 + 实盘 4 因子 "
+                "+ 配置层整手过滤 + K=63 + 逐笔成本 + 闲置现金 0 计息）")
+    if dep is None:
+        out["notes"].append(miss2)
+        out["deployed_live"] = {
+            "what": dep_what,
+            "cagr": {"value": None, "at": "verdict::cagr"},
+            "mde_annual": {"value": None, "at": "verdict::mde_annual"},
+            "upper_one_sided_95": {"value": None, "at": "verdict::upper_one_sided_95"},
+            "gap_to_target_pp": {"value": None, "at": "verdict::gap_to_target_pp"},
+            "measured_sign_determinable": {
+                "value": None, "at": "verdict::measured_sign_determinable"},
+            "missing_reason": miss2,
+            "at": "data/reports/deployed_d2_verdict.json",
+        }
+    else:
+        dv = dep.get("verdict") or {}
+        out["deployed_live"] = {
+            "what": dep_what,
+            "cagr": _cell(dv, "cagr"),
+            "mde_annual": _cell(dv, "mde_annual"),
+            "upper_one_sided_95": _cell(dv, "upper_one_sided_95"),
+            "gap_to_target_pp": _cell(dv, "gap_to_target_pp"),
+            "measured_sign_determinable": _cell(dv, "measured_sign_determinable"),
+            "cases": dv.get("cases"),
+            "at": "data/reports/deployed_d2_verdict.json::verdict",
         }
     return out
 
@@ -371,11 +410,15 @@ def build(today: str, archive_dir: Path, since: str | None,
             "q1_what_can_the_user_open_today": (
                 f"data/reports/predictions/（今日名单 up {d1.get('list', {}).get('up')}"
                 f" / down {d1.get('list', {}).get('down')}）"
-                f" + data/reports/basket_nav_01_2026-10-16.json::tiers[1].cagr"
-                f" = {d2.get('verdict_arm', {}).get('cagr', {}).get('value')}"),
+                f" + data/reports/deployed_d2_verdict.json::verdict.cagr"
+                f" = {d2.get('deployed_live', {}).get('cagr', {}).get('value')}"
+                f"（**实盘档**：生产今天真的在跑的那一档）"),
             "q2_how_far_from_20pct": (
                 f"{d2.get('deliverable_50k', {}).get('gap_to_target_pp', {}).get('value')} pp"
-                f"（5 万可交付档）"),
+                f"（**理想档**：公式上界，假设 100% 部署 ⇒ 不含整手与闲置现金的代价）"
+                f"｜"
+                f"{d2.get('deployed_live', {}).get('gap_to_target_pp', {}).get('value')} pp"
+                f"（**实盘档**：含整手与闲置现金 ⇒ 用户真正拿到的那个）"),
         },
         "d1": d1,
         "d2": d2,
@@ -388,6 +431,9 @@ def build(today: str, archive_dir: Path, since: str | None,
             "「收尾」档提交不计入进展（§4 绿灯作废清单）⇒ 跑偏率是**防跑偏**的读数，"
             "**不是**成就。",
             "提交归类**只读标题首词**；归不出档就记「未归类」，不替它归档。",
+            "「离 20% 差多少」有**两个口径**（理想档 = 公式上界 / 实盘档 = "
+            "含整手与闲置现金）⇒ **两个都要报，并标明是哪个**；"
+            "**只报理想档 = 偏乐观**（2026-10-21 修）。",
         ],
     }
     payload["vs_previous"] = compare_with_previous(
