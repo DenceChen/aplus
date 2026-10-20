@@ -20,10 +20,21 @@
        它承担的是 11px 的表头、时间戳、单位小字 —— 全页最小的那批字，
        却是对比度最差的那批。抬到 4.7:1，暗而不断，比「若隐若现」能读。 */
     --faint: #7C8695;
+    /* 「无值槽」与「故障」必须长得不一样。
+       裸 `—` 在暗底上和一个没渲染出来的数字完全同形 ⇒ 读者会把它
+       归因于故障并开始怀疑整个页面。这里给它一个实心点 + 冷色，
+       与「真的坏了」（字体缺失导致的空框）拉开距离。 */
+    --void: #4E5A6B;
+    --focus: #7FB2FF;
     --up: #F04A4F;
     --up-soft: rgba(240,74,79,.12);
     --down: #1FB981;
     --down-soft: rgba(31,185,129,.12);
+    /* --meter：中性量条。2026-10-20 新增。
+       「本栏内相对强度」的长度才是信息，颜色不该再承担方向 ——
+       方向已由行左色条给出。留一个不带方向的量条，
+       一行就只剩**一个**带色元素（数字的正负），不再互相打架。 */
+    --meter: #8892A1;
     --seal: #C8963E;
     --seal-soft: rgba(200,150,62,.13);
     --chart: #D9A441;
@@ -50,7 +61,7 @@
      七个格子。焦点环只在真的聚焦时才该出现。 */
   /* `summary` 不是 `button`（抽屉开关是原生 <details>，2026-10-18），
      不写进来就只剩浏览器默认焦点环 —— 在这套近黑底上对比度不足。 */
-  button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--seal); outline-offset: 2px; border-radius: 3px; }
+  button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
 
   /* ── 顶部品牌条 ── */
   .brand { max-width: 1180px; margin: 0 auto; padding: 20px 24px 0; display: flex; align-items: baseline; gap: 12px; }
@@ -88,10 +99,22 @@
   .docket .tally i { display: block; height: 100%; background: var(--seal); border-radius: 2px; transition: width .4s ease; }
   .docket .tally.done i { background: var(--down); }
 
-  /* 警示条：颜色语义与 A 股一致（红=危险、绿=达标），不另发明一套。 */
+  /* 警示条：颜色语义与 A 股一致（红=危险、绿=达标），不另发明一套。
+     ★ 2026-10-19：两条警示改成 **并排一列**（原来是块级 flex-wrap，
+       两块各占满 1180px 的整行，实测把首屏吃掉了 ~250px，
+       而下面那 20 行名单才是反复要看的东西）。
+       改成 grid 两列后首屏省下一整块高度，两条仍同权重可见。
+       🚨 窄屏必须退回单列：两条各带一段推导，并排会把推导挤成
+          每列不足 200px 的碎条，比原来更难读。 */
+  .docket-warns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; }
+  /* 两条都 hidden 时容器必须**完全不占高度**，否则「今天没有警示」
+     反而比「有警示」多留一块空白 —— 这是加容器最容易引入的副作用。 */
+  .docket-warns:not(:has(.docket-warn:not([hidden]))) { display: none; }
+  @media (max-width: 860px) { .docket-warns { grid-template-columns: 1fr; } }
   .docket-warn { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
     margin: 0 0 12px; padding: 9px 12px; border-radius: 6px; font-size: 12.5px; line-height: 1.6;
     border-left: 3px solid; }
+  .docket-warns > .docket-warn { margin-bottom: 0; height: 100%; }
   .docket-warn b { font-weight: 600; flex: none; }
   .docket-warn span { color: var(--muted); }
   .docket-warn.danger { background: rgba(240,74,79,.09); border-left-color: var(--up); }
@@ -153,6 +176,11 @@
   .docket .fig.rise b { color: var(--up); }
   .docket .fig.fall b { color: var(--down); }
   .docket .fig.idle b { color: var(--faint); }
+  /* 无值槽：裸 `—` 与「渲染失败出来的空格」在暗底上同形。
+     换成实心点 + 虚线底纹，形状本身就与数字不同 ⇒ 不必 hover 也读得出
+     「这里本来就没有数」，而不是「这里坏了」。 */
+  .docket .fig.void b { color: var(--void); font-size: 15px; letter-spacing: .12em; }
+  .docket .fig.void span { color: var(--void); }
 
   /* ── Tab 导航（去掉一二三四五序号——那是装饰不是信息） ── */
   .tabs {
@@ -190,7 +218,33 @@
 
   /* ── 看涨 / 看跌 双栏（原来 ▲▼ 混在一张表里，边界不清要自己数） ── */
   .heroes { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
-  @media (max-width: 860px) { .heroes { grid-template-columns: 1fr; } }
+  /* 窄屏**只藏卡片、不藏容器**。
+     容器 `#heroes` 是承重的：`$('heroes').innerHTML = …「预测数据加载失败…」`
+     那个 catch 把错误文案写进它，
+     `renderHeroes` 的 `暂无预测` 分支也写进它 ⇒ `display:none` 掉整个容器，
+     窄屏上**加载失败会变成静默**（HTTP 200、无报错、预测区凭空消失且无解释）。
+     所以判据是 `.heroes .hero`（只有 happy path 的卡片），不是 `.heroes`。
+
+     为什么藏的是它而不是压扁它：这两张卡在窄屏上**没有信息增量**。
+     `renderPredBoard` 传给 `renderHeroes` 的就是 `pred.up[0]` / `pred.down[0]`，
+     紧接着 `renderRows` 打的是**同一个数组的同一项** —— 名称、代码、20 日涨跌、
+     综合分、消息面五样一个不少，行还多一个名次与条形。
+     而 hero 存在的全部理由是**并排比较**（一眼看多空两个首选）；
+     上面这条规则让它退回单列的那一刻起，它就只是「名单的第一行」，
+     却要占掉一整块高度并排在 20 行交付物**前面** ⇒ 窄屏首屏一行名单都看不到。
+
+     🚨 这里刻意**不写「被顶到 y=NNNN」**：那个坐标随视口、随消息面文本行数、
+     随名次变化，写死就是第 140 层（手打数字静默过期）——本条第一版写的
+     `y=1053 / 视口 844` 就是这么写的，实测已经不成立（500×698 下是 y=737）。
+     要复核请**实测**：`getBoundingClientRect().y` 取第一行 `tr[tabindex]`，
+     与 `innerHeight` 比，判据是「首屏可见行数 = 0」而不是某个坐标。
+
+     断点取 860px 而不是另拍一个数：**正是这条规则让它从「并排」变成「上下」的那一点，
+     也就是它不再配得上这块地方的那一点** —— 断点有据，不是手感。
+     桌面端双列规则一个字没动。 */
+  @media (max-width: 860px) {
+    .heroes .hero { display: none; }
+  }
   .hero { padding: 18px 20px 16px; }
   .hero.up-side { border-right: 1px solid var(--line); }
   @media (max-width: 860px) { .hero.up-side { border-right: 0; border-bottom: 1px solid var(--line); } }
@@ -201,8 +255,12 @@
   .hero .stock b { font-family: var(--serif); font-size: 27px; font-weight: 700; letter-spacing: .03em; }
   .hero .code { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
   .hero .pct { font-family: var(--serif); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .hero.up-side .pct { color: var(--up); }
-  .hero.down-side .pct { color: var(--down); }
+  /* 🚨 hero 的百分比是**数字**，颜色必须跟表格里同一个量同规则（符号色），
+     不能再跟「栏方向」走 —— 原来 hero 用栏色、表格用符号色，
+     于是**同一屏里同一个 20 日涨跌有两种颜色**（看涨栏 hero 把 −45.6% 涂成红色）。
+     现在两边都按符号：≥0 红、<0 绿。 */
+  .hero .pct.pos { color: var(--up); }
+  .hero .pct.neg { color: var(--down); }
   .hero .why { color: var(--muted); font-size: 12.5px; margin-top: 5px; }
   .hero .news { margin-top: 9px; font-size: 12.5px; color: var(--text); background: var(--panel-2); border-radius: 4px; padding: 6px 10px; }
   .hero .news i { font-style: normal; font-family: var(--serif); margin-right: 5px; }
@@ -240,30 +298,58 @@
   td.num, th.num { text-align: right; }
   .name-cell b { font-weight: 600; }
   .name-cell span { display: block; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
-  .dir-up { color: var(--up); font-weight: 600; }
-  .dir-down { color: var(--down); font-weight: 600; }
+  /* 🚨 2026-10-20 颜色语义重构：**色相只编码「数字的正负」，方向改由结构承载。**
+     原来股票名跟栏色（涨栏名字红、跌栏名字绿）。但这一栏的 20 日涨跌
+     因为策略是**反转**（`DEFAULT_WEIGHTS.mom20 = −1`，买超跌）而**与栏方向相反**，
+     于是同屏出现「红头 + 绿数字」「绿头 + 红数字」——
+     读者第一眼必然把「看涨名单」读成「这 10 只在跌」。
+     本页 `.ledger` 自己的注释早就写着「看涨看跌的边界**由结构给出，不靠颜色**」，
+     只是实现没跟上。现在补上：名字中性 + 行左色条表方向 + 数字表正负。 */
+  .dir-up, .dir-down { color: var(--text); font-weight: 600; }
   .pct-up { color: var(--up); font-weight: 600; }
   .pct-down { color: var(--down); font-weight: 600; }
   .bar-cell { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
   .bar-cell .track { width: 64px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.07); overflow: hidden; }
-  /* 条形取本栏方向色，不再统一用金色。
-     金色在本页面是**判决专用**（判决板字、封口数、进度条），
-     拿它当每行的强度条会把「这 10 只都很看跌」画成「这一栏被批准过」。 */
-  .bar-cell .track i.up { display: block; height: 100%; border-radius: 3px; background: var(--up); }
-  .bar-cell .track i.down { display: block; height: 100%; border-radius: 3px; background: var(--down); }
+  /* 条形改为**中性**：它是「本栏内相对强度」，长度才是信息。
+     原来条形取栏方向色 —— 与股票名同色，等于把方向色说了两遍，
+     且和旁边按符号染色的 20 日涨跌正面冲突（红条 + 绿数字）。
+     方向已由行左色条承担，量条不必再说一遍。 */
+  .bar-cell .track i.up, .bar-cell .track i.down { display: block; height: 100%; border-radius: 3px; background: var(--meter); }
+  /* 行左色条 = 本栏方向（红涨绿跌）。这是「方向」唯一的颜色出口，
+     位置固定在行首，扫读时先被眼睛扫到，且不会和数字抢语义。 */
+  .ledger-up th.rank, .ledger-up td.rank { border-left: 3px solid var(--up); }
+  .ledger-down th.rank, .ledger-down td.rank { border-left: 3px solid var(--down); }
   /* 行号：20 行里没有序号，扫读时眼睛找不到「我从第几行看到哪了」 */
-  th.rank, td.rank { width: 1%; padding-left: 14px; padding-right: 0; }
+  th.rank, td.rank { width: 1%; padding-left: 11px; padding-right: 0; }
   td.rank { color: var(--faint); font-size: 11px; }
-  tr[tabindex]:focus-visible { outline: 2px solid var(--seal); outline-offset: -2px; }
+  tr[tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   /* 消息面：原来 max-width:190px + ellipsis 直接吞字（「预亏利空」被切掉）。
      改成两行夹断，且允许换行——消息理由是被砍仓的依据，不能丢。 */
   .news-chip { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; color: var(--muted); }
   .news-chip i { font-style: normal; font-family: var(--serif); flex-shrink: 0; }
-  .news-chip i.pos { color: var(--up); } .news-chip.neg i { color: var(--down); }
+  /* 🚨 这里原来写的是 `.news-chip i.pos` —— **死选择器**：
+     `newsChip()` 把 pos/neg 类加在**外层 span** 上，不在 `<i>` 上，
+     于是正向消息面的分数**根本没有颜色**（继承 --muted），
+     而负向是绿的（`.news-chip.neg i` 命中）⇒ 正向与中性同色。
+     改成 `.news-chip.pos i` 才是作者本意（正=红/涨，负=绿/跌）。 */
+  .news-chip.pos i { color: var(--up); } .news-chip.neg i { color: var(--down); }
   .news-chip .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; }
 
   /* 涨跌双栏台账：各栏独立成表，看涨看跌的边界由结构给出，不靠颜色和 ▲▼ 自己找 */
   .ledger { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+  /* 颜色语义图例。安静：11.5px、灰字、无框无底 —— 它是**读法说明**，
+     不是内容，量级必须低于名单本身。 */
+  .legend-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+                padding: 8px 20px; font-size: 11.5px; color: var(--muted);
+                border-bottom: 1px solid var(--line); }
+  .legend-row .lg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .legend-row .lg i { display: inline-block; }
+  .legend-row .lg-bar { width: 3px; height: 12px; background: var(--up); border-radius: 1px; }
+  .legend-row .lg-num { width: 9px; height: 9px; border-radius: 2px; }
+  .legend-row .lg-num.up { background: var(--up); }
+  .legend-row .lg-num.down { background: var(--down); }
+  .legend-row .lg-note { color: var(--faint); }
+  .legend-row .lg-note b { color: var(--muted); font-weight: 600; }
   @media (max-width: 860px) { .ledger { grid-template-columns: 1fr; } }
   .ledger-col:first-child { border-right: 1px solid var(--line); }
   @media (max-width: 860px) { .ledger-col:first-child { border-right: 0; border-bottom: 1px solid var(--line); } }
@@ -271,7 +357,15 @@
     display: flex; align-items: baseline; gap: 8px;
     padding: 9px 20px; font-size: 12px; border-bottom: 1px solid var(--line);
   }
-  .ledger-head span { margin-left: auto; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+  /* 「今天可操作的对象有几个」是这个条上唯一直接回答问题的数字
+     （标题说的是**方向**，这个说的是**数量**），而它原来被压成
+     11px 灰字、挤在行尾右侧 ⇒ 扫视时第一个看到的是标题，数字要
+     特意去找。提到与标题同级，让「10 / 10」成为整页的视觉落点
+     —— 这是本页唯一一处刻意加重，其余元素一律保持安静。 */
+  .ledger-head span {
+    margin-left: auto; font-size: 13px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: inherit; opacity: .85;
+  }
   .ledger-up .ledger-head { color: var(--up); background: var(--up-soft); }
   .ledger-down .ledger-head { color: var(--down); background: var(--down-soft); }
 
@@ -355,6 +449,29 @@
   .weight-chip.champion b { color: var(--seal); }
   .evo-entry { padding: 16px 20px; border-bottom: 1px solid var(--line); }
   .evo-entry:last-child { border-bottom: 0; }
+  /* 🚨 2026-10-20：进化页原来把 5 轮赛马战报（284 行候选）与 95 条改进台账
+     **全部平铺展开**，实测整页高 65,650px（进化日志 26,935 + 改进台账 37,769）
+     ⇒ 没有任何东西是找得到的，而这一页恰好是回答「自进化到哪一步了」的地方。
+     改成按「轮次 / 日期」折叠：判决摘要永远可见（日期 + 晋级与否 + 否决理由），
+     候选表与单条明细收进折叠里。**不删任何一条**——
+     少一条就是少一份证据，折叠只改可达性，不改内容。 */
+  .evo-fold, .ledger-fold { border-bottom: 1px solid var(--line); }
+  .evo-fold > summary, .ledger-fold > summary {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    padding: 13px 20px; cursor: pointer; list-style: none;
+  }
+  .evo-fold > summary::-webkit-details-marker, .ledger-fold > summary::-webkit-details-marker { display: none; }
+  .evo-fold > summary::before, .ledger-fold > summary::before {
+    content: '▸'; font-size: 10px; line-height: 1; color: var(--faint); flex: none;
+  }
+  .evo-fold[open] > summary::before, .ledger-fold[open] > summary::before { content: '▾'; }
+  .evo-fold > summary:hover, .ledger-fold > summary:hover { background: rgba(255,255,255,.025); }
+  .evo-fold > summary b, .ledger-fold > summary b { font-family: var(--serif); font-size: 15px; }
+  .evo-fold .fold-meta, .ledger-fold .fold-meta { font-size: 11.5px; color: var(--faint); }
+  .ledger-fold > summary { padding: 11px 20px; }
+  .ledger-fold > summary b { font-size: 13.5px; font-family: var(--sans); font-weight: 600; }
+  /* 折叠体里保留原 `.evo-entry` 的内边距，但不再重复画分隔线 */
+  .evo-fold .evo-entry, .ledger-fold .evo-entry { border-bottom: 0; padding: 4px 20px 16px 32px; }
   .evo-entry .head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
   .evo-entry .head b { font-family: var(--serif); font-size: 15px; }
   .evo-entry .decision { font-size: 12.5px; }
@@ -475,6 +592,12 @@
       <span class="verdict-why" id="docket-why"></span>
     </div>
     <div class="tally" id="docket-tally"><i style="width:0%"></i></div>
+    <!-- 🚨 grid 容器（2026-10-19）：这两条**各自独立、互不遮蔽**，
+         但原来都是块级、各占满整行，实测首屏被吃掉 ~250px。
+         包进两列 grid 后高度减半，窄屏（≤860px）由 CSS 退回单列。
+         ⚠️ 只改**排版容器**，不动两个节点的身份：`id` 与
+            `tests/test_docket_warning.py` 的接线全部原样保留。 -->
+    <div class="docket-warns">
     <div class="docket-warn" id="docket-warn" hidden></div>
     <!-- 2026-10-18 新增。**独立元素**，不并进上面那条 `#docket-warn`：
          那条由 `docketWarning()`（四参三态，`tests/test_docket_warning.py` 守着）
@@ -483,6 +606,7 @@
          同一个节点会把两个独立判决塌成一个，并让既有守卫失去它守的东西。
          CSS 复用 `.docket-warn` 的档位（danger/warn/ok），DOM 所有权分开。 -->
     <div class="docket-warn" id="publish-gate" hidden></div>
+    </div><!-- /.docket-warns -->
     <div class="figures" id="docket-figures"></div>
   </div>
 </div>
@@ -504,6 +628,19 @@
       <div class="panel-head"><h2 id="pred-title">下一交易日预测</h2><span class="sub" id="pred-sub">加载中</span>
         <span class="right" id="universe-sub"></span></div>
       <div class="heroes" id="heroes"><div class="skeleton">加载预测数据…</div></div>
+      <!-- 🚨 2026-10-20 颜色语义图例。
+           这一屏上**红色与绿色同时编码两件事**，而读者只能记一套：
+           ① 数字的正负（20 日涨跌、消息面）② 行的方向（看涨栏/看跌栏）。
+           策略是反转（买超跌）⇒ 这两者在名单上**系统性相反**，
+           没有图例时「看涨名单一屏绿数字」必然被读成「这 10 只在跌」。
+           图例把「色条 = 栏方向」「数字色 = 正负」写死在一处，
+           而不是让读者从两栏的对照里自己推。 -->
+      <div class="legend-row" role="note" aria-label="颜色含义">
+        <span class="lg"><i class="lg-bar"></i>左色条 = 本栏方向（红涨绿跌）</span>
+        <span class="lg"><i class="lg-num up"></i>数字为正</span>
+        <span class="lg"><i class="lg-num down"></i>数字为负</span>
+        <span class="lg-note">本策略取反（买超跌）⇒ 看涨栏里多是绿数字，那是<b>过去</b>在跌，不是今天要跌</span>
+      </div>
       <div class="ledger">
         <div class="ledger-col ledger-up">
           <div class="ledger-head">看涨名单<span id="up-count"></span></div>
@@ -1277,8 +1414,21 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
      选股没本事也能拿到漂亮数字。 */
   const downExc = stats?.down_excess_vs_market ?? null;
   const breadth = stats?.excess_breadth ?? null;
-  const fig = (cls, val, label, tip) => `<div class="fig ${cls}"${tip ? ` title="${tip}"` : ''}><b>${val}</b><span>${label}</span></div>`;
-  const idle = fig('idle', '—', '命中率');
+  const fig = (cls, val, label, tip) => `<div class="fig ${cls}"${tip ? ` title="${esc(tip)}"` : ''}><b>${val}</b><span>${label}</span></div>`;
+  /* 无值槽。措辞由**上面的判据**算出来，不手写 —— 手写就会在
+     MIN_WINDOWS 改动后静默过期（第 140 层），而这里说的正是
+     「为什么没数」，过期之后会变成一句假话。
+     ⚠️ 槽位与「测不出」同源：这一组数不存在**不是因为系统坏了**，
+        是因为独立成交窗口还没攒够。
+     🚨 2026-10-19 实测：`/api/status` 的 `n_independent_windows` = 5，
+        **字段在、值不是 null** ⇒ 下面那个 null 分支**今天不可达**。
+        而「为什么会是 null」我**没有取证**（端点异常？上游缺字段？别的？）
+        ⇒ 那条分支只说**它确定依赖的那个数**，绝不指控成因
+        （第 168 层搜的是我记得的名字 / 断言对成因错的同族）。 */
+  const voidWhy = windows === null
+    ? '独立成交窗口数未知，而这一组数全部依赖它，所以算不出来'
+    : `独立成交窗口 ${windows} 个，不到判据要求的 ${MIN_WINDOWS} 个，所以这一组数还没法给`;
+  const voided = (label) => fig('void', '▪▪▪', label, `这里本来就没有数，不是没渲染出来 —— ${voidWhy}`);
   $('docket-figures').innerHTML = has
     ? fig('rise', fmtNum(rate), '命中率')
       + fig(exc >= 0 ? 'rise' : 'fall', fmtPct(exc, 2), '涨组合超额')
@@ -1287,10 +1437,10 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
       + fig(breadth >= 0 ? 'rise' : 'fall', fmtPct(breadth, 2), '多空价差',
             '涨篮子减跌篮子。市场涨跌不影响这个数——它是排序有没有区分度的度量')
       + fig('idle', String(judged), '已判定笔数')
-    : idle
-      + fig('idle', '—', '涨组合超额')
-      + fig('idle', '—', '跌篮子回避')
-      + fig('idle', '—', '多空价差')
+    : voided('命中率')
+      + voided('涨组合超额')
+      + voided('跌篮子回避')
+      + voided('多空价差')
       + fig('idle', String(judged), `判定条数（独立成交 ${windows ?? '未知'} 个）`);
 }
 
@@ -1338,7 +1488,7 @@ function renderHeroes(upTop, downTop) {
     return `
     <div class="hero ${side}">
       <div class="tag">${label}</div>
-      <div class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></div>
+      <div class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct ${r.mom20 >= 0 ? 'pos' : 'neg'}">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></div>
       <div class="why">近 20 日涨跌 ${fmtPct(r.mom20)} · 综合分 ${r.score?.toFixed(2) ?? '—'}</div>
       ${hasNews ? `<div class="news"><i class="${r.news_sentiment > 0 ? 'pos' : r.news_sentiment < 0 ? 'neg' : 'neu'}">${r.news_sentiment > 0 ? '+' : ''}${(r.news_sentiment ?? 0).toFixed(1)}</i>${esc(r.news_reason ?? '中性')}</div>` : ''}
     </div>`;
@@ -1423,8 +1573,8 @@ function renderPredBoard(pred) {
 /* 「你现在持有的那 10 只」+「还有几个交易日换仓」。
    2026-10-17 接上。此前 `holdings.json` 与 `live_execution_status` 全仓零消费点，
    用户每天看到一张新的 10 涨 10 跌，而实盘是 every=21（holdings.json 实读）。
-   照着每天的新名单全买，年摩擦 80.81%；照 K=21 换一次是 6.41%（同产物）。
-   ⇒ 差 74.4pp/year，与信号好坏无关 —— 这是交付 D1 时必须一起说清的口径。 */
+   照着每天的新名单全买，年摩擦 67.34%；照 K=21 换一次是 6.41%（同产物）。
+   ⇒ 差 60.93pp/year，与信号好坏无关 —— 这是交付 D1 时必须一起说清的口径。 */
 function renderHeld(live) {
   const box = $('held-box');
   /* 🚨 `state === null` 与「持有 0 只」是**两件事**：
@@ -1902,7 +2052,7 @@ function loadLedger() {
       fatal: 'var(--down)', critical: 'var(--down)', major: 'var(--seal)',
       info: 'var(--faint)',
     };
-    const rows = d.entries.slice().reverse().map(e => {
+    const entryHtml = e => {
       const arrow = e.higher_is_better === false
         ? `${ledNum(e.before)} <span style="color:var(--faint)">↓更好</span> ${ledNum(e.after)}`
         : `${ledNum(e.before)} <span style="color:var(--faint)">↑更好</span> ${ledNum(e.after)}`;
@@ -1921,8 +2071,21 @@ function loadLedger() {
         <div style="font-size:12px;color:var(--muted);line-height:1.6">${esc(e.note)}</div>
         ${inv}${ev}
       </div>`;
-    }).join('');
-    box.innerHTML = banner + rows;
+    };
+    /* 按日期分组折叠。95 条平铺着没有任何结构，而它们的天然结构就是「哪一天改了什么」。
+       计数写在 summary 上，展开前就能看见这一天有几条 —— 不必先展开才知道。 */
+    const byDate = new Map();
+    for (const e of d.entries.slice().reverse()) {
+      const k = e.date || '未标日期';
+      if (!byDate.has(k)) byDate.set(k, []);
+      byDate.get(k).push(e);
+    }
+    const groups = [...byDate.entries()].map(([date, list]) => `
+      <details class="fold ledger-fold">
+        <summary><b>${esc(date)}</b><span class="fold-meta">${list.length} 条改进</span></summary>
+        ${list.map(entryHtml).join('')}
+      </details>`).join('');
+    box.innerHTML = banner + groups;
   }).catch((e) => {
     console.error('[改进台账] 加载失败', e);
     $('ledger-body').innerHTML = '<div class="empty">加载失败（详见控制台）</div>';
@@ -2014,7 +2177,12 @@ async function loadEvolution() {
         <span class="decision ${e.decision.promoted ? 'promoted' : 'kept'}">${e.decision.promoted ? '✓ 晋级' : '维持现任'}</span>
         ${proto}<span style="font-size:11.5px;color:var(--faint)">${e.window?.[0]} ~ ${e.window?.[1]}${e.researcher ? ` · 研究员提出 ${e.researcher.proposed} 组（${e.researcher.raced} 组参赛）` : ''}${rejected}</span></div>
       <blockquote>${esc(e.decision.reason)}</blockquote>
-      <table><thead>${head}</thead><tbody>${rows.map(row).join('')}</tbody></table>
+      <details class="fold">
+        <summary>候选明细（${evals.length} 组，含被否决的）</summary>
+        <div class="fold-body" style="color:inherit">
+        <table><thead>${head}</thead><tbody>${rows.map(row).join('')}</tbody></table>
+        </div>
+      </details>
     </div>`;
   }).join('');
 }
