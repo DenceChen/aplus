@@ -754,7 +754,7 @@ K 在下列脚本里是**判据的输入**（门槛 = 目标 + 该档成本 ⇒ 
 | | 是什么 | 读数 |
 |---|---|---|
 | 台账「天花板」 | **公式上界**，假设 **100% 部署** | 12.62% / 缺口 7.38pp |
-| `deployed_d2_verdict.json` 实盘档 | **模拟账户**（含整手 + 闲置现金按 0 收益）｜⚠️ 🚨 **本行此前的「投入率 69.79%」已撤回**（那是 **ARM_D 臂**的`lot_investable_rate_overall`，而 ARM_D 的 `n_rebalances` = 23 ≠ ARM_A 的 69 ⇒ **两个不同的账户** ⇒ 跨臂拼接 ⇒ 不可引用；见 §18.4 与 `docs/TODO_DEPLOYED_D2_RATIO_FIELDS_2026-10-21.md`）｜另 `idle_cash_ratio_mean` / `lot_investable_rate*` 两个字段**名字与内容相反**（见 §18.2 / §18.3） | **+10.4245%** / 缺口 **9.5755pp** |
+| `deployed_d2_verdict.json` 实盘档 | **模拟账户**（含整手 + 闲置现金按 0 收益）｜⚠️ **「投入率 69.79%」这个数本身是对的**（= 该 cell 自己的 `invested_mean/intended`，实测逐位相等）⇒ ⚠️ **但那个字段名叫 `lot_investable_rate`** ⇒ 它是「**实投比例**」，不是「买得起 1 手的票的比例」⇒ 引用必须写「实投比例」；另 `idle_cash_ratio_mean` 是**随时间漂移的现金堆比**、**不许引用**（见 §18.2~§18.4 与 `docs/TODO_deployed_idle_cash_caliber_2026-10-21.md`）｜🚨 **另：跨口径那个倍数 2.3450 已被台账显式标 `is_the_gap: False`** ⇒ **屏上不许再打「还差 2.35×」**，同口径倍数是 **1.79×**（`headline.multiple_needed_at_50k_deliverable_by_caliber::same_caliber`） | **+10.4245%** / 缺口 **9.5755pp** |
 
 ⇒ 一个是「**能做到的上限**」，一个是「**真跑出来是多少**」⇒ 差 ~2.3pp 就是
 **整手 + 闲置现金的代价** ⇒ **两者都要给，但要标明是哪个**。
