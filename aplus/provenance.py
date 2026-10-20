@@ -951,6 +951,21 @@ def freshness(report_path: Path | str, generator: str | None = None,
     脏的时候 sha 描述不了真实代码状态，**任何 `fresh` 结论都不可靠**——
     所以 `dirty=True` 时即使 verdict 是 fresh，也附 `trustworthy=False`。
     宁可多一次人工确认，也不要一个看起来干净实际不干净的结论。
+
+    ## 🚨🚨 字节证据**只覆盖生成器自己**，不覆盖它的 import 闭包（2026-10-21 实测）
+
+    `code_file_sha256` 盖的是**生成器那个文件**的字节。
+    ⇒ **生成器 import 的模块变了 ⇒ 它的行为变了 ⇒ 而它的字节没变 ⇒ 仍判 `fresh`。**
+
+    **实测的一例**：`scripts/regime_control_min_basket_control.py` 的判决阈值来自
+    `aplus/evolve.py::LIVE_REBALANCE_EVERY` ⇒ **K 从 21 改成 63** 之后：
+    - 生成器文件**一个字没动** ⇒ `code_file_sha256` **逐位相同** ⇒ 判 `fresh`
+    - 而它的**判决行为变了**（门槛随 K 变）⇒ 产物里的数是**旧 K 下算的**
+
+    ⇒ ⇒ **`fresh` 的含义是「生成器自身没动」，不是「内容仍然正确」。**
+    ⇒ ⇒ 这是 `trustworthy=False`（只证明生成器、不证明依赖闭包）那条边界的**具体实例化**。
+    ⇒ ⇒ **唯一可靠的处置是重跑**（⇒ 产物与当前行为同源），
+    **不是**相信 `fresh`。
     """
     root = _root(root)
     rp = Path(report_path)
