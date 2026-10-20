@@ -20,9 +20,10 @@ from starlette.datastructures import MutableHeaders
 # 现任健康度的判定逻辑住在 `aplus.champion_health` 而不是这里——
 # `scripts/run_daily.py` 要用同一份，不能各写一套（2026-10-11 21:35 抽出）。
 from .champion_health import champion_health, live_down_leg
-from .evolve import candidate_key, live_execution_status
+from .evolve import LIVE_REBALANCE_EVERY, candidate_key, live_execution_status
+from .factor import DEFAULT_WEIGHTS
 from .factor_ic import weight_sign_conflicts
-from .live_rebalance import load_state
+from .live_rebalance import held_since_info, load_state
 from .provenance import report_jsons
 from .reports import (
     latest_prediction_date,
@@ -92,13 +93,45 @@ def _live_holdings_payload(reports_dir) -> dict:
 
     它是 `every − days_since_rebalance`，两个入参都在 `holdings.json` 里。
     自己再存一份就是第 137 层的手抄件，第二天就会漂。
+
+    ## `as_of` ≠ `held_since`（2026-10-20 修的 P0）
+
+    `as_of` 的语义是「**最后一次出单日**」——`run_daily.py` 每天**无条件**写
+    `state["as_of"] = today`，不论当天是不是调仓日。
+    `held_since` 的语义是「**持仓是哪天定的**」，只有换仓日才更新。
+
+    ⇒ 概览页原来拿 `as_of` 当「持仓基准日」显示，是在告诉用户
+    「你持有的是今天那份名单」。实测 2026-10-20：手上是 **10-15** 那份
+    （与 `pred_2026-10-15.parquet` 的 up **10/10 逐只相同**），
+    与 10-19 榜只交集 **4/10** ⇒ 照字面理解会买错票。
+
+    ⇒ 现在三个字段一起递，**三态**不许压成一个日期：
+
+    | 字段 | 含义 |
+    |---|---|
+    | `held_since` | `'YYYY-MM-DD'` 或 `null` —— 手上这份名单是哪天的 |
+    | `held_since_is_fallback` | true = 从 `as_of` 回落（旧 state 文件没这个键） |
+    | `held_since_reliable` | true = 从 run_daily 的真 `held_since` 落盘 |
+
+    回落时前端必须显示「实际持仓日未知」，**不许**把 `as_of` 说成持仓日。
     """
     state = load_state(reports_dir)
     status = live_execution_status(reports_dir)
+    # 「持仓基准日」：**不是** `as_of`。
+    # `as_of` 由 run_daily 每天无条件写成「最后出单日」，
+    # 而「持仓是哪天定的」是 `held_since`（旧 state 文件没有 ⇒ 回落成 as_of，
+    # 并且**必须标出来**，不能让用户以为它一定可靠）。
+    hs = held_since_info(state)
     out = {
         # `None` = 状态读不出来（或还没建仓）。**与空仓严格不同。**
         "state": state,
         "as_of": (state or {}).get("as_of"),
+        # ★ 手上这份名单是**哪天的**（'YYYY-MM-DD' | null）。
+        "held_since": hs["held_since"],
+        # true = 这个值是从 `as_of` **回落**来的（旧 state 文件没这个键）⇒ 不可信。
+        "held_since_is_fallback": hs["is_fallback"],
+        # true = 它是从 run_daily 的真 `held_since` 落盘下来的 ⇒ 可信。
+        "held_since_reliable": hs["reliable"],
         "up": (state or {}).get("up") or [],
         "down": (state or {}).get("down") or [],
         "up_names": (state or {}).get("up_names") or [],
@@ -118,6 +151,36 @@ def _live_holdings_payload(reports_dir) -> dict:
         None if not isinstance(every, int) or not isinstance(days, int) or every < 1
         else max(int(every) - int(days), 0)
     )
+    return out
+
+
+def _alloc_rebalance_rows(rows) -> list:
+    """把 `rebalance` 补成**固定五字段**的形状（`code/name/action/weight/amount`）。
+
+    ## 为什么要在接口层补
+
+    新产物（`aplus/alloc.py::build_allocation`）里每条已经带齐五字段。
+    旧产物（2026-10-20 之前）里只有 `{code, action}` ⇒ 前端按契约读
+    `r.name / r.weight / r.amount` 会拿到 `undefined`。
+
+    ## 缺就是缺，**不填**
+
+    不从 `positions` 里「猜」一个名字/权重补上去 ——
+    `positions` 是**目标仓位**，`rebalance` 是**差异**，两者不是同一个口径；
+    拿一个补另一个就是凭空造数（而且 `remove` 的条目在 `positions` 里
+    本来就不存在）。⇒ 缺的填 `null`，前端显示「—」。
+    """
+    out = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        out.append({
+            "code": r.get("code"),
+            "name": r.get("name"),
+            "action": r.get("action"),
+            "weight": r.get("weight"),
+            "amount": r.get("amount"),
+        })
     return out
 
 
@@ -372,6 +435,617 @@ class NoCacheMiddleware:
         await self.app(scope, receive, send_wrapper)
 
 
+# ── 整手可买性（lot affordability）────────────────────────────────────
+#
+# 🚨 **为什么这个端点存在**（2026-10-20 实测）
+#
+# 今天的推荐里，看涨腿 10 只中有 **6 只**在每份 ¥5,000 的预算下**1 手就买不起**：
+# - 其中 5 只是**科创板 200 股起买**：`688498.SH 源杰科技` 收盘 1010.35
+#   ⇒ 1 手 ¥202,070 = 全部本金（¥50,000）的 **4 倍**；
+#   `688383/688610/688300/688110` 一手也要 ¥11,804～¥20,644；
+# - 第 6 只是 `300951.SZ 博硕科技` 收盘 59.20 ⇒ 1 手 ¥5,920（**创业板 100 股**）。
+#
+# 页面上仍然是「10 涨 10 跌」两张整齐的表 ⇒ 用户会以为照着买就行，
+# 而实盘那 10 只里**只有 4 只**在每份 ¥5,000 的预算内。
+# ⇒ 这不是信号问题，是**本钱问题**：名单再准，买不进就等于没信号。
+#
+# ⇒ 本端点**只**回答「买不买得起」：**不碰**收益率/胜率/命中率
+# （那是 `/api/status` 与 `/api/d2-verdict` 的职责；
+#   混进来 = 端点开始重算判决 = 第 137 层「两份必须同步的东西中间没有锁」）。
+
+#: 科创板一手 **200** 股（`689` = 科创板 CDR）；其余一手 **100** 股。
+#:
+#: ⚠️ **不许**用「价格高就 200 股」这种推断 —— 那是把两个口径混成一条规则。
+#: `688/689` 的判定**只认代码前缀**，与价格无关：
+#: 源杰科技 1010 元是 200 股，埃科光电 80 元也是 200 股；
+#: 反过来 300951 博硕科技 59 元是 100 股。
+LOT_SHARES_STAR_MARKET = 200
+LOT_SHARES_DEFAULT = 100
+
+
+def lot_shares_for(code) -> int:
+    """一手多少股：**688/689 = 200，其余 = 100**。
+
+    688xxx/689xxx = 科创板（申报数量 200 股起）；
+    主板 600/601/603/605、深主板 000/001/002、创业板 300、
+    北交所 8xxxxx/4xxxxx 都是 100 股一手。
+    """
+    c = str(code or "").strip()
+    return LOT_SHARES_STAR_MARKET if c[:3] in ("688", "689") else LOT_SHARES_DEFAULT
+
+
+def close_as_of(store, code, as_of):
+    """主库里 `date <= as_of` 的**最后一根 bar**的 `(close, bar_date)`。
+
+    ## 为什么锚 `as_of` 而不是 `entry_date`
+
+    榜单是 `as_of`（= `pred_date`）**收盘后**生成的 ⇒ 那一刻能看见的收盘价
+    就是 `as_of` 当天那根 bar；下一交易日（entry_date）的开盘价此刻还不存在。
+    ⇒ 「entry_date 之前最后一根 bar」在 as_of 是交易日时**就是 as_of 那根**。
+
+    ## 缺 bar ⇒ `(None, None)`，**不编**
+
+    这只票不在主库里、或停牌到今天之后没有新 bar ⇒ 没有价 ⇒
+    「买不买得起」**问不出来**。
+    编一个 0 会让「买得起」恒真（0 ≤ 5,000）⇒ 假绿（形状 23 的方向）。
+    """
+    df = store.read_daily(code)
+    if df is None or len(df) == 0:
+        return None, None
+    d = df.copy()
+    d["date"] = d["date"].astype(str)
+    d = d[d["date"] <= str(as_of)]
+    if d.empty or "close" not in d.columns:
+        return None, None
+    d = d.sort_values("date")
+    row = d.iloc[-1]
+    close = row["close"]
+    try:
+        if close is None or pd.isna(close):
+            return None, None
+        close = float(close)
+    except (TypeError, ValueError):
+        return None, None
+    return close, str(row["date"])
+
+
+def deployed_defaults() -> dict:
+    """实盘配置的**生产默认值** —— 从签名读，**不手打**。
+
+    🚨 **不许手打 0.5 / 5 / 0.1**：手打的数在默认值被改后仍然绿
+    ⇒ 产品改了而仪表指着旧数（`guards-that-pin-existence-not-property`）。
+    ⇒ 做法与 `scripts/deployed_account_nav.py::deployed_exposure` 完全一致：
+    `inspect.signature(build_allocation).parameters[...].default`。
+
+    ## 为什么读**签名**而不是 `build_allocation` 的**返回值**
+
+    返回值里的 `cash_weight` 依赖**当天有几只候选**（候选不足 5 只 ⇒ 敞口更低）。
+    而「实盘配置是什么」是**配置**问题，与当天名单无关 ⇒ 读签名默认值。
+    （当天实际配置在 `/api/allocation/latest`，那是另一个端点、另一个量。）
+    """
+    import inspect
+
+    from .alloc import build_allocation
+
+    params = inspect.signature(build_allocation).parameters
+    capital = params["capital"].default
+    n_pos = params["max_positions"].default
+    cap = params["per_stock_cap"].default
+    if capital is None or n_pos is None or cap is None:
+        raise ValueError(
+            "build_allocation 的 capital/max_positions/per_stock_cap 必须有默认值："
+            f"capital={capital!r} max_positions={n_pos!r} per_stock_cap={cap!r}。"
+            "⇒ 生产可能显式传参 ⇒「读签名」这个前提失效，拒绝出数。")
+    capital = float(capital)
+    n_pos = int(n_pos)
+    cap = float(cap)
+    if n_pos <= 0:
+        raise ValueError(f"build_allocation 的 max_positions 必须为正，实得 {n_pos!r}")
+    return {
+        "source": "inspect.signature(aplus.alloc.build_allocation).parameters[...].default",
+        "caller": ("scripts/run_daily.py: build_allocation(up, capital=capital)"
+                   " —— 只传 capital ⇒ 其余全部走默认值"),
+        "capital": capital,
+        "max_positions": n_pos,
+        "per_stock_cap": cap,
+        # 权益敞口 = 持仓数 × 单票上限（`build_allocation` 里的同一式子）
+        "equity_weight": n_pos * cap,
+        # 生产给每只的钱 = 本金 × 单票上限
+        "per_position_amount": capital * cap,
+        # 另一种分法：把本金平均分给 max_positions 只
+        "capital_div_positions": capital / n_pos,
+        # 现金 = 1 − 权益（`build_allocation` 里的同一式子）
+        "cash_weight": 1.0 - n_pos * cap,
+        "why_not_hand_typed": (
+            "手打 0.5/5/0.1 会在默认值被改后仍然绿 ⇒ 产品改了而仪表指着旧数。"
+            "这是「只钉存在不钉性质」的形态。"),
+    }
+
+
+def _read_json(path: Path):
+    """读一个 JSON 产物 ⇒ `(doc, err)`。**err 非空就是没读到**，不许回落。"""
+    try:
+        return json.loads(path.read_text(encoding="utf-8")), None
+    except FileNotFoundError:
+        return None, f"产物不存在：{path.name}"
+    except (OSError, ValueError) as exc:
+        return None, f"产物读不出来：{path.name}（{exc!r}）"
+
+
+def _find_key(obj, key):
+    """深度优先找**第一个**叫 `key` 的键 ⇒ `(value, json_path)`。
+
+    用途：`deployed_d2_verdict.json` 的**结构由另一个 agent 写**，
+    本端点不猜它的 schema ⇒ 逐层找同名键，并把**找到它的 JSON 路径**一起递出去，
+    让读者知道这个数是从哪一层读上来的（形状错一格时，
+    `null` 与「闸是死的」**逐位同形** —— 第 144 层）。
+    """
+    stack = [(obj, "$")]
+    while stack:
+        cur, path = stack.pop(0)
+        if isinstance(cur, dict):
+            if key in cur:
+                return cur[key], f"{path}.{key}"
+            for k, v in cur.items():
+                stack.append((v, f"{path}.{k}"))
+        elif isinstance(cur, list):
+            for i, v in enumerate(cur):
+                stack.append((v, f"{path}[{i}]"))
+    return None, None
+
+
+#: 实盘档读数在产物里的**块名**（`scripts/measure_deployed_d2.py` 产的 `verdict` 块）。
+#:
+#: 🚨 **为什么必须锚块、不能满文档找键**
+#:
+#: 那份产物里**到处**都有 `cagr`（`arms` 每档一个、`account_legs`、
+#: `control_cross_check`…）⇒ 满文档找第一个 `cagr`，
+#: 很可能找到的是**满仓判决档**的那个 ⇒ 读数**看起来有数、其实读错了对象**
+#: （「找到了 ≠ 找对了」）。
+#: ⇒ 锚在 `verdict` 块上，并把它**在哪**（JSON 路径）一起递出去。
+DEPLOYED_D2_VERDICT_BLOCK = "verdict"
+
+#: 端点字段名 → 产物里**可能**的键名（按优先级）。
+#:
+#: 🚨 `verdict_mde_annual` 与 `mde_annual` 是**两个名字、同一件事**：
+#: 端点的契约名是 `verdict_mde_annual`（与 `/api/d2-verdict` 对齐），
+#: 而产物那一族写的是 `mde_annual`。
+#: ⇒ 两个都认，**并把实际用上的那个键名**递出去（`found_key`），
+#: 不让「端点字段名」与「产物字段名」之间的差别变成一条**没人看得见的**接缝。
+DEPLOYED_D2_KEYS = {
+    "cagr": ("cagr",),
+    "verdict_mde_annual": ("verdict_mde_annual", "mde_annual"),
+    "gap_to_target_pp": ("gap_to_target_pp",),
+    "upper_one_sided_95": ("upper_one_sided_95", "verdict_upper_one_sided_95"),
+    "target": ("target",),
+    "measured_sign_determinable": ("measured_sign_determinable",),
+    "cases": ("cases", "verdict_cases_fired"),
+}
+
+
+def _lookup_in_block(block, names):
+    """在**一个块**里按优先级找键 ⇒ `(value, json_path, used_key)`。
+
+    找不到 ⇒ `(None, None, None)`；**不编**。
+    """
+    for name in names:
+        val, at = _find_key(block, name)
+        if at is not None:
+            return val, at, name
+    return None, None, None
+
+
+def lot_affordability_payload(data_root, reports_dir) -> dict:
+    """今天这 20 只，**5 万买不买得起**（整手口径）。
+
+    ## 它**只**回答「买不买得起」
+
+    收益率/胜率/命中率是 `/api/status` 与 `/api/d2-verdict` 的职责。
+    这里混进来就等于端点开始重算判决（第 137 层）。
+
+    ## 价格**不许自己造**
+
+    价格一律来自主库 `master/daily/{code}.parquet`
+    （`aplus/store.py::LocalStore.read_daily`），
+    取 `date <= as_of` 的最后一根 bar 的 `close`；
+    **用哪一天的价格、复不复权**写在返回体的 `caliber` 块里。
+
+    ## 一手多少股：**688/689 = 200，其余 = 100**
+
+    科创板 200 股起买 ⇒ `688498.SH` 收盘 1010.35 ⇒ 1 手 ¥202,070
+    = 全部本金的 4 倍。
+    """
+    from .store import LocalStore
+
+    pred_date = latest_prediction_date(reports_dir)
+    if not pred_date:
+        raise HTTPException(404, "没有推荐产物（data/reports/predictions/ 下没有 pred_*.parquet）")
+    up, down = load_predictions(reports_dir, pred_date)
+    if up is None or down is None:
+        raise HTTPException(404, f"推荐产物读不出来：pred_{pred_date}.parquet")
+
+    budget = deployed_defaults()
+    per_pos = budget["per_position_amount"]
+    per_pos2 = budget["capital_div_positions"]
+
+    store = LocalStore(data_root)
+    items = []
+    for frame in (up, down):
+        for _, row in frame.iterrows():
+            code = str(row["code"])
+            close, bar_date = close_as_of(store, code, pred_date)
+            shares = lot_shares_for(code)
+            lot_cost = None if close is None else close * shares
+            items.append({
+                "code": code,
+                "name": str(row.get("name", "")),
+                "direction": str(row.get("direction", "")),
+                "score": float(row["score"]) if row.get("score") is not None else None,
+                "close": close,
+                "close_date": bar_date,
+                "lot_shares": shares,
+                "lot_cost": lot_cost,
+                "affordable_at_5000": None if lot_cost is None else lot_cost <= per_pos,
+                "affordable_at_10000": None if lot_cost is None else lot_cost <= per_pos2,
+                "capital_per_position": per_pos,
+                # 差多少钱：买 1 手还缺多少（**不是**「差多少才划算」）
+                "shortfall_at_5000": None if lot_cost is None else max(0.0, lot_cost - per_pos),
+                "shortfall_at_10000": None if lot_cost is None else max(0.0, lot_cost - per_pos2),
+                "price_missing_reason": (
+                    None if close is not None
+                    else f"主库里 {code} 在 {pred_date} 之前没有可用的收盘价"),
+            })
+
+    def _scope(rows):
+        priced = [r for r in rows if r["lot_cost"] is not None]
+        n = len(priced)
+        aff1 = [r for r in priced if r["affordable_at_5000"]]
+        aff2 = [r for r in priced if r["affordable_at_10000"]]
+        return {
+            "n": len(rows),
+            "n_priced": n,
+            "n_price_missing": len(rows) - n,
+            "n_unaffordable": n - len(aff1),
+            "investable_ratio": (len(aff1) / n) if n else None,
+            "n_unaffordable_at_10000": n - len(aff2),
+            "investable_ratio_at_10000": (len(aff2) / n) if n else None,
+            "n_affordable": len(aff1),
+        }
+
+    up_rows = [r for r in items if r["direction"] == "up"]
+    down_rows = [r for r in items if r["direction"] == "down"]
+    up_scope = _scope(up_rows)
+    down_scope = _scope(down_rows)
+
+    # 最多能投出去多少（**仓位规模**，不是收益预测）
+    max_deploy = up_scope["n_affordable"] * per_pos if up_scope["n_affordable"] else 0.0
+    return {
+        "source": f"pred_{pred_date}.parquet",
+        "pred_date": pred_date,
+        "budget": budget,
+        "items": items,
+        "summary": {
+            "n_total": len(items),
+            "n_up": len(up_rows),
+            "n_down": len(down_rows),
+            # ★ 主口径：**看涨腿**（要买的那几只）。看跌腿是回避清单，不买。
+            "scope": "up",
+            "n_unaffordable": up_scope["n_unaffordable"],
+            "investable_ratio": up_scope["investable_ratio"],
+            "n_unaffordable_at_10000": up_scope["n_unaffordable_at_10000"],
+            "investable_ratio_at_10000": up_scope["investable_ratio_at_10000"],
+            "n_affordable": up_scope["n_affordable"],
+            "n_price_missing": up_scope["n_price_missing"] + down_scope["n_price_missing"],
+            # 「只买买得起的那几只，按每份 ¥X 计，最多能投出去多少」
+            # —— 这是**仓位规模**（本金能落地多少），**不是**收益率。
+            "max_deployable_amount_up": max_deploy,
+            "max_deployable_ratio_up": (max_deploy / budget["capital"]) if budget["capital"] else None,
+            "by_direction": {"up": up_scope, "down": down_scope},
+        },
+        "caliber": {
+            "price_source": ("主库 master/daily/{code}.parquet"
+                             "（aplus/store.py::LocalStore.read_daily）—— 本端点**不造价格**"),
+            "price_rule": "取 date <= as_of(=pred_date) 的最后一根 bar 的 close；实际用了哪一天见每条的 close_date",
+            "price_adjusted": "不复权（主库 daily 存的就是不复权日线，见 aplus/store.py 的模块 docstring）",
+            "why_not_entry_date": ("榜单是 pred_date 收盘后生成的 ⇒ 那一天能看见的收盘价就是"
+                                   " pred_date 那根 bar；下一交易日（entry_date）的开盘价此刻还不存在。"
+                                   "⇒ 「entry_date 之前最后一根 bar」在 pred_date 是交易日时**就是它自己**。"),
+            "lot_rule": "688/689 = 200 股一手（科创板）；其余（主板/创业板/北交所）= 100 股一手",
+            "budget_source": "inspect.signature(aplus.alloc.build_allocation).parameters[...].default",
+            "budget_note": ("per_position_amount = capital × per_stock_cap（生产每份金额）；"
+                            "capital_div_positions = capital ÷ max_positions（另一种分法）"),
+            "field_names_carry_the_amount": ("字段名里的 5000 / 10000 是**当前生产默认值**下的金额；"
+                                             "真实金额在 budget 块里（守卫钉着两者一致）"),
+            "summary_scope": ("n_unaffordable / investable_ratio 的分母是**看涨腿**（要买的那几只）；"
+                              "看跌腿是回避清单、不买 ⇒ 另列在 by_direction.down，不混进分母"),
+            "this_is_not": ("不是收益预测、不是胜率、不是「该不该买」的判断 —— "
+                            "只回答「本钱够不够买 1 手」"),
+            "price_missing_is_not_zero": ("没有价 ⇒ affordable 给 null 而不是 true —— "
+                                          "编一个 0 会让「买得起」恒真"),
+        },
+    }
+
+
+def _deployed_d2_reading(reports_dir) -> dict:
+    """**实盘档**的 D2 读数 —— 只认 `deployed_d2_verdict.json` 这一个产物。
+
+    🚨 **不许回落成别的数**：`deployed_account_nav.json` 里也有一个半仓读数，
+    但它自报 `role = "⚠️ 对照臂 / 推算，**不是判决**"` ⇒ **不是同一个量**。
+    拿它顶替会让「实盘档读数」变成一句推算（第 7 层）。
+
+    ⇒ 产物不存在 ⇒ 三个字段全 `null` + 一句「产物尚未生成」。
+    """
+    path = Path(reports_dir) / "deployed_d2_verdict.json"
+    out = {
+        "source": path.name,
+        "available": False,
+        "scope": None,
+        "cagr": None,
+        "verdict_mde_annual": None,
+        "gap_to_target_pp": None,
+        "upper_one_sided_95": None,
+        "target": None,
+        "measured_sign_determinable": None,
+        "cases": None,
+        "found_at": {},
+        "found_key": {},
+        "raw": None,
+        "note": "产物尚未生成（`deployed_d2_verdict.json` 未落盘）—— 不拿判决档的数顶替",
+    }
+    doc, err = _read_json(path)
+    if err is not None:
+        out["note"] = f"产物尚未生成：{err} —— 不拿判决档的数顶替"
+        return out
+    if not isinstance(doc, dict):
+        out["note"] = f"产物内容不是一个对象（异常）：{path.name}"
+        return out
+    out["available"] = True
+    # 🚨 **锚在 `verdict` 块上**，不许满文档找键。
+    # 那份产物里**到处**都有 `cagr`（`arms` 每档一个、`account_legs`、
+    # `control_cross_check`…）⇒ 满文档找第一个 `cagr` 很可能找到的是
+    # **满仓判决档**的那个 ⇒ 读数**看起来有数、其实读错了对象**
+    # （「找到了 ≠ 找对了」）。⇒ 锚块 + 把 JSON 路径一起递出去。
+    block = doc.get(DEPLOYED_D2_VERDICT_BLOCK)
+    scope = block if isinstance(block, dict) else doc
+    scope_path = f"$.{DEPLOYED_D2_VERDICT_BLOCK}" if isinstance(block, dict) else "$"
+    out["scope"] = scope_path
+    for key, names in DEPLOYED_D2_KEYS.items():
+        val, at, used = _lookup_in_block(scope, names)
+        out[key] = val
+        if at:
+            out["found_at"][key] = scope_path + at[1:]
+            out["found_key"][key] = used
+    text = path.read_text(encoding="utf-8")
+    if len(text) <= 200_000:
+        out["raw"] = doc
+    out["note"] = (f"逐字透传 `{path.name}` 的 {scope_path} 块；本端点一个数都不算")
+    return out
+
+
+def deployed_config_payload(reports_dir) -> dict:
+    """「判决配置 vs 实盘配置」**三层**差异 —— 逐字摊开。
+
+    ## 三层是什么
+
+    | 层 | 它是什么 | 它的数从哪来 |
+    |---|---|---|
+    | 判决侧 | `basket_nav_01_2026-10-16.json` 量的那套配置 | 产物字段（逐字） |
+    | 实盘侧 | 生产**今天真的在跑**的那套配置 | 生产签名 + 常量（逐字） |
+    | 实盘档读数 | 实盘配置下的 D2 年化读数 | `deployed_d2_verdict.json`（逐字） |
+
+    ## 🚨 **判决侧的数不许说成「你的年化」**
+
+    判决档是**满仓 10 只 + 8 因子逐年 IC 定权**；
+    实盘是**半仓 5 只 + `DEFAULT_WEIGHTS` 4 因子固定权重**。
+    两个数**不是同一个量**，**不可混引、不可同图比较**（口径台账纪律）。
+
+    ## 🚨 **端点里一个数都不算**
+
+    判决读数逐字取产物字段；实盘配置逐字取生产签名/常量；
+    实盘档读数逐字取 `deployed_d2_verdict.json`。
+    唯一带算式的是**现金占比**（`1 − 敞口`），它标着 `how`。
+    """
+    reports_dir = Path(reports_dir)
+    verdict_path = reports_dir / "basket_nav_01_2026-10-16.json"
+    doc, err = _read_json(verdict_path)
+    if err is not None:
+        raise HTTPException(404, f"判决产物读不出来：{err}（跑 scripts/measure_basket_nav_01.py 生成）")
+    tiers = doc.get("tiers") or []
+    if len(tiers) < 2 or not isinstance(tiers[1], dict):
+        raise HTTPException(404, "判决产物里没有 tiers[1]（判决档）⇒ 拿不到判决档的读数")
+    t1 = tiers[1]
+
+    # ── 判决侧：配置维度从**产物链**上读（每个维度带自己的 source）──────
+    # 判决产物的上游由它自己的 `artifact` 字段指认 ⇒ 顺着链走，不猜文件名。
+    upstream_name = None
+    art = doc.get("artifact")
+    if isinstance(art, str) and art.endswith(".daily.parquet"):
+        upstream_name = Path(art).name[: -len(".daily.parquet")] + ".json"
+    upstream, up_err = ((None, None) if upstream_name is None
+                        else _read_json(reports_dir / upstream_name))
+
+    gap_doc, gap_err = _read_json(reports_dir / "d2_signal_requirement.json")
+    eq = ((gap_doc or {}).get("caliber") or {}).get("equity_weight") if gap_doc else None
+
+    verdict_dim = {
+        "exposure": eq,
+        "n_positions": (upstream or {}).get("top_n"),
+        "signal_weights": (upstream or {}).get("factors"),
+        "rebalance_every": (upstream or {}).get("rebalance_every"),
+    }
+    verdict_src = {
+        "exposure": ("d2_signal_requirement.json::caliber::equity_weight"
+                     if eq is not None else
+                     (f"读不出来：{gap_err}" if gap_err else "读不出来")),
+        "n_positions": (f"{upstream_name}::top_n" if upstream else
+                         (f"读不出来：{up_err}" if up_err else "读不出来")),
+        "signal_weights": (f"{upstream_name}::factors（权重逐年变，见 years[*].weights）"
+                           if upstream else
+                           (f"读不出来：{up_err}" if up_err else "读不出来")),
+        "rebalance_every": (f"{upstream_name}::rebalance_every" if upstream else
+                            (f"读不出来：{up_err}" if up_err else "读不出来")),
+    }
+
+    dd = deployed_defaults()
+    deployed_dim = {
+        "exposure": dd["equity_weight"],
+        "n_positions": dd["max_positions"],
+        "signal_weights": dict(DEFAULT_WEIGHTS),
+        "rebalance_every": int(LIVE_REBALANCE_EVERY),
+    }
+    deployed_src = {
+        "exposure": "inspect.signature(aplus.alloc.build_allocation).parameters[...]（持仓数 × 单票上限）",
+        "n_positions": "inspect.signature(aplus.alloc.build_allocation).parameters['max_positions'].default",
+        "signal_weights": "aplus/factor.py::DEFAULT_WEIGHTS（回落默认，从未赛马）",
+        "rebalance_every": "aplus/evolve.py::LIVE_REBALANCE_EVERY",
+    }
+
+    # 判决侧的每份金额：判决档是**满仓**（敞口 1.0）× 本金 ⇒ 每只分到
+    # capital / n_positions。本金取生产默认值（判决成本腿按 50_000 标定，
+    # 产物自己的 caliber 逐字写着 `annual_friction(50_000, 10, …)`）。
+    v_cap = dd["capital"]
+    v_n = verdict_dim["n_positions"]
+    v_amount = (v_cap / v_n) if isinstance(v_n, int) and v_n else None
+    d_amount = dd["per_position_amount"]
+    verdict_dim["per_position_amount"] = v_amount
+    verdict_src["per_position_amount"] = (
+        f"capital({v_cap:g}, 生产默认值) ÷ n_positions({v_n})"
+        " —— 判决档的成本腿按 `annual_friction(50_000, 10, …)` 标定"
+        if v_amount is not None else "读不出来")
+    deployed_dim["per_position_amount"] = d_amount
+    deployed_src["per_position_amount"] = (
+        f"capital({v_cap:g}) × per_stock_cap({dd['per_stock_cap']:g})"
+        " —— 生产给每只的钱")
+
+    verdict_dim["cash_weight"] = (None if verdict_dim["exposure"] is None
+                                  else 1.0 - verdict_dim["exposure"])
+    verdict_src["cash_weight"] = "1 − 敞口(=1.0，满仓判决档)"
+    deployed_dim["cash_weight"] = dd["cash_weight"]
+    deployed_src["cash_weight"] = "1 − 敞口（aplus/alloc.py::build_allocation 的同一式子）"
+
+    def _fmt_weights(side):
+        w = side.get("signal_weights")
+        if isinstance(w, dict):
+            return "、".join(f"{k} {v:g}" for k, v in w.items())
+        if isinstance(w, list):
+            return "、".join(str(x) for x in w)
+        return "—"
+
+    verdict_display = {
+        "exposure": "满仓 100%" if verdict_dim["exposure"] == 1.0 else "—",
+        "n_positions": f"{verdict_dim['n_positions']} 只" if verdict_dim["n_positions"] else "—",
+        "per_position_amount": (f"¥{verdict_dim['per_position_amount']:,.0f} / 只"
+                                if verdict_dim["per_position_amount"] else "—"),
+        "signal_weights": (f"{len(verdict_dim['signal_weights'])} 因子 · 逐年 IC 定权"
+                           if isinstance(verdict_dim["signal_weights"], list) else "—"),
+        "rebalance_every": (f"每 {verdict_dim['rebalance_every']} 个交易日"
+                            if verdict_dim["rebalance_every"] else "—"),
+        "cash_weight": ("0%（全仓）" if verdict_dim["cash_weight"] == 0 else "—"),
+    }
+    deployed_display = {
+        "exposure": f"半仓 {deployed_dim['exposure'] * 100:g}%",
+        "n_positions": f"{deployed_dim['n_positions']} 只",
+        "per_position_amount": f"¥{deployed_dim['per_position_amount']:,.0f} / 只",
+        "signal_weights": f"{len(deployed_dim['signal_weights'])} 因子 · 固定权重",
+        "rebalance_every": f"每 {deployed_dim['rebalance_every']} 个交易日",
+        "cash_weight": f"{deployed_dim['cash_weight'] * 100:g}%",
+    }
+    labels = {
+        "exposure": "权益敞口（投出去的钱占本金）",
+        "n_positions": "持仓数",
+        "per_position_amount": "每份金额",
+        "signal_weights": "信号权重",
+        "rebalance_every": "换仓频率",
+        "cash_weight": "现金占比",
+    }
+    order = ("exposure", "n_positions", "per_position_amount",
+             "signal_weights", "rebalance_every", "cash_weight")
+    dimensions = []
+    for dim in order:
+        v = verdict_dim.get(dim)
+        d = deployed_dim.get(dim)
+        dimensions.append({
+            "dim": dim,
+            "label": labels[dim],
+            "verdict": v,
+            "deployed": d,
+            "verdict_display": verdict_display[dim],
+            "deployed_display": deployed_display[dim],
+            "verdict_source": verdict_src[dim],
+            "deployed_source": deployed_src[dim],
+            "differs": (v != d) if (v is not None and d is not None) else None,
+        })
+
+    years = (upstream or {}).get("years") or []
+    by_year = {}
+    for y in years:
+        if isinstance(y, dict) and y.get("weights") is not None:
+            by_year[str(y.get("year"))] = y["weights"]
+
+    deployed_d2 = _deployed_d2_reading(reports_dir)
+
+    return {
+        "verdict_side": {
+            "source": verdict_path.name,
+            "upstream_source": upstream_name,
+            "upstream_artifact_pointer": art,
+            "dimensions": verdict_dim,
+            "sources": verdict_src,
+            "signal_weights_by_year": by_year or None,
+            "signal_weights_source": ((upstream or {}).get("years") or [{}])[0].get("weights_source")
+            if years else None,
+            # 判决读数：逐字取产物字段（端点里一个数都不算）
+            "readings": {
+                "verdict_reading": doc.get("verdict_reading"),
+                "verdict_mde_annual": doc.get("verdict_mde_annual"),
+                "verdict_upper_one_sided_95": doc.get("verdict_upper_one_sided_95"),
+                "target": doc.get("target"),
+                "verdict_text": doc.get("verdict_text"),
+                "verdict_rule": doc.get("verdict_rule"),
+                "verdict_cases_fired": doc.get("verdict_cases_fired"),
+                "verdict_tier_cagr": t1.get("cagr"),
+                "verdict_tier_arith_ann": t1.get("arith_ann"),
+                "verdict_tier_n_days": t1.get("n_days"),
+                "verdict_tier_years": t1.get("years"),
+                "verdict_tier_label": t1.get("tier"),
+            },
+            "caliber": doc.get("caliber"),
+        },
+        "deployed_side": {
+            "source": ("inspect.signature(aplus.alloc.build_allocation).parameters[...].default"
+                       " + aplus.evolve.LIVE_REBALANCE_EVERY + aplus.factor.DEFAULT_WEIGHTS"),
+            "dimensions": deployed_dim,
+            "sources": deployed_src,
+            "budget": dd,
+            "signal_weights": dict(DEFAULT_WEIGHTS),
+        },
+        "dimensions": dimensions,
+        "deployed_d2_reading": deployed_d2,
+        "caliber": {
+            "the_two_sides_are_not_the_same_quantity": (
+                "判决侧是**满仓判决档**（`basket_nav_01_2026-10-16.json`）；"
+                "实盘侧是生产**今天真的在跑**的那套。"
+                "⇒ 两边的年化**不是同一个量**，**不可混引、不可同图比较**。"),
+            "the_verdict_reading_is_not_your_annual_return": (
+                "⚠️ 判决侧的 cagr 是**判决档**的读数，**不是**「你的年化」。"
+                "屏幕上看它时必须带着「哪一档」这个标签。"),
+            "no_number_is_computed_here": (
+                "判决读数逐字取产物字段；实盘配置逐字取生产签名/常量；"
+                "实盘档读数逐字取 `deployed_d2_verdict.json`。"
+                "唯一带算式的是现金占比（1 − 敞口），它标着 `how`。"),
+            "deployed_d2_reading_has_no_fallback": (
+                "实盘档读数**只**认 `deployed_d2_verdict.json`；"
+                "产物不在 ⇒ 三个字段全 null + 一句「产物尚未生成」，"
+                "**不许**回落成 `deployed_account_nav.json` 的推算数（它自报「不是判决」）。"),
+            "verdict_side_sources_are_per_dimension": (
+                "判决侧的每个维度带自己的 source：敞口来自 "
+                "`d2_signal_requirement.json::caliber::equity_weight`，"
+                "持仓数/权重/换仓频率来自判决产物的上游 "
+                "`wf_weights_backtest_k21.json`（判决产物自己的 `artifact` 字段指认它）。"),
+        },
+    }
+
+
 def create_app(data_root, llm=None) -> FastAPI:
     data_root = Path(data_root)
     reports_dir = data_root / "reports"
@@ -476,7 +1150,25 @@ def create_app(data_root, llm=None) -> FastAPI:
         #    这里 `content_date or lp` 恰好做到：非空即用内容。
         # ⚠️ 用 `{**alloc, ...}` 而不是就地改 alloc：不让响应组装去污染
         #    读出来的数据结构，也保证键顺序稳定（守卫逐键比对）。
-        return {**alloc, "date": alloc.get("date") or lp}
+        #
+        # ── 调仓差异（2026-10-20 修的 P0）────────────────────────────
+        # 概览页原来只列「要买的 5 只」，看不出**哪些该留、哪些该卖**。
+        # 根因：`run_daily.py` 调 `build_allocation(up, capital=…)` **没传**
+        # `current_positions` ⇒ keep/remove **结构上不可能出现**，
+        # 产物里只有 5 条 add，而产物与界面都看不出「没算」与「全买」的区别。
+        # ⇒ 现在两个字段一起递：
+        #   `rebalance`         = [{code, name, action, weight, amount}]
+        #   `rebalance_source`  = 'current_positions' | 'none'
+        #     'none' ⇒ **没传当前持仓** ⇒ 差异不可信（前端必须说出来）。
+        # ⚠️ 旧产物（2026-10-20 之前）里没有 `rebalance_source`，
+        #    且 rebalance 元素只有 {code, action} ⇒ 一律按 'none' 递，
+        #    缺字段填 `null`（**不编**：不从 `positions` 里猜，那是另一个口径）。
+        return {
+            **alloc,
+            "date": alloc.get("date") or lp,
+            "rebalance": _alloc_rebalance_rows(alloc.get("rebalance") or []),
+            "rebalance_source": alloc.get("rebalance_source") or "none",
+        }
 
     @app.post("/api/chat")
     def chat(body: ChatIn):
@@ -917,6 +1609,76 @@ def create_app(data_root, llm=None) -> FastAPI:
             latest = _json_safe(rows[rows["arm"] == "cheap_p0"].tail(1))[0]
         return {"summary": summary, "curve": curve, "latest": latest}
 
+    @app.get("/api/d2-verdict")
+    def d2_verdict():
+        """**判决档**的年化 20% 判决 —— **逐字透传，不重算、不判断**。
+
+        ## 为什么是「逐字」而不是「端点里算」
+
+        判决产物里**已经有**三样现成的东西：
+        `verdict_reading`（点估计 c）、`verdict_mde_annual`（带宽半宽 M）、
+        `verdict_upper_one_sided_95`（**真的** 95% 单侧上界 U）、
+        `verdict_cases_fired`（**真的**触发了哪几条规则）。
+        ⇒ 端点里**再算一遍** `c − M` / `c + M` / CI 就是**第二份实现**：
+        公式抄错时界面照常渲染、HTTP 200、零告警，
+        而它说的是一件与产物不同的事（第 137 层：两份必须同步的东西中间没有锁）。
+        ⇒ 端点只负责**把产物自带的值递出去**，前端照着画。
+
+        ## 两条线不许混（本端点只给**判决档**这一族）
+
+        | 端点 | 它给的是 | 口径 |
+        |---|---|---|
+        | `/api/d2-verdict`（本端点） | **判决档** `market_return + net_excess_bt003` | 1395 天 / 5.717 年 / 宽度 10 / K=21 |
+        | `/api/d2-gap` | **5 万本金 + 交付档宽度 10** 的缺口台账 | 另一个量 |
+
+        ⇒ **不是同一个量，绝不可混引、也不可放在同一张图上比较。**
+        🚨 本端点**刻意不递** `gap_to_target_by_benchmark`（那是 5 万交付档那一族）
+        与 `excess_legs_own_mde`（超额腿那一族）——递了就是邀请前端混用。
+
+        ## 产物不在 ⇒ 404 + 一句话原因
+
+        **不许返回空对象假装「没有数据」**：空对象在界面上与「判决读不出来」
+        长得分毫不差，而后者要求人去看采集/重跑（形状 23 的方向）。
+        """
+        path = reports_dir / "basket_nav_01_2026-10-16.json"
+        if not path.exists():
+            raise HTTPException(
+                404, f"判决产物不存在：{path.name}（跑 scripts/measure_basket_nav_01.py 生成）")
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(404, f"判决产物读不出来：{exc!r}") from exc
+        if not isinstance(doc, dict):
+            raise HTTPException(404, "判决产物的内容不是一个对象（异常）")
+        tiers = doc.get("tiers") or []
+        if len(tiers) < 2 or not isinstance(tiers[1], dict):
+            raise HTTPException(
+                404, "判决产物里没有 tiers[1]（判决档）⇒ 拿不到判决档的数")
+        t1 = tiers[1]
+        # ★ 逐字：一个数都不算、一个口径都不转。
+        # `verdict_mde_annual` 一并给出，是为了让前端能标出
+        # 「带宽 = 点估计 ± MDE，上界取产物自带的 95% 单侧上界」——
+        # 少了它，前端只能自己算一个 CI 出来（第 137 层）。
+        return {
+            "source": path.name,
+            # —— 判决三件套 + 目标 + 规则（逐字）——
+            "verdict_reading": doc.get("verdict_reading"),
+            "verdict_mde_annual": doc.get("verdict_mde_annual"),
+            "verdict_upper_one_sided_95": doc.get("verdict_upper_one_sided_95"),
+            "target": doc.get("target"),
+            "verdict_rule": doc.get("verdict_rule"),
+            "verdict_text": doc.get("verdict_text"),
+            "verdict_cases_fired": doc.get("verdict_cases_fired"),
+            # —— 判决档自己的数（**另一个量**：算术年化 ≠ 几何年化）——
+            "verdict_tier_arith_ann": t1.get("arith_ann"),
+            "verdict_tier_cagr": t1.get("cagr"),
+            "verdict_tier_label": t1.get("tier"),
+            "verdict_tier_n_days": t1.get("n_days"),
+            "verdict_tier_years": t1.get("years"),
+            # 口径块：随数字一起离开脚本（`verdict_tier_is` / `this_is_not` / …）
+            "caliber": doc.get("caliber"),
+        }
+
     @app.get("/api/d2-gap")
     def d2_gap():
         """D2（年化 20%）的缺口台账 —— 首屏「达标」判决的天花板闸。
@@ -936,6 +1698,50 @@ def create_app(data_root, llm=None) -> FastAPI:
         from .reports import read_d2_gap
 
         return {"ledger": read_d2_gap(reports_dir)}
+
+    @app.get("/api/lot-affordability")
+    def lot_affordability():
+        """今天这 20 只，**5 万买不买得起**（整手口径）。
+
+        🚨 **这个端点存在的唯一理由**：页面上一屏都是「10 涨 10 跌」，
+        用户会以为照着买就行 —— 而实盘那 10 只里**只有 4 只**在每份
+        ¥5,000 的预算内（688498.SH 收盘 1010.35，科创板一手 200 股
+        ⇒ 1 手 ¥202,070 = 全部本金的 4 倍）。
+        ⇒ **买不进不是信号问题，是本钱问题。**
+
+        ## 它**只**回答「买不买得起」
+
+        收益率/胜率是 `/api/status` 与 `/api/d2-verdict` 的职责；
+        这里混进来就等于端点开始**重算判决**（第 137 层）。
+
+        ## 价格**不许自己造**
+
+        价格一律来自主库 `master/daily/{code}.parquet`
+        （`LocalStore.read_daily`），取 `date <= as_of` 的最后一根 bar 的 `close`；
+        **用哪一天的价格、复不复权**写在返回体的 `caliber` 块里。
+
+        ## 一手多少股：**688/689 = 200，其余 = 100**（科创板 200 股起买）
+        """
+        return lot_affordability_payload(data_root, reports_dir)
+
+    @app.get("/api/deployed-config")
+    def deployed_config():
+        """「判决配置 vs 实盘配置」**三层**差异 —— 逐字摊开。
+
+        | 层 | 它是什么 |
+        |---|---|
+        | 判决侧 | `basket_nav_01_2026-10-16.json` 量的那套（满仓 / 10 只 / 8 因子逐年 IC 定权） |
+        | 实盘侧 | 生产**今天真的在跑**的那套（半仓 / 5 只 / `DEFAULT_WEIGHTS` 4 因子） |
+        | 实盘档读数 | 实盘配置下的 D2 年化读数（`deployed_d2_verdict.json`，逐字透传） |
+
+        🚨 **不许把满仓判决数说成「你的年化」** —— 两边的数**不是同一个量**，
+        **不可混引、不可同图比较**（口径台账纪律）。
+        🚨 **端点里一个数都不算**：判决读数逐字取产物字段、实盘配置逐字取
+        生产签名/常量、实盘档读数逐字取 `deployed_d2_verdict.json`。
+        🚨 **实盘档读数不许回落**：产物不在 ⇒ 三个字段全 `null` + 一句
+        「产物尚未生成」，**不许**拿 `deployed_account_nav.json` 的推算数顶替。
+        """
+        return deployed_config_payload(reports_dir)
 
     static_dir = Path(__file__).parent / "web"
     if static_dir.exists():

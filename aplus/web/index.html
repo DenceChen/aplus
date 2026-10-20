@@ -528,6 +528,44 @@
   .notes-list li { color: var(--muted); font-size: 12.5px; padding: 3px 0; }
   .notes-list li::before { content: "· "; color: var(--seal); font-weight: 700; }
 
+  /* ── 买得起吗 / 实盘配置 vs 判决配置（2026-10-20 新增）──────────
+     ⚠️ 颜色语义：这一屏上**红色只表示「买不起」**这一件事。
+     本页别处红=涨、绿=跌（价格方向），而这里是**本钱够不够**——
+     两套语义在不同区块里，各自带一句话说明，不共用图例。 */
+  .lot-wrap { padding: 14px 20px 18px; }
+  .lot-head { font-size: 13px; line-height: 1.8; color: var(--muted); margin-bottom: 10px; }
+  .lot-head b { color: var(--text); }
+  .lot-table { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .lot-table table { font-size: 12.5px; }
+  .lot-table th { background: var(--panel-2); }
+  .lot-table tr.lot-down td { color: var(--faint); }
+  .lot-dir { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px;
+             background: rgba(255,255,255,.07); color: var(--text); }
+  .lot-dir-down { color: var(--faint); }
+  .lot-sub { display: block; font-size: 10.5px; color: var(--faint); }
+  .lot-no { color: var(--up); font-weight: 700; }   /* 「买不起」= 缺本钱 */
+  .lot-ok { color: var(--muted); }
+  .lot-na { color: var(--faint); }
+  .lot-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--muted); }
+  .lot-note b { color: var(--text); }
+  /* 「哪一档」块：把判决档读数与实盘档读数**并排但分开**——
+     ⚠️ 不许画成同一根线/同一个数（口径台账：不可混引、不可同图比较）。 */
+  .cfg-tiers { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+  .cfg-tier { flex: 1 1 320px; border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px;
+              background: var(--panel-2); font-size: 12.5px; line-height: 1.8; color: var(--muted); }
+  .cfg-tier h4 { margin: 0 0 6px; font-size: 12.5px; color: var(--text); font-weight: 700; }
+  .cfg-tier.deployed { border-color: rgba(240,74,79,.35); }
+  .cfg-tier .big { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--text);
+                   font-variant-numeric: tabular-nums; display: block; }
+  .cfg-tier .na { color: var(--faint); }
+  .cfg-dim td:first-child { color: var(--muted); white-space: nowrap; }
+  .cfg-dim td:nth-child(4) { white-space: nowrap; }
+  .cfg-dim .same { color: var(--faint); }
+  .cfg-dim .diff { color: var(--up); font-weight: 700; }
+  .cfg-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--muted); }
+  .cfg-note b { color: var(--text); }
+  .cfg-src { font-size: 11px; color: var(--faint); }
+
   /* ── 进化 ── */
   .weights-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 18px 20px 6px; }
   .weight-chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; text-align: center; }
@@ -693,6 +731,15 @@
          同一个节点会把两个独立判决塌成一个，并让既有守卫失去它守的东西。
          CSS 复用 `.docket-warn` 的档位（danger/warn/ok），DOM 所有权分开。 -->
     <div class="docket-warn" id="publish-gate" hidden></div>
+    <!-- 2026-10-20 新增。**第三块，且是独立元素**：上面两块问的是
+         「照着名单建仓赚不赚钱」「这份名单能不能发布」；
+         这一块问的是**「今天那次出单到底出了没有」**——
+         2026-10-20 18:30 那次跑失败时，页面上只有「部分完成 · run_day_gate」，
+         用户既不知道今天有没有单，也不知道该修 cron 还是修采集。
+         ⚠️ 必须是**可见的一行**，不是 title 悬停：口径说明挂在 hover 上
+         对键盘与读屏用户是关着的（同族缺陷，同一批修）。
+         ⚠️ 只在结局**不是 ok** 时占首屏空间 ⇒ 正常那天不多占一屏。 -->
+    <div class="docket-warn warn" id="run-outcome" hidden></div>
     </div><!-- /.docket-warns -->
     <div class="figures" id="docket-figures"></div>
   </div>
@@ -751,6 +798,34 @@
       <div class="panel-head"><h2>资产配置方案</h2><span class="sub">本金 5 万 · 保守档</span>
         <span class="right" id="alloc-date"></span></div>
       <div id="alloc-body"><div class="skeleton">加载配置…</div></div>
+    </div>
+
+    <!-- 🚨 2026-10-20 新增：「5 万买得起吗」。
+         页面上一屏都是「10 涨 10 跌」两张整齐的表 ⇒ 用户会以为照着买就行。
+         而实盘那 10 只里**只有 4 只**在每份 ¥5,000 的预算内：
+         `688498.SH 源杰科技` 收盘 1010.35，**科创板一手 200 股** ⇒ 1 手 ¥202,070
+         = 全部本金的 4 倍。
+         ⇒ **买不进不是信号问题，是本钱问题** —— 这一块就是把那件事摆到明面上。
+         ⚠️ 数字**全部**来自 `/api/lot-affordability`，前端一个数都不许硬编码
+         （守卫扫 index.html 的数字字面量）。 -->
+    <div class="panel">
+      <div class="panel-head"><h2>今天的名单 · 5 万买得起吗</h2>
+        <span class="sub">整手口径：1 手 = 100 股（科创板 688/689 = 200 股）</span>
+        <span class="right" id="lot-date"></span></div>
+      <div id="lot-body"><div class="skeleton">读取买入成本…</div></div>
+    </div>
+
+    <!-- 🚨 2026-10-20 新增：「判决配置 vs 实盘配置」。
+         屏幕上的年化（判决档）量的是**满仓 10 只 + 8 因子逐年 IC 定权**，
+         而实盘跑的是**半仓 5 只 + DEFAULT_WEIGHTS 4 因子**。
+         ⇒ 两个数**不是同一个量**。这一块把三层差异摆出来，
+         并明说「屏幕上那个读数属于哪一档」——
+         不然用户会把满仓判决档的年化当成自己账户的年化。 -->
+    <div class="panel">
+      <div class="panel-head"><h2>实盘配置 vs 判决配置</h2>
+        <span class="sub">屏幕上那个年化，属于哪一档</span>
+        <span class="right" id="deployedcfg-source"></span></div>
+      <div id="deployedcfg-body"><div class="skeleton">读取配置口径…</div></div>
     </div>
   </section>
 
@@ -1300,6 +1375,208 @@ async function loadOverview() {
   try { renderHeld(status.live); }
   catch (e) { console.error('[持仓区] 渲染失败', e); $('held-box').innerHTML = `<div class="held-why danger">持仓区渲染失败：${esc(e.message)}</div>`; }
   try { renderAlloc(await jget('/api/allocation/latest'), status.live?.up?.length ?? null); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
+  /* 🚨 2026-10-20 新增：两块「本钱 / 口径」区块。
+     两个 loader **各自带 try/catch**（在函数内部）⇒ 一块读不出来
+     不影响另一块，也不影响上面已经画好的名册。
+     ⚠️ **不 await**：这两块是补充说明，不是名册的前置条件 ——
+        慢一点可以晚点出现，绝不能把名册卡住。 */
+  loadLotAffordability();
+  loadDeployedConfig();
+}
+
+/* ── 「5 万买得起吗」（2026-10-20 新增）────────────────────────────
+   数据源：`/api/lot-affordability`（后端 `webapp.py::lot_affordability_payload`）。
+
+   🚨 **前端一个数都不算、也不硬编码**：
+   - 连「一手 200 股」都是从端点拿的（每条都有 `lot_shares`）；
+   - 连「买不买得起」都是端点算好的 `affordable_at_5000`
+     —— 前端**不许**自己拿 `close × lot_shares` 再比一次（第 137 层：
+     两份必须同步的东西中间没有锁）。
+   - 连「差多少钱」都是端点给的 `shortfall_at_5000`。
+   ⇒ 前端只负责把已经算好的东西显示出来。
+
+   🚨 **买不行的必须标红并说清差多少钱**：
+   只说「买不起」而不说差多少 ⇒ 用户以为是自己选错了，其实是没本钱。
+
+   ⚠️ **看跌腿不标红**：那 10 只是**回避清单**，本来就不买
+   ⇒ 在那儿标「买不起」会读成「该买但没本钱」，方向完全相反。 */
+function renderLotAffordability(d) {
+  const box = $('lot-body');
+  const s = (d && d.summary) || null;
+  const items = (d && Array.isArray(d.items)) ? d.items : [];
+  if (!s || !items.length) {
+    box.innerHTML = '<div class="empty">买入成本读不出来（端点没给数）</div>';
+    return;
+  }
+  const bud = d.budget || {};
+  const money = v => v == null ? '—'
+    : '¥' + Number(v).toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+  const pct = v => v == null ? '—' : (Number(v) * 100).toFixed(0) + '%';
+
+  const rows = items.map(it => {
+    const isUp = it.direction === 'up';
+    let verdict;
+    if (!isUp) {
+      verdict = '<span class="lot-na">不买（回避清单）</span>';
+    } else if (it.affordable_at_5000 == null) {
+      verdict = '<span class="lot-na">价格读不出来</span>';
+    } else if (it.affordable_at_5000) {
+      verdict = '<span class="lot-ok">买得起</span>';
+    } else {
+      verdict = `<span class="lot-no">买不起 · 差 ${money(it.shortfall_at_5000)}</span>`;
+    }
+    const closeCell = it.close == null ? '—' : Number(it.close).toFixed(2);
+    const lotCell = it.lot_cost == null ? '—' : money(it.lot_cost);
+    const shares = it.lot_shares == null ? '' : `<span class="lot-sub">${it.lot_shares} 股一手</span>`;
+    const priceNote = it.close_date ? ` title="收盘价取 ${it.close_date} 那一根 bar"` : '';
+    return `<tr class="${isUp ? 'lot-up' : 'lot-down'}">`
+      + `<td>${esc(it.name || '')}</td>`
+      + `<td${priceNote}>${esc(it.code || '')}</td>`
+      + `<td><span class="lot-dir${isUp ? '' : ' lot-dir-down'}">${isUp ? '看涨·要买' : '看跌·回避'}</span></td>`
+      + `<td class="num">${closeCell}</td>`
+      + `<td class="num">${lotCell}${shares}</td>`
+      + `<td>${verdict}</td>`
+      + `</tr>`;
+  }).join('');
+
+  const head = `看涨腿 <b>${s.n_up}</b> 只里 <b>${s.n_unaffordable}</b> 只 <b>1 手就买不起</b>`
+    + `（生产每份预算 ${money(bud.per_position_amount)}）`
+    + ` ⇒ 只买得起 <b>${s.n_affordable}</b> 只，`
+    + `最多投出 <b>${money(s.max_deployable_amount_up)}</b>（占本金 ${pct(s.max_deployable_ratio_up)}）`;
+
+  const extra = (s.n_unaffordable_at_10000 > 0)
+    ? `<br>即使改成「本金平均分给 ${bud.max_positions} 只、每只 ${money(bud.capital_div_positions)}」，`
+      + `仍有 <b>${s.n_unaffordable_at_10000}</b> 只买不起。`
+    : '';
+
+  const missing = (s.n_price_missing > 0)
+    ? `<br>⚠️ 有 <b>${s.n_price_missing}</b> 只没读到收盘价 ⇒ 「买不买得起」对它们**问不出来**（不编价）。`
+    : '';
+
+  box.innerHTML = `<div class="lot-wrap">`
+    + `<div class="lot-head">${head}${extra}${missing}</div>`
+    + `<div class="lot-table"><table><thead><tr>`
+      + `<th>名称</th><th>代码</th><th>方向</th><th class="num">收盘</th>`
+      + `<th class="num">1 手要</th><th>买得起吗</th>`
+      + `</tr></thead><tbody>${rows}</tbody></table></div>`
+    + `<div class="lot-note">⚠️ 这是<b>本钱</b>问题，不是信号问题：名单再准，<b>买不进就等于没信号</b>。`
+      + `收盘价取自主库 <code>master/daily</code> 里 <code>date ≤ ${esc(d.pred_date || '')}</code> 的最后一根 bar（不复权），`
+      + `「1 手」= 100 股，科创板 688/689 = 200 股。`
+      + `看跌腿是<b>回避清单</b>，本来就不买，所以那一栏不标红。`
+      + `<br>⚠️ 这里的<b>红色只表示「买不起」</b>（缺本钱），与本页别处「红=涨」的颜色语义<b>不是一回事</b>。</div>`
+    + `</div>`;
+}
+
+async function loadLotAffordability() {
+  try {
+    const d = await jget('/api/lot-affordability');
+    renderLotAffordability(d);
+    $('lot-date').textContent = d.pred_date ? `${d.pred_date} 收盘后生成` : '';
+  } catch (e) {
+    console.error('[买得起吗] 加载失败', e);
+    $('lot-body').innerHTML = `<div class="empty">买入成本读不出来（${esc(e.message || e)}）</div>`;
+  }
+}
+
+/* ── 「实盘配置 vs 判决配置」（2026-10-20 新增）──────────────────────
+   数据源：`/api/deployed-config`（后端 `webapp.py::deployed_config_payload`）。
+
+   🚨 **两层读数不许混成一句话、也不许画成同一根线**：
+   - 判决档（`basket_nav_01_2026-10-16.json`）：满仓 10 只 + 8 因子逐年 IC 定权；
+   - 实盘档（`deployed_d2_verdict.json`）：半仓 5 只 + `DEFAULT_WEIGHTS` 4 因子。
+   ⇒ 前端把它们**并排摆成两个独立的块**，各自带自己的标签与来源。
+
+   🚨 **判决读数不许说成「你的年化」**：
+   判决档的 cagr 那一行必须写清「属于哪一档」。
+
+   ⚠️ **实盘档读数没有就写「没有」**：
+   `deployed_d2_verdict.json` 未落盘时，端点给的是三个 `null` + 一句原因；
+   前端**不许**拿判决档的数顶替（那就是把满仓数说成实盘数）。 */
+function renderDeployedConfig(d) {
+  const box = $('deployedcfg-body');
+  const dims = (d && Array.isArray(d.dimensions)) ? d.dimensions : [];
+  if (!dims.length) {
+    box.innerHTML = '<div class="empty">配置口径读不出来（端点没给数）</div>';
+    return;
+  }
+  const rows = dims.map(x => {
+    const same = x.differs === false;
+    const unknown = x.differs == null;
+    return `<tr class="cfg-dim"><td>${esc(x.label || x.dim || '')}</td>`
+      + `<td>${esc(x.verdict_display ?? '—')}</td>`
+      + `<td>${esc(x.deployed_display ?? '—')}</td>`
+      + `<td class="${unknown ? 'same' : (same ? 'same' : 'diff')}">`
+      + `${unknown ? '—' : (same ? '一样' : '不一样')}</td>`
+      + `<td class="cfg-src">${esc(x.verdict_source || '')}<br>${esc(x.deployed_source || '')}</td>`
+      + `</tr>`;
+  }).join('');
+
+  const rd = (d.verdict_side && d.verdict_side.readings) || {};
+  const dd = d.deployed_d2_reading || {};
+  const pct = v => v == null ? '—' : (Number(v) * 100).toFixed(2) + '%';
+  const pp = v => v == null ? '—' : Number(v).toFixed(4) + 'pp';
+
+  const vExpo = d.verdict_side?.dimensions?.exposure;
+  const verdictTier = `<div class="cfg-tier">`
+    + `<h4>判决档读数（屏幕上那个年化属于这一档）</h4>`
+    + `<span class="big">${pct(rd.verdict_tier_cagr)}</span>`
+    + `<div>点估计 ${pct(rd.verdict_reading)} · 带宽 ±${pct(rd.verdict_mde_annual)}`
+    + ` · 95% 单侧上界 ${pct(rd.verdict_upper_one_sided_95)} · 目标 ${pct(rd.target)}</div>`
+    + `<div>${esc(d.verdict_side?.source || '')}（满仓判决档：`
+    + `${esc(d.verdict_side?.dimensions?.n_positions ?? '—')} 只 · `
+    + `${vExpo == null ? '—' : (Number(vExpo) * 100).toFixed(0) + '%'} 敞口）</div>`
+    + (rd.verdict_text ? `<div>${boldify(esc(rd.verdict_text))}</div>` : '')
+    + `<div class="cfg-src">⚠️ 这是<b>判决档</b>的数，<b>不是</b>「你的年化」—— `
+    + `它量的是满仓那一套配置。</div>`
+    + `</div>`;
+
+  const deployedTier = dd.available
+    ? `<div class="cfg-tier deployed">`
+      + `<h4>实盘档读数（你今天真的在跑的那套）</h4>`
+      + `<span class="big">${pct(dd.cagr)}</span>`
+      + `<div>带宽 ±${pct(dd.verdict_mde_annual)}`
+      + (dd.upper_one_sided_95 == null ? '' : ` · 95% 单侧上界 ${pct(dd.upper_one_sided_95)}`)
+      + (dd.target == null ? '' : ` · 目标 ${pct(dd.target)}`)
+      + `</div>`
+      + `<div>点估计与目标差 ${pp(dd.gap_to_target_pp)}`
+      + `（<b>点估计之差，不是判决</b>）</div>`
+      + (Array.isArray(dd.cases) && dd.cases.length
+        ? `<div>产物记录的触发分支：${dd.cases.map(c => `<code>${boldify(esc(c))}</code>`).join('<br>')}</div>`
+        : '')
+      + (dd.measured_sign_determinable === false
+        ? `<div>⚠️ 产物自报 <code>measured_sign_determinable = false</code> ⇒ <b>连符号都定不了</b>，`
+          + `不许说「接近」也不许说「达不到」。</div>`
+        : '')
+      + `<div class="cfg-src">${esc(dd.source || '')}${dd.scope ? ' · ' + esc(dd.scope) : ''}（逐字透传）</div>`
+      + `</div>`
+    : `<div class="cfg-tier deployed">`
+      + `<h4>实盘档读数（你今天真的在跑的那套）</h4>`
+      + `<span class="big na">产物尚未生成</span>`
+      + `<div class="cfg-src">${esc(dd.note || '')}</div>`
+      + `<div class="cfg-src">⚠️ 这里<b>不会</b>拿判决档的数顶替 —— 那是另一个量。</div>`
+      + `</div>`;
+
+  box.innerHTML = `<div class="lot-wrap">`
+    + `<div class="lot-table"><table><thead><tr>`
+      + `<th>维度</th><th>判决配置</th><th>实盘配置</th><th>一样吗</th><th>来源</th>`
+      + `</tr></thead><tbody>${rows}</tbody></table></div>`
+    + `<div class="cfg-tiers">${verdictTier}${deployedTier}</div>`
+    + `<div class="cfg-note">⚠️ <b>两边的数不是同一个量，不可混引、不可同图比较。</b>`
+      + `判决档量的是「满仓 · 判决专用权重」；实盘跑的是「半仓 · 从未赛马的回落默认权重」。`
+      + `<br>判决档里那个数<b>不是</b>你的年化；实盘档的数要么在这里，要么<b>还没有</b>——`
+      + `没有的时候这里就写没有。</div>`
+    + `</div>`;
+}
+
+async function loadDeployedConfig() {
+  try {
+    const d = await jget('/api/deployed-config');
+    renderDeployedConfig(d);
+    $('deployedcfg-source').textContent = d.verdict_side?.source || '';
+  } catch (e) {
+    console.error('[配置口径] 加载失败', e);
+    $('deployedcfg-body').innerHTML = `<div class="empty">配置口径读不出来（${esc(e.message || e)}）</div>`;
+  }
 }
 
 /* 判决板：空态不写「—」，写「还差什么」。
@@ -1604,8 +1881,28 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
 async function loadRunDot() {
   try {
     const s = await jget('/api/run-status');
-    const dot = $('run-dot'), txt = $('run-text');
+    const dot = $('run-dot'), txt = $('run-text'), box = $('run-outcome');
     const hm = s.updated_at?.slice(11) ?? '';
+    /* ⚠️ `outcome` 与 `status` 是**两个不同的量**：
+       `status` = 「那次尝试跑成没跑成」；`outcome` = 「那次尝试的结局：出了单没有、为什么没出」。
+       2026-10-20 的事故就是这两者被当成一个：跑挂了（status=skipped），
+       页面上写「今日未跑」⇒ 用户以为 cron 没触发，而真因是**采集没拿到数据**。
+       ⇒ 有 `outcome` 就用它说话；没有（旧的 run_status.json）才落回 status 分支。 */
+    const oc = s.outcome ?? null;
+    const oReason = s.outcome_reason ?? '';
+    if (box) {
+      const need = oc && oc !== 'ok';
+      box.hidden = !need;
+      if (need) {
+        const title = oc === 'not_a_workday' ? '今天不是交易日，本来就不出单'
+          : oc === 'partial_coverage' ? '今天没出单：仓里的数据只到一部分'
+          : oc === 'data_missing' ? '今天没出单：行情没采到今天的数据'
+          : oc === 'failed' ? '今天没出单：流水线某一步炸了'
+          : '今天没出单';
+        box.innerHTML = `<b>${esc(title)}</b><span>${esc(oReason)}</span>`;
+        box.title = oReason;
+      }
+    }
     if (s.status === 'never_run') { dot.className = 'run-dot bad'; txt.textContent = '尚未运行'; return; }
     /* ★ 缺陷修复：`status` 只说「这一次跑成没跑成」，**从不说「跑的是哪天」**。
        旧代码只按 status 分支，`s.date` 一次都没被读过 ⇒ 昨天那次
@@ -1620,10 +1917,18 @@ async function loadRunDot() {
     const runDay = parseTradingDay(s.date);
     const age = runDay == null ? null
       : Math.round((localMidnight(new Date()) - localMidnight(runDay)) / 864e5);
+    /* 结局优先：它比 status 更细（status=ok 只说明「跑完了」，不说明「出了单」）。 */
+    if (oc === 'ok') {
+      if (age === 0) { dot.className = 'run-dot ok';   txt.textContent = `今日已跑 · 名单已发布 · ${hm}`; return; }
+      if (age > 0)  { dot.className = 'run-dot warn'; txt.textContent = `上次已跑 ${s.date}（${age} 天前）`; return; }
+    } else if (oc === 'not_a_workday') { dot.className = 'run-dot';     txt.textContent = '今日不出单 · 非交易日'; return; }
+    else if (oc === 'partial_coverage') { dot.className = 'run-dot warn'; txt.textContent = '今日不出单 · 数据只到一部分'; return; }
+    else if (oc === 'data_missing')     { dot.className = 'run-dot warn'; txt.textContent = '今日不出单 · 行情没采到'; return; }
+    else if (oc === 'failed')           { dot.className = 'run-dot bad';  txt.textContent = '今日失败 · 某一步炸了'; return; }
     if (s.status === 'ok' && age === 0) { dot.className = 'run-dot ok';   txt.textContent = `今日已跑 · ${hm}`; return; }
     if (s.status === 'ok' && age > 0)  { dot.className = 'run-dot warn'; txt.textContent = `今日未跑 · 上次 ${s.date}（${age} 天前）`; return; }
     if (s.status === 'ok')             { dot.className = 'run-dot warn'; txt.textContent = `运行日期${age == null ? '未知' : '异常'} · ${s.date ?? ''}`; return; }
-    const bad = Object.entries(s.steps).filter(([, v]) => v !== 'ok').map(([k]) => k).join('/');
+    const bad = Object.entries(s.steps || {}).filter(([, v]) => v !== 'ok').map(([k]) => k).join('/');
     dot.className = 'run-dot warn';
     txt.textContent = `部分完成 · ${s.date ?? '日期未知'}${bad ? ' · ' + bad : ''}`;
   } catch { $('run-text').textContent = '状态未知'; }
