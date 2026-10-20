@@ -717,9 +717,29 @@ def test_guard_daily_has_no_try_around_read_run_status():
     text = src.read_text(encoding="utf-8")
 
     assert "read_run_status" in text, "夹具前提：守卫确实依赖 run_status"
-    assert "except" not in text, (
-        "guard_daily.py 现在有 except ⇒ 调用侧已加兜底，"
-        "请更新缺陷 6 的描述并把断言改成正面断言"
+
+    # ⚠️ **2026-10-21 改判据**（守卫自己写的改法，我照做）：
+    #   原写法是「整个文件里 `except` 出现次数 == 0」
+    #   ⇒ 它的**前提**是「这个文件恰好没有别的 try/except」
+    #   ⇒ 而本轮给 `read_runs`（读 JSONL 日志）加了一个**带理由**的兜底
+    #   ⇒ ⇒ 「全文没有 except」这条判据**测错了东西**
+    #   （它测的是「文件里恰好没有别的 except」，不是「`read_run_status` 被兜底了」）
+    # ⇒ 现在用 **AST** 做**正面断言**：`read_run_status(...)` 这个调用
+    #   **不在任何 try 块里** ⇒ 缺陷 6 仍在守，且**别的 except 不再误伤**。
+    import ast
+
+    tree = ast.parse(text)
+    offenders = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Try):
+            for child in ast.walk(node):
+                if (isinstance(child, ast.Call)
+                        and getattr(child.func, "id", None) == "read_run_status"):
+                    offenders.append(child.lineno)
+    assert not offenders, (
+        f"`read_run_status` 被 try/except 兜住了（行 {offenders}）⇒ "
+        f"缺陷 6 复发：守卫调用点一出错就会**静默当成「今天没跑」**，"
+        f"而那会让守卫**不补跑** ⇒ 一个交付日凭空消失且零告警。"
     )
 
 

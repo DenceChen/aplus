@@ -59,7 +59,8 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from aplus.reports import (  # noqa: E402
+from aplus.reports import (
+    OUTCOME_UPSTREAM_UNAVAILABLE,  # noqa: E402
     OUTCOME_DATA_MISSING,
     OUTCOME_FAILED,
     OUTCOME_NOT_A_WORKDAY,
@@ -151,10 +152,16 @@ def test_the_outcome_vocabulary_is_closed():
     （**完全**没数据 ⇒ 采集全挂）是**两件事**，排查方向不同
     （前者查「采了一半」，后者查「全挂」）。合成一个值 ⇒
     界面会说「仓里没有这一天的数据」⇒ **事实错误**。
+
+    ⚠️ 第六态 `upstream_unavailable`（2026-10-21 加）：「**数据源不可用**」
+    （网络/服务器挂了 ⇒ 该重试）—— 与 `data_missing`（**结果**：仓里没这一天的数据，
+    可能是法定节假日）的**应对相反** ⇒ 合成一个值 ⇒ 界面会说「仓里没数据」
+    ⇒ 而真因是「数据源挂了，晚点重试」⇒ **排查方向相反**。
+    ⇒ 它是**闭集** ⇒ 加一态就要改这一行（不许悄悄多出第四个第五个值）。
     """
     assert set(RUN_STATUS_OUTCOMES) == {
         OUTCOME_OK, OUTCOME_NOT_A_WORKDAY, OUTCOME_DATA_MISSING, OUTCOME_FAILED,
-        OUTCOME_PARTIAL_COVERAGE}
+        OUTCOME_PARTIAL_COVERAGE, OUTCOME_UPSTREAM_UNAVAILABLE}
 
 
 # ── ③ 接线：fail-closed 那条路必须真的写出新字段 ─────────────────────

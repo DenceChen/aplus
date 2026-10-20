@@ -128,7 +128,7 @@
    ⇒ **本轮的对拍门只在「池就是生产那份」时成立**（日频路径正是如此）。
    ⇒ **待办**：测量台与日频的池差异该定位到**哪几只**（成员差异还是因子差异）。
 2. 🚨 **实盘配置已从「半仓 5 只」改成「满仓 10 只」**，而屏上/接口里手打的
-   「半仓」标签还��处 ⇒ **本轮已收口**（`position_label` / `exposure_display`
+   「半仓」标签还有别处 ⇒ **本轮已收口**（`position_label` / `exposure_display`
    从数里推 + 行为守卫），但 `scripts/deployed_account_nav.py` 那一族
    「半仓」是**对照臂**（历史口径）⇒ **不许一起改**。
 3. ⚠️ `aplus/provenance.py` 的 `PATTERN_GENERATORS` 把

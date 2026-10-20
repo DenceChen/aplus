@@ -550,6 +550,28 @@ def test_the_fixed_bm_artifact_is_stamped_by_the_current_generator_bytes():
     _assert_stamped_by_current_bytes(BM_FIXED, GEN_BM)
 
 
+def test_the_historical_trimmed_ic_t_is_the_fixed_value_not_the_shadowed_one():
+    """「修复有没有生效」这件事必须**有东西守**，不许只活在散文里。
+
+    🚨 修复前（`trimmed_ic::t` 被尾部对照的 `t` 覆盖 ⇒ 变量遮蔽）是
+    **−1.6119787074299516**；修复后是 **+3.0761460884793435**。
+
+    ⇒ 钉住**修复后**那个值 ⇒ 「修复被回退」当场红；
+    ⇒ 同时钉住「不是那个被遮蔽的值」⇒ 「遮蔽复发」当场红。
+
+    出处：`data/reports/bm_ic_attribution.json::trimmed_ic::t`
+    （2026-10-21 由轮次 B 刷新；其 sidecar 的 `code_file_sha256` 与盘上生成器
+    逐位一致 ⇒ 这份产物出自**当前**代码）。
+    """
+    art = _load(BM_HISTORICAL)
+    t = art["trimmed_ic"]["t"]
+    assert t == 3.0761460884793435, (
+        f"历史产物的 trimmed_ic::t = {t!r}，不是修复后的那个值"
+        f"（+3.0761460884793435）⇒ 变量遮蔽**复发**了？")
+    assert t != -1.6119787074299516, (
+        "历史产物的 trimmed_ic::t 又是那个被遮蔽的值 ⇒ 修复被回退了")
+
+
 def test_the_reduced_run_reproduces_the_historical_judgment_fields_bitwise():
     """**忠实度**：缩减池重跑（500 只带 BM 的票）必须**逐位**复现历史产物
     的每一个**判决相关**字段。
@@ -571,9 +593,19 @@ def test_the_reduced_run_reproduces_the_historical_judgment_fields_bitwise():
     assert new["trimmed_ic"]["mean"] == old["trimmed_ic"]["mean"]
     assert new["trimmed_ic"]["n"] == old["trimmed_ic"]["n"]
     assert new["trimmed_ic"]["trim"] == old["trimmed_ic"]["trim"]
-    # 被修的那个字段**必须**不同（否则守卫就是恒真的装饰）
-    assert new["trimmed_ic"]["t"] != old["trimmed_ic"]["t"], (
-        "缩减重跑的 trimmed_ic::t 与历史产物相同 ⇒ 修复没有生效？")
+    # ⚠️ **2026-10-21 判据前提变了**（轮次 B 刷新了历史产物）：
+    #   原断言是「缩减重跑的 `trimmed_ic::t` 必须**不同于**历史产物」
+    #   ⇒ 它的**前提**是「历史产物是**修复前**的值（−1.6119787074299516）」
+    #   ⇒ 而轮次 B 把 `bm_ic_attribution.json` 刷新成了**修复后**的值
+    #   （`trimmed_ic::t` = +3.0761460884793435，变量遮蔽修好）
+    #   ⇒ ⇒ 两边现在**逐位相等** ⇒ 「必须不同」这条判据**前提过期**。
+    # ⇒ 改成「**逐位复现**」⇒ 这比「不同」**更强**
+    #   （「不同」被任何差异满足；「相等」是逐位）。
+    # ⇒ 而「修复有没有生效」这件事改由**下一条**守：那个值被**钉住**
+    #   （值 + 出处：轮次 B 的产物与它自己的 sidecar）。
+    assert new["trimmed_ic"]["t"] == old["trimmed_ic"]["t"], (
+        f"缩减重跑的 trimmed_ic::t 与历史产物不一致："
+        f"{new['trimmed_ic']['t']!r} ≠ {old['trimmed_ic']['t']!r}")
 
     for y in old["pool_bias"]:
         assert new["pool_bias"][y]["pool_covered"] == old["pool_bias"][y]["pool_covered"]
