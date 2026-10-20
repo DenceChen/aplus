@@ -169,6 +169,12 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # ⚠️ 文件名带 `2026-10-16` 且**写死在脚本里**（`measure_basket_nav_01.py`
     #   无 `--out`）⇒ 换名要两处一起改；这里登记的是**精确名**。
     "basket_nav_01_2026-10-16.json": "scripts/measure_basket_nav_01.py",
+    # 2026-10-20 登记：**按平台真正会执行的账户**测 D2
+    # （半仓 5 只 + 4 因子 DEFAULT_WEIGHTS + 整手 + 逐笔成本）。
+    # 预注册 `docs/PREREG_DEPLOYED_D2_2026-10-20.md`（看任何数之前写死）。
+    # ⚠️ 它**不改** `basket_nav_01_*.json` 的判决档（那是满仓 10 只 + IC 定权口径），
+    #   而是把**另一档账户**并排摆出来 —— 两个口径不是同一个量（不许混引）。
+    "deployed_d2_verdict.json": "scripts/measure_deployed_d2.py",
     # 2026-10-15 登记（第 127 层）：三臂判决（最优定权 / 朴素翻号 / 原样等权）。
     # 🚨 登记**卡在 K 链跑完之后才做** —— `aplus/provenance.py` 正在被链的
     #   `backtest_walk_forward_weights.py` 调用（`provenance.stamp()`），
@@ -277,6 +283,12 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # （第 123 层：绝不许从输出文件名反推）。
     # ⚠️⚠️ 同样**不调 stamp()**（该文件 `grep stamp` 零命中）
     # ⇒ 与上面两条同理，判 fresh 只有 **commit 走查**强度，没有字节证据。
+    # ★ 2026-10-20 补：本条是 D1 交付面四份产物之一，
+    #   与 `run_status.json` / `holdings.json` / `forward_results.json`
+    #   一并在**本表末尾**登记（那里有一整块注释说明「登记的是写盘的那个模块」）。
+    #   ⚠️ 本条的生成器是 `scripts/run_daily.py`（**写盘点就在这个脚本里**，
+    #   `step_stats()` 的 `path.write_text`）—— 与上面三份**不同**：
+    #   那三份由 `aplus/` 下的模块写盘、脚本只是调用方。
     "stats.json": "scripts/run_daily.py",
     "factor_ic_7y.json": "aplus/factor_ic.py",
     # 2026-10-14 重跑：`yearly` 补齐三档（原实现只聚合 `all`，
@@ -504,6 +516,38 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #      判断输入有没有变只认 `source_parquet_sha256`）。
     #   ⚠️ `code_dirty=True` 时 `trustworthy` 恒 `False`，引用时两句都要带。
     "downleg_ranking.json": "scripts/measure_downleg_ranking.py",
+
+    # ── 2026-10-20：D1 每天真正交付的那几个产物 ──────────────────────
+    #
+    # 🚨 **本块登记的是「写文件的那个模块」，不是调用它的脚本。**
+    #   `scripts/run_daily.py` 调 `aplus.reports.write_run_status()`，
+    #   但落盘的是 `aplus/reports.py` ⇒ 登记成 `scripts/run_daily.py`
+    #   会让 `commits_touching()` 去追**调用方**的提交历史，
+    #   于是「谁动过这个产物」答的是另一个文件的提交（第 123 层）。
+    #   同理 `holdings.json` 由 `aplus/live_rebalance.py::save_state` 写
+    #   （`STATE_NAME` 常量），`forward_results.json` 由
+    #   `aplus/forward.py::merge_results` 写 —— 三者都**不是** `run_daily.py`。
+    #
+    # ⚠️ **登记 ≠ 盖章。** 本块只让 `freshness()` **能判**；
+    #   真拿到 sidecar 还要写它的那三个模块自己调 `stamp()` ——
+    #   **盖章接线在另一批改动里**（`aplus/reports.py` /
+    #   `aplus/live_rebalance.py` / `aplus/forward.py` 由另一批改动接手）。
+    #   在那之前这三份**仍然是 `unknown` = 不可引用**，
+    #   而这正是登记的真实效果：**判据能跑了，证据还没到。**
+    #   🚨 不许为了让 `freshness()` 变绿而放宽任何判据 ——
+    #     `unknown` 的含义是「判据没跑成 / 没有证据」，**不是**「事实为否」。
+    "run_status.json": "aplus/reports.py",
+    "holdings.json": "aplus/live_rebalance.py",
+    "forward_results.json": "aplus/forward.py",
+    # 2026-10-20 补登记：**跌腿闸门**（D1 每天 10 只跌腿那半边的发布闸），
+    # 产物 `role = "DOWNLEG_GATE_ARM"`、判 `NOT_PASSED_POWERLESS`、
+    # 自报 `avoidance_list_publish_allowed: false` ⇒ **它决定跌腿名单许不许发**，
+    # 与上面三份同属 D1 交付面。
+    # 🚨 它是 `scripts/measure_downleg_ranking.py` 的**第二份产物**
+    #   （`--out` → `downleg_ranking.json` 对照臂，
+    #     `--gate-out` → `downleg_gate.json` 闸门）⇒ 与它兄弟那条**同一生成器**。
+    # ⚠️ 登记只是让 `freshness()` **能判**；它**仍无章** ⇒ 仍判 `unknown` = 不可引用。
+    "downleg_gate.json": "scripts/measure_downleg_ranking.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；
@@ -732,6 +776,46 @@ def resolve_data_dir(root: Path | str | None = None, data_root: Path | str | Non
         return str(target)
 
 
+def _repo_relative_generator(generator: str, root: Path | str | None = None) -> str:
+    """生成器路径 → **仓相对路径**（可搬迁的章）。
+
+    ## 为什么要做这一层规范化
+
+    🚨 **2026-10-16 实测**：全仓 55 份 sidecar 里有 **1 份**把 `generator`
+      写成**绝对路径**（`/Users/airboom/opencode/aplus/scripts/market_nav_caliber.py`），
+      而其余 54 份全是仓相对路径 ⇒ **口径孤例**。
+
+      成因不在本模块，而在一个**调用点**：`scripts/market_nav_caliber.py:239`
+      传的是 `__file__` —— 而 **Python 3.9 起 `__file__` 恒为绝对路径**
+      （3.8 以前是相对路径，所以这条缺陷是版本升级带进来的）。
+      本模块只是**照抄**了调用者给它的字符串。
+
+      后果：那枚章**不可搬迁** —— 仓一换位置（换机器、换目录、换挂载点），
+      章里的路径就指向一个不存在的文件，而**章本身看上去完全正常**。
+
+    ⇒ 修法放在**盖章那一刻**（本模块），而不是「读的时候再纠正」：
+      `freshness()` 解析生成器走的是 `DEFAULT_GENERATORS` 的**登记值**
+      （本来就是相对路径），sidecar 里的 `generator` 是**给人读的**
+      —— 它必须自解释、且跟着仓一起搬。
+
+    ⚠️ **只在确实落在仓内时转相对**；仓外的绝对路径**原样保留** ——
+      把它硬转成 `../../..` 既更难读，也会丢掉「它在仓外」这个诚实信息
+      （仓外数据根 `data_dir` 就是这么处理的，见 `resolve_data_dir`）。
+
+    ⚠️ **不改变字节哈希**：`_root(root) / "scripts/x.py"` 与
+      `_root(root) / "/abs/root/scripts/x.py"` 指向同一个文件
+      （pathlib 里绝对右操作数覆盖左操作数）⇒ `code_file_sha256` 逐位不变。
+    """
+    p = Path(generator)
+    if not p.is_absolute():
+        return generator
+    try:
+        return str(p.resolve().relative_to(_root(root).resolve()))
+    except ValueError:
+        # 在仓外（如 `/tmp/...`）：保持原样 —— 硬转相对会把「它在仓外」藏起来。
+        return generator
+
+
 def stamp(report_path: Path | str, generator: str, root: Path | str | None = None,
           extra: dict | None = None,
           data_root: Path | str | None = None,
@@ -741,6 +825,10 @@ def stamp(report_path: Path | str, generator: str, root: Path | str | None = Non
 
     写在**报告旁边**而不是报告内部：报告的 schema 是下游在读的，
     往里塞字段会污染它，也会在 `sha256` 比对时炸掉。
+
+    ★ `generator` 会被规范成**仓相对路径**（见 `_repo_relative_generator`）——
+      绝对路径（如 `__file__`）也会被转掉 ⇒ **章可搬迁**。
+      仓外的绝对路径原样保留。
 
     ★ `data_root` 必须是**这次跑真正读的**那个根（通常直接传 `--data-root`），
       `daily_subdir` 必须是这个脚本的布局（见 `resolve_data_dir`）。
@@ -766,6 +854,11 @@ def stamp(report_path: Path | str, generator: str, root: Path | str | None = Non
       那样检查照样在，而没人再读它（第 102 层：探针打在自己的副本上）。
       ⇒ 正确性靠**新写的脚本按这个模式写** + 下面那条守卫钉住「用了就必须传」。
     """
+    # ★ 生成器路径规范化成**仓相对路径**（章要可搬迁 —— 见
+    #   `_repo_relative_generator` 的注释与那枚绝对路径孤例的实测）。
+    #   必须在算字节哈希**之前**做：相对路径与绝对路径指向同一个文件，
+    #   所以哈希逐位不变（见该函数的边界说明）。
+    generator = _repo_relative_generator(generator, root)
     data_dir = resolve_data_dir(root, data_root, daily_subdir)
     now_bytes = code_file_sha256(root, generator)
     if expect_bytes is not None and expect_bytes != now_bytes:
