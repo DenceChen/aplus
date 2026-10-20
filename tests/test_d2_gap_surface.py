@@ -70,14 +70,43 @@ def _verdict() -> dict:
 
 # ---------- ① 台账读数必须出现在判决里 ----------
 
+
+def _ledger_numbers() -> dict:
+    """从**产物**里读这几个数 —— **不许手抄**。
+
+    🚨 2026-10-21：这组数**随 K 变**（K 21→63 ⇒ 缺口 11.66pp → 7.38pp，
+    天花板 12.73% → 15.92%）⇒ 手抄进测试 = **必烂**。
+    ⇒ 断言改成**从产物读** ⇒ 与「数字离开脚本之后必须有一条通道把它拉回来」
+    这条纪律一致（仓库第 22 层：散文字数会静默过期）。
+    """
+    import json as _json
+    from pathlib import Path as _P
+    art = _P(__file__).resolve().parents[1] / "data/reports/d2_signal_requirement.json"
+    h = _json.loads(art.read_text(encoding="utf-8"))["headline"]
+    cap = h["account_annual_ceiling_pct"]
+    return {
+        "ceiling_50k": cap["at_deliverable_width_and_50k"],
+        "gap_50k_pp": cap["gap_to_target_at_deliverable_width_and_50k_pp"],
+        "ceiling_inf": cap["at_infinite_capital"],
+        "gap_inf_pp": cap["gap_to_target_at_infinite_capital_pp"],
+        "required_gross": h["required_gross_at_50k_deliverable"],
+        "measured_gross": h["measured_gross_best"]["at_deliverable_width"],
+    }
+
 def test_the_verdict_carries_the_deliverable_ceiling_and_its_gap():
     """屏上必须说「天花板 8.34%、缺口 11.66pp」，而不是只说一个年化点估计。"""
     w = _verdict()
+    n = _ledger_numbers()
     assert w["level"] in ("warn", "danger")
-    assert "8.34" in w["headline"] or "8.34" in w["detail"], (
-        "判决里没有交付档（榜宽10·¥5万）的账户年化天花板")
-    assert "11.66" in w["headline"] or "11.66" in w["detail"], (
-        "判决里没有交付档缺口 11.66pp —— 用户看不见「离 20% 还有多远」")
+    c50 = f"{n['ceiling_50k']:.2f}"
+    g50 = f"{n['gap_50k_pp']:.2f}"
+    assert c50 in w["headline"] or c50 in w["detail"], (
+        f"判决里没有交付档（榜宽10·¥5万）的账户年化天花板 {c50}")
+    assert g50 in w["headline"] or g50 in w["detail"], (
+        f"判决里没有交付档缺口 {g50}pp —— 用户看不见「离 20% 还有多远」")
+    # ⇒ 语义不变量：缺口为正、天花板低于目标、所需毛超额高于实测
+    assert n["gap_50k_pp"] > 0 and n["ceiling_50k"] < 20.0
+    assert n["required_gross"] > n["measured_gross"]
 
 
 def test_the_verdict_says_more_data_is_not_the_way_out():
@@ -89,8 +118,13 @@ def test_the_verdict_says_more_data_is_not_the_way_out():
     """
     w = _verdict()
     blob = w["headline"] + w["detail"]
-    assert "12.73" in blob, "判决没有带上确界天花板 12.73%（宽度546·本金→∞）"
-    assert "7.27" in blob, "判决没有带上确界缺口 7.27pp"
+    n = _ledger_numbers()
+    ci = f"{n['ceiling_inf']:.2f}"
+    gi = f"{n['gap_inf_pp']:.2f}"
+    assert ci in blob, f"判决没有带上确界天花板 {ci}%（宽度546·本金→∞）"
+    assert gi in blob, f"判决没有带上确界缺口 {gi}pp"
+    # ⇒ 语义不变量：**上确界**仍低于目标 ⇒ 没有任何 (榜宽 × 本金) 配置能达标
+    assert n["ceiling_inf"] < 20.0
 
 
 def test_the_verdict_never_says_ok_while_a_positive_gap_is_on_record():
@@ -141,7 +175,8 @@ def test_the_met_target_branch_is_unreachable_while_the_ledger_reports_a_gap():
     assert got["exists"]
     assert got["r"]["level"] != "ok", (
         "台账缺口 11.66pp 仍然允许屏上喊「达到 20% 目标」—— 这是活的假绿")
-    assert "11.66" in got["r"]["headline"] + got["r"]["detail"]
+    g50 = f"{_ledger_numbers()['gap_50k_pp']:.2f}"
+    assert g50 in got["r"]["headline"] + got["r"]["detail"]
 
 
 def test_the_control_arm_without_the_ledger_is_unchanged():

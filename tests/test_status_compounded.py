@@ -123,11 +123,26 @@ def test_status_cagr_matches_what_verify_computes():
     from aplus.webapp import create_app
 
     root = BACKTEST.parents[1]
-    history = load_verification_history(Path(root) / "reports")
+    # 🚨 2026-10-21：期望值必须用**同一个作用域**算 ——
+    #   `/api/status` 的命中率已改成**按当前信号分桶**（`aplus/signal_scope.py`），
+    #   而 D1 闸门也是分桶的 ⇒ 若这里仍用**整本底稿**算期望值 ⇒
+    #   两边样本不同 ⇒ 测试红在一个「口径不同」上（正是本文件 docstring
+    #   记的那个第一版错误：把两个源当成了一个）。
+    # ⇒ 期望值用**同一个分桶入口**算 ⇒ 这条测试守的仍然是
+    #   「**API 不许篡改数值**」（接线层），而**作用域本身**由
+    #   `aplus/signal_scope.py` 的守卫与 `test_signal_scoping.py` 守。
+    from aplus.signal_scope import scoped_history
+
+    history, _scope = scoped_history(Path(root) / "reports")
     expect = compounded_stats(history)
 
     app = create_app(root, llm=None)
-    got = TestClient(app).get("/api/status").json()["stats"]
+    body = TestClient(app).get("/api/status").json()
+    got = body["stats"]
+    # 作用域也钉住：API 报的分桶行数必须等于**分桶后**的行数
+    assert body["signal_scope"]["rows_in_scope"] == len(history), (
+        f"API 报作用域 {body['signal_scope']['rows_in_scope']} 行，"
+        f"而分桶后是 {len(history)} 行 ⇒ 两者不同源")
 
     assert got["n_days"] == expect["n_days"], (
         f"前端天数 {got['n_days']} 与归档天数 {expect['n_days']} 不符——"

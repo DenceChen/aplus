@@ -9,7 +9,7 @@
 `basket_nav_01_2026-10-16.json::caliber.verdict_tier_is`）。
 达标所需净超额 `x*` 已由 `required_excess()` 给出；**本脚本给的是毛额门槛**
 
-    g*(N) = x* + annual_friction(C, 1.0, N, 244/21)
+    g*(N) = x* + annual_friction(C, 1.0, N, 244/K)
 
 即：**要让账户到 20%，信号本身必须交出多少毛超额。** 这个数此前仓里不存在。
 
@@ -21,7 +21,9 @@
 - 摩擦**只调** `aplus.costs.annual_friction`，不在本文件重写公式
   （第 5 层：断言 == 公式，公式错了断言跟着一错）
 - `equity_weight = 1.0`（单边多头）；0.5 会让摩擦减半、口径改变
-- `rounds_per_year = 244/21`，**不取整**（取整 12 会抬摩擦下界 4.787% → 4.944%）
+- `rounds_per_year = 244/K`，**不取整**（K=21 时取整 12 会抬摩擦下界 4.787% → 4.944%）。
+  🚨 **K 从 `aplus/evolve.py::LIVE_REBALANCE_EVERY` 来（单一真相源）**，不写死 ——
+  写死 `21` 会让 K 变更后本台账静默留在旧 K 口径上（同一个页面上两块数字来自两个 K）。
 
 # 🚨 量纲（预注册 §2.2，仓里最贵的一条）
 
@@ -63,13 +65,26 @@ from aplus.costs import (
     TRANSFER_FEE,
     annual_friction,
 )
+# 🚨 K 的**单一真相源**：`aplus/evolve.py::LIVE_REBALANCE_EVERY`。
+# 此前本文件把 `244/21` **写死** ⇒ K 从 21 改成 63 之后它没跟着变
+# ⇒ 页面 `/api/d2-gap` 给的是 **K=21 口径**的缺口，而同一页上的
+# `deployed_d2_verdict.json::verdict`（实盘真相）已经是 K=63 口径
+# ⇒ **同一个页面上两块数字来自两个不同的 K** ⇒ 打架。
+# ⇒ 现在 K 只从这一个常量来，写死的 `21` 没有了。
+# ⚠️ **「不取整」这条纪律一字未动**：改的只是「那个 K 从哪里来」，
+# 不是「K 怎么用」。`244/K` 仍是**精确分数**（不 round）。
+from aplus.evolve import LIVE_REBALANCE_EVERY
 
 REPORTS = ROOT / "data" / "reports"
 GENERATOR = "scripts/d2_signal_requirement.py"
 OUT = REPORTS / "d2_signal_requirement.json"
 
-# 预注册 §2.1 C3：精确 244/21，不取整
-ROUNDS_PER_YEAR = 244 / 21
+# 预注册 §2.1 C3：精确 244/K，**不取整**
+# 🚨 K 来自 `aplus/evolve.py::LIVE_REBALANCE_EVERY`（单一真相源），
+# **不再写死 21** ⇒ 改 K 时本台账自动跟着改，不会留下 K=21 的化石读数。
+ROUNDS_PER_YEAR = 244 / LIVE_REBALANCE_EVERY
+#: 本台账用的 K（**判决档那个是 21** ⇒ 两组数不可混比，见 caliber 块）
+LEDGER_K = int(LIVE_REBALANCE_EVERY)
 # 预注册 §2.1 C2：单边多头口径
 EQUITY_WEIGHT = 1.0
 # 预注册 §2.1 C1：唯一摩擦入口
@@ -565,7 +580,7 @@ def main() -> int:
                     "闭式路径：N × (notional/N) × K = notional × K，**N 直接约掉**",
                     "K = 2×(commission + transfer_fee + spread) + stamp_duty"
                     f" = {_ROUND_TRIP_LINEAR}",
-                    f"⇒ friction_floor = equity_weight × K × (244/21)"
+                    f"⇒ friction_floor = equity_weight × K × (244/{LEDGER_K})"
                     f" = {friction_floor_closed_form():.6f}"
                     f"（即 {friction_floor_closed_form() * 100:.4f}%/年）",
                 ],
@@ -603,7 +618,21 @@ def main() -> int:
             "net_excess_is_also_a_difference":
                 "measured_net_* 与 measured_net_ceiling 同为差序列，不是净值",
             "rounds_per_year": ROUNDS_PER_YEAR,
-            "rounds_per_year_note": "精确 244/21，不取整；取整 12 会抬摩擦下界",
+            "rounds_per_year_note": (
+                f"精确 244/{LEDGER_K}，不取整；"
+                f"取整 {round(ROUNDS_PER_YEAR)} 会抬摩擦下界"),
+            "k_used_by_this_ledger": LEDGER_K,
+            "k_source": "aplus/evolve.py::LIVE_REBALANCE_EVERY（单一真相源，不写死）",
+            "⚠️_this_ledger_K_is_63_but_the_verdict_tier_is_K21_do_not_compare_sizes": (
+                f"🚨 **本台账算的是 K={LEDGER_K}（实盘配置）的「所需毛超额」**，"
+                "而 `basket_nav_01_2026-10-16.json::tiers[1]`（**判决档**）"
+                "是 **K=21** 的口径 ⇒ **两组数不可直接比大小**。"
+                "理由：毛额门槛 = x* + 摩擦，而摩擦随 K 变（K 越大 ⇒ 年调仓次数越少 ⇒ "
+                "摩擦越低 ⇒ 门槛越松）⇒ K=63 的门槛**低于** K=21 的门槛，"
+                "这是**口径差**，不是「更接近达标」。"
+                "⇒ 引用本台账的数时必须同时带「K=63」这一句；"
+                "引用判决档那个数时必须带「K=21」这一句；"
+                "**两者的差不可解释成「离 20% 更近了」**（第 129 层：门槛松弛 ≠ 达标）"),
             "equity_weight": EQUITY_WEIGHT,
             "equity_weight_is_the_FULL_POSITION_verdict_caliber_not_live":
                 "⚠️ 本文件的 EQUITY_WEIGHT=1.0 是**满仓判决口径**（预注册 §2.1 C2）。"
