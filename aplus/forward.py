@@ -103,17 +103,66 @@ def compute_seal(rec: dict) -> str:
     return hashlib.sha256(_seal_payload(rec).encode("utf-8")).hexdigest()
 
 
+def _identity_sort_key(key: tuple) -> tuple:
+    """候选身份三元组的**全序**排序键。
+
+    `candidate_key` 的第三位是 `buffer_multiple`：`None`（**没有缓冲**）
+    或 `float`。直接 `sorted()` 会拿 `None` 和 `float` 比大小 ⇒ `TypeError`。
+
+    ## 实测的触发路径（2026-10-20，第 5 批注册时踩到）
+
+    同一份注册里有两个候选**权重与调仓频率完全相同、只差缓冲倍数**时，
+    `sorted()` 必须比较第三位 ⇒ 崩：
+
+        TypeError: '<' not supported between instances of 'NoneType' and 'float'
+
+    第 5 批的 ①（K=21、无缓冲）与 ③（K=21、缓冲 3.0）**正是**这样一对
+    ⇒ `register()` 直接抛错，**这份注册根本写不进去**。
+
+    ## 为什么这个修法**不改变任何现有行为**
+
+    元组比较先比 `==` 再比 `<`：`None == None` 为真 ⇒ 两位都是 `None` 时
+    **本来就能比**（结果相等）；只有 `None` 与 `float` 互比才会炸。
+    ⇒ 新旧两个键在**当前能跑通的每一个输入上给出完全相同的次序**：
+
+    | 情形 | 旧 | 新 |
+    |---|---|---|
+    | 权重不同 | 按权重比 | 同 |
+    | 权重同、K 不同 | 按 K 比 | 同 |
+    | 权重同、K 同、都是 `None` | 相等 | 相等 |
+    | 权重同、K 同、都是 `float` | 按 float 比 | 同（`(1,x)` 段内比 x） |
+    | 权重同、K 同、`None` vs `float` | **TypeError** | `(0,) < (1,x)` ⇒ 有序 |
+
+    ⇒ 改动**只影响当前会抛错的那一类输入**。
+    另外，现有 4 份注册里**没有任何一对**候选共享 (权重, 调仓频率)
+    ⇒ 第三位从未被比较过 ⇒ 已有批次的身份**逐位不变**
+    （守卫 `tests/test_forward_candidates_r5.py` 钉住这一点）。
+
+    ## 为什么 `None` 排在前面
+
+    `None` = 没有缓冲，`3.0` = 有缓冲。任取一个次序都不影响正确性
+    （身份只用于「是不是同一批」的相等判定）⇒ 选 `None` 在前只是因为
+    「缺席」排在「存在」前面读起来顺。
+    """
+    weights, every, buf = key
+    return (weights, int(every), (0, 0.0) if buf is None else (1, float(buf)))
+
+
 def _batch_identity(registered_on: str, candidates: list) -> tuple:
     """批次的身份：`注册日 + 候选三元组集合`（**与顺序无关**）。
 
     幂等靠它判定「这是不是同一批」。
     换了任何一个候选、或换了注册日，就是**新的一批**，必须放行——
     批次不同意味着窗口起点不同，是一次独立的预注册。
+
+    ⚠️ 排序**必须**走 `_identity_sort_key`：直接 `sorted()` 会在
+    「同一份注册里两个候选只差缓冲倍数」时崩（见那个函数的 docstring）。
     """
     from .evolve import candidate_key
 
     return (str(registered_on).strip(),
-            tuple(sorted(candidate_key(c) for c in candidates or [])))
+            tuple(sorted((candidate_key(c) for c in candidates or []),
+                         key=_identity_sort_key)))
 
 
 def registry_tamper_report(reports_dir) -> dict:

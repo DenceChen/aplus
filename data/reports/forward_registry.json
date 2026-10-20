@@ -196,5 +196,43 @@
       }
     ],
     "sealed_sha256": "bf0e37de3237d9f09b0526dbc66e13ff7b11482a8741be895dcc59b6607d6e4b"
+  },
+  {
+    "registered_on": "2026-10-20",
+    "note": "第五批前瞻验证候选：**在看到任何 2026-10-21 之后的行情之前**冻结。\n\n## 为什么要有这一批\n\n前四批共 19 组候选**没有一组是「当前实盘那一支」**：\n实盘权重来自 `aplus/evolve.py::load_weights` 的回落分支\n（`data/reports/weights.json` 不存在 ⇒ `source=\"fallback\"`、`caveat_kind=\"unraced\"`），\n即 `aplus/factor.py:61 DEFAULT_WEIGHTS` + `aplus/evolve.py:79 LIVE_REBALANCE_EVERY`\n+ `buffer_multiple=None`。台账里最接近的第 1 批 ① 是**符号翻转之前**的旧配置，\n第 2/3 批那组是 **8 因子**判决权重，不是实盘出单的那一组。\n\n⇒ 前瞻底稿（`verification.parquet`，实测 160 行 / 8 个出单日 / 6 个独立成交窗口）\n测的候选族里，**没有一个是真正在交易的那一支**。\n⇒ 而 D1 闸门现在判 `NOT_PASSED_POWERLESS`（检出力下限 |ρ|=0.2647），\n前瞻是它唯一还能解锁判决的路 ⇒ **它此刻测错了对象。**\n\n## 这一批是「检验」，不是「采纳」\n\n冻结实盘配置不等于相信实盘配置。它的作用是让**从未被看过的交易日**\n去回答「实盘真正在跑的那一套，前瞻到底有没有证据」。\n\n## 三组候选\n\n① DEFAULT_WEIGHTS / K=21 / buf=None —— **实盘那一支**\n② DEFAULT_WEIGHTS / K=63 / buf=None —— **成本臂**（年调仓次数 11.6190→3.8730，\n   名义年摩擦 6.3905%→2.1302%，**恰好 3.0000×**；这是成本算术，\n   🚨 **不许**声称它超额更好）\n③ DEFAULT_WEIGHTS / K=21 / buf=3.0 —— **单参数对照**（缓冲在实盘信号上是否有害）\n\n⚠️ ① 与 ② 与 ③ 的差别都是**单参数**（K 或 buffer），权重完全相同\n⇒ 任何两组的比较都是受控的。\n⚠️ ① 才是实盘那一支（**无缓冲**）；③ 是**有缓冲**的对照臂。\n\n## 参数来源\n\n三个参数全部 **import**，候选清单里**没有一个手打字面量**：\n`aplus.factor.DEFAULT_WEIGHTS` / `aplus.evolve.LIVE_REBALANCE_EVERY` /\n`aplus.rebalance.BUFFER_MULTIPLE`。\n手打的那份是**化石**（2026-10-14 符号翻转后 `mom20/vol20/vsur` 三个符号全变了，\n而第 1 批 ① 至今仍是翻转前的 `{+1.0,+0.3,+0.5,+0.5}`）。\n⚠️ 参数将来变了要**开新批次**，不许改本批。\n\n## 门槛：分别算（按份注册）\n\n`aplus/forward.py` 按**本份注册自己的候选数**算 Bonferroni 门槛 ⇒ 本批 **N=3**。\n**不与前四批合并算**，理由：① 既有实现如此，口径必须一致；\n② **合并算会让已冻结批次的门槛随后来者变** ⇒ 冻结批次的判决口径被改写 ⇒\n违反「注册即冻结」；③ 每份注册有自己的注册日、窗口与假设集。\n🚨 代价：分别算**不控制**跨批次挑选 ⇒ **判决只能在批内做**。\n\n门槛由 `aplus/evolve_race.py::bonferroni_t` 从候选数**推导**，不许手打。\n刚注册时窗口为空 ⇒ df=2 ⇒ 暂定 t_crit = 7.6488（`t_crit_provisional=true`）。\n\n## 判决对象\n\n本批预注册的判决对象**只有 ①**。②③ 是对照臂，只用来读 ① 的解释，\n**不**做「谁更好」的判决（K 不同 ⇒ 独立周期数不同 ⇒ 跨臂比 t 是两个不同量的比）。\n三臂全部测不出方向时的写法、以及四条失败分支，写在\n`docs/PREREG_FORWARD_BATCH5_2026-10-20.md` §5。\n\n## 仍不能回答的\n\n① 不晋级（前瞻验证只裁决）；② 不能回答年化能否到 20%（前瞻底稿是逐笔收益，\n没有净值/年化字段）；③ 不能回答 ②③ 谁更好；\n④ ② 没有任何可引用的历史证据（`k_sweep_summary.json` 判 stale）；\n⑤ 不能把 ① 的显著当成「实盘已验收」（实盘权重 `caveat_kind=\"unraced\"`）。\n",
+    "evidence": "aplus/factor.py:61 DEFAULT_WEIGHTS + aplus/evolve.py:79 LIVE_REBALANCE_EVERY + aplus/evolve.py:275 load_weights 的回落分支（data/reports/weights.json 不存在 ⇒ source=fallback、caveat_kind=unraced） / data/reports/verification.parquet（160 行 / 8 出单日 / 6 独立成交窗口） / data/reports/score_ranking_power.json（::verdict=NOT_PASSED_POWERLESS，::by_score_col.score.arms.up._stats.null_abs_rho_q95_power_floor=0.2647） / aplus/hurdle.py::rounds_per_year + COST_REAL_50K（成本算术 244/k、0.0055） / aplus/rebalance.py:43 BUFFER_MULTIPLE / docs/PREREG_FORWARD_BATCH5_2026-10-20.md（预注册）",
+    "candidates": [
+      {
+        "weights": {
+          "mom20": -1.0,
+          "rev5": 0.3,
+          "vol20": -0.5,
+          "vsur": -0.5
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -1.0,
+          "rev5": 0.3,
+          "vol20": -0.5,
+          "vsur": -0.5
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "mom20": -1.0,
+          "rev5": 0.3,
+          "vol20": -0.5,
+          "vsur": -0.5
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": 3.0
+      }
+    ],
+    "sealed_sha256": "dee2900fb2a5480ee8e79267316eedad07734bd67a7cee3748665169d4ad82bb"
   }
 ]
