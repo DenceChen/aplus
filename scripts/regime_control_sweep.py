@@ -250,6 +250,14 @@ def sweep(xs, start: str, end: str, label: str) -> list[dict]:
 
 
 def main() -> int:
+    # 第 125 层：`stamp()` 只证明「盖章那一刻盘上的字节」，
+    # 而这份产物要跑几十分钟。⇒ **开跑时**先抓一次字节哈希，
+    # 写盘那一刻对不上就**拒盖**（那枚章会变成反向的错误证据）。
+    # 🚨 **必须落在 `main()` 的第一条可执行语句**（第 131 层）：放在
+    # `parse_args()` 之后就晚了一拍 —— 那几行里若盘上的字节被换掉，
+    # 盖出来的章指的是**另一份**字节。`benchmark_annual_term.py` 已是这个形状。
+    expect = provenance.code_file_sha256(ROOT, "scripts/regime_control_sweep.py")
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--start", default="2019-01-02")
@@ -263,11 +271,6 @@ def main() -> int:
     ap.add_argument("--reuse", action="store_true",
                     help="复用已盖章且窗口匹配的缓存。**默认重建**")
     args = ap.parse_args()
-
-    # 第 125 层：`stamp()` 只证明「盖章那一刻盘上的字节」，
-    # 而这份产物要跑几十分钟。⇒ **开跑时**先抓一次字节哈希，
-    # 写盘那一刻对不上就**拒盖**（那枚章会变成反向的错误证据）。
-    expect = provenance.code_file_sha256(ROOT, "scripts/regime_control_sweep.py")
 
     xs = _panel(args.data_root, args.cache, args.reuse,
                start=args.start, end=args.end)

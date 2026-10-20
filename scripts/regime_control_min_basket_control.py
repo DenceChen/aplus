@@ -315,6 +315,14 @@ def _sha(rel: str) -> str:
 
 
 def main(argv=None) -> int:
+    # 第 125 层：`stamp()` 只证明「盖章那一刻盘上的字节」，而这份产物要跑几十分钟。
+    # ⇒ **开跑时**先抓一次字节哈希，写盘那一刻对不上就**拒盖**
+    # （那枚章会变成**反向的错误证据**）。
+    # 🚨 **必须落在 `main()` 的第一条可执行语句**（第 131 层）：
+    # 放在 `parse_args()` 之后就晚了一拍 —— 那几行里若盘上的字节被换掉，
+    # 盖出来的章指的是**另一份**字节。
+    expect = provenance.code_file_sha256(ROOT, GENERATOR)
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data-root", type=Path, default=ROOT / "data")
     ap.add_argument("--start", default="2021-01-04")
@@ -333,8 +341,6 @@ def main(argv=None) -> int:
     cache = args.cache.with_name(f"{args.cache.stem}_{args.start}_{args.end}.pkl")
 
     t0 = time.time()
-    # 第 125 层：开跑时抓一次字节哈希，写盘那一刻对不上就拒盖。
-    expect = provenance.code_file_sha256(ROOT, GENERATOR)
     xs = _panel(args.data_root, cache, args.reuse, start=args.start, end=args.end)
     dates = sorted(d for d in xs["_dates"] if args.start <= d <= args.end)
     print(f"对照臂重放 K={args.k}｜{len(dates)} 个交易日｜{time.time()-t0:.0f}s",
