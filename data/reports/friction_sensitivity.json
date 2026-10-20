@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T11:00:59",
+  "generated_at": "2026-10-21T02:29:18",
   "question": "摩擦本身会不会先吃掉 20% 净收益目标",
   "config": {
     "capital": 50000.0,
@@ -7,9 +7,9 @@
     "equity_weight": 1.0,
     "position_role": "🚨 **D1 的「跌的 10 只」只能是回避清单，不是空头仓位。**两融开户门槛是 20 个交易日日均资产 50 万元，5 万账户**开不了信用账户**⇒ 从制度上就无从融券。`aplus/verify.py` 的实现与此一致（「跌腿不扣成本：它是我们没做过的仓位」）。",
     "R_days_per_year": 244,
-    "LIVE_REBALANCE_EVERY": 21,
-    "rebalances_per_year_exact": 11.619048,
-    "rebalances_per_year_NOT_rounded_note": "round() 会得到 12，使摩擦虚高 3.28%。本文件全程用精确值。",
+    "LIVE_REBALANCE_EVERY": 63,
+    "rebalances_per_year_exact": 3.873016,
+    "rebalances_per_year_NOT_rounded_note": "round() 会得到 4，使摩擦虚高 3.28%。本文件全程用精确值。",
     "commission_min_yuan": 5.0,
     "commission_min_binds_below_yuan": 16666.666666666668,
     "why_min_commission_matters": "5 万 ÷ 10 只 = 每只 5,000 元，远低于最低佣金咬住线 ¥16,667 ⇒ 单腿佣金按 ¥5 收，实际费率是名义费率的数倍。这是小资金的**主**成本来源，不是价差。"
@@ -27,75 +27,75 @@
   "sensitivity": [
     {
       "round_trip_spread_bp": 0.0,
-      "annual_friction_on_capital": 0.02928,
-      "annual_friction_on_equity": 0.02928,
-      "gross_needed_for_net_20pct": 0.22928,
+      "annual_friction_on_capital": 0.00976,
+      "annual_friction_on_equity": 0.00976,
+      "gross_needed_for_net_20pct": 0.20976,
       "is_production": false,
       "role": "无价差下界（纯费率+最低佣金）"
     },
     {
       "round_trip_spread_bp": 15.0,
-      "annual_friction_on_capital": 0.046709,
-      "annual_friction_on_equity": 0.046709,
-      "gross_needed_for_net_20pct": 0.246709,
+      "annual_friction_on_capital": 0.01557,
+      "annual_friction_on_equity": 0.01557,
+      "gross_needed_for_net_20pct": 0.21557,
       "is_production": false,
       "role": "敏感性格线点"
     },
     {
       "round_trip_spread_bp": 30.0,
-      "annual_friction_on_capital": 0.064137,
-      "annual_friction_on_equity": 0.064137,
-      "gross_needed_for_net_20pct": 0.264137,
+      "annual_friction_on_capital": 0.021379,
+      "annual_friction_on_equity": 0.021379,
+      "gross_needed_for_net_20pct": 0.221379,
       "is_production": true,
       "role": "生产口径"
     },
     {
       "round_trip_spread_bp": 40.0,
-      "annual_friction_on_capital": 0.075756,
-      "annual_friction_on_equity": 0.075756,
-      "gross_needed_for_net_20pct": 0.275756,
+      "annual_friction_on_capital": 0.025252,
+      "annual_friction_on_equity": 0.025252,
+      "gross_needed_for_net_20pct": 0.225252,
       "is_production": false,
       "role": "⚠️ 外部对照臂（2026-10-16 调研给出的滑点区间，非实测）"
     },
     {
       "round_trip_spread_bp": 60.0,
-      "annual_friction_on_capital": 0.098994,
-      "annual_friction_on_equity": 0.098994,
-      "gross_needed_for_net_20pct": 0.298994,
+      "annual_friction_on_capital": 0.032998,
+      "annual_friction_on_equity": 0.032998,
+      "gross_needed_for_net_20pct": 0.232998,
       "is_production": false,
       "role": "敏感性格线点"
     },
     {
       "round_trip_spread_bp": 100.0,
-      "annual_friction_on_capital": 0.14547,
-      "annual_friction_on_equity": 0.14547,
-      "gross_needed_for_net_20pct": 0.34547,
+      "annual_friction_on_capital": 0.04849,
+      "annual_friction_on_equity": 0.04849,
+      "gross_needed_for_net_20pct": 0.24849,
       "is_production": false,
       "role": "⚠️ 外部对照臂（2026-10-16 调研给出的滑点区间，非实测）"
     },
     {
       "round_trip_spread_bp": 147.0,
-      "annual_friction_on_capital": 0.20008,
-      "annual_friction_on_equity": 0.20008,
-      "gross_needed_for_net_20pct": 0.40008,
+      "annual_friction_on_capital": 0.066693,
+      "annual_friction_on_equity": 0.066693,
+      "gross_needed_for_net_20pct": 0.266693,
       "is_production": false,
       "role": "敏感性格线点"
     },
     {
       "round_trip_spread_bp": 204.0,
-      "annual_friction_on_capital": 0.266309,
-      "annual_friction_on_equity": 0.266309,
-      "gross_needed_for_net_20pct": 0.466309,
+      "annual_friction_on_capital": 0.08877,
+      "annual_friction_on_equity": 0.08877,
+      "gross_needed_for_net_20pct": 0.28877,
       "is_production": false,
       "role": "⚠️ 外部对照臂（2026-10-16 调研给出的滑点区间，非实测）"
     }
   ],
   "breakeven": {
     "definition": "使年化摩擦恰好等于 20% 的往返价差 bp",
-    "round_trip_spread_bp": 146.931,
+    "round_trip_spread_bp": 491.193,
     "production_bp": 30.0,
-    "headroom_multiple": 4.9,
-    "reading": "生产口径往返 30bp ⇒ 摩擦 6.41%，毛须给出 26.41%。摩擦吃光 20% 目标的临界价差是 147bp，即生产假设有 **4.9 倍**余量。"
+    "headroom_multiple": 16.37,
+    "reading": "生产口径往返 30bp ⇒ 摩擦 2.14%，毛须给出 22.14%。摩擦吃光 20% 目标的临界价差是 491bp，即生产假设有 **16.4 倍**余量。"
   },
   "what_this_does_not_say": {
     "does_not_say_real_friction": "本文件不给「真实摩擦是多少」。真实值需要实测滑点，本文件没有实测。敏感性表的每一行都是一个**假设**，不是一个测量。",

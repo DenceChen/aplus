@@ -30,7 +30,7 @@
   "n_skipped_resume": 8736,
   "quota_stopped": false,
   "max_calls_gate": 15000,
-  "seconds": 0.010871171951293945,
+  "seconds": 0.5525310039520264,
   "per_call_mean_s": 0.17322998371098067,
   "per_call_mean_s_source": "previous_run_carried_forward",
   "per_call_max_s": 0.0,

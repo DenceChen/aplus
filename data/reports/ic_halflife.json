@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-16T11:01:00",
+  "generated_at": "2026-10-21T02:29:47",
   "what_this_is": "IC 序列自相关半衰期（Kahn 1999 定义）；**不是**前瞻收益衰减半衰期",
   "source": "data/reports/ic_matrices.parquet",
   "source_window": "lag1_real = FWD_WINDOWS[(0,1)]（1 交易日前瞻）",
@@ -11,7 +11,7 @@
   "caliber_note": "sf__ = 两端排名的 Spearman IC（进判决口径）；sfP__ = 原始值 Pearson，仅对照，未用于本测量",
   "preregistered_criterion": {
     "external_anchors": {
-      "LIVE_REBALANCE_EVERY": 21,
+      "LIVE_REBALANCE_EVERY": 63,
       "k_sweep_grid": [
         5,
         10,

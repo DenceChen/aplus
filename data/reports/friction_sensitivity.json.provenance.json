@@ -1,16 +1,16 @@
 {
-  "code_sha": "cd3905cb913258ec605ff35bc2035256b70265aa",
+  "code_sha": "3b546e9b76201d34ab4b73a7e9c8c7da7c092bba",
   "code_dirty": true,
   "code_file_sha256": "39d343fca3d029fbc3b7f4e1b6bd4405aef8957e5fd8e08dd132f16a029875c3",
-  "data_fp": "5460:1792062762.291641",
+  "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/friction_sensitivity.py",
-  "stamped_at": "2026-10-16T03:00:59+00:00",
+  "stamped_at": "2026-10-20T18:29:18+00:00",
   "data_fp_applicability": "data_fp 不适用：friction_sensitivity.py 零数据输入（不读任何 parquet、不读任何已落盘产物）。它的全部输入是仓内代码常量，见 constant_sources_sha256。换言之它没有数据可陈旧，但有字节可漂移——后者已逐个登记。",
   "constant_sources_sha256": {
     "aplus/costs.py": "0df17f1f931fb74b59557c552bd3ad8238db6250c4fa923637f2be1c42bff3e6",
-    "aplus/evolve.py": "4f74e801dc2ced753b53812608fa883e60eacccca6647ae9e655e333db466e6a",
-    "scripts/measure_basket_nav_01.py": "81755f3b137e06fd91b9cc870ee86a1be82ac858ad188ef84a386c80623c4c2e"
+    "aplus/evolve.py": "4236780dfc2296226bc23c35d69cca6b62a261e46b116ab98caf153d43264c30",
+    "scripts/measure_basket_nav_01.py": "da8bb11846105d102af6d12db5ab164118de0bbde46c0c43fe664782424b98a7"
   },
   "constant_sources_what": {
     "aplus/costs.py": "FeeSchedule.spread_one_way / COMMISSION_MIN / COMMISSION_MIN_BINDS_BELOW",
