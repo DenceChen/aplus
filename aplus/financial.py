@@ -94,6 +94,12 @@ def normalize_financial(df: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
+#: 股票标识列的候选名。财务源历史上叫过好几种：
+#: `SECUCODE`（东财带后缀，如 `600519.SH`）、`SECURITY_CODE`（6 位纯数字）、
+#: `code`（平台内部口径）。**只用来判断一个帧是单票还是多票**，不是改主键。
+_STOCK_KEY_CANDIDATES = ("SECUCODE", "SECURITY_CODE", "code")
+
+
 def visible_as_of(df: pd.DataFrame, as_of) -> pd.DataFrame:
     """**因子对齐的唯一入口**：返回 `as_of` 当天已经公开的报告期。
 
@@ -104,14 +110,25 @@ def visible_as_of(df: pd.DataFrame, as_of) -> pd.DataFrame:
     同一报告期若有重复披露日，取最后一条（`keep="last"`）——
     注意源里通常**没有**重复（§1.5.1 实测 `REPORT_DATE` 重复数 = 0），
     这里只是防御。
+
+    🚨 **去重的键必须含股票键（帧里有才带）。**
+    原来只按 `REPORT_DATE` 去重 ⇒ **同一报告期的所有股票行被塌成 1 行**：
+    实测 `financial_annual_cache.parquet`（9,329 行 / **500 只票** / 38 个报告期）
+    过这个函数后只剩 **38 行** ⇒ **多股票横截面直接消失**。
+    那个函数当时**没有任何生产调用方**（只有测试在用），而测试夹具
+    （`tests/test_financial_lookahead.py::_raw`）**本身就是多票的**
+    （600519 + 000001）却**报告期各不相同** ⇒ **测试是碰巧过的**。
+    ⇒ 现在按 (股票键, REPORT_DATE) 去重；单票帧（没有股票键列）行为**逐位不变**。
     """
     if df.empty:
         return df.copy()
     aligned = df[ALIGN_DATE_COL]
     mask = aligned.notna() & (aligned <= pd.Timestamp(as_of))
     out = df.loc[mask]
+    key_cols = [c for c in _STOCK_KEY_CANDIDATES if c in out.columns]
+    subset = [key_cols[0], REPORT_DATE_COL] if key_cols else [REPORT_DATE_COL]
     return out.sort_values(ALIGN_DATE_COL).drop_duplicates(
-        subset=[REPORT_DATE_COL], keep="last"
+        subset=subset, keep="last"
     ).reset_index(drop=True)
 
 

@@ -310,3 +310,60 @@ def test_audited_modules_are_not_in_factor_path_list():
     """
     overlap = set(AUDITED_MODULES) & set(FACTOR_PATH_MODULES)
     assert not overlap, f"模块同时被豁免和被扫描：{overlap}"
+
+
+# ── 多股票横截面：去重键必须带股票键（2026-10-20）────────────────────────
+#
+# 🚨 原来 `visible_as_of` 只按 `REPORT_DATE` 去重 ⇒ **同一报告期的所有股票行
+# 被塌成 1 行**。实测 `financial_annual_cache.parquet`（9,329 行 / 500 只票 /
+# 38 个报告期）过这个函数后只剩 38 行 ⇒ **多股票横截面直接消失**。
+# 而那批测试**本身就是多票的**（`_raw()` 里 600519 + 000001）却**报告期各不相同**
+# ⇒ **测试是碰巧过的** —— 这正是「恒真的守卫」那一族。
+
+
+def _multi_stock_raw() -> pd.DataFrame:
+    """**同一报告期**、**多只票**、且**多票同报告期**（横截面被塌掉的那种形态）。"""
+    return pd.DataFrame({
+        "SECURITY_CODE": ["600519", "000001", "600519", "000001"],
+        "REPORT_DATE": ["2020-12-31", "2020-12-31", "2021-12-31", "2021-12-31"],
+        "REPORT_TYPE": ["年报", "年报", "年报", "年报"],
+        "NOTICE_DATE": ["2021-04-27", "2021-04-28", "2022-03-16", "2022-03-17"],
+        "UPDATE_DATE": ["2021-04-27", "2021-04-28", "2022-03-16", "2022-03-17"],
+        "ROEJQ": [33.55, 12.40, 29.86, 11.90],
+    })
+
+
+def test_visible_as_of_keeps_every_stock_of_a_shared_report_period():
+    """**同一报告期的多只票必须全部留下** —— 塌成一行就是横截面消失。"""
+    out = visible_as_of(normalize_financial(_multi_stock_raw()), "2021-06-01")
+    assert len(out) == 2, f"2020 年报的两只票应当都在，塌成 {len(out)} 行 ⇒ 横截面消失"
+    assert set(out["SECURITY_CODE"]) == {"600519", "000001"}, (
+        "同一报告期的两只票被去重成了一只"
+    )
+
+
+def test_visible_as_of_dedups_within_a_single_stock_only():
+    """同一只票、同一报告期、重复披露日 ⇒ 仍取最后一条（防御性去重不许丢）。"""
+    raw = _multi_stock_raw()
+    dup = pd.concat([raw, raw[raw["REPORT_DATE"] == "2020-12-31"].assign(
+        NOTICE_DATE="2021-05-01", ROEJQ=99.99)], ignore_index=True)
+    out = visible_as_of(normalize_financial(dup), "2021-06-01")
+    for code in ("600519", "000001"):
+        sub = out[out["SECURITY_CODE"] == code]
+        assert len(sub) == 1, f"{code} 的 2020 年报应只剩一条（取最后披露日），实得 {len(sub)}"
+    assert (out.loc[out["SECURITY_CODE"] == "600519", "ROEJQ"] == 99.99).all(), (
+        "同一只票同一报告期，应保留**最后**披露的那条"
+    )
+
+
+def test_visible_as_of_on_a_single_stock_frame_is_unchanged():
+    """**没有股票键列**的帧（纯单票时间序列）⇒ 行为与原来**逐位相同**。
+
+    ⚠️ 期望是 **2 行**不是 3：`_raw()` 的 2021 年报 `NOTICE_DATE` = 2022-03-16
+    晚于 `as_of=2021-06-01` ⇒ 本来就不该可见。**这条断言是改代码前就该成立的**
+    （旧实现在这个帧上也是 2 行）⇒ 它证明的是「单票路径没被改」。
+    """
+    raw = _raw().drop(columns=["SECURITY_CODE"])
+    out = visible_as_of(normalize_financial(raw), "2021-06-01")
+    assert "2020-12-31" in set(out[REPORT_DATE_COL].dt.strftime("%Y-%m-%d"))
+    assert len(out) == 2, f"as_of=2021-06-01 时应只剩 2019/2020 两个报告期，实得 {len(out)} 行"
