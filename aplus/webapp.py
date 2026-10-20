@@ -151,6 +151,22 @@ def _live_holdings_payload(reports_dir) -> dict:
         None if not isinstance(every, int) or not isinstance(days, int) or every < 1
         else max(int(every) - int(days), 0)
     )
+    # 🚨 2026-10-21：状态文件里的 `every` 是**上一次运行实际执行的频率**，
+    # 而实盘常量可能已经改了（2026-10-21：21 → 63）。
+    # ⇒ 不一致时**页面必须说出来**，否则同一个页面上会出现
+    # 「持仓状态：每 21 个交易日换一次仓」与「实盘按每 63 个交易日换仓」
+    # **两个互相矛盾的数**（实测：切换当天就是这样）。
+    # ⇒ 且这不是「等下就一致」的小事：`aplus/live_rebalance.py::is_due`
+    # 把「配置变了」当作**该调仓**（旧持仓是按旧配置挑的，继续拿着
+    # 就是拿一套策略的仓位去跑另一套策略）⇒ **下一次运行会立刻调仓**。
+    live_every = int(LIVE_REBALANCE_EVERY)
+    out["live_rebalance_every"] = live_every
+    out["every_matches_live"] = (every == live_every)
+    out["every_mismatch_note"] = (
+        None if out["every_matches_live"] else
+        f"持仓状态记录的是 K={every}，而实盘已改成 K={live_every}"
+        f" ⇒ **下一次运行会立刻调仓**"
+        f"（`is_due` 把「配置变了」当作该调仓）")
     return out
 
 

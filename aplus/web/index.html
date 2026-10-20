@@ -2080,6 +2080,17 @@ function renderHeld(live) {
     ? (left === 0 ? `<b>今天就是换仓日</b>` : `还有 <b>${left}</b> 个交易日换仓`)
     : `距上次换仓 <b>${days ?? '?'}</b> 天（换仓周期读不出来）`;
 
+  /* 🚨 2026-10-21：持仓状态里的 `every`（上一次运行**实际执行**的频率）
+     与实盘常量可能**不一致**（切换当天就是：状态记 21、实盘已改 63）
+     ⇒ 不说出来，同一个页面上会出现两个**互相矛盾**的换仓周期。
+     ⚠️ 而且这不是「等下就一致」的小事：
+     `aplus/live_rebalance.py::is_due` 把「配置变了」当作**该调仓**
+     （旧持仓是按旧配置挑的，继续拿着 = 拿一套策略的仓位去跑另一套策略）
+     ⇒ **下一次运行会立刻调仓**。 */
+  const cadenceMismatch = (live.every_matches_live === false)
+    ? `<div class="held-why danger">⚠️ <b>${esc(live.every_mismatch_note || '换仓周期与实盘不一致')}</b></div>`
+    : '';
+
   /* `reason` 必须逐字显示。它带着「回落默认权重未经赛马验证 / 上一版排 81/87 名、
      t=−3.03」这类字样，压成布尔就等于把「测过且是坏的」说成「没测过」。 */
   const why = live.reason
@@ -2105,6 +2116,7 @@ function renderHeld(live) {
     <div class="held-top">
       <b>你现在持有 ${upCodes.length} 只</b>
       <span>${cadence} · ${countdown}</span>
+      ${cadenceMismatch}
       <span style="color:var(--faint)">${heldWhen}</span>
     </div>
     ${why}
