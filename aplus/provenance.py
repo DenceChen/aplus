@@ -567,6 +567,7 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "bm_ic_attribution_reduced_2026-10-21.json": "scripts/bm_ic_attribution.py",
     # 每晚复盘产物（最新 + 每日归档）
     "daily_review.json": "scripts/daily_review.py",
+    "dividend_lowvol_longleg.json": "scripts/measure_dividend_lowvol_longleg.py",
 }
 
 #: 文件名**模式** → 生成模块。逐档产物是同一模块的第 6~10 份输出；
@@ -587,6 +588,14 @@ PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     #      **散文里的公式没有守卫**的变体：留着一句没人能验的宣称）。
     (re.compile(r"^cap_weighted_benchmark_n\d+_k\d+\.json$"),
      "scripts/cap_weighted_benchmark.py"),
+    # 2026-10-21 登记：持仓级降级预警（`holdings_alert_<信号日>.json`）。
+    # 走**模式表**而不是精确表：文件名带日期（每天一份）⇒ 枚举写法下
+    # **新增一天就又漏登记**（CLAUDE.md 形状 17）。
+    # 🚨 不登记的后果同上一条：`resolve_generator()` 返 `None` ⇒
+    #   `freshness()` 判 `unknown`（= 不许引用），而「不可引用」与
+    #   「数据坏了」长得一模一样（形状 16：盖一个解析不出生成器的章比不盖更坏）。
+    (re.compile(r"^holdings_alert_\d{4}-\d{2}-\d{2}\.json$"),
+     "scripts/measure_holdings_alert.py"),
 ]
 
 
