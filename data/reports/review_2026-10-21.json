@@ -1,0 +1,148 @@
+{
+  "generated_at": "2026-10-21T00:51:17",
+  "review_date": "2026-10-21",
+  "questions": {
+    "q1_what_can_the_user_open_today": "data/reports/predictions/（今日名单 up 10 / down 10） + data/reports/basket_nav_01_2026-10-16.json::tiers[1].cagr = 0.10556283216930074",
+    "q2_how_far_from_20pct": "11.655854851067353 pp（5 万可交付档）"
+  },
+  "d1": {
+    "delivered": true,
+    "notes": [
+      "当天（2026-10-21）没有 pred_*.parquet ⇒ 回落到 pred_2026-10-20.parquet"
+    ],
+    "run_status": {
+      "date": "2026-10-20",
+      "status": "ok",
+      "outcome": "ok",
+      "outcome_reason": "全部步骤跑完，名单已发布。",
+      "at": "data/reports/run_status.json::date/status/outcome/outcome_reason"
+    },
+    "list": {
+      "file": "data/reports/predictions/pred_2026-10-20.parquet",
+      "is_the_review_date": false,
+      "fallback_note": "⚠️ **当天没有名单文件**，这里用的是最新的一份 ⇒ **不是当天的交付**（不同时刻的观测不是同一个事实）",
+      "rows": 20,
+      "up": 10,
+      "down": 10,
+      "shape_ok_10_10": true
+    },
+    "sample": {
+      "n_independent_windows": {
+        "value": 6,
+        "at": "n_independent_windows"
+      },
+      "overall_hit_rate": {
+        "value": 0.5612903225806452,
+        "at": "overall_hit_rate"
+      },
+      "n_predictions": {
+        "value": 160,
+        "at": "n_predictions"
+      },
+      "note": "W（独立成交窗口）是 D1 的验收分母；W < 10 ⇒ 不许报命中率结论（DELIVERY_DECISIONS §4）"
+    },
+    "gate": {
+      "verdict": {
+        "value": "NOT_PASSED_POWERLESS",
+        "at": "verdict"
+      },
+      "publish_allowed": {
+        "value": false,
+        "at": "publish_allowed"
+      },
+      "power_floor_up": {
+        "value": 0.26471470167240035,
+        "at": "by_score_col::score::arms::up::_stats::null_abs_rho_q95_power_floor"
+      },
+      "note": "判决臂是 up（GATE_ARM）；down 是并列报告，非闸门。POWERLESS = 测不出，**不是**「打分没有排序力」"
+    }
+  },
+  "d2": {
+    "notes": [],
+    "verdict_arm": {
+      "what": "判决档（满仓 / 涨腿 10 只 / 8 因子逐年 IC 定权）",
+      "cagr": {
+        "value": 0.10556283216930074,
+        "at": "tiers::1::cagr"
+      },
+      "mde_annual": {
+        "value": 0.22673751360772554,
+        "at": "verdict_mde_annual"
+      },
+      "upper_one_sided_95": {
+        "value": 0.3323003457770263,
+        "at": "verdict_upper_one_sided_95"
+      },
+      "target": {
+        "value": 0.2,
+        "at": "target"
+      },
+      "at": "data/reports/basket_nav_01_2026-10-16.json"
+    },
+    "verdict_cases_fired": [
+      "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+      "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.56% 低于目标，但 95% 上界 +33.23% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+    ],
+    "deliverable_50k": {
+      "what": "5 万可交付档（宽度 10、满仓、真实摩擦）",
+      "account_annual_at_50k_pct": {
+        "value": 8.344145148932647,
+        "at": "headline::account_annual_ceiling_pct::at_deliverable_width_and_50k"
+      },
+      "gap_to_target_pp": {
+        "value": 11.655854851067353,
+        "at": "headline::account_annual_ceiling_pct::gap_to_target_at_deliverable_width_and_50k_pp"
+      },
+      "required_gross_at_50k_deliverable": {
+        "value": 15.55710793961524,
+        "at": "headline::required_gross_at_50k_deliverable"
+      },
+      "measured_gross_at_deliverable_width": {
+        "value": 4.810755920048621,
+        "at": "headline::measured_gross_best::at_deliverable_width"
+      },
+      "at": "data/reports/d2_signal_requirement.json::headline"
+    }
+  },
+  "commits": {
+    "counts": {
+      "交付": 1,
+      "手段": 1,
+      "收尾": 1,
+      "未归类": 0
+    },
+    "total": 3,
+    "drift_rate": 0.3333333333333333,
+    "drift_rate_note": "跑偏率 = 收尾档 / 当天总提交数（DELIVERY_GATE §6 的字面公式）；目标 < 40%",
+    "drift_rate_over_classified": 0.3333333333333333,
+    "drift_rate_over_classified_note": "跑偏率 = 收尾档 / **已归类**提交数。与上面的字面公式并列 ⇒ 归不出档的老提交不再稀释读数。",
+    "items": [
+      {
+        "sha": "f26ea5a1",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 5 万账户的 edge 清单调研 —— 下一轮指向「红利/低波长持篮子」，并排除 10 条族"
+      },
+      {
+        "sha": "7f21a3b5",
+        "class": "收尾",
+        "subject": "收尾: 口径台账增补 —— 本轮新增的四个口径只登记路径，并记下 D1 发布闸的 P0 方向修正"
+      },
+      {
+        "sha": "b03fe2b7",
+        "class": "交付",
+        "subject": "交付: 转债侧的 5 万账户读数 —— 绕开了「整手买不起」，没绕开「测不出」"
+      }
+    ]
+  },
+  "honest_boundaries": [
+    "本复盘只回答 §3 的两问；它**不评价**做得对不对。",
+    "D2 的数**不是点估计**：|c| < M ⇒ 连符号都定不了 ⇒ **不许**说「接近」也不许说「达不到」。",
+    "D1 的命中率在 W < 10 时**不许报**（W = 独立成交窗口，不是条目数）。",
+    "「收尾」档提交不计入进展（§4 绿灯作废清单）⇒ 跑偏率是**防跑偏**的读数，**不是**成就。",
+    "提交归类**只读标题首词**；归不出档就记「未归类」，不替它归档。"
+  ],
+  "vs_previous": {
+    "has_previous": false,
+    "note": "没有上一份复盘 ⇒ 本轮是基线，不许说「缺口变了」"
+  }
+}
