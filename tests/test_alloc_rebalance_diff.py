@@ -93,7 +93,7 @@ def test_the_three_actions_appear_and_match_the_holdings():
     `set(remove) == set(当前持仓) − set(目标)`。
     """
     plan = build_allocation(_ups(TARGET), capital=50_000,
-                            current_positions=_current())
+                            current_positions=_current(), is_rebalance_day=True)
     by_action = {a: {r["code"] for r in plan.rebalance if r["action"] == a}
                  for a in ("keep", "add", "remove")}
     assert by_action["keep"] == {"001309.SZ", "688110.SH"}
@@ -111,12 +111,12 @@ def test_the_source_tells_whether_the_diff_was_computed():
     没传当前持仓 ⇒ keep/remove 结构上不可能出现 ⇒ 差异**不可信**。
     产物里没有这个标记时，前端无法区分「全要买」与「没算过」。
     """
-    without = build_allocation(_ups(TARGET), capital=50_000)
+    without = build_allocation(_ups(TARGET), capital=50_000, is_rebalance_day=True)
     assert without.rebalance_source == "none"
     assert {r["action"] for r in without.rebalance} == {"add"}
 
     with_current = build_allocation(_ups(TARGET), capital=50_000,
-                                    current_positions=_current())
+                                    current_positions=_current(), is_rebalance_day=True)
     assert with_current.rebalance_source == "current_positions"
 
 
@@ -127,7 +127,7 @@ def test_an_explicitly_empty_book_is_not_the_same_as_not_passing_one():
     不传 ⇒ 差异没算 ⇒ source='none'。
     ⇒ 这里用 `is not None` 判「有没有传」，不靠真假值。
     """
-    plan = build_allocation(_ups(TARGET), capital=50_000, current_positions=[])
+    plan = build_allocation(_ups(TARGET), capital=50_000, current_positions=[], is_rebalance_day=True)
     assert plan.rebalance_source == "current_positions"
     assert {r["action"] for r in plan.rebalance} == {"add"}
 
@@ -140,7 +140,7 @@ def test_weight_is_a_ratio_and_amount_is_the_money():
     写反了不会崩、不会少字段，只会让用户按 0.1 元去买 5000 元的票。
     """
     plan = build_allocation(_ups(TARGET), capital=50_000,
-                            current_positions=_current())
+                            current_positions=_current(), is_rebalance_day=True)
     for r in plan.rebalance:
         if r["action"] == "remove":
             # 被清掉的票：目标权重 0；金额**不在状态文件里** ⇒ 不编
@@ -155,7 +155,7 @@ def test_weight_is_a_ratio_and_amount_is_the_money():
 def test_every_rebalance_row_carries_the_full_five_fields():
     """前端要照 `code/name/action/weight/amount` 五个名字写 ⇒ 一个都不能缺。"""
     plan = build_allocation(_ups(TARGET), capital=50_000,
-                            current_positions=_current())
+                            current_positions=_current(), is_rebalance_day=True)
     for r in plan.rebalance:
         assert set(r) == {"code", "name", "action", "weight", "amount"}, r
         assert r["action"] in {"keep", "add", "remove"}

@@ -24,6 +24,20 @@ UNJUDGEABLE_HALT = "halt"
 # 该标记在判定档里的**列名**。
 UNJUDGEABLE_REASON = "unjudgeable_reason"
 
+# 判定档里记「这一行是用哪套**信号**产生的」的那一列的列名。
+#
+# 🚨 **与 `aplus.reports.WEIGHTS_HASH_COLUMN` 不是一回事**：过滤只改池、
+# 不改权重 ⇒ 权重指纹**逐位相同** ⇒ 它**区分不了**信号变了。
+#
+# ⚠️ 这里**独立定义**而不是 `from .reports import ...`：
+# `aplus/reports.py` **import 本模块**（`from .verify import UNJUDGEABLE_REASON`）
+# ⇒ 反向 import 会成环（第 189 层：两份副本之间没有守卫 ⇒
+# 同一个列名在两处各写一遍，改一处就静默分叉）。
+# ⇒ 这里与 `aplus/reports.py` 的同名常量**逐字相同**，
+# 由 `tests/test_production_config_2026_10_21.py::test_the_signal_id_column_name_is_identical_in_both_modules`
+# 钉住（两处**必须**相等）。
+SIGNAL_ID_COLUMN = "signal_id"
+
 
 def classify_no_data(stock_max: str | None, store_max: str | None,
                      required_entry: str, required_exit: str) -> str | None:
@@ -171,8 +185,27 @@ def last_two_bars(store, code: str, factors_map: dict | None = None,
 
 def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
                        require_cost: bool = False,
-                       default_cost: float | None = None) -> pd.DataFrame:
+                       default_cost: float | None = None,
+                       signal_id: str | None = None) -> pd.DataFrame:
     """批量验证：next_day_bars 需含 code/close/prev_close（买价 / 卖价）。
+
+    ## `signal_id`：**带进**验证行（2026-10-21）
+
+    底稿 `verification.parquet` 是**追加式**的 ⇒ 可买性过滤落地后，
+    同一本底稿里会**同时**装着两个信号产生的行
+    ⇒ 「这个打分器有没有排序力」必须**只问当前信号的行**
+    ⇒ 每一行必须记住**自己是用哪套信号产生的**。
+
+    ⚠️ **既有行不许回填**（追加式纪律）：历史行**没有** `signal_id`
+    ⇒ 下游读到它们时**必须显式说「这些行不属于任何已知信号」**
+    （`scripts/signal_scope.py` 的归属状态：`MISSING_SIGNAL_ID_COLUMN` /
+    `NO_MATCHING_SIGNAL` ⇒ 不可判定，**不是**「没有排序力」；
+    老底稿没有该列时它退到 `weights_hash` **逐行**判归属
+    ⇒ `ATTRIBUTED_BY_WEIGHTS_HASH`）。
+
+    🚨 **不传 `signal_id` ⇒ 这一批行**没有**该列**
+    ⇒ 与「传了但值是空的」**同形**（都不可归属）⇒
+    两者都**不许**被读成「属于当前信号」。
 
     ## 输出契约：`actual_pct` 是**毛**收益，成本另立 `cost` 列
 
@@ -234,6 +267,14 @@ def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
     # 「恰好平盘」判成 miss，等于用手续费凭空造出方向判断。
     out["actual_pct"] = out["gross_pct"]
     out["result"] = out.apply(lambda row: judge(row, row["gross_pct"]), axis=1)
+    # ── `signal_id`：带进验证行（2026-10-21）────────────────────────
+    # 🚨 **已有该列就保留**（那是**逐行**的真相：每行记着自己是用哪套信号
+    # 产生的）⇒ 只有**整批都没有**时才用入参补上。
+    # 🚨 **两者都没有 ⇒ 这一批行没有该列** ⇒ 追加到底稿后旧行是 NaN、
+    # 新行是 NaN ⇒ **一律不可归属**（不许回落成「属于当前信号」）。
+    if SIGNAL_ID_COLUMN not in out.columns:
+        if signal_id is not None and str(signal_id).strip():
+            out[SIGNAL_ID_COLUMN] = str(signal_id).strip()
     return out
 
 

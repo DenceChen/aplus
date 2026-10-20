@@ -4,8 +4,22 @@
     predictions/pred_{date}.parquet   单文件含 up+down 两段（direction 列区分）
     verification.parquet              全部验证判定（追加式，唯一调参依据）
     allocation/alloc_{date}.json      每日资产配置方案
+
+## `signal_id`：前瞻证据的**分桶键**（2026-10-21）
+
+前瞻底稿 `verification.parquet` 是**追加式**的 ⇒ 同一本底稿里会**同时**装着
+**不同信号**产生的行 ⇒ 「这个打分器有没有排序力」必须**只问当前信号的行**。
+
+⚠️ `weights_hash` **证明力弱于**信号指纹：它只记**权重**，不记 `top_n`/`bottom_n`
+⇒ 同一组权重下不同宽度的名单会被混在一起
+⇒ `scripts/signal_scope.py` 的归属基准**优先 `signal_id`**，`weights_hash` 只是退路。
+
+`signal_fingerprint(config)` 与 `current_signal_id(reports_dir)` 是
+**唯一真相源**；`scripts/signal_scope.py` 只**调用**它们，不自己实现
+（第 97 层：两份副本之间没有守卫）。
 """
 import hashlib
+import inspect
 import json
 from pathlib import Path
 
@@ -15,6 +29,12 @@ from .verify import UNJUDGEABLE_REASON
 
 # 预测文件里那一列的名字：它记的是「本文件是用哪组权重排出来的」。
 WEIGHTS_HASH_COLUMN = "weights_hash"
+
+# 预测/验证文件里那一列的名字：它记的是「这一行是用哪套**信号**产生的」。
+#
+# 🚨 与 `WEIGHTS_HASH_COLUMN` **不是一回事**：权重不变而池子变了 ⇒
+# 权重指纹**逐位相同** ⇒ 它**不能**当信号身份。
+SIGNAL_ID_COLUMN = "signal_id"
 
 
 def _pred_path(reports_dir, pred_date: str) -> Path:
@@ -55,9 +75,106 @@ def weights_fingerprint(weights: dict | None) -> str | None:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
+# ── 信号指纹：前瞻证据的分桶键（2026-10-21）────────────────────────
+
+def signal_fingerprint(config: dict) -> str:
+    """信号配置的 8 位指纹。**配置变 ⇒ 指纹变** ⇒ 前瞻证据可按它分桶。
+
+    ## 契约（**逐字固定**，下游判据/测量脚本按它 import）
+
+    ```python
+    payload = json.dumps(config, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+    ```
+
+    `config` 的键**必须固定为这三个**（多一个少一个都会让指纹不可比）：
+
+    | 键 | 内容 |
+    |---|---|
+    | `weights` | 名单用的那组权重（dict） |
+    | `top_n` | 名单宽度（涨腿） |
+    | `bottom_n` | 名单宽度（跌腿） |
+
+    ## 🚨 为什么**只有**这三个（**配置层的参数一律不进**）
+
+    `signal_id` 回答的是「**这份名单是用哪套排名配置排出来的**」
+    ⇒ 它只该包含**影响排名**的东西。
+
+    - ⛔ **不含 `pool_filter`**：可买性过滤在**配置层**（`aplus/alloc.py`），
+      它决定「**买哪几只**」，**不决定「排第几」**
+      ⇒ 名单（10 涨 10 跌）**一个字都没变** ⇒ 它不是信号身份的一部分。
+    - ⛔ **不含 `n_positions`**：那是**账户层**（持仓几只），同理。
+
+    ⇒ 这带来一个**必须保住的后果**：敞口 5→10 只 + 加上可买性过滤，
+    **名单生成配置一个字没变** ⇒ **`signal_id` 逐位不变**
+    ⇒ **底稿里那 160 行仍然属于当前信号** ⇒ **D1 的 6 个窗口与验收时间线全部保住**。
+
+    ## 为什么用 `sort_keys=True`
+
+    指纹要在**跨进程、跨天**比较 ⇒ 必须与 dict 插入顺序无关
+    （与 `weights_fingerprint` 同一条纪律）。
+
+    ## 为什么 `default=str`
+
+    配置里可能出现 numpy 标量（`np.float64`）⇒ 不加 `default=str`
+    会在 `json.dumps` 处抛 `TypeError`。**宁可把它写成字符串**
+    （`"0.5"` 与 `"0.5"` 仍然稳定可比）也不要让整个指纹计算崩掉。
+
+    ## 8 位够吗
+
+    够用：它的用途是「**这一行属不属于当前信号**」的**布尔判定**，
+    不是密码学意义上的抗碰撞。32 位熵在单机的几千个信号里撞车概率可忽略。
+    """
+    payload = json.dumps(config, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+
+
+def current_signal_id(reports_dir, *, weights: dict | None = None,
+                      top_n: int | None = None,
+                      bottom_n: int | None = None) -> str:
+    """从**生产的真实配置**算当前信号 id。
+
+    ## 每个默认值的来源（**一律不许手打**）
+
+    | 参数 | 默认来源 |
+    |---|---|
+    | `weights` | `aplus.evolve.load_weights(reports_dir)`（实盘真正在用的那组） |
+    | `top_n` | `aplus.predict.build_predictions` 签名默认值 |
+    | `bottom_n` | `aplus.predict.build_predictions` 签名默认值 |
+
+    🚨 **配置层的东西一律不在这里**（`pool_filter` / `n_positions`）
+    ⇒ 见 `signal_fingerprint` 的「为什么只有这三个」。
+
+    ## 显式传参的用途
+
+    允许显式覆盖是为了让**测试**能钉住性质，以及让**另一个信号**的
+    指纹可算（对照臂）。**生产路径不要传** ⇒ 传了就等于「当前信号」
+    变成了「我刚传进去的那个」。
+    """
+    from .predict import build_predictions
+
+    if weights is None:
+        from .evolve import load_weights
+        weights = load_weights(reports_dir)["weights"]
+
+    pred_params = inspect.signature(build_predictions).parameters
+    if top_n is None:
+        top_n = int(pred_params["top_n"].default)
+    if bottom_n is None:
+        bottom_n = int(pred_params["bottom_n"].default)
+
+    config = {
+        "weights": dict(weights or {}),
+        "top_n": int(top_n),
+        "bottom_n": int(bottom_n),
+    }
+    return signal_fingerprint(config)
+
+
 def save_predictions(reports_dir, pred_date: str, up: pd.DataFrame, down: pd.DataFrame,
-                    weights: dict | None = None) -> None:
-    """落盘预测榜单，并**记下自己用了哪组权重**。
+                    weights: dict | None = None,
+                    signal_id: str | None = None) -> None:
+    """落盘预测榜单，并**记下自己用了哪组权重**（以及**哪套信号**）。
 
     ## 为什么必须记
 
@@ -81,12 +198,23 @@ def save_predictions(reports_dir, pred_date: str, up: pd.DataFrame, down: pd.Dat
     留一个全空串或全 NaN 的僵尸列，看起来「有字段」，读出来还是不可知，
     还得每次额外判空。不如干脆没有——缺列就是缺列，判定见
     `prediction_weights_verdict` 的 `unknown` 档。
+
+    ## `signal_id`：**信号身份**（2026-10-21）
+
+    与 `weights_hash` **不是一回事**：过滤只改池、不改权重 ⇒ 权重指纹逐位相同
+    ⇒ 它**区分不了**信号变了。
+
+    🚨 **没传就不写这一列**（与 `weights_hash` 同一条纪律）：
+    缺列 ⇒ `scripts/signal_scope.py` 判 `MISSING_SIGNAL_ID_COLUMN`
+    ⇒ **不可判定**（而不是「就当全是当前信号」）。
     """
     both = pd.concat([up, down], ignore_index=True)
     both["pred_date"] = pred_date
     fp = weights_fingerprint(weights)
     if fp is not None:
         both[WEIGHTS_HASH_COLUMN] = fp
+    if signal_id is not None and str(signal_id).strip():
+        both[SIGNAL_ID_COLUMN] = str(signal_id).strip()
     both.to_parquet(_pred_path(reports_dir, pred_date), index=False)
 
 

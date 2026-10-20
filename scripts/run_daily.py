@@ -24,6 +24,7 @@ from aplus.reports import (
     OUTCOME_OK,
     append_verification,
     build_run_status,
+    current_signal_id,
     latest_prediction_date,
     load_predictions,
     load_verification_history,
@@ -384,8 +385,13 @@ def _judge_one_day(store, reports_dir, pred_date, today):
         return False
     # 成本显式建模：pred 表没有 cost 列时用回测同一口径（0.003），
     # 并在报告里同时给毛值 `gross_pct`，不静默当 0。
+    #
+    # ★ `signal_id`（2026-10-21）：**带进**验证行。
+    #   🚨 **既有 160 行不许回填**（追加式纪律）⇒ 只有**新行**带这个标签。
+    #   旧行没有标签 ⇒ `scripts/signal_scope.py` 判「不可归属」⇒ 不可判定。
     results = verify_predictions(preds, bars, require_cost=True,
-                                 default_cost=STOCK_COST_DEFAULT)
+                                 default_cost=STOCK_COST_DEFAULT,
+                                 signal_id=current_signal_id(reports_dir))
     results["pred_date"] = pred_date
     results["verified_on"] = today
     # ★ 基准的**测量窗口**一并落库（2026-10-14）。
@@ -486,6 +492,40 @@ def predict_block_reason(store_root) -> str | None:
         return ("全市场回填进行中（bootstrap.lock），跳过预测——"
                 "数据文件正在改写，此刻的横截面不可信")
     return None
+
+
+def signal_day_closes(store, codes, as_of: str) -> dict:
+    """读出这些票在**信号日当天或之前最后一根 bar**的**不复权 close**。
+
+    ## 为什么取价口径是「信号日 close」而不是「入场价」
+
+    用户是**出单时刻**按名单下单 ⇒ 那一刻**看得见**的价是信号日收盘价。
+    用入场价（>D 的第一根）判「买不买得起」= **用未来的信息做今天的决定**
+    ⇒ 🚨 生产**必须**用信号日 close。
+
+    ⚠️ **口径差必须写清**：`data/reports/deployed_d2_verdict.json` 的 T3 臂
+    用的是**入场价** ⇒ **T3 的读数与生产口径不是同一个量**
+    ⇒ 要得到生产口径的读数，**需要用信号日 close 重跑那一臂**。
+
+    ## 缺价 ⇒ **没有这个键**（**不是 0**）
+
+    编 0 会被读成「免费」⇒ 可买率虚高。缺价的票在
+    `aplus/alloc.py::_classify_affordability` 里判成 `PRICE_MISSING`。
+
+    ## 复用已有的取价实现
+
+    `aplus/webapp.py::close_as_of`（主库 `master/daily/{code}.parquet` 的
+    `date <= as_of` 最后一根 bar 的 `close`）⇒ **不重写第三份**
+    （第 97 层：两份副本之间没有守卫）。
+    """
+    from aplus.webapp import close_as_of
+
+    out = {}
+    for code in codes:
+        close, _bar_date = close_as_of(store, str(code), as_of)
+        if close is not None:
+            out[str(code)] = float(close)
+    return out
 
 
 def current_positions_from_state(prev) -> list | None:
@@ -677,7 +717,15 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     # `weights` 必须传下去：预测文件要记下「自己是用哪组权重排的」。
     # 不传的话概览页拿到的是一份出处不可知的榜单——权重一改，
     # 屏幕上那张榜静默地变成过期榜单，而页面上一处说明都没有。
-    save_predictions(reports_dir, today, up, down, weights=weights)
+    #
+    # ★ `signal_id`（2026-10-21）：记下「这份名单是用哪套**排名配置**排出来的」。
+    #   ⚠️ 它**只含名单生成配置**（weights / top_n / bottom_n）⇒
+    #   敞口 5→10 只与可买性过滤（配置层）**一个字都没改到它** ⇒
+    #   指纹**逐位不变** ⇒ 前瞻底稿里的既有行**仍然属于当前信号**。
+    _signal_id = current_signal_id(reports_dir)
+    save_predictions(reports_dir, today, up, down, weights=weights,
+                    signal_id=_signal_id)
+    print(f"[predict] 信号指纹 {_signal_id}（名单生成配置：权重 + top_n/bottom_n）")
 
     # ── 持仓指令（2026-10-11 21:45）────────────────────────────────
     # **推荐照旧每天出**——用户要的是「每天 10 涨 10 跌」，那是排序产品。
@@ -773,7 +821,7 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     for _, r in down.iterrows():
         print(f"    {r['code']} {r['name']} score={r['score']:.2f} mom20={r['mom20']:.2%}")
 
-    # ── 调仓差异：**必须拿当前持仓去比**（2026-10-20 修）────────────
+    # ── 配置方案：**调仓日与非调仓日是两回事**（2026-10-21）──────────
     # 以前这里写的是 `build_allocation(up, capital=capital)` —— 没传
     # `current_positions` ⇒ `aplus/alloc.py` 里 `current_codes` 为空 ⇒
     # keep/remove **结构上不可能出现** ⇒ 产物里只有 5 条 add，
@@ -783,13 +831,47 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     #    后者在调仓日已经被写成今天的名单了，拿它比 ⇒ 永远全 add。
     #    `prev` 是 None（状态读不出来）⇒ 传 None ⇒ `rebalance_source="none"`
     #    ⇒ 差异**明说不可信**，而不是装成一份齐全的调仓表。
-    plan = build_allocation(up, capital=capital,
-                            current_positions=current_positions_from_state(prev))
+    #
+    # 🚨 **`is_rebalance_day=due`**（2026-10-21）：非调仓日**不该出订单**
+    # （实测：21 天里有 20 天，用户看到一张根本不会执行的卖买清单）
+    # ⇒ 非调仓日 `positions` = **沿用的持仓**，`rebalance` = **空**。
+    #
+    # 🚨 **可买性过滤在配置层**（不是名单层）：`closes` 传进去 ⇒
+    #    `aplus/alloc.py` 剔掉「1 手 > 每份金额」的票 ⇒ **不足就少给几只**
+    #    ⇒ 发布的 10 涨 10 跌**仍然是全市场真正的前 10 / 后 10**
+    #    ⇒ 前瞻底稿的 6 个窗口**不被作废**。
+    _closes = signal_day_closes(store, list(up["code"]), today)
+    plan = build_allocation(
+        up, capital=capital,
+        current_positions=current_positions_from_state(prev),
+        is_rebalance_day=due,
+        closes=_closes,
+        held_since=(state.get("held_since") or None),
+        days_since_rebalance=state.get("days_since_rebalance"),
+        rebalance_every=every,
+    )
     save_allocation(reports_dir, today, plan.to_dict())
     equity = sum(p["weight"] for p in plan.positions)
     print(f"[alloc] 配置：{len(plan.positions)} 只 × 10% = 权益 {equity:.0%}，现金 {plan.cash_weight:.0%}")
     for p in plan.positions:
         print(f"    {p['code']} {p['name']} {p['amount']:.0f} 元")
+    # 🚨 **剔除必须可见**（2026-10-21）：「平台每天在悄悄剔股票」不可见。
+    _aff = plan.affordability
+    if _aff:
+        print(f"[alloc] 可买性过滤：{_aff['n_candidates']} 只候选 → 留 {_aff['n_kept']} 只"
+              f"（B 类分配不够 {_aff['n_B_allocation']} · "
+              f"A 类物理买不进 {_aff['n_A_physical']} · 缺价 {_aff['n_price_missing']}）")
+        for _k, _lab in (("removed_B_allocation", "B 类（1 手 > 每份金额）"),
+                         ("removed_A_physical", "A 类（1 手 > 全部本金）"),
+                         ("removed_price_missing", "缺价（判不出）")):
+            if _aff[_k]:
+                print(f"    剔除 {_lab}：{' '.join(_aff[_k][:8])}"
+                      f"{' …' if len(_aff[_k]) > 8 else ''}")
+    if not due:
+        print(f"[alloc] ⚠️ **今天不是调仓日**（距上次换仓 "
+              f"{plan.days_since_rebalance}/{every} 个交易日）⇒ "
+              "本方案**没有订单**，描述的是**当前持仓**（沿用 "
+              f"{plan.held_since or '建仓日未知'} 的名单，{len(plan.held)} 只）")
     _counts = {"keep": 0, "add": 0, "remove": 0}
     for _r in plan.rebalance:
         _counts[_r["action"]] = _counts.get(_r["action"], 0) + 1
@@ -1015,19 +1097,66 @@ def store_factor(data_root, code):
 
 
 def step_stats(reports_dir, today):
+    """统计**当前信号**的判定结果。
+
+    ## 🚨 W（独立成交窗口数）必须**按信号分桶**（2026-10-21）
+
+    前端解锁命中率报告用的判据是 `stats.json::n_independent_windows`，
+    而底稿 `verification.parquet` 是**追加式**的 ⇒ 同一本底稿里会装着
+    **两个信号**产生的行（可买性过滤改了名单生成配置之后）。
+
+    ⇒ 若 `stats.json` 报的是**整本底稿**的 W，而 D1 闸门报的是
+    **当前信号**的 W ⇒ **两者打架**：前端解锁了，闸门说不可判定。
+
+    ⇒ **两者必须同时从「不可判定」起步** ⇒ `stats.json` 的 W 也走
+    **同一个**作用域入口（`scripts/signal_scope.py::scope_ledger`），
+    **不许**在 `aplus/` 侧再写一遍过滤（第 97 层：两份副本之间没有守卫）。
+
+    🚨 **不许**为了让 W 看起来正常而**回落成整本底稿**（第 6 种形状：
+    假装能调）⇒ `status != OK` 时 W **必为 0** 且带上「不可判定」标签。
+    """
     history = load_verification_history(reports_dir)
-    stats = rolling_stats(history)
+
+    # 作用域解析：**唯一入口**是 `scripts/signal_scope.py`（不重写过滤）。
+    # ⚠️ 用 `resolve_attribution_context`（两个基准都算）而不是单算一个
+    # ⇒ 底稿只带得动另一个基准时（老底稿没有 `signal_id` 列）
+    # **换基准**而不是回落。
+    from signal_scope import resolve_attribution_context, scope_block, scope_ledger
+
+    ctx = resolve_attribution_context(reports_dir)
+    scoped = scope_ledger(history, ctx.signal_id, ctx.weights_fingerprint)
+
+    # 🚨 归属不对 ⇒ **空帧** ⇒ 统计数全 0（W = 0）⇒
+    #    前端**解不开**命中率报告 ⇒ 与闸门「不可判定」**同时起步**。
+    stats = rolling_stats(scoped.frame)
     stats["as_of"] = today
+    stats["signal_scope"] = scope_block(scoped)
+    stats["n_independent_windows_of_ledger"] = int(
+        len(history.drop_duplicates(subset=["entry_date", "exit_date"]))
+    ) if {"entry_date", "exit_date"} <= set(history.columns) else None
+    if ctx.signal_id_error:
+        stats["signal_scope"]["signal_id_error"] = ctx.signal_id_error
+    if ctx.weights_fingerprint_error:
+        stats["signal_scope"]["weights_fingerprint_error"] = ctx.weights_fingerprint_error
+
     path = Path(reports_dir) / "stats.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
-    if len(history):
+
+    if not scoped.usable:
+        print(f"[stats] 🚨 **不可判定（{scoped.status}）**：{scoped.reason}")
+        print("[stats] ⇒ 本文件的 W = 0（**不回落成整本底稿**），"
+              "前端与 D1 闸门**同时**从「不可判定」起步。")
+        return
+    if len(scoped.frame):
         # ★ 两个数都要报：条目数是**信息量**，独立窗口数才是**样本量**。
         #   周末出单会让多个信号日落进同一个成交窗口
         #   （实测 3 个信号日 → 1 笔），只报条目数等于把一次交易数三遍。
         win = stats.get("n_independent_windows")
         win_txt = f"{win} 次独立成交" if win else "独立成交次数未知（缺 entry/exit）"
-        print(f"[stats] 累计 {len(history)} 条判定 / {win_txt}："
+        print(f"[stats] 当前信号 {scoped.current_signal_id or '—'}"
+              f"（归属基准 {scoped.attribution_basis}）："
+              f"{len(scoped.frame)} 条判定 / {win_txt}："
               f"总命中 {stats['overall_hit_rate']:.1%}，"
               f"涨命中 {stats['hit_rate_up']:.1%}，超额 {stats['up_excess_vs_market']:+.2%}")
     else:
