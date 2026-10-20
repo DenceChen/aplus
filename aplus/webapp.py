@@ -74,9 +74,9 @@ def _live_holdings_payload(reports_dir) -> dict:
     **全仓零个消费点**。于是用户每天打开平台看到的是一张新的 10 涨 10 跌，
     而实盘是 `every=21`（`holdings.json` 实读）、**每 21 个交易日才换一次仓**。
 
-    ⇒ 照着每天的新名单全买，年摩擦 **80.81%**（`delivery_caliber_friction::at_min`）；
+    ⇒ 照着每天的新名单全买，年摩擦 **67.34%**（`delivery_caliber_friction::friction_by_turnover.at_measured_min`）；
        照 K=21 换一次是 **6.41%**（同产物 `friction_by_holding_period.K=21`）。
-       **差 74.4pp/year，且与信号好坏无关。**
+       **差 60.93pp/year，且与信号好坏无关。**
     ⇒ 这不是「优化」，是**交付 D1 时必须一起说清的口径**：
        名单每天出 ≠ 仓位每天换。
 
@@ -398,7 +398,7 @@ def create_app(data_root, llm=None) -> FastAPI:
             "paper_mode": True,
             # 2026-10-17 接上。此前 `holdings.json` 与 `live_execution_status`
             # **零消费点**：用户看到每天 10 涨 10 跌，却看不到「实盘每 21 个
-            # 交易日换一次仓」。差 74.4pp/年摩擦，且与信号好坏无关。
+            # 交易日换一次仓」。差 60.93pp/年摩擦，且与信号好坏无关。
             "live": _live_holdings_payload(reports_dir),
             # 2026-10-18 接上。此前 `score_ranking_power.json` 的判决
             # **零消费点**（`index.html` / `verdict.js` 对这个词零命中）：
