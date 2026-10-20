@@ -44,6 +44,15 @@ ROWS = (
     ("缺口·5万·等权",
      ("headline", "account_annual_ceiling_pct",
       "gap_to_target_at_deliverable_width_and_50k_pp"), "pp"),
+    # ⚠️ **两行的口径不同，不许混引**（第 7 层）：
+    #   · 同口径 = 要求(K=63) ÷ **同 K 同信号**的实测毛超额 ⇒ **这是真的倍数**
+    #   · 跨口径 = 要求(K=63) ÷ K=21 研究臂的实测 ⇒ 台账已标 `is_the_gap = false`
+    ("达标倍数·同口径（K=63·生产臂）",
+     ("headline", "multiple_needed_at_50k_deliverable_by_caliber",
+      "same_caliber", "multiple_needed"), "×"),
+    ("达标倍数·跨口径（K=21 研究臂）",
+     ("headline", "multiple_needed_at_50k_deliverable_by_caliber",
+      "cross_caliber", "multiple_needed"), "×"),
 )
 
 _NUM = re.compile(r"[-+]?\d+(?:\.\d+)?")

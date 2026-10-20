@@ -32,7 +32,7 @@
 | `...account_annual_ceiling_pct.at_deliverable_width_and_50k` | 8.3441（%） |
 | `...account_annual_ceiling_pct.at_infinite_capital` | 12.73（%） |
 | `headline.required_gross_at_50k_deliverable` | 15.5571（%） |
-| `headline.multiple_needed_at_50k_deliverable` | 3.2338（×） |
+| `headline.multiple_needed_at_50k_deliverable` | 3.2338（×） ← ⚠️ **2026-10-21 补记**：该值是 **K=21 时代**的数；台账换到 **K=63** 后它是 **2.3450**（**跨口径**：K=63 的要求 ÷ K=21 研究臂的实测 ⇒ 台账已单列 `cross_caliber` 并标 `is_the_gap = false` ⇒ **不是缺口**）；**同口径**倍数在 `headline.multiple_needed_at_50k_deliverable_by_caliber::same_caliber::multiple_needed` = **1.7897** |
 
 **这三行是本轮唯一要上屏的新增内容。** 引用时必须连口径标签一起引
 （`at_deliverable_width_and_50k` ≠ `at_infinite_capital`，
