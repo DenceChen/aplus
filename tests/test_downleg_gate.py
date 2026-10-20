@@ -46,7 +46,7 @@ import pandas as pd
 import pytest
 
 # 🚨 对账守卫必须与**生产者**读**同一个口径**的样本。
-from scripts.signal_scope import scoped_ledger_frame  # noqa: E402
+from aplus.signal_scope import scoped_ledger_frame  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "measure_downleg_ranking.py"

@@ -61,7 +61,7 @@ D1 闸门 `scripts/score_ranking_power.py`（G4，`GATE_ARM="up"`）会在
 
 🚨 本模块**不自己实现**任何指纹（自己实现 = 第二份真相源，第 97 层）。
 
-## 2. ★ 单一真相源：`scripts/signal_scope.py`
+## 2. ★ 单一真相源：`aplus/signal_scope.py`
 
 **所有**读底稿的消费者**必须 import 同一个过滤函数**。
 
@@ -251,7 +251,7 @@ forward_d2_horizon → verdict_horizon_d1
 
 | 件 | 状态 |
 |---|---|
-| `scripts/signal_scope.py` | ✅ **已落地**（四态 + 归属依据 + 上游契约 + 对账入口） |
+| `aplus/signal_scope.py` | ✅ **已落地**（四态 + 归属依据 + 上游契约 + 对账入口） |
 | 8 个消费者接线 | ✅ **已落地**（全部 import 同一个 `scope_ledger` / `upstream_scope_verdict`） |
 | `tests/test_signal_scoping.py` | ✅ **已落地**（**48 条，全绿**） |
 | `aplus/reports.py` 的三个原语 | ✅ **已落地**（`signal_fingerprint` / `current_signal_id` / `weights_fingerprint`） |

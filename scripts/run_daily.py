@@ -388,7 +388,7 @@ def _judge_one_day(store, reports_dir, pred_date, today):
     #
     # ★ `signal_id`（2026-10-21）：**带进**验证行。
     #   🚨 **既有 160 行不许回填**（追加式纪律）⇒ 只有**新行**带这个标签。
-    #   旧行没有标签 ⇒ `scripts/signal_scope.py` 判「不可归属」⇒ 不可判定。
+    #   旧行没有标签 ⇒ `aplus/signal_scope.py` 判「不可归属」⇒ 不可判定。
     results = verify_predictions(preds, bars, require_cost=True,
                                  default_cost=STOCK_COST_DEFAULT,
                                  signal_id=current_signal_id(reports_dir))
@@ -1109,7 +1109,7 @@ def step_stats(reports_dir, today):
     **当前信号**的 W ⇒ **两者打架**：前端解锁了，闸门说不可判定。
 
     ⇒ **两者必须同时从「不可判定」起步** ⇒ `stats.json` 的 W 也走
-    **同一个**作用域入口（`scripts/signal_scope.py::scope_ledger`），
+    **同一个**作用域入口（`aplus/signal_scope.py::scope_ledger`），
     **不许**在 `aplus/` 侧再写一遍过滤（第 97 层：两份副本之间没有守卫）。
 
     🚨 **不许**为了让 W 看起来正常而**回落成整本底稿**（第 6 种形状：
@@ -1117,11 +1117,11 @@ def step_stats(reports_dir, today):
     """
     history = load_verification_history(reports_dir)
 
-    # 作用域解析：**唯一入口**是 `scripts/signal_scope.py`（不重写过滤）。
+    # 作用域解析：**唯一入口**是 `aplus/signal_scope.py`（不重写过滤）。
     # ⚠️ 用 `resolve_attribution_context`（两个基准都算）而不是单算一个
     # ⇒ 底稿只带得动另一个基准时（老底稿没有 `signal_id` 列）
     # **换基准**而不是回落。
-    from scripts.signal_scope import resolve_attribution_context, scope_block, scope_ledger
+    from aplus.signal_scope import resolve_attribution_context, scope_block, scope_ledger
 
     ctx = resolve_attribution_context(reports_dir)
     scoped = scope_ledger(history, ctx.signal_id, ctx.weights_fingerprint)

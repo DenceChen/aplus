@@ -31,7 +31,7 @@ import pytest
 
 # 🚨 对账守卫必须与**生产者**读**同一个口径**的样本
 #   （底稿是追加式的 ⇒ 归属后只应看到当前信号的那一段）。
-from scripts.signal_scope import scoped_ledger_frame  # noqa: E402
+from aplus.signal_scope import scoped_ledger_frame  # noqa: E402
 
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:

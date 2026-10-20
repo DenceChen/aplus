@@ -46,7 +46,7 @@ if str(ROOT) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from scripts import signal_scope as SS  # noqa: E402
+from aplus import signal_scope as SS  # noqa: E402
 
 #: 生产报告目录 —— **只用来解析当前身份**，测试的**数据**一律在 tmp_path。
 PROD_REPORTS = ROOT / "data" / "reports"
@@ -181,7 +181,9 @@ def _run(script: str, *args: str) -> subprocess.CompletedProcess:
 
 def test_g0_the_shared_module_defines_everything_the_consumers_need():
     """正控：共享入口**真的**定义了全部作用域函数。"""
-    src = (SCRIPTS / "signal_scope.py").read_text(encoding="utf-8")
+    # ⚠️ 2026-10-21：作用域模块从 `scripts/` 搬进 `aplus/`
+    # （**库不该反向依赖 `scripts/`** —— `aplus/webapp.py` 也要用它）
+    src = (ROOT / "aplus" / "signal_scope.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     funcs = {n.name for n in ast.walk(tree)
              if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
@@ -518,7 +520,7 @@ def test_g4_no_consumer_reimplements_the_attribution():
             assert forbidden not in defined, (
                 f"{name}**自己定义了** {forbidden}() ⇒ 归属逻辑有了第二份副本 "
                 "⇒ 两份副本之间没有守卫（第 97 层）。"
-                "⇒ 只能 import `scripts/signal_scope.py` 的那一份。")
+                "⇒ 只能 import `aplus/signal_scope.py` 的那一份。")
 
 
 # ——————————————————————————————————————————————————————————————

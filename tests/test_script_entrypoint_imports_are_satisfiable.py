@@ -267,7 +267,7 @@ def test_no_script_imports_a_sibling_script_module_by_bare_name():
     **被当模块 import 时**崩（`sys.path[0]` 是仓根或 cwd ⇒ 那里没有 `scripts/`）
     ⇒ ⇒ **同一个文件，两种跑法，两个结果** —— 而生产跑的是脚本、测试跑的是模块。
 
-    ⇒ **正确写法是包形式** `from scripts.signal_scope import ...`
+    ⇒ **正确写法是包形式** `from aplus.signal_scope import ...`
     ⇒ 仓根在 sys.path 上时它**两种跑法都成立**
     （仓根已由 `run_daily.py` 自己插入；命名空间包不需要 `scripts/__init__.py`）。
 

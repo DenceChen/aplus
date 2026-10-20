@@ -198,7 +198,7 @@ def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
 
     ⚠️ **既有行不许回填**（追加式纪律）：历史行**没有** `signal_id`
     ⇒ 下游读到它们时**必须显式说「这些行不属于任何已知信号」**
-    （`scripts/signal_scope.py` 的归属状态：`MISSING_SIGNAL_ID_COLUMN` /
+    （`aplus/signal_scope.py` 的归属状态：`MISSING_SIGNAL_ID_COLUMN` /
     `NO_MATCHING_SIGNAL` ⇒ 不可判定，**不是**「没有排序力」；
     老底稿没有该列时它退到 `weights_hash` **逐行**判归属
     ⇒ `ATTRIBUTED_BY_WEIGHTS_HASH`）。

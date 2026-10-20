@@ -114,7 +114,7 @@ from aplus import provenance  # noqa: E402
 # 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
 #   本脚本**不自己实现**过滤逻辑（第 97 层：两份副本之间没有守卫），
 #   也不自己实现指纹（那会变成第二份真相源）。
-from scripts.signal_scope import (  # noqa: E402
+from aplus.signal_scope import (  # noqa: E402
     VERDICT_NOT_DECIDABLE,
     not_decidable_note,
     resolve_attribution_context,

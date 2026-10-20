@@ -550,7 +550,7 @@ def main(argv: list[str] | None = None) -> int:
                 "missing": "**缺价 ⇒ 显式缺失**（`n_price_missing`），**不编 0**、不当成「免费」",
             },
             "down_leg_scope": ("**跌腿只报、不据此过滤**：跌腿是**回避清单**、不占资金"
-                               "（docs/PREREG_AFFORDABILITY_2026-10-16.md §6.3；"
+                               "（docs/PREREG_AFFORDABILITY_2026-10-16.md §6 第 3 条；"
                                "A 股散户融不到券）。⇒ 板块/权限/整手约束**只作用于涨腿**。"),
             "permission": ("**本产物一个字都不判定权限**：「科创板需 50 万 + 24 个月、"
                            "创业板需 10 万 + 24 个月」是**外部常识·本仓无权限模型**"

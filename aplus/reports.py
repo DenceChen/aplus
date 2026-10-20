@@ -12,10 +12,10 @@
 
 ⚠️ `weights_hash` **证明力弱于**信号指纹：它只记**权重**，不记 `top_n`/`bottom_n`
 ⇒ 同一组权重下不同宽度的名单会被混在一起
-⇒ `scripts/signal_scope.py` 的归属基准**优先 `signal_id`**，`weights_hash` 只是退路。
+⇒ `aplus/signal_scope.py` 的归属基准**优先 `signal_id`**，`weights_hash` 只是退路。
 
 `signal_fingerprint(config)` 与 `current_signal_id(reports_dir)` 是
-**唯一真相源**；`scripts/signal_scope.py` 只**调用**它们，不自己实现
+**唯一真相源**；`aplus/signal_scope.py` 只**调用**它们，不自己实现
 （第 97 层：两份副本之间没有守卫）。
 """
 import hashlib
@@ -205,7 +205,7 @@ def save_predictions(reports_dir, pred_date: str, up: pd.DataFrame, down: pd.Dat
     ⇒ 它**区分不了**信号变了。
 
     🚨 **没传就不写这一列**（与 `weights_hash` 同一条纪律）：
-    缺列 ⇒ `scripts/signal_scope.py` 判 `MISSING_SIGNAL_ID_COLUMN`
+    缺列 ⇒ `aplus/signal_scope.py` 判 `MISSING_SIGNAL_ID_COLUMN`
     ⇒ **不可判定**（而不是「就当全是当前信号」）。
     """
     both = pd.concat([up, down], ignore_index=True)

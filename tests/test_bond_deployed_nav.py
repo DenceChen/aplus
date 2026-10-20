@@ -335,12 +335,29 @@ def test_the_verdict_numbers_follow_the_selected_arm_not_just_its_label(produced
 # ══════════════════════════════════════════════════════════════════
 
 def test_the_script_writes_only_to_the_given_output_path(produced, tmp_path):
-    """集成测试不许写生产产物路径。"""
+    """集成测试不许写生产产物路径。
+
+    🚨 **有判别力的测法**：**跑一次脚本，前后比对生产路径的字节与 mtime**。
+    原来那版写的是 `assert not (...).exists() or True` ⇒ **恒真** ⇒ 是装饰
+    ⇒ 被仓库自带的 `test_no_guard_in_tests_asserts_a_constant_truth` 当场抓到。
+    ⇒ 「恒真的守卫」比「没有守卫」更坏：它让人以为这一层有人看着。
+    """
     prod = ROOT / "data/reports/bond_deployed_nav.json"
-    # 生产路径若存在，必须是**本次集成测试之前**就有的、且未被本次测试改写
-    # （本测试全部写 tmp_path ⇒ 生产路径的内容与集成测试无关）。
+    before = (_sha(prod), prod.stat().st_mtime_ns) if prod.exists() else None
+
+    out = tmp_path / "again_bond_deployed_nav.json"
+    argv = sys.argv
+    sys.argv = ["measure_bond_deployed_nav.py", "--out", str(out)]
+    try:
+        rc = M.main()
+    finally:
+        sys.argv = argv
+    assert rc == 0
+    assert out.exists(), "脚本必须写到 --out 给的路径"
     assert produced["artifact"] == "scripts/measure_bond_deployed_nav.py"
-    assert not (tmp_path / "bond_deployed_nav.json").exists() or True
+
+    after = (_sha(prod), prod.stat().st_mtime_ns) if prod.exists() else None
+    assert after == before, "集成测试**改动了生产产物路径**（字节或 mtime 变了）"
 
 
 def test_the_output_carries_the_honest_boundaries_including_bond_is_not_stock(produced):

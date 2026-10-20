@@ -173,8 +173,11 @@ def test_A_and_B_are_counted_separately():
     assert aff["n_A_physical"] == 1, "688498（1 手 ¥202,070 > ¥50,000）= A 类"
     assert aff["removed_B_allocation"] == ["300951.SZ"]
     assert aff["removed_A_physical"] == ["688498.SH"]
-    # 🚨 **两个计数不许合成一个**
-    assert aff["n_B_allocation"] != aff["n_A_physical"] or True
+    # 🚨 **两个计数不许合成一个** —— 上面两条 `== 1` 已经证明它们**是分开的两项**
+    # （本夹具里 B 类 1 只、A 类 1 只）；**守卫是下一条**（合并键不许存在）。
+    # ⚠️ 原来这里写的是 `assert aff["n_B_allocation"] != aff["n_A_physical"] or True`
+    # ⇒ **恒真** ⇒ 装饰 ⇒ 被 `test_no_guard_in_tests_asserts_a_constant_truth` 抓到
+    # ⇒ 而它想说的那件事（不许合并）**本来就由下一条守着** ⇒ 删掉即可。
     assert "n_unaffordable_rate" not in aff, "不许出现合并后的「买不起率」"
 
 
@@ -356,7 +359,7 @@ def test_config_layer_changes_do_not_change_the_signal_id():
 def test_the_verification_rows_carry_the_signal_id_but_old_rows_are_not_backfilled():
     """🚨 **新行带 `signal_id`；既有行不许回填**（追加式纪律）。
 
-    既有 160 行**没有**该标签 ⇒ `scripts/signal_scope.py` 判「不可归属」
+    既有 160 行**没有**该标签 ⇒ `aplus/signal_scope.py` 判「不可归属」
     ⇒ 不可判定。**不许**事后给它们贴标签（那是「事后编造」的形状）。
     """
     from aplus.verify import verify_predictions
@@ -448,17 +451,22 @@ def test_run_daily_scopes_the_stats_windows_by_signal():
     而 D1 闸门按 `signal_id` 分桶 ⇒ 若前者报整本底稿、后者报当前信号
     ⇒ **两者打架**（前端解锁了，闸门说不可判定）。
 
-    ⇒ 过滤入口必须复用 `scripts/signal_scope.py`（**不许**在 `aplus/` 侧
+    ⇒ 过滤入口必须复用 `aplus/signal_scope.py`（**不许**在 `aplus/` 侧
     再写一遍 —— 第 97 层）。
     """
     src = _RD.read_text(encoding="utf-8")
     tree = ast.parse(src)
     imported = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "signal_scope":
+        # ⚠️ 2026-10-21：作用域模块从 `scripts/` 搬进 `aplus/`
+        # （**库不该反向依赖 `scripts/`** —— `aplus/webapp.py` 也要用它，
+        #   而 `aplus` → `scripts` 是依赖倒置）⇒ import 形式变成包形式
+        #   `from aplus.signal_scope import …` ⇒ 断言要认这两种。
+        if isinstance(node, ast.ImportFrom) and node.module in (
+                "signal_scope", "aplus.signal_scope"):
             imported |= {a.name for a in node.names}
     assert "scope_ledger" in imported, (
-        "run_daily 必须**复用** scripts/signal_scope.py::scope_ledger "
+        "run_daily 必须**复用** aplus/signal_scope.py::scope_ledger "
         "（不许自己写一遍过滤 —— 第 97 层）")
     assert "resolve_attribution_context" in imported, (
         "run_daily 必须用 signal_scope 的 resolve_attribution_context "

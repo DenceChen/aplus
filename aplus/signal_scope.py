@@ -535,6 +535,31 @@ def resolve_attribution_context(reports_dir) -> AttributionContext:
                               weights_fingerprint_error=wf_err)
 
 
+def scoped_history(reports_dir) -> tuple["pd.DataFrame", "ScopedLedger"]:
+    """读底稿并**按当前信号分桶**，返回 `(分桶后的帧, 作用域说明)`。
+
+    ## 为什么要有这个共用入口（而不是调用方各写一遍）
+
+    生产（`aplus/webapp.py` 的 `/api/status`）与判决脚本
+    （`scripts/score_ranking_power.py` 等）**必须用同一套口径**
+    ⇒ 否则会出现「**前端报 6 个窗口、闸门报 3 个窗口**」⇒ **两者打架**
+    ⇒ 而打架的那一块正是**用户读的那个数**（第 97 层：两份副本之间没有守卫）。
+
+    ## 缺归属证据 ⇒ 帧**为空**
+
+    ⇒ 底稿**既没有** `signal_id` **也没有** `weights_hash` 列时，
+    `status` = `MISSING_SIGNAL_ID_COLUMN` ⇒ 帧为空 ⇒
+    **调用方必须据此说「不可判定」，不许渲染成「命中率 0%」**
+    （那是**一个看起来正常的假数**）。
+    """
+    from aplus.reports import load_verification_history
+
+    frame = load_verification_history(reports_dir)
+    ctx = resolve_attribution_context(reports_dir)
+    scoped = scope_ledger(frame, ctx.signal_id, ctx.weights_fingerprint)
+    return scoped.frame, scoped
+
+
 def upstream_scope_verdict(upstream_doc: Any, signal_id: str | None,
                            weights_fingerprint: str | None = None) -> dict:
     """上游产物的**作用域检查**（给不读 parquet、只读上游产物的那两个脚本用）。

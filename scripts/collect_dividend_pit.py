@@ -610,7 +610,12 @@ def _same_script(recorded: str, live: str) -> bool:
         return False
     scripts = [t for t in recorded.split() if t.endswith(".py")]
     if not scripts:
-        return recorded in live
+        # ⚠️ 记录里没有 `.py` token（例如 pytest 的 `path::test_name`）
+        # ⇒ 退到「**归一化后前缀相同**」，而不是「整串包含」
+        # ⇒ 后者要求两边逐字相同，而两边**可能**只是前缀关系。
+        _norm = lambda t: " ".join(t.split())
+        r, l = _norm(recorded), _norm(live)
+        return r == l or l.startswith(r) or r.startswith(l)
     return any(t in live for t in scripts)
 
 
@@ -650,9 +655,18 @@ def acquire_lock(root: Path | str) -> Path | None:
                   file=_sys.stderr)
             return None
         print(f"  锁文件存在但持有者已不在（pid {pid}）⇒ 当过期处理，接管。")
+    # 🚨 **记录时必须用「活进程 cmdline」的同一个来源**（`_proc_cmdline`），
+    #   **不能**用 `" ".join(sys.argv)` ——
+    #   两者**不是同一个东西** ⇒ 后面 `_same_script(recorded, live)` 就是
+    #   **苹果比橘子**。
+    #   实测（2026-10-21）：pytest 的 argv 里是
+    #   `tests/test_dividend_pit.py::test_...` ⇒ **不以 `.py` 结尾**
+    #   ⇒ 脚本路径提取失败 ⇒ 落进「整串包含」判据 ⇒ 整串不相等
+    #   ⇒ **持锁者被认成「已死」⇒ 并发锁在测试里形同虚设**。
+    #   ⇒ 记录与比较**同源** ⇒ 两边都是真实 cmdline ⇒ 判据才成立。
     p.write_text(json.dumps({
         "pid": os.getpid(),
-        "cmdline": " ".join(_sys.argv),
+        "cmdline": _proc_cmdline(os.getpid()) or " ".join(_sys.argv),
         "acquired_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }, ensure_ascii=False), encoding="utf-8")
     return p

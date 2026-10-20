@@ -39,6 +39,37 @@ SYSTEM_PROMPT = (
 )
 
 
+def _scoped_hist_for_api(reports_dir) -> pd.DataFrame:
+    """按**当前信号**分桶后的底稿。
+
+    🚨 2026-10-21：D1 闸门已按 `signal_id` 分桶，而这里若读整本底稿 ⇒
+    「前端报 6 个窗口、闸门报 3 个窗口」⇒ **两者打架**，
+    而打架的那块正是**用户读的那个数**。
+    ⇒ 与判决脚本共用**同一个**入口（`aplus/signal_scope.py`）⇒ 不写第二份过滤。
+    """
+    from .signal_scope import scoped_history
+    frame, _scope = scoped_history(reports_dir)
+    return frame
+
+
+def _signal_scope_payload(reports_dir) -> dict:
+    """作用域状态 —— **归属不明时前端必须说「不可判定」**。
+
+    🚨 **不许**把「作用域为空」渲染成「命中率 0%」：
+    那是**一个看起来正常的假数**（第 23 层的形状：坏状态被静默变成空状态）。
+    """
+    from .signal_scope import scoped_history
+    _frame, scope = scoped_history(reports_dir)
+    return {
+        "status": scope.status,
+        "current_signal_id": scope.current_signal_id,
+        "rows_in_scope": int(len(scope.frame)),
+        "reason": scope.reason,
+        "note": ("这批前瞻证据属于**当前信号**吗？"
+                 "归属不明 ⇒ 命中率**不可报**（不许拿整本底稿的数字当当前信号的证据）"),
+    }
+
+
 def _stats_with_compounded(history: pd.DataFrame) -> dict:
     """`rolling_stats` + 复利口径。
 
@@ -316,8 +347,14 @@ def _platform_context(reports_dir: Path) -> str:
                 parts.append(
                     f"配置方案：{positions}；现金比例 {alloc.get('cash_weight', 0):.0%}；本金 {alloc.get('capital', 0):.0f} 元"
                 )
-    stats = _stats_with_compounded(load_verification_history(reports_dir))
-    hist = load_verification_history(reports_dir)
+    # 🚨 命中率**必须按当前信号分桶**（2026-10-21）：
+    #   D1 闸门已按 `signal_id` 分桶，而这里若读整本底稿 ⇒
+    #   「前端报 6 个窗口、闸门报 3 个窗口」⇒ **两者打架**，
+    #   而打架的那块正是**用户读的那个数**。
+    # ⇒ 与判决脚本共用**同一个**入口（`aplus/signal_scope.py`）⇒ 不写第二份过滤。
+    from .signal_scope import scoped_history
+    hist, _scope = scoped_history(reports_dir)
+    stats = _stats_with_compounded(hist)
     if len(hist):
         # ★ 样本量必须同时给出「条目数」与「独立成交窗口数」。
         #   周末/节假日出单会让多个信号日落进同一个窗口
@@ -1136,7 +1173,9 @@ def create_app(data_root, llm=None) -> FastAPI:
             "as_of": date.today().isoformat(),
             "last_prediction_date": latest_prediction_date(reports_dir),
             "universe_size": universe,
-            "stats": _stats_with_compounded(load_verification_history(reports_dir)),
+            "stats": _stats_with_compounded(_scoped_hist_for_api(reports_dir)),
+            # 🚨 作用域状态：让前端能说「不可判定」而不是渲染成 0%
+            "signal_scope": _signal_scope_payload(reports_dir),
             "paper_mode": True,
             # 2026-10-17 接上。此前 `holdings.json` 与 `live_execution_status`
             # **零消费点**：用户看到每天 10 涨 10 跌，却看不到「实盘每 21 个

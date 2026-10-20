@@ -1,7 +1,7 @@
 # 预注册：生产配置三处改动（2026-10-21）
 
 > 🚨 **本文件写在改码之前**（CLAUDE.md 第 91 层：先有码后补文档 ⇒ 跑过数据后不可辨）。
-> 写作时刻：本文件**没有**读过任何一���**新测量**（本轮不跑回测、不跑面板）。
+> 写作时刻：本文件**没有**读过任何一次**新测量**（本轮不跑回测、不跑面板）。
 > 下面引用的每一个数都带**产物路径 :: JSON 路径**，读的都是**既有产物**。
 
 ---
@@ -199,7 +199,7 @@ B 是「这份配置下买不到」（换个分配也许能买到）⇒ **两句
 
 ⚠️ `weights_hash` **证明力弱于**信号指纹：它只记**权重**，
 **不**记 `top_n`/`bottom_n` ⇒ 同一组权重下不同宽度的名单会被混在一起
-⇒ `scripts/signal_scope.py` 的归属基准**优先 `signal_id`**，
+⇒ `aplus/signal_scope.py` 的归属基准**优先 `signal_id`**，
 `weights_hash` 只是**退路**（老底稿没有 `signal_id` 列时）。
 
 ### 4.2 契约（**键名与签名逐字固定**）
@@ -246,7 +246,7 @@ def signal_fingerprint(config: dict) -> str:
 - `aplus/verify.py::verify_predictions` 把 `signal_id` **带进**验证行
   ⇒ `verification.parquet` 追加式底稿**多一列**（**新行才有**）。
 - 🚨 **既有 160 行不许改**（追加式纪律：历史行不许回填）⇒
-  既有行**没有** `signal_id` ⇒ `scripts/signal_scope.py` 用
+  既有行**没有** `signal_id` ⇒ `aplus/signal_scope.py` 用
   `weights_hash` **逐行**判归属（**不是**回落成「全部属于当前信号」）。
 
 ### 4.6 🚨 `stats.json` 的 W 也必须**按信号分桶**
@@ -256,7 +256,7 @@ def signal_fingerprint(config: dict) -> str:
 （前端解锁了，闸门说不可判定）。
 
 ⇒ `scripts/run_daily.py::step_stats` 必须走
-**同一个**作用域入口（`scripts/signal_scope.py`）⇒ **不许**在 `aplus/` 侧
+**同一个**作用域入口（`aplus/signal_scope.py`）⇒ **不许**在 `aplus/` 侧
 再写一遍过滤（第 97 层）。
 
 ⇒ 🚨 **不许**为了让 W 看起来正常而**回落成整本底稿**（第 6 种形状：假装能调）
@@ -313,7 +313,7 @@ def signal_fingerprint(config: dict) -> str:
 - 🚨 **不改判据臂**（`scripts/score_ranking_power.py` /
   `scripts/diagnose_hit_rate.py` / `scripts/forward_d2_verdict.py` 等 8 个）
   —— 它们按本文件的 `signal_fingerprint` 契约走。
-- 🚨 **不改 `scripts/signal_scope.py`**（归属过滤的**唯一入口**）——
+- 🚨 **不改 `aplus/signal_scope.py`**（归属过滤的**唯一入口**）——
   只**调用**它，不在 `aplus/` 侧再写一遍。
 - 🚨 **不跑 `scripts/measure_deployed_d2.py`**（另一个 agent 正在重跑）。
 - 🚨 **不回填既有 160 行的 `signal_id`**（追加式纪律）。

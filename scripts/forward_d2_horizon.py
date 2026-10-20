@@ -109,7 +109,7 @@ from aplus import provenance  # noqa: E402
 # 🚨 **信号作用域的唯一入口**（预注册 `docs/PREREG_SIGNAL_SCOPING_2026-10-21.md`）。
 #   本脚本**不读底稿**，它读**上游产物** ⇒ 只能要求上游自报作用域
 #   （预注册 §5.2），**不许**「块缺失就按老口径继续用」。
-from scripts.signal_scope import (  # noqa: E402
+from aplus.signal_scope import (  # noqa: E402
     VERDICT_NOT_DECIDABLE,
     attribution_block,
     resolve_attribution_context,
