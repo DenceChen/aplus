@@ -151,5 +151,50 @@
       }
     ],
     "sealed_sha256": "b06187191848f8307c5e05a9ed08bdd8165e7396e402de1f161f785be58332a5"
+  },
+  {
+    "registered_on": "2026-10-20",
+    "note": "第四批前瞻验证候选：**在看到任何 2026-10-21 之后的行情之前**冻结。\n\n## 为什么要有这一批\n\n前三批共 14 组候选**全部**由 `master/daily` 的同一份 OHLCV 派生，\n台账已判这一族「实测为 null」。BM 是**第一个跨信息源**的因子\n（分子来自财报，不来自行情）。\n\n## 🚨 但历史 BM 显著性**证据不足**——它可能就是 PIT 污染本身\n\n`scripts/audit_pit_whitelist/exp_snapshot_diff.py` 用 2026-10-14 与 10-20\n两份 PIT 快照直接差分（只读）实测：\n\n- 121 个数值列里 83 列有变化，64/65,296 行（0.0980%）的值在 6 天内被改写；\n- 标称「从未被改动」（UPDATE_DATE == NOTICE_DATE）的 21,657 行里**实际变了 28 行**\n  ⇒ 失效率 0.1293%（**下界**：窗口只有 6 天，修订中位滞后 353.5 天）；\n- 变了/没变的行里 UPDATE==NOTICE 比例几乎一样（43.75% vs 33.16%）\n  ⇒ UPDATE_DATE 标不出修订 ⇒ is_never_revised() 是**假白名单**。\n\n⇒ 历史 BM IC 是在**后修值**上算的 ⇒ **本批没有任何历史证据可援引**。\n⇒ **这一批是「检验」，不是「采纳」。**\n\n## 财务侧的 PIT 铁律\n\nBM 的财务侧**只**来自 `aplus/vintage.py::pit_frame(root, as_of)`；\n日期不足时**报错**，绝不拿更新的快照代替。变异台把「拿最新的一份凑数」\n这条退化路径变异一次 ⇒ 5 条守卫变红。\n\n## 五组候选\n\n① {bm:1.0} K=21 —— 复制臂（与历史 BM@K=21 同频率，可直接可比）\n② {bm:1.0} K=63 —— 慢变量臂（与 ① 只差 K ⇒ 受控的频率对照）\n③ {bm:1.0, mom20:-1.0} K=21 —— 增量臂\n④ {bm:1.0, mom20:-1.0} K=63 —— 增量臂的慢频率格\n⑤ {bm:-1.0} K=21 —— **符号对照臂（负控，不是候选）**\n\n符号说明：BM = log(BPS/close)，**越大越便宜** ⇒ 正号 ⇒ top-10 买便宜的。\n`mom20:-1.0` 是现任反转腿（单位幅度，朴素翻号约定，不是本轮拟合的）。\n增量臂的对照 `{mom20:-1.0}` **已在批次 2/3 冻结**，不必新加。\n\n## K 的取舍\n\n判决力以独立调仓周期计（MIN_TEST_PERIODS=3）⇒ K=21 需 63 个交易日、\nK=63 需 189 个（约 9 个月）。**不用 K=1/5**：BM 的分子是年报数据，\n一年内最多变 4 次 ⇒ K=1 与 K=5 持仓几乎一样，只多付摩擦。\n两个 K 都要，是为了在「BM 没用」与「BM 有效但这个频率没用」之间分得开。\n\n## 覆盖面\n\n实测（2026-10-20 快照，全池 5,460 只）：**5,317 只带得上 BM = 97.38%**\n⇒ 含 BM 的候选与价量候选的池子差异 < 3%，增量臂不是池子差造成的假增量。\n\n## 仍然不能进实盘的原因\n\n1. 前瞻验证本身**不晋级**——它只裁决；\n2. 历史 BM IC 不可引用 ⇒ 本批没有历史证据；\n3. 前瞻窗口天然短；\n4. PIT 快照只从 2026-10-14 起 ⇒ 历史任何一天的 PIT 帧都造不出来。\n",
+    "evidence": "fundamental_ic.json（历史 BM@K=21 IC-t=+2.94 —— 🚨 不可引用：在后修值上算的，UPDATE_DATE 已证标不出修订） / financial_vintage/_manifest.jsonl（PIT 快照台账，2026-10-14 起） / scripts/audit_pit_whitelist/exp_snapshot_diff.py（快照差分，只读） / aplus/factor_fundamental.py（PIT BM 实现） / tests/test_factor_fundamental.py + tests/mutation_specs/test_factor_fundamental.mut（守卫 + 变异台）",
+    "candidates": [
+      {
+        "weights": {
+          "bm": 1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "bm": 1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "bm": 1.0,
+          "mom20": -1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "bm": 1.0,
+          "mom20": -1.0
+        },
+        "rebalance_every": 63,
+        "buffer_multiple": null
+      },
+      {
+        "weights": {
+          "bm": -1.0
+        },
+        "rebalance_every": 21,
+        "buffer_multiple": null
+      }
+    ],
+    "sealed_sha256": "bf0e37de3237d9f09b0526dbc66e13ff7b11482a8741be895dcc59b6607d6e4b"
   }
 ]

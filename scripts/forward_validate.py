@@ -41,6 +41,7 @@ import pandas as pd
 from aplus.backtest import ENTRY_LAG, build_cross_sections, evaluate_weights
 from aplus.evolve_race import (breadth_tstat, down_excess_tstat, excess_tstat,
                                race)
+from aplus.factor_fundamental import attach_pit_bm
 from aplus.forward import (FORWARD_EMBARGO_DAYS, forward_status, forward_window,
                        load_registry, needs_forward_panel,
                            merge_results)
@@ -67,6 +68,39 @@ def evaluate_factory(xs):
         stats["n_ranked"] = int(res.attrs.get("n_ranked", -1))
         return {"stats": stats, "objective": 0.0, "n": int(len(res))}
     return ev
+
+
+#: 测试段/训练段的切分比例。**0.0 ⇒ 整段都是测试段**（`split_window` 的
+#: 切分点落在第 1 天，测试段 = 窗口 − 1 天）。
+#:
+#: 🚨 原值是 `0.999`，而 `split_window` 的实现是
+#: `cut = max(1, min(n-1, int(n*train_ratio)))` ⇒ `cut = n-1`
+#: ⇒ **测试段只有 1 天** ⇒ `race()` 会把 K>1 的候选全判成
+#: 「测试段仅 1 个交易日，K=21 只剩 0 个调仓周期，不足 3 个——无法测量」
+#: ⇒ **前瞻验证一个候选都测不了**。
+#: 而本行上面的注释写的意图恰恰是「整段都是测试段」——**意图与实现不符**。
+TRAIN_RATIO = 0.0
+
+
+def evaluate_batch(xs: dict, win: list, candidates: list) -> dict:
+    """在**该批次自己的**前瞻窗口 `win` 上评估一组候选。
+
+    ## 为什么窗口必须按批次切
+
+    `aplus/forward.py` 的规则逐字写着：「窗口严格晚于注册日，并留隔离带。
+    注册日当天的数据**已经**被看过了。拿它当验证样本，等于用答案去答自己出的卷。」
+
+    🚨 此前这里传的是**整个面板**（从最早的注册日算起），
+    于是 2026-10-20 注册的批次 4 会被 10-12~10-19 的行情评价——
+    那段数据在注册时**已经看过了** ⇒ 前瞻验证的前瞻性被破坏。
+
+    ## 为什么 `train_ratio = 0.0`
+
+    见 `TRAIN_RATIO` 的注释：`0.999` 给的是 1 天的测试段 ⇒ 全部候选被剔除。
+    """
+    sub = {**xs, "_dates": list(win)}
+    return race(sub, candidates, evaluate_factory(xs), top_n=10, bottom_n=10,
+                train_ratio=TRAIN_RATIO, embargo_days=0)
 
 
 def _latest_trading_day(files) -> str:
@@ -182,8 +216,25 @@ def main() -> int:
             factors_map = load_factors_map(store)
             xs = build_cross_sections(store, start, latest, daily_map=daily_map,
                                       factors_map=factors_map, entry_lag=ENTRY_LAG)
+            # ── PIT 版 BM（批次 4 起）挂进横截面 ─────────────────────
+            # `aplus/factor_fundamental.py::attach_pit_bm` 的财务侧**只**来自
+            # `vintage.pit_frame`：拿的是那天源站当时服务的帧。
+            #
+            # 🚨 为什么必须挂：**每一天都要有 `bm` 列**。
+            # `aplus/factor.py::composite_score` 对缺失的因子列会 **KeyError**
+            # ⇒ 某天没有 `bm` 列，含 `bm` 的候选当场崩，而崩的是**整个前瞻验证**
+            # （连不带 `bm` 的老批次一起陪葬）。
+            # 没有 PIT 快照的日子该列**全为 NaN** ⇒ `composite_score` 的
+            # `min_count` 规则把那天全部剔掉 ⇒ 那天**不出信号**（不是出零信号）。
+            vintage_root = args.data_root / "reports" / "financial_vintage"
+            bm_report = attach_pit_bm(xs, root=vintage_root, daily_map=daily_map)
+            _bm_gap = bm_report.get("unavailable_days") or []
+            print(f"前瞻面板 {start} ~ {latest}：{len(xs['_dates'])} 个交易日"
+                  f" · PIT BM 可用 {bm_report.get('n_with_bm')} 天"
+                  + (f" · 无 PIT 快照（BM 列全 NaN）{len(_bm_gap)} 天："
+                     f"{_bm_gap[0]} ~ {_bm_gap[-1]}" if _bm_gap else ""),
+                  flush=True)
             dates = list(xs["_dates"])
-            print(f"前瞻面板 {start} ~ {latest}：{len(dates)} 个交易日", flush=True)
 
     st = forward_status(reports, as_of=latest, dates=dates)
     print(f"\n前瞻台账：{st['registrations']} 份注册 · {st['n_candidates']} 组候选 · "
@@ -207,8 +258,9 @@ def main() -> int:
         win = forward_window(dates, r["registered_on"])
         if not win:
             continue
-        rr = race(xs, r["candidates"], evaluate_factory(xs), top_n=10, bottom_n=10,
-                  train_ratio=0.999, embargo_days=0)   # 整段都是「测试段」
+        # ── 每批只看**它自己的**前瞻窗口 ──────────────────────────
+        # 理由与 `evaluate_batch` 的 docstring 逐字相同（不重复一份）。
+        rr = evaluate_batch(xs, win, r["candidates"])
         results.append({"as_of": latest, "registered_on": r["registered_on"],
                         "window_days": len(win),
                         "table": [{"weights": x["weights"],

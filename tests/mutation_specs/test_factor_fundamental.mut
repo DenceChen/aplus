@@ -1,0 +1,4 @@
+M1 用更新的快照代替（拿最新的一份凑数）	aplus/vintage.py
+    cands = [d for d in available_days(root) if d <= as_of]
+=== 变异体 ===
+    cands = available_days(root)  # MUTANT newest-snapshot-substitution
