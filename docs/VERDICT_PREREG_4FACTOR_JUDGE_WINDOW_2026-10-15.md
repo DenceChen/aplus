@@ -289,6 +289,32 @@ buffer=3.0 的 A：`0.01712 + 0.22380 = 0.24092 < 0.2639` ⇒ **仍是 `INSUFFIC
 ⚠️ **只要点估计再高 2.3 个百分点，两种读法就会分档。**
 ⇒ 登记：字段名与判据字面不对应，且**当前数据上不改变判决**。
 
+### 判决读法分档
+
+🚨 **本节是 2026-10-21 的事后补记**（生产配置 K=21 → **K=63** 后的重跑实测）。
+**它不是预注册**（第 91 层：跑过数据后不可辨 ⇒ 补写出来的登记不能冒充预注册）。
+
+⚠️ **上面那句「当前判决不受影响」在 K=63 上已被证伪。**
+K=21 时代六格恰好落在同一档；**K=63 重跑后六格全部分档**：
+
+| 格 | 实现读法（+SE） | 字面读法（+1 SD） |
+|---|---|---|
+| `None/A_rowwise` | `INSUFFICIENT` | `UNDERPOWERED` |
+| `None/B_daily` | `INSUFFICIENT` | `UNDERPOWERED` |
+| `None/C_daily_min_basket` | `INSUFFICIENT` | `UNDERPOWERED` |
+| `3.0/A_rowwise` | `INSUFFICIENT` | `UNDERPOWERED` |
+| `3.0/B_daily` | `INSUFFICIENT` | `UNDERPOWERED` |
+| `3.0/C_daily_min_basket` | `INSUFFICIENT` | `UNDERPOWERED` |
+
+⇒ 「点估计再高 2.3 个百分点就会分档」那句预警**已经兑现**（K=63 把点估计抬上去了）。
+⇒ **判决方向受影响** ⇒ 读 `plus1sd_*` 的人**必须知道它加的是 SE**。
+⇒ **处置**（第 154 层）：**不许**把实现改成 `+sd`（那是**预注册判决**的口径）
+⇒ 保留字段名与实现的错位，**由本节逐字记录分档**。
+⇒ 守卫 `tests/test_regime_control_min_basket_control.py::
+test_the_judgment_document_records_exactly_the_verdict_reading_split`
+**从产物算出分档集合**并与**本节记录的集合**逐项相等 ⇒
+**文档漏记 ⇒ 红**（下一个读产物的人会被骗）；**文档多记 ⇒ 红**（文档在讲不存在的事实）。
+
 ### ⑤ 篮子成分数最小值是 **1**，5 天的有效成分 < 3
 
 产物 `basket_size.min = 1`（两臂皆是）⇒ **确实存在「篮子只剩 1 只有效成分」的日子**，
@@ -347,7 +373,7 @@ provenance.freshness("regime_control_sweep.json", root=Path("."))
 | 1 | `data/reports/regime_control_sweep.json`（**选段** 2019-01-02~2023-12-31） | `freshness = unknown`，原文「**没有溯源 sidecar——生成它的 commit 无从得知**」⇒ 按本仓规矩**不可引用** |
 | 2 | `data/reports/lowfreq_plausibility.json` | 同上，`unknown`，无 sidecar |
 | 3 | 新发现 ③（`n_no_data` 两臂差 2.38~7.56×） | **未偿**，直接威胁 `signal_net` 的可解释性 |
-| 4 | 新发现 ④（`plus1sd` 名实不符） | **未偿**，当前判决不受影响 |
+| 4 | 新发现 ④（`plus1sd` 名实不符） | **未偿**，**K=63 重跑后六格全部分档 ⇒ 判决受影响**（见 ④ 的「判决读法分档」补记） |
 | 5 | 新发现 ②（`parity` 核的量 ≠ 产物主量） | **未偿**（登记） |
 | 6 | 新发现 ⑥（预注册两处行号锚点腐烂） | **未偿**（登记，不改预注册） |
 | 7 | `scripts/regime_control_sweep.py:141` 面板缓存裸 `write_bytes`（**无盖章**） | ⚠️ **刻意未修**：改它会动字节并把已盖章的第一份产物翻成 `stale` |

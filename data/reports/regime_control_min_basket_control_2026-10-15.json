@@ -5,139 +5,139 @@
     "2021-01-04",
     "2026-10-09"
   ],
-  "rebalance_every": 21,
+  "rebalance_every": 63,
   "min_basket_constant": 3,
   "min_basket_source": "aplus/verify.py:19（导入，不写字面量）",
-  "hurdle_from_hurdle_rate": 0.2639047619047619,
+  "hurdle_from_hurdle_rate": 0.2213015873015873,
   "hurdle_derivation": "hurdle_rate(target=0.20, cost_per_round=COST_REAL_50K, rounds_per_year=244/LIVE_REBALANCE_EVERY, benchmark_annual=0.0)",
   "caliber_note": "A=逐行（`rolling_stats`：mean_row(up净) − mean_row(market)）；B=逐日（`_daily_series`：mean_daily(up净) − mean_daily(market)）；C=逐日 + `size >= MIN_BASKET`。⚠️ 预注册第二节字面写的是 `sign_fixed.annual_up_excess`，即 **A**。⚠️ 本脚本**不裁定** A/B 谁是「对」的口径——只给数与分解。",
   "code_sha256": {
-    "scripts/regime_control_sweep.py": "aa8b970c373a76d766e2574c6a966f7a0e36daf693e39f9642bb6bfc46a38119",
-    "aplus/backtest.py": "4a00bece47623697188f166ee07807b211736babc8afab408027b50ea37fdfee",
+    "scripts/regime_control_sweep.py": "e8695ce1ccf3e978a6651ebb1532645b84b2e906cc28410732eb021b24931a1b",
+    "aplus/backtest.py": "b5328f5c72488afb81a7d3fb09baadbac422d1aa35712fd7b4a6b7319c039db8",
     "aplus/panel_cache.py": "16e05b27696402b113c3b38508c2f2b5847da9a3f1eeb808486cec6c6c297fb8",
-    "aplus/verify.py": "ecfe0ba4f4f781b8ddea5ee45d0f8ea0177337daaeb0b08313b15639d2d8de90"
+    "aplus/verify.py": "f55fa2ba9708eba59efd48934512584a916477e8eeb35e466b48ed3332fb305b"
   },
   "arms": [
     {
       "buffer_multiple": null,
       "parity": {
-        "_metrics_annual_up_excess": 0.007479904981219636,
-        "A_rowwise_annual_pct": 0.007479904981219636,
+        "_metrics_annual_up_excess": 0.1080090165516406,
+        "A_rowwise_annual_pct": 0.1080090165516406,
         "closes": true,
-        "_metrics_annual_cost": 0.03478967741935484
+        "_metrics_annual_cost": 0.011753978494623656
       },
       "B_vs_pooled_ref": {
         "note": "B 与 `regime_control_by_year.py::pooled()` 的逐位对拍",
-        "annual_pct": -0.029035246664691233,
-        "ref_annual_up_excess_NET_pct": -0.02903524666469121,
-        "ref_sd_annual_pct": 0.2227897132504814,
-        "ref_se_annual_pct": 0.09317576001394748,
+        "annual_pct": 0.06028424915602434,
+        "ref_annual_up_excess_NET_pct": 0.06028424915602427,
+        "ref_sd_annual_pct": 0.20970139817868602,
+        "ref_se_annual_pct": 0.08770192692567808,
         "closes": true
       },
       "calibers": {
         "A_rowwise": {
-          "annual_pct": 0.007479904981219636,
+          "annual_pct": 0.1080090165516406,
           "n_days": 1395,
-          "sd_annual_pct": 0.2227897132504814,
-          "se_annual_pct": 0.09317576001394748,
-          "plus1sd_pct": 0.10065566499516712,
+          "sd_annual_pct": 0.20970139817868602,
+          "se_annual_pct": 0.08770192692567808,
+          "plus1sd_pct": 0.19571094347731866,
           "verdict": "INSUFFICIENT"
         },
         "B_daily": {
-          "annual_pct": -0.029035246664691233,
+          "annual_pct": 0.06028424915602434,
           "n_days": 1395,
-          "sd_annual_pct": 0.2227897132504814,
-          "se_annual_pct": 0.09317576001394748,
-          "plus1sd_pct": 0.06414051334925625,
+          "sd_annual_pct": 0.20970139817868602,
+          "se_annual_pct": 0.08770192692567808,
+          "plus1sd_pct": 0.14798617608170242,
           "verdict": "INSUFFICIENT"
         },
         "C_daily_min_basket": {
-          "annual_pct": -0.03459281721304174,
-          "n_days": 1390,
-          "sd_annual_pct": 0.22246151908012513,
-          "se_annual_pct": 0.09320568691942963,
-          "plus1sd_pct": 0.058612869706387884,
+          "annual_pct": 0.06080125561015598,
+          "n_days": 1392,
+          "sd_annual_pct": 0.2089130709431581,
+          "se_annual_pct": 0.08746633085990699,
+          "plus1sd_pct": 0.14826758647006297,
           "verdict": "INSUFFICIENT"
         }
       },
       "decomposition": {
         "identity": "A − B = 244 × [ (mean_row(up净) − mean_daily(up净)) − (mean_row(market) − mean_daily(market)) ]",
-        "term_up_rows_minus_daily": 0.00012634851095550114,
-        "term_market_rows_minus_daily": -2.3303749888395862e-05,
-        "reconstructed_A_minus_B": 0.03651515164591087,
-        "observed_A_minus_B": 0.03651515164591087,
-        "residual_per_year": 0.0,
+        "term_up_rows_minus_daily": 0.00017516587561213816,
+        "term_market_rows_minus_daily": -2.042743338628915e-05,
+        "reconstructed_A_minus_B": 0.04772476739561626,
+        "observed_A_minus_B": 0.047724767395616256,
+        "residual_per_year": -6.938893903907228e-18,
         "closes_bitwise": true
       },
       "basket_size": {
         "min": 1,
         "median": 10.0,
         "max": 10,
-        "n_days_lt_min_basket": 5,
-        "n_days_lt_top_n": 400,
+        "n_days_lt_min_basket": 3,
+        "n_days_lt_top_n": 581,
         "min_basket_constant": 3,
-        "dropped_days_contribution_annual_pct": 7.579846828883766
+        "dropped_days_contribution_annual_pct": -0.5388202366832555
       }
     },
     {
       "buffer_multiple": 3.0,
       "parity": {
-        "_metrics_annual_up_excess": 0.017117813314200227,
-        "A_rowwise_annual_pct": 0.017117813314200227,
+        "_metrics_annual_up_excess": 0.10879157417834139,
+        "A_rowwise_annual_pct": 0.10879157417834139,
         "closes": true,
-        "_metrics_annual_cost": 0.03463225806451613
+        "_metrics_annual_cost": 0.011701505376344085
       },
       "B_vs_pooled_ref": {
         "note": "B 与 `regime_control_by_year.py::pooled()` 的逐位对拍",
-        "annual_pct": -0.020101235213300414,
-        "ref_annual_up_excess_NET_pct": -0.020101235213300362,
-        "ref_sd_annual_pct": 0.22380230356004926,
-        "ref_se_annual_pct": 0.09359924846994576,
+        "annual_pct": 0.06138638894930342,
+        "ref_annual_up_excess_NET_pct": 0.06138638894930338,
+        "ref_sd_annual_pct": 0.20976142830487035,
+        "ref_se_annual_pct": 0.08772703289915122,
         "closes": true
       },
       "calibers": {
         "A_rowwise": {
-          "annual_pct": 0.017117813314200227,
+          "annual_pct": 0.10879157417834139,
           "n_days": 1395,
-          "sd_annual_pct": 0.22380230356004926,
-          "se_annual_pct": 0.09359924846994576,
-          "plus1sd_pct": 0.11071706178414599,
+          "sd_annual_pct": 0.20976142830487035,
+          "se_annual_pct": 0.08772703289915122,
+          "plus1sd_pct": 0.1965186070774926,
           "verdict": "INSUFFICIENT"
         },
         "B_daily": {
-          "annual_pct": -0.020101235213300414,
+          "annual_pct": 0.06138638894930342,
           "n_days": 1395,
-          "sd_annual_pct": 0.22380230356004926,
-          "se_annual_pct": 0.09359924846994576,
-          "plus1sd_pct": 0.07349801325664534,
+          "sd_annual_pct": 0.20976142830487035,
+          "se_annual_pct": 0.08772703289915122,
+          "plus1sd_pct": 0.14911342184845464,
           "verdict": "INSUFFICIENT"
         },
         "C_daily_min_basket": {
-          "annual_pct": -0.025626669029811363,
-          "n_days": 1390,
-          "sd_annual_pct": 0.22348015038875593,
-          "se_annual_pct": 0.09363246738569253,
-          "plus1sd_pct": 0.06800579835588116,
+          "annual_pct": 0.0619057707047137,
+          "n_days": 1392,
+          "sd_annual_pct": 0.20897344623095776,
+          "se_annual_pct": 0.08749160838263262,
+          "plus1sd_pct": 0.14939737908734632,
           "verdict": "INSUFFICIENT"
         }
       },
       "decomposition": {
         "identity": "A − B = 244 × [ (mean_row(up净) − mean_daily(up净)) − (mean_row(market) − mean_daily(market)) ]",
-        "term_up_rows_minus_daily": 0.00012927754118152626,
-        "term_market_rows_minus_daily": -2.3259542947574733e-05,
-        "reconstructed_A_minus_B": 0.037219048527500645,
-        "observed_A_minus_B": 0.037219048527500645,
-        "residual_per_year": 0.0,
+        "term_up_rows_minus_daily": 0.0001739202483652905,
+        "term_market_rows_minus_daily": -2.0363297655356873e-05,
+        "reconstructed_A_minus_B": 0.04740518522903796,
+        "observed_A_minus_B": 0.047405185229037965,
+        "residual_per_year": 6.938893903907228e-18,
         "closes_bitwise": true
       },
       "basket_size": {
         "min": 1,
         "median": 10.0,
         "max": 10,
-        "n_days_lt_min_basket": 5,
-        "n_days_lt_top_n": 402,
+        "n_days_lt_min_basket": 3,
+        "n_days_lt_top_n": 580,
         "min_basket_constant": 3,
-        "dropped_days_contribution_annual_pct": 7.579846828883766
+        "dropped_days_contribution_annual_pct": -0.5388202366832555
       }
     }
   ]

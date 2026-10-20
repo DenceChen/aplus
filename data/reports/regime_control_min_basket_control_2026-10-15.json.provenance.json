@@ -1,9 +1,9 @@
 {
-  "code_sha": "8191eceda86c3060105b4ef64ab79c1747b31ec5",
+  "code_sha": "f8f09ac41d78aa4c8d245c76f1cc4b3cda7f4992",
   "code_dirty": true,
-  "code_file_sha256": "f45fa94812ae09b633d69bd10eb8a72f3ab99a156e8c82c04e810ab856e9a9e0",
-  "data_fp": "5460:1792062762.291641",
+  "code_file_sha256": "58c26744b56b2c4e48d4730532ca441cec0350c18e6ca18b3153b62cc746b796",
+  "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/regime_control_min_basket_control.py",
-  "stamped_at": "2026-10-15T12:30:47+00:00"
+  "stamped_at": "2026-10-20T20:43:47+00:00"
 }

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import importlib.util
 import math
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -457,49 +458,110 @@ def test_the_field_name_says_sd_while_the_preregistration_says_one_sigma():
     )
 
 
-def test_on_the_real_panels_the_sd_reading_and_the_se_reading_reach_the_same_verdict():
-    """★ 判决中性：**这是「当前数据上错位不改变判决」这个主张的唯一测法**。
+# ── 判决文档与产物的**一致性**（第 154 层：名实不符要由文档承认）────────
 
-    ⚠️ 它读的是产物（`data/reports/regime_control_min_basket_control_*.json`），
-    所以它有第 96 层的先天病：**产物层守卫对当前代码零覆盖**。
-    ⇒ 它的机制半边由上面两条（`_pack` 的加法 + 反控）承担，
-      这里只负责「**真实六个格上**两种读法同档」这个数字事实。
+DOC = ROOT / "docs" / "VERDICT_PREREG_4FACTOR_JUDGE_WINDOW_2026-10-15.md"
+ART = ROOT / "data" / "reports" / "regime_control_min_basket_control_2026-10-15.json"
+DOC_TABLE_HEAD = "### 判决读法分档"
+#: 形状常量 = **三口径 × 两 buffer**。⚠️ 它是**形状**不是会漂的读数 ⇒ 可以写死。
+#: 但它同时是「覆盖面」的锚：任何一格的 `se` 变成 `None` ⇒ 覆盖面缩小 ⇒ 红。
+EXPECTED_CELLS = 6
 
-    两种读法逐格对比：
-      实现读法：`verdict(点, plus1sd)`      其中 plus1sd = 点 + **SE**
-      字面读法：`verdict(点, 点 + sd)`        （把字段名的 `sd` 当真）
 
-    ⚠️ 这条守卫的**失效方向是假绿**：若产物 json 缺失或被改名，
-    `skip` 与「判决中性」在输出里长得一样（层 126：skip 时外观完全正常）。
-    ⇒ 因此下面显式断言「**真的读到了六个格**」。
+def _computed_reading_split():
+    """从**产物**算出「两种读法是否同档」，逐格。
+
+    实现读法：`verdict(点, plus1sd)`（`plus1sd = 点 + SE`）
+    字面读法：`verdict(点, 点 + sd)`（把字段名的 `sd` 当真）
+
+    ⇒ 返回 `(分档集合, 核到的格数, 核到的总格数)`
     """
     import json
-    path = ROOT / "data/reports/regime_control_min_basket_control_2026-10-15.json"
-    assert path.exists(), (
-        f"产物 {path.name} 不在盘上 —— 本条守卫会**静默失去覆盖面**。"
-        "要么重跑 `scripts/regime_control_min_basket_control.py`，"
-        "要么把它从本文件里删掉并登记为债。**不许让它 skip。**"
-    )
-    art = json.loads(path.read_text(encoding="utf-8"))
-
-    n_checked = 0
+    art = json.loads(ART.read_text(encoding="utf-8"))
+    split, n_checked, n_total = set(), 0, 0
     for arm in art["arms"]:
         for key, c in arm["calibers"].items():
             if c["se_annual_pct"] is None:
                 continue
+            n_total += 1
+            label = f"{arm.get('buffer_multiple')}/{key}"
             as_se = M.verdict(c["annual_pct"], c["plus1sd_pct"])
             as_sd = M.verdict(c["annual_pct"], c["annual_pct"] + c["sd_annual_pct"])
-            assert as_se == as_sd, (
-                f"{arm.get('buffer_multiple')}/{key}: 实现读法给 {as_se}，"
-                f"字面（+1 SD）读法给 {as_sd}。\n"
-                "⇒ 判决文档第六节新发现 ④ 的「判决方向不受影响」这句话**已过期**，"
-                "判决文档必须改。**先量，别先改判据。**"
-            )
             n_checked += 1
-    assert n_checked == 6, (
-        f"只核到 {n_checked} 个格（应为 6 = 三口径 × 两 buffer）"
-        "⇒ 产物形状变了或某格 se 为 None，**覆盖面已缩小**。"
-    )
+            if as_se != as_sd:
+                split.add((label, as_se, as_sd))
+    return split, n_checked, n_total
+
+
+def _recorded_reading_split(doc_text):
+    """从**判决文档**里读出它记录的分档集合。
+
+    格式（文档里那一节）：
+
+        | `None/A_rowwise` | `INSUFFICIENT` | `UNDERPOWERED` |
+
+    ⇒ 漏记 ⇒ 红；多记 ⇒ 红。
+    """
+    out = set()
+    in_block = False
+    for ln in doc_text.splitlines():
+        # ⚠️ **精确匹配**，不许前缀匹配（否则「### 判决读法分档（已删除）」
+        #   也会被当成那一节 ⇒ 整节被删掉时守卫反而绿）。
+        if ln.strip() == DOC_TABLE_HEAD:
+            in_block = True
+            continue
+        if in_block and ln.strip().startswith("#"):
+            break                       # 下一节 ⇒ 表结束
+        if not in_block:
+            continue
+        m = re.match(r"^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|\s*$",
+                     ln.strip())
+        if m:
+            out.add((m.group(1), m.group(2), m.group(3)))
+    return out
+
+
+def test_the_judgment_document_records_exactly_the_verdict_reading_split():
+    """★ 「两种读法是否同档」这个事实**不许只活在测试里**。
+
+    ## 判据为什么从「必须同档」改成「文档必须与数据一致」
+
+    守卫原本断言「真实格上两种读法同档」⇒ 那等于断言
+    「**判决方向不受影响**」（判决文档第六节新发现 ④）。
+
+    🚨 **实测把它证伪了**：有格实现读法给 `INSUFFICIENT`、
+    字面（+1 SD）读法给 `UNDERPOWERED` ⇒ **判决类别不同** ⇒
+    「判决方向不受影响」这句话**已过期**。
+
+    ⇒ 按第 154 层的纪律：**不许**把实现改成 `+sd`
+    （那是**预注册判决**的口径，第 91 层）⇒ 正确处置是
+    **让判决文档逐字记录这个分档**。
+
+    ⇒ 判据变成：**从产物算出的分档集合** == **文档记录的分档集合**。
+      · 文档漏记 ⇒ 红（下一个读产物的人会把 `plus1sd_pct` 当成「点 + 1 个标准差」）
+      · 文档多记 ⇒ 红（文档在讲一个不存在的事实）
+    ⇒ 它**自己算**答案 ⇒ 恒真不了。
+
+    ⚠️ 这条守卫**不替人做判决**：它只要求「文档说的 == 数据算的」。
+    """
+    assert ART.exists(), (
+        f"产物 {ART.name} 不在盘上 ⇒ 本条守卫会**静默失去覆盖面**。"
+        "要么重跑 `scripts/regime_control_min_basket_control.py`，"
+        "要么把它从本文件里删掉并登记为债。**不许让它 skip。**")
+    doc_text = DOC.read_text(encoding="utf-8")
+    computed, n_checked, n_total = _computed_reading_split()
+    assert n_total == EXPECTED_CELLS and n_checked == EXPECTED_CELLS, (
+        f"核到 {n_checked}/{n_total} 个格（应为 {EXPECTED_CELLS} = 三口径 × 两 buffer）"
+        f"⇒ 产物形状变了或某格 se 为 None ⇒ **覆盖面已缩小**，要有人看。")
+    recorded = _recorded_reading_split(doc_text)
+    assert recorded == computed, (
+        f"判决文档记录的分档与**产物实测**不符。\n"
+        f"  实测（{len(computed)} 格分档）：{sorted(computed)}\n"
+        f"  文档记录（{len(recorded)} 格分档）：{sorted(recorded)}\n"
+        f"⇒ 文档漏记 ⇒ 下一个读产物的人会把 `plus1sd_pct` 当成「点 + 1 个标准差」；\n"
+        f"  文档多记 ⇒ 文档在讲一个不存在的事实。\n"
+        f"⇒ 改**文档**（`{DOC.name}` 的「{DOC_TABLE_HEAD}」那一节），"
+        f"**不要**改实现（第 154 层：`+sd` 是预注册判决的口径）。")
 
 
 # ══ ⑥ `verdict`：预注册第二节四条规则 ═════════════════════════════
