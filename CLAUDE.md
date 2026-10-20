@@ -1783,6 +1783,9 @@ E.md 自己写过「散落在正文里的计数会静默过期，**且无守卫*
 | **转债 5 万档** | 「若这 5 万投**转债**，账户年化多少？整手投得进去吗？」 | `data/reports/bond_deployed_nav.json::verdict`（**样本外测试段**，不是全窗口；⚠️ 转债 ≠ A 股股票，D2 定义域仍是股票） |
 | **整手可执行性** | 「这些名字，5 万**买不买得起**？」 | `data/reports/portfolio_exec.json`（逐窗口投入率）＋ `data/reports/lot_affordability.json`（**池子比例**，⚠️ 不等于「策略实际会选的那几只」） |
 | **D1 跌腿闸门** | 「每天那 10 只**会跌**的，判据过没过？」 | `data/reports/downleg_gate.json::verdict`（三态，与涨腿臂**同名同义**；方向显式写在 `monotone_direction`） |
+| **★ 实盘配置档（当前生产）** | 「按**真正在跑**的那个账户（满仓 10 只 × ¥5,000 · **K=63** · 实盘 4 因子 `DEFAULT_WEIGHTS` · 整手 · 逐笔成本 · 0% 现金），账户年化多少？离 20% 差多少？」 | `data/reports/deployed_d2_verdict.json::verdict`（`leg` = 生产配置那一格；⚠️ **判决腿已从「半仓 5 只 + K=21」换成「满仓 10 只 + K=63」** ⇒ **旧档（+1.11%）已成历史**，见 `docs/DELIVERY_DECISIONS_2026-10-20.md` §12） |
+| **旧实盘档（半仓 5 只 · K=21）** | 「改配置之前，那个账户长什么样？」 | **历史档**，保留是因为它说明「半仓时 20% 结构上不可达」⇒ `data/reports/deployed_d2_verdict.json::account_legs::T2_live_truth` |
+| **决策腿的配置层 vs 名单层** | 「可买性过滤落在哪一层，两个口径差多少？」 | `deployed_d2_verdict.json::signal_x_affordability`（⚠️ **配置层（生产）≡ ARM_A**；ARM_C 是**名单层**产品，**不是**生产读数） |
 
 ⚠️ **A / B 两类「买不起」不许合并**（`docs/PREREG_AFFORDABILITY_2026-10-16.md` §2）：
 **A（物理）** = 1 手 > 全部本金 ⇒ 与仓位分配无关；**B（分配）** = 1 手 > 每份金额
