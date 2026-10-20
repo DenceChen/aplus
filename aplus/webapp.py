@@ -908,7 +908,13 @@ def create_app(data_root, llm=None) -> FastAPI:
                     "is_buy_day", "is_sell_day", "n_positions", "cost_paid",
                     "holdings", "add", "remove", "n_liquidated"]
             curve = rows[keep].to_dict(orient="records")
-            latest = rows[rows["arm"] == "cheap_p0"].iloc[-1].to_dict()
+            # 🚨 `latest` 是**整行** dict（不是 `keep` 子集）⇒ 它多带一列
+            #   `mean_entry_open`，而**卖出行那一列是 NaN**（当天已清仓 ⇒
+            #   没有持仓价可平均）。starlette 的 JSONResponse 用
+            #   `json.dumps(allow_nan=False)` ⇒ 一个 NaN 就让**整个响应 500**，
+            #   前端转债页签直接显示「加载失败」。
+            # ⇒ 走本文件**自己的** `_json_safe`（同款 NA→None），不要另写一份。
+            latest = _json_safe(rows[rows["arm"] == "cheap_p0"].tail(1))[0]
         return {"summary": summary, "curve": curve, "latest": latest}
 
     @app.get("/api/d2-gap")
