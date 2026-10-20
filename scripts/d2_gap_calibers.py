@@ -60,6 +60,26 @@ K=21 那一行第二格是 **11.6**。
 
 ⇒ 压成一句「都不可引用」是错的：三种失效原因会被后人当成一种统一处理。
 
+## 🚨 2026-10-21：顶层键 `the_only_citable_d2_gap` **退休**
+
+它自称「这是 D2 唯一可引用的缺口陈述」，而它绑定的是 **K=21 判决档**
+（`basket_nav_01_2026-10-16.json`）⇒ 而生产配置已于 **2026-10-20** 改成
+**K=63 满仓 10 只** ⇒ 那个**认领**随配置变更而过期。
+
+⇒ 处置：**不是换臂，是并排**（第 183 层）：
+`d2_gap_by_caliber` 现在装**三个口径**，各带 **K** 与出处：
+
+| 口径 | K | 是什么 | 载体 |
+|---|---|---|---|
+| `verdict_k21` | **21** | 判决档（满仓 · 8 因子 IC 定权） | `basket_nav_01_2026-10-16.json` |
+| `deployed_live_k63` | **63** | **实盘档**（生产配置 · 整手 · 闲置现金 0 计息） | `deployed_d2_verdict.json::verdict` |
+| `ideal_ceiling_k63` | **63** | 理想档（满仓 100% 部署假设下的**公式上界**） | `d2_signal_requirement.json::headline.account_annual_ceiling_pct` |
+
+🚨 **屏上给用户的是实盘档**；理想档可以并排给出（**必须标明是上界**）；
+判决档可以并排给出（**必须带 K=21**）。
+🚨 **K 不同 ⇒ 摩擦不同 ⇒ 门槛不同 ⇒ 两档的数不可直接比大小**，
+更不可把差值说成「离 20% 更近了」（第 129 层）。
+
 ## 用法
 
 ```bash
@@ -92,6 +112,11 @@ BN_REL = "data/reports/basket_nav_01_2026-10-16.json"
 FWM_REL = "data/reports/factor_width_mde.json"
 KS_REL = "data/reports/k_sweep_summary.json"
 BE_REL = "data/reports/bridge_error.json"
+# 🚨 2026-10-21 新增两个口径的载体（**只读**）：
+#   · 实盘档（K=63 · 生产配置）—— 屏上给用户的那个数就是它
+#   · 理想档（满仓 100% 部署假设下的公式上界，K=63 台账）
+DEPLOYED_REL = "data/reports/deployed_d2_verdict.json"
+IDEAL_REL = "data/reports/d2_signal_requirement.json"
 
 # 判决臂的 K。**不许有默认值**：少传参数必须 TypeError，
 # 否则「判决臂 vs 敏感性臂」的区分会被某次调用悄悄抹掉（第 119 / 182 层）。
@@ -226,11 +251,31 @@ def hurdle_call_sites() -> dict:
 
 def account_gap(bn: dict) -> dict:
     """**基准无关**的 D2 缺口。依据是产物 `verdict_rule` 原文，不是恒等式推理
-    （恒等式定不了语义，第 176 层）。"""
+    （恒等式定不了语义，第 176 层）。
+
+    🚨 **本块只覆盖「K=21 判决档」这一个口径**（`basket_nav_01_2026-10-16.json`）。
+    ⇒ 「唯一可引用的缺口陈述」这句话**随配置变更而过期**（2026-10-21 退休）：
+       生产配置已于 2026-10-20 改成 **K=63 满仓 10 只** ⇒ 现在给用户看的那个数
+       是**实盘档**（`deployed_d2_verdict.json::verdict`），不是本块。
+       ⇒ 本块里的「唯一」**只在 K=21 判决档口径内**成立（第 183 层：加臂，不换臂）。
+    """
     c = bn["verdict_reading"]
     m = bn["verdict_mde_annual"]
     t = bn["target"]
     return {
+        "caliber_binding": {
+            "K": VERDICT_K,
+            "k_source": f"scripts/d2_gap_calibers.py :: VERDICT_K（= {VERDICT_K}）；"
+                        f"⚠️ **`{BN_REL}` 本身不带 K 字段** ⇒ 这个 K 靠"
+                        "**产物文件名 + 本脚本常量**认领，"
+                        "引用时**必须连 K 一起引**（第 168 层：列名/字段名不承诺语义）。",
+            "this_is": "🚨 **判决档（K=21 · 满仓 · 8 因子 IC 定权）** —— "
+                       "**不是**生产配置那一档（生产是 **K=63 满仓 10 只**）。",
+            "compare_with": "🚨 **K 不同 ⇒ 两档的数不可直接比大小**："
+                            "毛额门槛 = x* + 摩擦，而摩擦随 K 变"
+                            "（K 越大 ⇒ 年调仓次数越少 ⇒ 摩擦越低 ⇒ 门槛越松）"
+                            "⇒ **差值不可解释成「离 20% 更近了」**（第 129 层）。",
+        },
         "c": cite(BN_REL, "verdict_reading"),
         "m": cite(BN_REL, "verdict_mde_annual"),
         "u_upper_one_sided_95": cite(BN_REL, "verdict_upper_one_sided_95"),
@@ -248,8 +293,128 @@ def account_gap(bn: dict) -> dict:
         "account_sign_determinable": abs(c) >= m,
         "account_sign_determinable_why":
             "`abs(c) >= m`。为假时**连符号都定不了**：既不许说「达不到」，"
-            "也不许说「接近」⇒ **这是 D2 唯一可引用的缺口陈述。**",
+            "也不许说「接近」⇒ **在本口径（K=21 判决档）内**，"
+            "这仍是**唯一**可引用的缺口陈述"
+            "（🚨 **不再是无条件的那一句**：2026-10-21 起它只在本口径内成立）。",
         "verdict_rule_verbatim": bn["verdict_rule"],
+    }
+
+
+def deployed_caliber() -> dict:
+    """**实盘档**（K=63 · 生产配置）—— **只读** `deployed_d2_verdict.json::verdict`。
+
+    🚨 **锚在 `verdict` 块上**，不许满文档找 `cagr`：那份产物里**到处**都有
+    `cagr`（`arms` 每档一个、`account_legs`、`control_cross_check`…）
+    ⇒ 满文档找第一个 `cagr` 很可能找到**满仓判决档**的那个
+    ⇒ 读数**看起来有数、其实读错了对象**（第 168 层：找到了 ≠ 找对了）。
+
+    🚨 **这一档是「屏上给用户的那个数」**（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）
+    ⇒ 它的读数**逐字透传**，一个数都不算。
+    """
+    try:
+        doc = read_json(DEPLOYED_REL)
+    except (OSError, ValueError) as exc:
+        return {
+            "available": False,
+            "source": DEPLOYED_REL,
+            "note": f"产物读不出来（{type(exc).__name__}: {exc}）—— "
+                    "**不拿别的口径顶替**",
+        }
+    v = doc.get("verdict")
+    if not isinstance(v, dict):
+        return {
+            "available": False,
+            "source": DEPLOYED_REL,
+            "note": "产物里没有 `verdict` 块 —— **不拿别的口径顶替**",
+        }
+    cfg = v.get("config") or {}
+    return {
+        "available": True,
+        "role": "🚨 **生产配置那一档** —— 屏上给用户的那个数**就是它**"
+                "（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）",
+        "caliber_binding": {
+            "K": v["config"]["K"],
+            "k_source": f"{DEPLOYED_REL} :: verdict.config.K",
+            "n_positions": cfg.get("n_positions"),
+            "equity_weight": cfg.get("equity_weight"),
+            "capital": cite(DEPLOYED_REL, "artifact_meta", "capital"),
+            "leg": v.get("leg"),
+            "this_is": "🚨 **实盘档**（满仓 10 只 × ¥5,000 · 实盘 4 因子 "
+                       "`DEFAULT_WEIGHTS` · 配置层整手过滤 · 逐笔成本 · "
+                       "闲置现金 0 计息）",
+            "compare_with": "🚨 **K 与判决档（K=21）不同** ⇒ 两档的数"
+                            "**不可直接比大小**（摩擦随 K 变 ⇒ 门槛随 K 松）。",
+        },
+        "c": cite(DEPLOYED_REL, "verdict", "cagr"),
+        "m": cite(DEPLOYED_REL, "verdict", "mde_annual"),
+        "u_upper_one_sided_95": cite(DEPLOYED_REL, "verdict", "upper_one_sided_95"),
+        "t": cite(DEPLOYED_REL, "verdict", "target"),
+        "gap_pp": cite(DEPLOYED_REL, "verdict", "gap_to_target_pp"),
+        "measured_sign_determinable": v.get("measured_sign_determinable"),
+        "cases": v.get("cases"),
+        "previous_leg_is_superseded": {
+            "leg": (v.get("previous_leg") or {}).get("leg"),
+            "note": (v.get("previous_leg") or {}).get("note"),
+            "status": "🚨 **已被取代**（半仓 5 只 · K=21）⇒ 只作历史对照",
+        },
+        "idle_cash_ratios_are_deliberately_not_quoted": (
+            "🚨 **本块不引用任何「闲置比例」**："
+            "`idle_cash_ratio_mean` 量的是**调仓时刻的累计现金 ÷ 原始本金**"
+            "（随时间漂移），而 `lot_investable_rate` 的**名字与内容相反**"
+            "（值其实是**实投比例**）"
+            "⇒ 欠账见 `docs/TODO_deployed_idle_cash_caliber_2026-10-21.md`。"
+            "🚨 且**比值不是任何产物的字段** ⇒ 引用它就违反"
+            "「每个显示出来的数都要能指到 `产物路径 :: JSON 路径`」。"
+        ),
+        "note": f"逐字读 `{DEPLOYED_REL}` 的 `$.verdict` 块；本脚本一个数都不算",
+    }
+
+
+def ideal_caliber() -> dict:
+    """**理想档**：满仓（100% 部署）假设下的**公式上界** —— 只读台账产物。
+
+    🚨 **它不是实盘读数**：它假设 100% 部署 ⇒ 是「能做到的上限」。
+    ⇒ 与实盘档**并排**给出、**各带标签**，不许合并、不许取极值（第 143 层）。
+    """
+    try:
+        doc = read_json(IDEAL_REL)
+    except (OSError, ValueError) as exc:
+        return {
+            "available": False,
+            "source": IDEAL_REL,
+            "note": f"产物读不出来（{type(exc).__name__}: {exc}）—— "
+                    "**不拿别的口径顶替**",
+        }
+    head = doc.get("headline")
+    cap = (head or {}).get("account_annual_ceiling_pct")
+    if not isinstance(cap, dict):
+        return {
+            "available": False,
+            "source": IDEAL_REL,
+            "note": "产物里没有 `headline.account_annual_ceiling_pct` —— "
+                    "**不拿别的口径顶替**",
+        }
+    caliber = doc.get("caliber") or {}
+    return {
+        "available": True,
+        "role": "⚠️ **不是实盘读数** —— 它是**满仓（100% 部署）假设下的公式上界**，"
+                "即「能做到的上限」",
+        "caliber_binding": {
+            "K": caliber.get("k_used_by_this_ledger"),
+            "k_source": f"{IDEAL_REL} :: caliber.k_used_by_this_ledger",
+            "equity_weight": caliber.get("equity_weight"),
+            "deliverable_width": cap.get("deliverable_width"),
+            "this_is": "⚠️ **理想档**（公式上界 · 100% 部署假设）",
+            "compare_with": "🚨 与实盘档的差额 = **整手 + 闲置现金**的代价"
+                            "（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）",
+        },
+        "account_annual_pct": cite(IDEAL_REL, "headline",
+                                    "account_annual_ceiling_pct",
+                                    "at_deliverable_width_and_50k"),
+        "gap_pp": cite(IDEAL_REL, "headline", "account_annual_ceiling_pct",
+                        "gap_to_target_at_deliverable_width_and_50k_pp"),
+        "note": f"逐字读 `{IDEAL_REL}` 的 `$.headline.account_annual_ceiling_pct`；"
+                "本脚本一个数都不算",
     }
 
 
@@ -448,6 +613,60 @@ def hurdle_signature_trap() -> dict:
     }
 
 
+def multiple_by_caliber() -> dict:
+    """「还差几倍」那一族 —— **只读**台账的 `..._by_caliber` 块。
+
+    🚨🚨 **这不是一个「缺口口径」**，而是**「倍数」那一族** ⇒
+      **绝不**把它混进 `d2_gap_by_caliber` 的三档里当第四档（第 7 层）。
+
+    | 列 | 分子 | 分母 | 是不是缺口 |
+    |---|---|---|---|
+    | `same_caliber` | K=63 的要求 | K=63 · 生产臂 `LIVE_DEFAULT` 的实测毛超额 | ✅ **是** |
+    | `control_arms[*]` | K=63 的要求 | **对照臂**（非生产、非判决）的实测 | ⚠️ 对照臂 |
+    | `cross_caliber` | K=63 的要求 | **K=21 研究臂**的实测 | ❌ **不是**（台账显式标 `is_the_gap = false`）|
+
+    ⇒ 屏上那个「还差几倍」**必须**取 `same_caliber` 那一列；
+    `cross_caliber`（= 旧的裸键 `headline.multiple_needed_at_50k_deliverable`）
+    **可以出现，但必须带它的口径标签**。
+    """
+    try:
+        doc = read_json(IDEAL_REL)
+    except (OSError, ValueError) as exc:
+        return {
+            "available": False,
+            "source": IDEAL_REL,
+            "note": f"产物读不出来（{type(exc).__name__}: {exc}）—— "
+                    "**不拿别的口径顶替**",
+        }
+    head = doc.get("headline")
+    blk = (head or {}).get("multiple_needed_at_50k_deliverable_by_caliber")
+    if not isinstance(blk, dict):
+        return {
+            "available": False,
+            "source": IDEAL_REL,
+            "note": "产物里没有 `headline.multiple_needed_at_50k_deliverable_by_caliber` "
+                    "⇒ 「还差几倍」那一族的口径**不可知** ⇒ "
+                    "**不许**拿旧的裸键当缺口用",
+        }
+    return {
+        "available": True,
+        "source": IDEAL_REL,
+        "json_path": "$.headline.multiple_needed_at_50k_deliverable_by_caliber",
+        "role": "🚨 **这不是一个「缺口口径」** —— 它是「**倍数**」那一族。"
+                "⇒ **绝不**混进 `d2_gap_by_caliber` 的三档里当第四档（第 7 层）。",
+        "which_column_is_the_gap": {
+            "same_caliber": "✅ **同口径那一列才是「还差几倍」**"
+                            "（同 K / 同信号 / 同榜宽 / 同市场腿）",
+            "control_arms": "⚠️ 对照臂（台账自报「非生产、非判决」）",
+            "cross_caliber": "❌ **不是缺口** —— 台账显式判它 `is_the_gap = false`"
+                             "（分子是 K=63 的要求、分母是 K=21 研究臂的实测 ⇒ "
+                             "K 与信号两处口径都不同）",
+        },
+        "block": blk,
+        "note": "逐字读台账那一块；本脚本一个数都不算",
+    }
+
+
 def build() -> dict:
     bn, fwm = read_json(BN_REL), read_json(FWM_REL)
     return {
@@ -455,8 +674,46 @@ def build() -> dict:
                         "D2 判决在 basket_nav_01 的 verdict_rule，且**已经出了**。",
         "verdict_benchmark_arm": VERDICT_ARM,
         "verdict_k": VERDICT_K,
-        "the_only_citable_d2_gap": account_gap(bn),
+        # 🚨 2026-10-21：原顶层键 `the_only_citable_d2_gap` **退休**。
+        #    它自称「D2 唯一可引用的缺口陈述」，而它绑定的是 **K=21 判决档** ——
+        #    生产配置已于 2026-10-20 改成 **K=63 满仓 10 只** ⇒ 那个认领**过期**。
+        #    ⇒ 改为**三个口径并排**，各带 K 与出处；**屏上给用户的是实盘档**。
+        #    🚨 键名本身宣称了一个**已撤回**的性质 ⇒ 换名而不是留一个骗人的键
+        #       （第 179 层：键名内建价值判断 ⇒ 键名与内容互相打脸）。
+        "d2_gap_by_caliber": {
+            "verdict_k21": account_gap(bn),
+            "deployed_live_k63": deployed_caliber(),
+            "ideal_ceiling_k63": ideal_caliber(),
+        },
+        "which_one_goes_on_the_screen": {
+            "answer": "🚨 **实盘档**（`deployed_live_k63`）—— "
+                      "那是平台**真正会执行**的那个账户的模拟净值。",
+            "ideal_caliber_may_also_be_shown": "理想档**可以并排给出**（各带标签），"
+                                               "但**必须标明它是满仓假设下的公式上界**。",
+            "verdict_caliber_may_also_be_shown": "判决档（K=21）**可以并排给出**，"
+                                                 "但**必须带「K=21」** —— "
+                                                 "它与生产配置**不同 K**。",
+            "why": "只给理想档 ⇒ 用户看到的缺口**少了整手 + 闲置现金**那一截；"
+                   "只给判决档 ⇒ 用户拿到的是**已被取代的配置**的数。",
+            "source": "docs/DELIVERY_DECISIONS_2026-10-20.md §16.2",
+        },
+        "retired_claims": [
+            {
+                "old_key": "the_only_citable_d2_gap",
+                "claim": "「这是 D2 唯一可引用的缺口陈述。」",
+                "status": "RETIRED_2026-10-21",
+                "why": "该键绑定的是 **K=21 判决档**"
+                       f"（`{BN_REL}`），而生产配置已于 2026-10-20 改成 "
+                       "**K=63 满仓 10 只** ⇒ 「唯一可引用」这个**认领**过期了。"
+                       "⇒ 按第 25 层：**标注作废，不抹掉**（本条就是那份标注）。",
+                "replaced_by": "d2_gap_by_caliber.verdict_k21"
+                               "（同一条内容，**带口径限定**："
+                               "「在 K=21 判决档口径内」才成立）",
+            },
+        ],
         "required_gross_excess_by_caliber": required_by_benchmark(bn),
+        # 🚨 「倍数」那一族：**独立键**，不是第四档缺口口径（见 `multiple_by_caliber`）
+        "multiple_by_caliber": multiple_by_caliber(),
         "measured_gross_excess_by_caliber": measured_by_caliber(bn, fwm),
         "docs_reconciliation": docs_reconciliation(),
         "hurdle_rate_signature_trap": hurdle_signature_trap(),
@@ -465,11 +722,19 @@ def build() -> dict:
             FWM_REL: citable(FWM_REL),
             KS_REL: citable(KS_REL),
             BE_REL: citable(BE_REL),
+            DEPLOYED_REL: citable(DEPLOYED_REL),
+            IDEAL_REL: citable(IDEAL_REL),
         },
         "what_this_cannot_prove": [
             "🚨 **不许把任何两个口径下的数相除当「差 N 倍」** —— "
             "第 7 层：两个各自正确的数不是同一个量。本块存在的**全部意义**"
             "就是防止这件事。",
+            "🚨 **判决档（K=21）与实盘档（K=63）不是同一个量** —— "
+            "**K 不同 ⇒ 摩擦不同 ⇒ 门槛不同** ⇒ 两者的数**不可直接比大小**，"
+            "更不可把差值说成「离 20% 更近了」（第 129 层：门槛松弛 ≠ 达标）。",
+            "🚨 **理想档（公式上界）不是实盘读数** —— 它假设 100% 部署 ⇒ "
+            "与实盘档的差额 = **整手 + 闲置现金**的代价，"
+            "**不是**「两个版本的同一件事」（第 143 层：跨档取极值会抹掉来源）。",
             "🚨 **不许把 `measured_over_required` 说成量化结论** —— "
             "分子分母**都不是点估计**（产物自己禁止）。"
             "最远只能说「差一个数量级以上」的**形状**陈述。",
@@ -491,6 +756,11 @@ def build() -> dict:
             "no_hand_typed_prose_numbers":
                 "所有比值由本脚本算；唯二手抄的 `ceiling` / `k21_gross` "
                 "**在产物里逐字标为散文值**，因为它们正是被质疑的对象（第 142 层）。",
+            "artifact_filename_records_the_FIRST_generation_date":
+                f"文件名里的 `2026-10-17` 是**首次生成日**；本产物已在 2026-10-21 "
+                f"刷新（刷新时刻看 sidecar 的 `stamped_at`）—— 文件名**登记在 "
+                f"`aplus/provenance.py::DEFAULT_GENERATORS` 里**，"
+                f"改名会让溯源**解析不出生成器** ⇒ 不改名，只在这里说清。",
         },
     }
 

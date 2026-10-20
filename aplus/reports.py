@@ -628,6 +628,143 @@ def read_bond_paper_summary(reports_dir):
 # `status` 变成 `malformed`，**绝不**把「查不到」塌成 `False`（第 123 层：
 # 查不到 ≠ 不存在）。
 
+# ── D2 缺口的**第二个口径**：实盘档（模拟账户）────────────────────────────
+#
+# 🚨🚨 **两个口径是「两个不同的量」，不许合并、不许取极值**（第 143 层）：
+#
+#   | 口径 | 它是什么 | 载体 |
+#   |---|---|---|
+#   | **理想档** | 满仓（100% 部署）假设下的**公式上界** | `d2_signal_requirement.json` |
+#   | **实盘档** | 平台**真会执行**的那个账户的**模拟净值**（整手 ⇒ 投入率下降、闲置现金按 0 计息） | `deployed_d2_verdict.json` |
+#
+#   差额 = **整手 + 闲置现金**的代价（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）。
+#   ⇒ 屏上**两个都要给，各自带标签**；只给一个 ⇒ 要么少报、要么虚报。
+#
+# 🚨 **量纲（唯一一处换算）**：产物里 `verdict.cagr` 是**分数**（`0.1042…`），
+#   而 API 面只准出**百分数**（第 182 层：生产者钉住了，消费者一处换算都没有）。
+#   ⇒ `× _PCT_SCALE` **只此一处**，不许在消费侧再换一次。
+#   ⚠️ `verdict.gap_to_target_pp` 是**产物自己的字段**，**直读**：
+#     重算 `(target − cagr) × 100` 会踩 1 ulp（实测 `20 − cagr×100` 与产物差 1 ulp）
+#     ⇒ 拿公式当验证就会与产物对不上（第 109 层）。
+
+_DEPLOYED_D2_ARTIFACT = "deployed_d2_verdict.json"
+_DEPLOYED_D2_BLOCK = "verdict"
+
+# 🚨 **唯一的一处量纲换算**（分数 → 百分数）。**只此一处**。
+_PCT_SCALE = 100.0
+
+# 实盘档每个显示出来的数 → 它在产物里的 JSON 路径。
+# 🚨 「数字离开脚本必须有一条通道把它拉回来」⇒ 路径跟着数一起走。
+_DEPLOYED_D2_FIELD_PATHS = {
+    "account_annual_pct": "$.verdict.cagr",
+    "gap_to_target_pp": "$.verdict.gap_to_target_pp",
+    "target_pct": "$.verdict.target",
+    "upper_one_sided_95_pct": "$.verdict.upper_one_sided_95",
+    "mde_annual_pct": "$.verdict.mde_annual",
+    "measured_sign_determinable": "$.verdict.measured_sign_determinable",
+}
+
+
+def _read_deployed_d2_caliber(reports_dir):
+    """读**实盘档** D2 读数（`deployed_d2_verdict.json::verdict`）—— **只读字段**。
+
+    ## 为什么不许回落
+
+    产物缺失 / 块缺失 / 必需字段读不出 ⇒ `available = False` + 一句原因，
+    **绝不**拿理想档（或任何别的产物）的数顶替 —— 那是第 7 层：
+    两个各自都对的数放一起比。
+
+    ## 量纲
+
+    `cagr` / `target` / `upper_one_sided_95` / `mde_annual` 在产物里是**分数**
+    ⇒ 端出去的是**百分数**（× `_PCT_SCALE`，全仓唯一一处）。
+    `gap_to_target_pp` 在产物里**已经是 pp** ⇒ **逐位直读，一个字节都不动**。
+
+    ## 🚨 本函数**不**暴露「闲置比例」——两个字段的名字会骗人
+
+    `deployed_d2_verdict.json` 里：
+      · `idle_cash_ratio_mean` 量的是**调仓时刻的累计现金 ÷ 原始本金**
+        （现金越攒越多 ⇒ **随时间漂移**），**不是**「每次调仓的闲置比例」；
+      · `lot_investable_rate` 的值是**实投比例**
+        （实测与 `idle_cash_decomposition.invested_mean / intended_equity_per_rebalance`
+        **逐位相等**），而**字段名说「买得起 1 手的比例」⇒ 名字与内容相反**。
+    ⇒ 正确的「每次调仓名义闲置比例」=
+      `idle_cash_decomposition.idle_total_before_fees_mean / intended_equity_per_rebalance`
+      （与 `1 − 实投比例` 互补 ⇒ 与分解同源）。
+
+    ⇒ 本函数**一个比例都不端出去**：屏上若要给「闲置」，
+      只能给**定性**的一句 + 口径指针；**比值不是任何产物的字段**
+      ⇒ 违反「每个显示出来的数都要能指到 `产物路径 :: JSON 路径`」。
+    ⇒ 欠账见 `docs/TODO_deployed_idle_cash_caliber_2026-10-21.md`。
+    """
+    path = Path(reports_dir) / _DEPLOYED_D2_ARTIFACT
+    out = {
+        "available": False,
+        "source": _DEPLOYED_D2_ARTIFACT,
+        "json_path": None,
+        "leg": None,
+        "account_annual_pct": None,
+        "gap_to_target_pp": None,
+        "target_pct": None,
+        "upper_one_sided_95_pct": None,
+        "mde_annual_pct": None,
+        "measured_sign_determinable": None,
+        "fields": dict(_DEPLOYED_D2_FIELD_PATHS),
+        "scale_note": (
+            "account_annual_pct / target_pct / upper_one_sided_95_pct / mde_annual_pct "
+            "= 源字段 × 100（分数 → 百分数，全仓唯一一处换算）；"
+            "gap_to_target_pp **逐位直读**产物字段，未换算、未重算。"
+        ),
+        "note": "",
+    }
+
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        out["note"] = (f"产物尚未生成（`{_DEPLOYED_D2_ARTIFACT}` 不存在）"
+                       "—— 不拿理想档顶替")
+        return out
+    except (ValueError, OSError) as exc:
+        out["note"] = (f"产物读不出来（{type(exc).__name__}: {exc}）"
+                       "—— 不拿理想档顶替")
+        return out
+
+    if not isinstance(doc, dict):
+        out["note"] = "产物内容不是一个对象（异常）—— 不拿理想档顶替"
+        return out
+
+    # 🚨 **锚在 `verdict` 块上**，不许满文档找键（第 168 层）：
+    #   那份产物里**到处**都有 `cagr`（`arms` 每档一个、`account_legs`、
+    #   `control_cross_check`…）⇒ 满文档找第一个 `cagr` 读到的是**另一个档**。
+    block = doc.get(_DEPLOYED_D2_BLOCK)
+    if not isinstance(block, dict):
+        out["note"] = (f"产物里没有 `{_DEPLOYED_D2_BLOCK}` 块 —— 不拿理想档顶替")
+        return out
+    out["json_path"] = f"$.{_DEPLOYED_D2_BLOCK}"
+
+    cagr = block.get("cagr")
+    gap = block.get("gap_to_target_pp")
+    if not isinstance(cagr, (int, float)) or not isinstance(gap, (int, float)):
+        out["note"] = (f"`{_DEPLOYED_D2_BLOCK}` 块里 `cagr` / `gap_to_target_pp` "
+                       "读不出数 —— 不拿理想档顶替")
+        return out
+
+    out["available"] = True
+    out["leg"] = block.get("leg")
+    out["account_annual_pct"] = cagr * _PCT_SCALE
+    out["gap_to_target_pp"] = gap
+    for key, src in (("target_pct", "target"),
+                     ("upper_one_sided_95_pct", "upper_one_sided_95"),
+                     ("mde_annual_pct", "mde_annual")):
+        v = block.get(src)
+        out[key] = v * _PCT_SCALE if isinstance(v, (int, float)) else None
+    flag = block.get("measured_sign_determinable")
+    out["measured_sign_determinable"] = flag if isinstance(flag, bool) else None
+    out["note"] = (f"逐字读 `{_DEPLOYED_D2_ARTIFACT}` 的 `{out['json_path']}` 块；"
+                   "本函数一个量都不算（唯一的换算是 ×100 的量纲换算）")
+    return out
+
+
 _D2_GAP_NUMERIC_KEYS = (
     "account_annual_at_50k_pct",
     "gap_to_target_pp",
@@ -638,7 +775,7 @@ _D2_GAP_NUMERIC_KEYS = (
 )
 
 
-def _d2_verdict_input(head, rows):
+def _d2_verdict_input(head, rows, deployed=None, bycal=None):
     """投影 `aplus/web/verdict.js::d2LedgerVerdict` **真正读的那几个键**。
 
     ## 为什么必须多这一层（形状失配，不是命名偏好）
@@ -672,6 +809,17 @@ def _d2_verdict_input(head, rows):
 
     缺 `headline` / `rows` ⇒ 返回 `None`，调用方按「没有台账」处理，
     **绝不**返回一个空壳让判决以为有台账（空壳会让 `null` 与「缺口非正」混同）。
+
+    ## `deployed`（第二口径）
+
+    实盘档（`deployed_d2_verdict.json::verdict`）与理想档**不是同一个量**
+    ⇒ 判决要**并排**给出两者，各自带标签 ⇒ 它必须进投影。
+    🚨 按**引用**传（同一个 dict），不复制 ⇒ 结构上不可能漂移。
+
+    ## `bycal`（「还差几倍」那一族）
+
+    台账把「倍数」拆成**同口径 / 对照臂 / 跨口径**三列，
+    而**只有同口径那一列是缺口** ⇒ 判决必须读得到它 ⇒ 它进投影（按引用）。
     """
     if not isinstance(head, dict):
         return None
@@ -680,7 +828,7 @@ def _d2_verdict_input(head, rows):
         return None
 
     measured_best = head.get("measured_gross_best")
-    return {
+    out = {
         "headline": {
             # 🚨 按引用传，不是 `dict(ceil)`（见约束①）
             "account_annual_ceiling_pct": ceil,
@@ -693,12 +841,23 @@ def _d2_verdict_input(head, rows):
             },
             "multiple_needed_at_50k_deliverable":
                 head.get("multiple_needed_at_50k_deliverable"),
+            # 🚨🚨 **「还差几倍」那一族**（2026-10-21 台账新增）。
+            #    判决改读**同口径**那一列 ⇒ 这个块必须进投影，
+            #    否则前端读不到 ⇒ 同口径那一列白加。
+            #    ⚠️ 按**引用**传 ⇒ 与产物不可能漂移（第 109 层）。
+            #    键名与产物**逐字相同** ⇒ 判决函数读**产物原形**与读**投影**
+            #    走同一条路径（`test_d2_gap_surface.py` 用的就是产物原形）。
+            "multiple_needed_at_50k_deliverable_by_caliber": bycal,
         },
         # 🚨 收窄成两个键（见约束②）：分数数组不许借这一步回到 API 面
         "rows": [{"n": r.get("n"),
                   "measured_gross_over_mde_abs": r.get("measured_gross_over_mde_abs")}
                  for r in rows if isinstance(r, dict)],
     }
+    if isinstance(deployed, dict):
+        # 🚨 按引用传（见上面「`deployed`（第二口径）」）
+        out["deployed"] = deployed
+    return out
 
 
 def read_d2_gap(reports_dir):
@@ -707,6 +866,17 @@ def read_d2_gap(reports_dir):
     缺档 / 读不出必需字段 ⇒ `status != "ok"` 且每个数值键为 `None`。
     ⚠️ **绝不回落成 0**：0 会被读成「缺口 0，已达标」，而「没有档」与
     「缺口是 0」是相反的结论（第 89 层：拒绝出判决 ≠ 判决为空）。
+
+    ## 两个口径（🚨 不是同一个量）
+
+    · **理想档**（本函数的主体）= `d2_signal_requirement.json`：
+      满仓（100% 部署）假设下的**公式上界**。
+    · **实盘档**（`deployed` 键）= `deployed_d2_verdict.json::verdict`：
+      平台**真会执行**的那个账户的**模拟净值**（整手 ⇒ 投入率下降、
+      闲置现金按 0 计息）。
+
+    ⇒ 屏上**两个都要给，各自带标签**（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）。
+    ⇒ **不许合并、不许取极值、不许拿一个顶替另一个**（第 143 层）。
     """
     blank = {k: None for k in _D2_GAP_NUMERIC_KEYS}
     blank["by_width"] = []
@@ -793,11 +963,48 @@ def read_d2_gap(reports_dir):
 
     # 判据必须自报口径：没跟数字一起离开脚本的口径，下一个人就会拿错宽度去比。
     caliber = ledger.get("caliber") or {}
+    # 🚨 **第二口径（实盘档）**：与上面的理想档**不是同一个量**
+    # （满仓公式上界 vs 平台真会执行的那个账户的模拟净值）
+    # ⇒ 两者**并排**给出去，各自带标签；**不许合并、不许取极值**（第 143 层）。
+    # 缺产物 ⇒ `available=False` + 原因，**不许**回落成理想档的数。
+    deployed = _read_deployed_d2_caliber(reports_dir)
+
+    # ── 「还差几倍」那一族（2026-10-21 台账新增）────────────────────────
+    # 🚨 台账把倍数拆成三列：**同口径**（唯一是缺口的）/ 对照臂 /
+    #    **跨口径**（台账**显式判它 `is_the_gap = false`**）。
+    # ⇒ 屏上那个「还差几倍」**必须**取同口径那一列；
+    #    旧的裸键 `headline.multiple_needed_at_50k_deliverable`（= 跨口径那个）
+    #    **原样保留**（改名会打断既有守卫的逐位对拍）⇒ 但**必须并排标注**它是跨口径。
+    bycal = head.get("multiple_needed_at_50k_deliverable_by_caliber")
+    bycal = bycal if isinstance(bycal, dict) else None
+    same = (bycal or {}).get("same_caliber")
+    same = same if isinstance(same, dict) else None
+    cross = (bycal or {}).get("cross_caliber")
+    cross = cross if isinstance(cross, dict) else None
+    if cross:
+        legacy_note = (
+            "🚨 `multiple_needed_at_50k`（= `headline.multiple_needed_at_50k_deliverable`）"
+            f"是**跨口径**的：{cross.get('caliber_name')}；"
+            f"台账已显式判它 `is_the_gap = {cross.get('is_the_gap')}`"
+            "（分子是 K=63 的要求、分母是 K=21 研究臂的实测 ⇒ K 与信号两处都不同）"
+            "⇒ **它不是缺口**；同口径那一列在 `multiple_needed_same_caliber`。")
+    else:
+        legacy_note = (
+            "⚠️ 台账还没有 `multiple_needed_at_50k_deliverable_by_caliber` 块 ⇒ "
+            "`multiple_needed_at_50k` 的口径**不可知** ⇒ **不许**当缺口用；"
+            "屏上这一列应当整体不出现。")
+
     return {
         "status": "ok",
         **picked,
         "by_width": joined,
-        "verdict_input": _d2_verdict_input(head, rows),
+        "deployed": deployed,
+        "multiple_by_caliber": bycal,
+        "multiple_needed_same_caliber": (same or {}).get("multiple_needed"),
+        "multiple_needed_same_caliber_caliber_name": (same or {}).get("caliber_name"),
+        "multiple_needed_at_50k_is_the_gap": (cross or {}).get("is_the_gap"),
+        "multiple_needed_at_50k_note": legacy_note,
+        "verdict_input": _d2_verdict_input(head, rows, deployed, bycal),
         "deliverable_width": ceil.get("deliverable_width"),
         "supremum_width": ceil.get("width"),
         "equity_weight_is_full_position_judgment_caliber": caliber.get("equity_weight"),

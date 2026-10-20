@@ -158,19 +158,180 @@ function staleWeightsDetail(status, check, date) {
     + `无法证明一致不等于一致：先重跑一次出单，或等下一份带出处的榜单。`;
 }
 
+// ── D2 缺口的**两个口径**（2026-10-21）──────────────────────────────────
+//
+// 🚨🚨 **两个口径是两个不同的量，不许合并、不许取极值**（第 143 层）：
+//
+//   | 口径 | 它是什么 | 载体 |
+//   |---|---|---|
+//   | **理想档** | 满仓（100% 部署）假设下的**公式上界** | `d2_signal_requirement.json` |
+//   | **实盘档** | 平台**真会执行**的那个账户的**模拟净值**（整手 ⇒ 投入率下降、闲置现金 0 计息） | `deployed_d2_verdict.json` |
+//
+//   差额 = **整手 + 闲置现金**的代价。
+//   ⇒ 屏上**两个都要给，各自带标签**；只给一个 ⇒ 要么少报、要么虚报。
+//
+// 🚨 **标签 / 来源各只有一份**（下面这四个常量）—— 文案不许在判决与首屏各抄一份
+//   （第 137 层：两份副本之间没有守卫，而重跑后它们会静默分叉）。
+const D2_CALIBER_IDEAL_LABEL = '理想档（满仓假设）';
+const D2_CALIBER_DEPLOYED_LABEL = '实盘档（整手+闲置现金后）';
+const D2_CALIBER_IDEAL_SOURCE =
+  'd2_signal_requirement.json::headline.account_annual_ceiling_pct';
+const D2_CALIBER_DEPLOYED_SOURCE = 'deployed_d2_verdict.json::verdict';
+
 /**
- * D2 缺口台账的判决 —— 读 `data/reports/d2_signal_requirement.json`，**只读不算**。
+ * D2 缺口的两个口径 → **首屏并排显示**用的格子。
+ *
+ * ## 为什么是纯函数
+ *
+ * 首屏要并排摆两格，而 HTML 渲染在 `index.html` 里 ⇒ 判据（哪两格、各自多少）
+ * 必须能在 **node 里真跑**，否则「并排」这件事只有肉眼能验（第 120 层）。
+ * ⇒ 本函数只**读载荷、格式化**，不碰 DOM。
+ *
+ * ## 🚨 格式化只此一处
+ *
+ * `annual` / `gap` 的字符串在这里生成，`d2LedgerVerdict` 的正文也**用同一份**
+ * ⇒ 判决里印的数与首屏格子里印的数**逐位相同**，结构上不可能分叉。
+ *
+ * ## 🚨 缺一档 ⇒ 只给另一档，**不许拿它顶替**
+ *
+ * 实盘档产物缺失 ⇒ 那格写「读不出来」，理想档照常给。
+ * ⇒ 两档**都是独立的量**，谁也替不了谁（第 7 层）。
+ *
+ * @param {object|null} ledger 台账投影（`read_d2_gap().verdict_input`）
+ * @returns {Array<{key,label,what,annual,gap,source,width}>}
+ */
+function d2GapCalibers(ledger) {
+  const cells = [];
+
+  const head = ledger?.headline;
+  const ceil = head?.account_annual_ceiling_pct;
+  if (ceil && typeof ceil === 'object') {
+    const c50k = ceil.at_deliverable_width_and_50k;
+    const gap50k = ceil.gap_to_target_at_deliverable_width_and_50k_pp;
+    if (typeof c50k === 'number' && typeof gap50k === 'number') {
+      cells.push({
+        key: 'ideal',
+        label: D2_CALIBER_IDEAL_LABEL,
+        what: '满仓（100% 部署）假设下的**公式上界** —— 是「能做到的上限」，'
+          + '不是真跑出来的数。',
+        annual: `${c50k.toFixed(2)}%`,
+        gap: `${gap50k.toFixed(2)}pp`,
+        width: ceil.deliverable_width,
+        source: D2_CALIBER_IDEAL_SOURCE,
+      });
+    }
+  }
+
+  const dep = ledger?.deployed;
+  if (dep && dep.available === true
+      && typeof dep.account_annual_pct === 'number'
+      && typeof dep.gap_to_target_pp === 'number') {
+    const a = dep.account_annual_pct;
+    cells.push({
+      key: 'deployed',
+      label: D2_CALIBER_DEPLOYED_LABEL,
+      what: '平台**真正会执行**的那个账户的**模拟净值**：整手取整 ⇒ '
+        + '有一部分钱买不进、只能趴着当闲置现金（**按 0 计息**）。'
+        + '⚠️ 闲置比例只认 `idle_total_before_fees_mean ÷ intended_equity_per_rebalance`；'
+        + '`idle_cash_ratio_mean` 量的是**另一件事**，**不许**当闲置比例用。',
+      // 正号写出来：这是一个**正**的年化读数（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）
+      annual: `${a >= 0 ? '+' : ''}${a.toFixed(4)}%`,
+      gap: `${dep.gap_to_target_pp.toFixed(4)}pp`,
+      width: null,
+      source: D2_CALIBER_DEPLOYED_SOURCE,
+    });
+  }
+
+  return cells;
+}
+
+/**
+ * 「还差几倍」那一族 —— **三个口径**（2026-10-21 台账新增 `..._by_caliber`）。
+ *
+ * ## 为什么这一族必须拆开
+ *
+ * 台账里现在有**三个**倍数，而**只有同口径那一列是「还差几倍」**：
+ *
+ * | 列 | 分子 | 分母 | 是不是缺口 |
+ * |---|---|---|---|
+ * | `same_caliber` | K=63 的要求 | K=63 · 生产臂 `LIVE_DEFAULT` 的实测毛超额 | ✅ **是** |
+ * | `control_arms[*]` | K=63 的要求 | **对照臂**（非生产、非判决）的实测 | ⚠️ 对照臂 |
+ * | `cross_caliber` | K=63 的要求 | **K=21 研究臂**的实测 | ❌ **不是**（台账显式标 `is_the_gap = false`）|
+ *
+ * 🚨 旧的裸键 `headline.multiple_needed_at_50k_deliverable` **就是 `cross_caliber` 那个**
+ * ⇒ 它长得最像答案（一个孤零零的 float，没有口径名）而它**不是**缺口。
+ * ⇒ **屏上那个「还差几倍」必须取 `same_caliber` 那一列**。
+ *
+ * ## 🚨 跨口径那个**可以**出现，但**必须带标签**
+ *
+ * 它此前就在屏上（不带标签）⇒ 静默删掉会让看过旧屏的人不知道它去哪了
+ * ⇒ 按第 25 层「标注作废，不抹掉」：**保留 + 说清它不是缺口**。
+ * ⇒ 它的标签**用产物自己的 `caliber_name`**（那句里逐字写着「不是缺口」）
+ * ⇒ 屏上的措辞**不自己另写一句免责声明** ⇒ 产物改了标签，守卫就会红。
+ *
+ * @param {object|null} ledger 台账投影（或产物原形）
+ * @returns {{same: object|null, cross: object|null}|null}
+ */
+function d2Multiples(ledger) {
+  const head = ledger?.headline;
+  const blk = head?.multiple_needed_at_50k_deliverable_by_caliber;
+  if (!blk || typeof blk !== 'object') return null;
+  const same = blk.same_caliber;
+  const cross = blk.cross_caliber;
+  const req = head.required_gross_at_50k_deliverable;
+  const requiredText = typeof req === 'number' ? `${req.toFixed(2)}%` : null;
+  return {
+    same: (same && typeof same.multiple_needed === 'number') ? {
+      value: same.multiple_needed,
+      text: `${same.multiple_needed.toFixed(2)}×`,
+      caliberName: typeof same.caliber_name === 'string' ? same.caliber_name : '',
+      measuredText: typeof same.measured_gross_annual_pct === 'number'
+        ? `${same.measured_gross_annual_pct.toFixed(2)}%` : null,
+      requiredText,
+      isTheGap: same.is_the_gap === true,
+      source: 'd2_signal_requirement.json::headline.'
+        + 'multiple_needed_at_50k_deliverable_by_caliber.same_caliber',
+    } : null,
+    cross: (cross && typeof cross.multiple_needed === 'number') ? {
+      value: cross.multiple_needed,
+      text: `${cross.multiple_needed.toFixed(2)}×`,
+      caliberName: typeof cross.caliber_name === 'string' ? cross.caliber_name : '',
+      isTheGap: cross.is_the_gap === true,
+      kOfMeasured: cross.k_of_measured,
+      kOfRequirement: cross.k_of_requirement,
+      source: 'd2_signal_requirement.json::headline.'
+        + 'multiple_needed_at_50k_deliverable_by_caliber.cross_caliber',
+    } : null,
+  };
+}
+
+/**
+ * D2 缺口台账的判决 —— 读 `data/reports/d2_signal_requirement.json`
+ * （**理想档**）与 `data/reports/deployed_d2_verdict.json`（**实盘档**），
+ * **只读不算**。
  *
  * ## 这个函数存在的理由：封一条**活的**假绿
  *
  * `docketWarning` 第 7 支在 `cagr >= TARGET_CAGR` 时喊「达到 20% 目标」。
  * 那个 `cagr` 来自 `nDays >= 30` 的前瞻单笔底稿，而 30 天里 10 只股票涨 20%
  * **完全正常** ⇒ 这一支现实可期。而同一屏此刻必须能说的真话在台账里：
- * 宽度 10 / ¥5 万 / 等权下账户年化天花板 **8.34%**，离 20% 差 **11.66pp**；
- * 即使本金 → ∞ 且榜宽 → 546（该族最宽档）天花板也只有 **12.73%**，仍差 **7.27pp**
+ * **理想档**（榜宽 10 / ¥5 万 / 满仓假设）的账户年化天花板与它的缺口，
+ * 以及**实盘档**（平台真正会执行的那个账户：整手 ⇒ 投入率下降、
+ * 闲置现金 0 计息）的年化与缺口；
+ * 即使本金 → ∞ 且榜宽取该族最宽档，天花板仍低于目标
  * ⇒ **没有任何 (榜宽 × 本金) 组合能到 20%**。
  *
- * ⇒ 两个数字都在同一屏上时，第 7 支的「达标」是**假绿**，不是过时文案。
+ * ⇒ 这些数字都在同一屏上时，第 7 支的「达标」是**假绿**，不是过时文案。
+ *
+ * ⚠️ **本 JSDoc 里刻意不写死那几个数**：它们**随 K 变**（K 21 → 63 时
+ * 缺口与天花板都变过一轮）⇒ 手抄进注释就是**必烂的化石**（第 73 层）。
+ * ⇒ 数值一律从产物读（`d2GapCalibers` / 本函数），**不许**在这里复述。
+ *
+ * ## 🚨 两个口径**必须并排**，各自带标签与来源（2026-10-21）
+ *
+ * 只给理想档 ⇒ 用户看到的「离 20% 还有多远」**少了整手 + 闲置现金那一截**；
+ * 只给实盘档 ⇒ 用户看不到「满仓假设下最多能到哪」。
+ * ⇒ 两个都给，且**标明是哪个口径**（`d2GapCalibers` 的标签常量只有一份）。
  *
  * ## 形状守卫为什么写在这里、且只写这一处
  *
@@ -222,10 +383,23 @@ function d2LedgerVerdict(ledger) {
   const widest = ceil.width;
 
   // ── 第 1 段：上确界。**必须带「哪个宽度/哪个本金」** ──
-  // 只说「天花板 8.34%」而不说它是宽度 10 + ¥5 万，
-  // 用户会拿它与某个 546 只的数比 —— 而那一档在 ¥5 万 下摩擦 130.97%、
-  // 净 −123.40%，是最不可交付的一档（第 182 层同族：口径不跟着数字走）。
+  // 只说「天花板 X%」而不说它是哪个宽度 + 哪个本金，
+  // 用户会拿它与某个最宽档的数比 —— 而那一档在 ¥5 万 下摩擦极高、
+  // 净为负，是最不可交付的一档（第 182 层同族：口径不跟着数字走）。
+  // ⚠️ 上面那几个数**不写死**在这里：它们随 K 变 ⇒ 写死即化石（第 73 层）。
   const parts = [];
+  // 🚨🚨 **两个口径并排**（2026-10-21）：理想档（满仓假设的公式上界）与
+  // 实盘档（整手 + 闲置现金后的模拟账户）**不是同一个量**
+  // ⇒ 差额就是「整手 + 闲置现金」的代价（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）
+  // ⇒ **两个都要给，各自带标签与来源**；只给一个 ⇒ 少报或虚报。
+  //
+  // ⚠️ 数字的**格式化只有一处**（`d2GapCalibers`）⇒ 判决里印的与首屏格子里印的
+  //    **逐位相同**，结构上不可能分叉（第 137 层）。
+  const cells = d2GapCalibers(ledger);
+  const ideal = cells.find(c => c.key === 'ideal');
+  const dep = cells.find(c => c.key === 'deployed');
+  if (!ideal) return null;          // 理论上到不了（上面已守住形状），但不许 `undefined`
+
   // ── 第 0 段（**交付口径，排在最前**）：用户真正关心的那一行 ──
   //
   // 🚨 它原来**只在自己的 `headline` 里**，而生产唯一命中的支 2
@@ -237,22 +411,56 @@ function d2LedgerVerdict(ledger) {
   // 而那一档在 ¥5 万 下摩擦 130.97%、净 −123.40%，是最不可交付的一档。
   // 让它当第一句，读者第一眼读到的是「天花板 12.73%」（第 182 层：
   // 数字不跟着口径走）。
-  parts.push(`交付口径：榜宽 ${w} · 本金 ¥5 万 时，账户年化上限 ${c50k.toFixed(2)}%，`
-    + `距 20% 还差 ${gap50k.toFixed(2)}pp。`);
+  parts.push(`交付口径 · ${ideal.label}：榜宽 ${w} · 本金 ¥5 万 时，`
+    + `账户年化上限 ${ideal.annual}，距 20% 还差 ${ideal.gap}。`
+    + `来源 ${ideal.source}。`);
+
+  // ── 第 0b 段：**实盘档**（平台真正会执行的那个账户）──────────────
+  //
+  // 🚨 **不许用理想档的数顶替**：产物缺失时写「读不出来」，并说清缺的是哪一档。
+  if (dep) {
+    parts.push(`${dep.label}：账户年化 ${dep.annual}，距 20% 差 ${dep.gap}。`
+      + `来源 ${dep.source}。`);
+    // 🚨 形状纪律：产物自报连符号都定不了 ⇒ 既不许说「接近」，也不许说「达不到」。
+    if (ledger?.deployed?.measured_sign_determinable === false) {
+      parts.push('（实盘档：产物自报 `measured_sign_determinable = false` ⇒ '
+        + '连符号都定不了 ⇒ 既不许说「接近」，也不许说「达不到」。）');
+    }
+  } else {
+    parts.push(`（${D2_CALIBER_DEPLOYED_LABEL} 读不出来：`
+      + `${ledger?.deployed?.note || '端点没给这一档'} —— 不拿理想档顶替。）`);
+  }
 
   parts.push(`上限：榜宽 ${widest} 且本金 → ∞ 时账户年化最多 ${cInf.toFixed(2)}%，`
     + `距 20% 仍差 ${gapInf.toFixed(2)}pp —— 没有任何（榜宽 × 本金）组合能到 20%，`
     + '所以「再多攒些样本」不会抬高这个上限。');
 
-  // ── 第 2 段（可选）：所需毛超额 ↔ 实测毛超额。**三个数必须同时是数** ──
-  // 少一个就整段跳过，绝不格式化 undefined（第 168 层：`.get()` 猜键名 + 格式化
-  // 已经在本仓造成过一次 `TypeError: unsupported format string ... NoneType`）。
-  const required = head.required_gross_at_50k_deliverable;
-  const measured = head.measured_gross_best?.at_deliverable_width;
-  const multiple = head.multiple_needed_at_50k_deliverable;
-  if ([required, measured, multiple].every(v => typeof v === 'number')) {
-    parts.push(`要达标，信号在榜宽 ${w} · ¥5 万下须交出毛超额 ${required.toFixed(2)}%`
-      + `（实测 ${measured.toFixed(2)}%，还差 ${multiple.toFixed(2)}×）。`);
+  // ── 第 2 段（可选）：所需毛超额 ↔ 实测毛超额。**倍数只取同口径那一列** ──
+  //
+  // 🚨 2026-10-21：这一段原来打的是 `head.multiple_needed_at_50k_deliverable`
+  //    = **2.35×**，而那个数**是跨口径的**（K=63 的要求 ÷ K=21 研究臂的实测）
+  //    ⇒ 台账已显式判它 `is_the_gap = false` ⇒ **它不是缺口**。
+  // ⇒ 现在打的是 `same_caliber` 那一列（同 K、同信号、同榜宽、同市场腿）。
+  //
+  // ⚠️ 少一个数就整段跳过，绝不格式化 undefined（第 168 层：`.get()` 猜键名 +
+  //    格式化已经在本仓造成过一次 `TypeError: unsupported format string ... NoneType`）。
+  // 🚨 **整块缺失 ⇒ 整段不出现**（而不是回落到那个裸 float）⇒ 失败方向是「少说一句」，
+  //    不是「说一句错的」。
+  const mult = d2Multiples(ledger);
+  const same = mult?.same;
+  if (same && same.measuredText && same.requiredText) {
+    parts.push(`要达标，信号须交出毛超额 ${same.requiredText}`
+      + `（${same.caliberName}：实测 ${same.measuredText}，还差 ${same.text}）。`);
+    // 跨口径那个：**保留 + 说清它不是缺口**（不许静默删，也不许当缺口显示）。
+    // ⚠️ **「不是缺口」这句话只由产物自己的 `caliber_name` 说**（那里面逐字写着）
+    //    ⇒ 本段**不另写一遍免责声明** ⇒ 两份副本漂移时守卫会红（第 137 层）。
+    const cross = mult?.cross;
+    if (cross) {
+      parts.push(`⚠️ 旧账上那个「还差 ${cross.text}」是${cross.caliberName}`
+        + ` —— 台账已显式判它 **is_the_gap = false**`
+        + `（分子是 K=${cross.kOfRequirement} 的要求、分母是 K=${cross.kOfMeasured} 的实测，`
+        + `K 与信号两处口径都不同）⇒ 别拿它替代上面那一列。`);
+    }
   }
 
   // ── 第 3 段：为什么「还差多少」这件事本身**测不出来** ──
@@ -269,8 +477,13 @@ function d2LedgerVerdict(ledger) {
   return {
     // ⚠️ 缺口为正时**绝不为 'ok'** —— 这是本函数唯一不容协商的一条。
     level: 'warn',
-    headline: `账户年化天花板 ${c50k.toFixed(2)}%（榜宽 ${w} · 本金 5 万），`
-      + `距 20% 差 ${gap50k.toFixed(2)}pp`,
+    // 🚨 **两个口径都在标题里**（2026-10-21）：标题是屏上**永远可见**的那一行
+    // （正文在 `<details>` 里，默认折叠）⇒ 少写一档 = 少报 2.2pp。
+    headline: dep
+      ? `${D2_CALIBER_IDEAL_LABEL} ${ideal.annual}（榜宽 ${w} · 本金 5 万）`
+        + `差 ${ideal.gap} · ${D2_CALIBER_DEPLOYED_LABEL} ${dep.annual} 差 ${dep.gap}`
+      : `${D2_CALIBER_IDEAL_LABEL} ${ideal.annual}（榜宽 ${w} · 本金 5 万），`
+        + `距 20% 差 ${ideal.gap}`,
     detail: parts.join(' '),
   };
 }
@@ -278,9 +491,9 @@ function d2LedgerVerdict(ledger) {
 /**
  * 支 2 的正文 = `weights.caveat` **加上** D2 台账那一段。
  *
- * 🚨 **「只取它的 `detail`」这一句是承重的，不是省事**：交付口径的
- * `8.34%` / `11.66pp` **只在 `detail` 里**（`d2LedgerVerdict` 的 JSDoc 记了
- * 为什么）。哪天谁觉得「headline 更重要、应该把台账 headline 也搬上来」
+ * 🚨 **「只取它的 `detail`」这一句是承重的，不是省事**：交付口径的两个档
+ * （理想档 / 实盘档）的年化与缺口**只在 `detail` 里**（`d2LedgerVerdict` 的
+ * JSDoc 记了为什么）。哪天谁觉得「headline 更重要、应该把台账 headline 也搬上来」
  * 而去改这一支，屏上那两行会**静默消失**，而所有守卫照样全绿
  * —— 因为字段还在、函数还返回非 null。
  *
@@ -438,7 +651,7 @@ function docketWarning(stats, evo, weights, screen) {
   // ── 达标 ──
   // ⚠️ 这一支在**台账有正缺口时不许裸奔**。`cagr` 来自 nDays ≥ 30 的前瞻单笔底稿，
   // 而 30 天里 10 只股票涨 20% 完全正常 ⇒ 这一支现实可期；
-  // 而同一屏的台账逐字说账户年化天花板 8.34%、缺口 11.66pp ⇒ 两个数字同时在场时
+  // 而同一屏的台账逐字说账户年化天花板与缺口（理想档 + 实盘档两档并排）⇒ 两个数字同时在场时
   // 「达标」是**假绿**。闸在**这一支内部**而不是它前面：第 4 支（样本不足）
   // 必须先说「不可解读」（那是关于**这个点估计能不能读**的判决，不是关于 D2 的），
   // 第 6 支也不许被碰（`cagr < 0.20` 与台账一致，闸它=换判据臂，第 183 层）。
@@ -480,7 +693,11 @@ if (typeof require !== 'undefined' && require.main === module) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { docketWarning, d2LedgerVerdict, caveatDetail, renderCaveat, CAVEAT_HEADLINES,
+  module.exports = { docketWarning, d2LedgerVerdict, d2GapCalibers, d2Multiples,
+                      caveatDetail,
+                      renderCaveat, CAVEAT_HEADLINES,
                       STALE_WEIGHTS_HEADLINES, DEFAULT_STALE_WEIGHTS_STATUS,
+                      D2_CALIBER_IDEAL_LABEL, D2_CALIBER_DEPLOYED_LABEL,
+                      D2_CALIBER_IDEAL_SOURCE, D2_CALIBER_DEPLOYED_SOURCE,
                       MIN_DAYS_FOR_CAGR, TARGET_CAGR };
 }

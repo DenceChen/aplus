@@ -2,32 +2,126 @@
   "what_this_is": "D2 缺口陈述的**口径对照表** —— **不是 D2 判决**。D2 判决在 basket_nav_01 的 verdict_rule，且**已经出了**。",
   "verdict_benchmark_arm": "equal_weight",
   "verdict_k": 21,
-  "the_only_citable_d2_gap": {
-    "c": {
-      "value": 0.10556283216930074,
-      "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_reading"
+  "d2_gap_by_caliber": {
+    "verdict_k21": {
+      "caliber_binding": {
+        "K": 21,
+        "k_source": "scripts/d2_gap_calibers.py :: VERDICT_K（= 21）；⚠️ **`data/reports/basket_nav_01_2026-10-16.json` 本身不带 K 字段** ⇒ 这个 K 靠**产物文件名 + 本脚本常量**认领，引用时**必须连 K 一起引**（第 168 层：列名/字段名不承诺语义）。",
+        "this_is": "🚨 **判决档（K=21 · 满仓 · 8 因子 IC 定权）** —— **不是**生产配置那一档（生产是 **K=63 满仓 10 只**）。",
+        "compare_with": "🚨 **K 不同 ⇒ 两档的数不可直接比大小**：毛额门槛 = x* + 摩擦，而摩擦随 K 变（K 越大 ⇒ 年调仓次数越少 ⇒ 摩擦越低 ⇒ 门槛越松）⇒ **差值不可解释成「离 20% 更近了」**（第 129 层）。"
+      },
+      "c": {
+        "value": 0.10556283216930074,
+        "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_reading"
+      },
+      "m": {
+        "value": 0.22673751360772554,
+        "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_mde_annual"
+      },
+      "u_upper_one_sided_95": {
+        "value": 0.3323003457770263,
+        "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_upper_one_sided_95"
+      },
+      "t": {
+        "value": 0.2,
+        "source": "data/reports/basket_nav_01_2026-10-16.json :: target"
+      },
+      "gap_pp": {
+        "value": 9.443716783069927,
+        "derived_by": "scripts/d2_gap_calibers.py :: account_gap",
+        "why": "`target − verdict_reading`，**不是产物字段**"
+      },
+      "account_sign_determinable": false,
+      "account_sign_determinable_why": "`abs(c) >= m`。为假时**连符号都定不了**：既不许说「达不到」，也不许说「接近」⇒ **在本口径（K=21 判决档）内**，这仍是**唯一**可引用的缺口陈述（🚨 **不再是无条件的那一句**：2026-10-21 起它只在本口径内成立）。",
+      "verdict_rule_verbatim": "预注册 §16（对 §15.3 的修正）：U=c+M<T 才可说「不可达」；c<T≤U 只能说「测不出」；|c|<M 连符号都定不了"
     },
-    "m": {
-      "value": 0.22673751360772554,
-      "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_mde_annual"
+    "deployed_live_k63": {
+      "available": true,
+      "role": "🚨 **生产配置那一档** —— 屏上给用户的那个数**就是它**（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）",
+      "caliber_binding": {
+        "K": 63,
+        "k_source": "data/reports/deployed_d2_verdict.json :: verdict.config.K",
+        "n_positions": 10,
+        "equity_weight": 1.0,
+        "capital": {
+          "value": 50000.0,
+          "source": "data/reports/deployed_d2_verdict.json :: artifact_meta.capital"
+        },
+        "leg": "LIVE_DEFAULT|ARM_A|K63|E100",
+        "this_is": "🚨 **实盘档**（满仓 10 只 × ¥5,000 · 实盘 4 因子 `DEFAULT_WEIGHTS` · 配置层整手过滤 · 逐笔成本 · 闲置现金 0 计息）",
+        "compare_with": "🚨 **K 与判决档（K=21）不同** ⇒ 两档的数**不可直接比大小**（摩擦随 K 变 ⇒ 门槛随 K 松）。"
+      },
+      "c": {
+        "value": 0.10424461770356563,
+        "source": "data/reports/deployed_d2_verdict.json :: verdict.cagr"
+      },
+      "m": {
+        "value": 0.1193097827749865,
+        "source": "data/reports/deployed_d2_verdict.json :: verdict.mde_annual"
+      },
+      "u_upper_one_sided_95": {
+        "value": 0.22355440047855213,
+        "source": "data/reports/deployed_d2_verdict.json :: verdict.upper_one_sided_95"
+      },
+      "t": {
+        "value": 0.2,
+        "source": "data/reports/deployed_d2_verdict.json :: verdict.target"
+      },
+      "gap_pp": {
+        "value": 9.575538229643438,
+        "source": "data/reports/deployed_d2_verdict.json :: verdict.gap_to_target_pp"
+      },
+      "measured_sign_determinable": false,
+      "cases": [
+        "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+        "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.42% 低于目标，但 95% 上界 +22.36% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+      ],
+      "previous_leg_is_superseded": {
+        "leg": "T2_live_truth",
+        "note": "**上一版实盘配置**（K=21、半仓 5 只）—— 生产配置已于 2026-10-20 改为满仓 10 只 + K=63 ⇒ **这一档已被取代**，只作历史对照。",
+        "status": "🚨 **已被取代**（半仓 5 只 · K=21）⇒ 只作历史对照"
+      },
+      "idle_cash_ratios_are_deliberately_not_quoted": "🚨 **本块不引用任何「闲置比例」**：`idle_cash_ratio_mean` 量的是**调仓时刻的累计现金 ÷ 原始本金**（随时间漂移），而 `lot_investable_rate` 的**名字与内容相反**（值其实是**实投比例**）⇒ 欠账见 `docs/TODO_deployed_idle_cash_caliber_2026-10-21.md`。🚨 且**比值不是任何产物的字段** ⇒ 引用它就违反「每个显示出来的数都要能指到 `产物路径 :: JSON 路径`」。",
+      "note": "逐字读 `data/reports/deployed_d2_verdict.json` 的 `$.verdict` 块；本脚本一个数都不算"
     },
-    "u_upper_one_sided_95": {
-      "value": 0.3323003457770263,
-      "source": "data/reports/basket_nav_01_2026-10-16.json :: verdict_upper_one_sided_95"
-    },
-    "t": {
-      "value": 0.2,
-      "source": "data/reports/basket_nav_01_2026-10-16.json :: target"
-    },
-    "gap_pp": {
-      "value": 9.443716783069927,
-      "derived_by": "scripts/d2_gap_calibers.py :: account_gap",
-      "why": "`target − verdict_reading`，**不是产物字段**"
-    },
-    "account_sign_determinable": false,
-    "account_sign_determinable_why": "`abs(c) >= m`。为假时**连符号都定不了**：既不许说「达不到」，也不许说「接近」⇒ **这是 D2 唯一可引用的缺口陈述。**",
-    "verdict_rule_verbatim": "预注册 §16（对 §15.3 的修正）：U=c+M<T 才可说「不可达」；c<T≤U 只能说「测不出」；|c|<M 连符号都定不了"
+    "ideal_ceiling_k63": {
+      "available": true,
+      "role": "⚠️ **不是实盘读数** —— 它是**满仓（100% 部署）假设下的公式上界**，即「能做到的上限」",
+      "caliber_binding": {
+        "K": 63,
+        "k_source": "data/reports/d2_signal_requirement.json :: caliber.k_used_by_this_ledger",
+        "equity_weight": 1.0,
+        "deliverable_width": 10,
+        "this_is": "⚠️ **理想档**（公式上界 · 100% 部署假设）",
+        "compare_with": "🚨 与实盘档的差额 = **整手 + 闲置现金**的代价（`docs/DELIVERY_DECISIONS_2026-10-20.md §16.2`）"
+      },
+      "account_annual_pct": {
+        "value": 12.61995467274217,
+        "source": "data/reports/d2_signal_requirement.json :: headline.account_annual_ceiling_pct.at_deliverable_width_and_50k"
+      },
+      "gap_pp": {
+        "value": 7.380045327257831,
+        "source": "data/reports/d2_signal_requirement.json :: headline.account_annual_ceiling_pct.gap_to_target_at_deliverable_width_and_50k_pp"
+      },
+      "note": "逐字读 `data/reports/d2_signal_requirement.json` 的 `$.headline.account_annual_ceiling_pct`；本脚本一个数都不算"
+    }
   },
+  "which_one_goes_on_the_screen": {
+    "answer": "🚨 **实盘档**（`deployed_live_k63`）—— 那是平台**真正会执行**的那个账户的模拟净值。",
+    "ideal_caliber_may_also_be_shown": "理想档**可以并排给出**（各带标签），但**必须标明它是满仓假设下的公式上界**。",
+    "verdict_caliber_may_also_be_shown": "判决档（K=21）**可以并排给出**，但**必须带「K=21」** —— 它与生产配置**不同 K**。",
+    "why": "只给理想档 ⇒ 用户看到的缺口**少了整手 + 闲置现金**那一截；只给判决档 ⇒ 用户拿到的是**已被取代的配置**的数。",
+    "source": "docs/DELIVERY_DECISIONS_2026-10-20.md §16.2"
+  },
+  "retired_claims": [
+    {
+      "old_key": "the_only_citable_d2_gap",
+      "claim": "「这是 D2 唯一可引用的缺口陈述。」",
+      "status": "RETIRED_2026-10-21",
+      "why": "该键绑定的是 **K=21 判决档**（`data/reports/basket_nav_01_2026-10-16.json`），而生产配置已于 2026-10-20 改成 **K=63 满仓 10 只** ⇒ 「唯一可引用」这个**认领**过期了。⇒ 按第 25 层：**标注作废，不抹掉**（本条就是那份标注）。",
+      "replaced_by": "d2_gap_by_caliber.verdict_k21（同一条内容，**带口径限定**：「在 K=21 判决档口径内」才成立）"
+    }
+  ],
   "required_gross_excess_by_caliber": {
     "equal_weight": {
       "role": "判决臂",
@@ -55,6 +149,106 @@
       "why": "两个**基准口径**下的 `required_excess_annual` 相除 ⇒ ⇒ **同一个「年化 20%」目标，所需毛超额随基准而变**（第 183 层）。🚨 **这个比值不许被当成「有一个错了」** —— 是问的问题不同。"
     },
     "note": "⇒ 但**达标判决本身不需要基准**：账户 `market + net_excess ≡ 篮子净`（依据是生成器 caliber 两句原文，**不是**恒等式推理）。"
+  },
+  "multiple_by_caliber": {
+    "available": true,
+    "source": "data/reports/d2_signal_requirement.json",
+    "json_path": "$.headline.multiple_needed_at_50k_deliverable_by_caliber",
+    "role": "🚨 **这不是一个「缺口口径」** —— 它是「**倍数**」那一族。⇒ **绝不**混进 `d2_gap_by_caliber` 的三档里当第四档（第 7 层）。",
+    "which_column_is_the_gap": {
+      "same_caliber": "✅ **同口径那一列才是「还差几倍」**（同 K / 同信号 / 同榜宽 / 同市场腿）",
+      "control_arms": "⚠️ 对照臂（台账自报「非生产、非判决」）",
+      "cross_caliber": "❌ **不是缺口** —— 台账显式判它 `is_the_gap = false`（分子是 K=63 的要求、分母是 K=21 研究臂的实测 ⇒ K 与信号两处口径都不同）"
+    },
+    "block": {
+      "⚠️_read_this_before_quoting_any_multiple": "🚨 **这个块里有两个倍数，口径不同。**只有 `same_caliber` 那个（**同口径**：K=63 · 生产臂 `LIVE_DEFAULT` · 榜宽 10 · ¥5万 · 满仓 · 同一等权市场腿）是「还差几倍」。`cross_caliber` 那个把 **K=21 研究臂的实测**除以 **K=63 的要求** ⇒ **K 与信号两处口径都不同** ⇒ 它**不是**缺口（第 7 层：两个各自都对的数放一起比）。",
+      "requirement": {
+        "caliber_name": "要求（K=63 · 榜宽 10 · ¥5万 · 满仓(equity_weight=1.0) · 等权市场腿）",
+        "k": 63,
+        "n_positions": 10,
+        "capital": 50000.0,
+        "equity_weight": 1.0,
+        "rounds_per_year": 3.873015873015873,
+        "market_leg": {
+          "description": "等权（抽样面板等权日收益）",
+          "sample_size": 150,
+          "sample_pool": 5460,
+          "sample_seed": 42,
+          "source": "data/reports/market_nav_caliber.json::sample",
+          "deployed_side_description": "抽样面板等权日收益（150 只、种子 42）—— **不是**中证全指、**不是**市值加权"
+        },
+        "required_gross_at_50k_deliverable_pct": 11.281298415805717,
+        "source": "data/reports/d2_signal_requirement.json::headline.required_gross_at_50k_deliverable",
+        "is_the_preregistered_criterion_input": true,
+        "was_changed_by_this_ledger": false
+      },
+      "same_caliber": {
+        "is_the_gap": true,
+        "caliber_name": "同口径·K=63·生产臂 LIVE_DEFAULT·配置层 ARM_A·榜宽 10·¥5万·满仓·等权市场腿",
+        "cell": "LIVE_DEFAULT|ARM_A|K63|E100",
+        "k": 63,
+        "signal": "LIVE_DEFAULT",
+        "filter_arm": "ARM_A",
+        "n_positions": 10,
+        "equity_weight": 1.0,
+        "capital": 50000.0,
+        "market_leg": {
+          "description": "等权（抽样面板等权日收益）—— 与 requirement 同一腿",
+          "sample_size": 150,
+          "sample_pool": 5460,
+          "sample_seed": 42,
+          "source": "data/reports/market_nav_caliber.json::sample",
+          "deployed_side_description": "抽样面板等权日收益（150 只、种子 42）—— **不是**中证全指、**不是**市值加权"
+        },
+        "measured_gross_annual_pct": 6.303364234768245,
+        "measured_gross_source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"LIVE_DEFAULT|ARM_A|K63|E100\"].k_axis.gross_excess_annual_pct",
+        "multiple_needed": 1.7897265643606735,
+        "is_the_production_verdict_cell": true
+      },
+      "control_arms": [
+        {
+          "role": "⚠️ 对照臂（非生产、非判决）",
+          "caliber_name": "对照臂·K=63·信号 BACKTEST_IC·臂 ARM_A·榜宽 10·¥5万·满仓·等权市场腿",
+          "cell": "BACKTEST_IC|ARM_A|K63|E100",
+          "k": 63,
+          "signal": "BACKTEST_IC",
+          "filter_arm": "ARM_A",
+          "n_positions": 10,
+          "equity_weight": 1.0,
+          "measured_gross_annual_pct": 7.495849309750109,
+          "measured_gross_source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"BACKTEST_IC|ARM_A|K63|E100\"].k_axis.gross_excess_annual_pct",
+          "multiple_needed": 1.5050060306217394
+        },
+        {
+          "role": "⚠️ 对照臂（非生产、非判决）",
+          "caliber_name": "对照臂·K=63·信号 BACKTEST_IC·臂 ARM_C·榜宽 10·¥5万·满仓·等权市场腿",
+          "cell": "BACKTEST_IC|ARM_C|K63|E100",
+          "k": 63,
+          "signal": "BACKTEST_IC",
+          "filter_arm": "ARM_C",
+          "n_positions": 10,
+          "equity_weight": 1.0,
+          "measured_gross_annual_pct": 8.023302547297947,
+          "measured_gross_source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"BACKTEST_IC|ARM_C|K63|E100\"].k_axis.gross_excess_annual_pct",
+          "multiple_needed": 1.4060666850466688
+        }
+      ],
+      "cross_caliber": {
+        "is_the_gap": false,
+        "caliber_name": "跨口径（K=21 研究臂）—— ⚠️ **不是缺口**",
+        "k_of_measured": 21,
+        "k_of_requirement": 63,
+        "the_two_calibers_differ_in": "K 与信号（研究臂 8 因子逐年 IC 定权 ≠ 生产臂 DEFAULT_WEIGHTS）",
+        "signal_of_measured": "研究臂（8 因子逐年 IC 定权）",
+        "measured_gross_annual_pct": 4.810755920048621,
+        "measured_gross_source": "data/reports/factor_width_mde.json::widths[\"10\"].gross_annual_pct",
+        "multiple_needed": 2.3450157528864404,
+        "legacy_key": "headline.multiple_needed_at_50k_deliverable",
+        "⚠️_why_it_is_not_a_gap": "分子是 K=63 的要求，分母是 K=21 研究臂的实测 ⇒ K 与信号两处口径都不同 ⇒ 这个比值**不是**「还差几倍」（第 7 层：两个各自都对的数放一起比）。同口径的那一列在 `same_caliber`。",
+        "is_the_legacy_number_kept": true
+      }
+    },
+    "note": "逐字读台账那一块；本脚本一个数都不算"
   },
   "measured_gross_excess_by_caliber": {
     "arith_mean_times_R": {
@@ -138,21 +332,21 @@
     "default_over_verdict_arm": 5.84301696138578,
     "dimensionally_wrong_because": "`DAYS_PER_YEAR` 是**交易日数**，而这个参数要的是**年调仓次数**（= DAYS_PER_YEAR / K）",
     "call_site_census": {
-      "n_prod_explicit_rounds_per_year": 18,
+      "n_prod_explicit_rounds_per_year": 19,
       "n_prod_silently_taking_the_default": 0,
       "silently_taking_the_default_sites": [],
-      "n_test_explicit": 34,
+      "n_test_explicit": 36,
       "test_silently_taking_the_default": [],
       "exempted_on_purpose": {
         "file": "scripts/d2_gap_calibers.py",
         "n_sites": 2,
         "sites": [
           {
-            "at": "scripts/d2_gap_calibers.py:260",
+            "at": "scripts/d2_gap_calibers.py:425",
             "explicit": false
           },
           {
-            "at": "scripts/d2_gap_calibers.py:424",
+            "at": "scripts/d2_gap_calibers.py:589",
             "explicit": false
           }
         ],
@@ -161,7 +355,7 @@
       "method": "AST 遍历 `ast.Call`（grep 会被注释/字符串满足，第 13 层）",
       "verdict": "生产调用点全部显式传参，零处静默回落"
     },
-    "consequence": "🚨 生产上**没有一处**吃过这个默认值（18 处生产调用点**全部显式传参**，0 处静默回落）⇒ **它从未被走过，但它活着、错的、且无守卫。**⇒ **下一个省略它的调用点会静默拿到 5.8430 倍的门槛。**",
+    "consequence": "🚨 生产上**没有一处**吃过这个默认值（19 处生产调用点**全部显式传参**，0 处静默回落）⇒ **它从未被走过，但它活着、错的、且无守卫。**⇒ **下一个省略它的调用点会静默拿到 5.8430 倍的门槛。**",
     "why_not_changed_this_round": "🚨 **不改默认值、不改签名**：`aplus/evolve_race.py:534` 用**三个位置参数**调用 ⇒ 把 `rounds_per_year` 往中间插会**静默改语义**（第 182 层）。⇒ 处置是**加守卫**（钉「生产调用点必须显式传参」，并豁免本文件的探针），不是改默认值。"
   },
   "citable_status": {
@@ -193,10 +387,28 @@
       "citable": false,
       "state": "NO_SIDECAR",
       "why": "无 sidecar ⇒ 按 aplus/provenance.py 自己的规矩，`unknown`（解析不出生成器）= **不许引用**"
+    },
+    "data/reports/deployed_d2_verdict.json": {
+      "citable": false,
+      "state": "STAMPED_BUT_DIRTY",
+      "generator": "scripts/measure_deployed_d2.py",
+      "stamped_at": "2026-10-20T19:03:39+00:00",
+      "code_dirty": true,
+      "why": "带章，但 `code_dirty=true` ⇒ 按本仓规矩 `trustworthy` 恒 `False`，引用时章与脏两句都要带"
+    },
+    "data/reports/d2_signal_requirement.json": {
+      "citable": false,
+      "state": "STAMPED_BUT_DIRTY",
+      "generator": "scripts/d2_signal_requirement.py",
+      "stamped_at": "2026-10-20T21:04:38+00:00",
+      "code_dirty": true,
+      "why": "带章，但 `code_dirty=true` ⇒ 按本仓规矩 `trustworthy` 恒 `False`，引用时章与脏两句都要带"
     }
   },
   "what_this_cannot_prove": [
     "🚨 **不许把任何两个口径下的数相除当「差 N 倍」** —— 第 7 层：两个各自正确的数不是同一个量。本块存在的**全部意义**就是防止这件事。",
+    "🚨 **判决档（K=21）与实盘档（K=63）不是同一个量** —— **K 不同 ⇒ 摩擦不同 ⇒ 门槛不同** ⇒ 两者的数**不可直接比大小**，更不可把差值说成「离 20% 更近了」（第 129 层：门槛松弛 ≠ 达标）。",
+    "🚨 **理想档（公式上界）不是实盘读数** —— 它假设 100% 部署 ⇒ 与实盘档的差额 = **整手 + 闲置现金**的代价，**不是**「两个版本的同一件事」（第 143 层：跨档取极值会抹掉来源）。",
     "🚨 **不许把 `measured_over_required` 说成量化结论** —— 分子分母**都不是点估计**（产物自己禁止）。最远只能说「差一个数量级以上」的**形状**陈述。",
     "🚨 **不许引用 `bridge_error.json` 的任何数** —— 无 sidecar。",
     "🚨 **引用 `factor_width_mde.json` / `k_sweep_summary.json` 时，必须同时说「带章」与「`code_dirty=true`」两句。**",
@@ -209,6 +421,7 @@
     "cost_per_round": 0.0055,
     "target_net": 0.2,
     "single_entry_for_hurdle": "门槛走 `aplus.hurdle.hurdle_rate` 唯一入口，**不许手打**（第 144 层）。",
-    "no_hand_typed_prose_numbers": "所有比值由本脚本算；唯二手抄的 `ceiling` / `k21_gross` **在产物里逐字标为散文值**，因为它们正是被质疑的对象（第 142 层）。"
+    "no_hand_typed_prose_numbers": "所有比值由本脚本算；唯二手抄的 `ceiling` / `k21_gross` **在产物里逐字标为散文值**，因为它们正是被质疑的对象（第 142 层）。",
+    "artifact_filename_records_the_FIRST_generation_date": "文件名里的 `2026-10-17` 是**首次生成日**；本产物已在 2026-10-21 刷新（刷新时刻看 sidecar 的 `stamped_at`）—— 文件名**登记在 `aplus/provenance.py::DEFAULT_GENERATORS` 里**，改名会让溯源**解析不出生成器** ⇒ 不改名，只在这里说清。"
   }
 }

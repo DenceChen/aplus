@@ -1,0 +1,92 @@
+M1 实盘档缺口被乘 1.01（不再是产物那个字段的值）	aplus/reports.py
+    out["gap_to_target_pp"] = gap
+=== 变异体 ===
+    out["gap_to_target_pp"] = gap * 1.01
+
+M2 实盘档年化漏掉 ×100（分数当百分数端出去）	aplus/reports.py
+    out["account_annual_pct"] = cagr * _PCT_SCALE
+=== 变异体 ===
+    out["account_annual_pct"] = cagr
+
+M3 实盘档锚错块（verdict → caliber）	aplus/reports.py
+    block = doc.get(_DEPLOYED_D2_BLOCK)
+=== 变异体 ===
+    block = doc.get("caliber")
+
+M4 判决里实盘档那一段整段删掉	aplus/web/verdict.js
+parts.push(`${dep.label}：账户年化 ${dep.annual}，距 20% 差 ${dep.gap}。`
+      + `来源 ${dep.source}。`);
+=== 变异体 ===
+parts.push('');
+
+M5 实盘档的标签被改成理想档的（两个口径撞名）	aplus/web/verdict.js
+const D2_CALIBER_DEPLOYED_LABEL = '实盘档（整手+闲置现金后）';
+=== 变异体 ===
+const D2_CALIBER_DEPLOYED_LABEL = '理想档（满仓假设）';
+
+M6 实盘档年化的显示精度从 4 位降到 2 位	aplus/web/verdict.js
+      annual: `${a >= 0 ? '+' : ''}${a.toFixed(4)}%`,
+=== 变异体 ===
+      annual: `${a >= 0 ? '+' : ''}${a.toFixed(2)}%`,
+
+M7 首屏只渲染理想档一格（实盘档被 filter 掉）	aplus/web/index.html
+  const cells = d2GapCalibers(L.verdict_input) || [];
+=== 变异体 ===
+  const cells = (d2GapCalibers(L.verdict_input) || []).filter(c => c.key === 'ideal');
+
+M8 首屏那块退回单列（「并排」不再是结构给的）	aplus/web/index.html
+  .d2-gap-calibers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+=== 变异体 ===
+  .d2-gap-calibers { display: grid; grid-template-columns: 1fr; gap: 10px;
+
+M9 首屏那块的接线被摘掉（函数还在、没人调）	aplus/web/index.html
+  try { renderD2GapCalibers(d2gap); }
+=== 变异体 ===
+  try { void 0; }
+
+M10 「唯一可引用」的顶层键又回来了	 scripts/d2_gap_calibers.py
+"d2_gap_by_caliber": {
+            "verdict_k21": account_gap(bn),
+            "deployed_live_k63": deployed_caliber(),
+            "ideal_ceiling_k63": ideal_caliber(),
+        },
+=== 变异体 ===
+"d2_gap_by_caliber": {
+            "verdict_k21": account_gap(bn),
+            "deployed_live_k63": deployed_caliber(),
+            "ideal_ceiling_k63": ideal_caliber(),
+        },
+        "the_only_citable_d2_gap": account_gap(bn),
+
+M11 屏上给哪个口径被改成理想档	scripts/d2_gap_calibers.py
+            "answer": "🚨 **实盘档**（`deployed_live_k63`）—— "
+=== 变异体 ===
+            "answer": "🚨 **理想档**（`ideal_ceiling_k63`）—— "
+
+M12 判决把「同口径」那一列换成了跨口径那一列	aplus/web/verdict.js
+const same = blk.same_caliber;
+=== 变异体 ===
+const same = blk.cross_caliber;
+
+M13 跨口径那个倍数的口径标签被摘掉	aplus/web/verdict.js
+parts.push(`⚠️ 旧账上那个「还差 ${cross.text}」是${cross.caliberName}`
+=== 变异体 ===
+parts.push(`⚠️ 旧账上那个「还差 ${cross.text}」`
+
+M14 投影里不再带 by_caliber 块（前端读不到同口径那一列）	aplus/reports.py
+            "multiple_needed_at_50k_deliverable_by_caliber": bycal,
+=== 变异体 ===
+            "multiple_needed_at_50k_deliverable_by_caliber": None,
+
+M15 首屏那块读错了载荷（倍数那一行整行消失）	aplus/web/index.html
+  const mult = typeof d2Multiples === 'function' ? d2Multiples(L.verdict_input) : null;
+=== 变异体 ===
+  const mult = typeof d2Multiples === 'function' ? d2Multiples(null) : null;
+
+M16「倍数」那一族被塞进缺口口径表（变成第四档）	scripts/d2_gap_calibers.py
+"d2_gap_by_caliber": {
+            "verdict_k21": account_gap(bn),
+=== 变异体 ===
+"d2_gap_by_caliber": {
+            "verdict_k21": account_gap(bn),
+            "multiple_by_caliber": multiple_by_caliber(),

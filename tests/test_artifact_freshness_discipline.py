@@ -46,6 +46,13 @@ FINGERPRINTED = (
     ("portfolio_exec", ROOT / "scripts" / "measure_portfolio_exec.py",
      ROOT / "data/reports/portfolio_exec.json",
      ROOT / "data/reports/portfolio_exec.json.provenance.json"),
+    # 🚨 2026-10-21 补第三个条目：`d2_gap_calibers` 此前**零覆盖** ⇒
+    #   改了 `scripts/d2_gap_calibers.py` 不重跑，**没有任何东西会红**
+    #   （症状与「改了 `measure_portfolio_exec.py`」那次一模一样：
+    #    守卫只钉了别的产物的那一件 ⇒ 这一件在视野之外）。
+    ("d2_gap_calibers", ROOT / "scripts" / "d2_gap_calibers.py",
+     ROOT / "data/reports/d2_gap_calibers_2026-10-17.json",
+     ROOT / "data/reports/d2_gap_calibers_2026-10-17.json.provenance.json"),
 )
 
 

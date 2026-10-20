@@ -1,9 +1,9 @@
 {
-  "code_sha": "e118dc72eff3055eb2109e27456284f06dfd9fa0",
+  "code_sha": "fe02f5f865f4b6605c7c5762acbb01ef8f6ce11b",
   "code_dirty": true,
-  "code_file_sha256": "938200d0a5861df35651df4faa2e3662f3a7fa7115bf8158f78fc19cc7b4c8f4",
-  "data_fp": "5460:1792149148.049984",
+  "code_file_sha256": "56c5091e1d35f95657666ae426f8b356635519b2df7b91f2be2f2309d7984df7",
+  "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/d2_gap_calibers.py",
-  "stamped_at": "2026-10-17T00:09:04+00:00"
+  "stamped_at": "2026-10-20T21:23:09+00:00"
 }
