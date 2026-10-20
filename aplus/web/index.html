@@ -335,6 +335,29 @@
   .news-chip.pos i { color: var(--up); } .news-chip.neg i { color: var(--down); }
   .news-chip .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; }
 
+  /* 改进台账的 Markdown 呈现。
+     标题用衬线体（与页面显示体一致），正文仍是无衬线；
+     代码块用等宽体并保留原始换行（`white-space: pre` + 横向滚动）——
+     复盘里的代码片段是**证据**，被折行就等于被改写。 */
+  .md-h { font-family: var(--serif); font-size: 13.5px; font-weight: 700;
+          color: var(--text); margin: 14px 0 4px; }
+  .md-h:first-child { margin-top: 2px; }
+  .md-p { margin: 5px 0; }
+  .md-list { margin: 5px 0; padding-left: 20px; }
+  .md-list li { margin: 2px 0; }
+  .md-table { margin: 8px 0; font-size: 12px; }
+  .md-table th, .md-table td { padding: 5px 9px; border: 1px solid var(--line); text-align: left; }
+  .md-table th { color: var(--muted); font-weight: 600; background: var(--panel-2); }
+  .md-pre {
+    margin: 8px 0; padding: 10px 12px; background: var(--panel-2);
+    border-left: 2px solid var(--line-strong); border-radius: 4px;
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.6;
+    color: var(--muted); overflow-x: auto; white-space: pre;
+  }
+  .evo-entry code { font-family: var(--mono); font-size: 11.5px; color: var(--text);
+                    background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
+  .evo-entry .md-p, .evo-entry .md-list { color: var(--muted); }
+
   /* 涨跌双栏台账：各栏独立成表，看涨看跌的边界由结构给出，不靠颜色和 ▲▼ 自己找 */
   .ledger { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
   /* 颜色语义图例。安静：11.5px、灰字、无框无底 —— 它是**读法说明**，
@@ -1414,6 +1437,37 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
      选股没本事也能拿到漂亮数字。 */
   const downExc = stats?.down_excess_vs_market ?? null;
   const breadth = stats?.excess_breadth ?? null;
+  /* 🚨 2026-10-20 口径披露：首屏这四个数有**三个**会被误读，而页面上一个都没说。
+     ① 「涨组合超额」是**净**数（每笔已扣 0.3% 摩擦）：净 −0.03%，
+        同口径**毛**数是 **+0.27%** —— **符号相反**；
+        `cost_share` = 1.124 ⇒ 摩擦是毛超额的 112%，全部吃掉还倒欠。
+        而 `gross_up_excess` / `cost_share` / `avg_cost_drag` 三个字段
+        在本页面**零消费点** ⇒ 用户没有任何入口能把它换算回毛口径。
+     ② 「命中率」是**涨腿 + 跌腿合并**的数（52.2% = 71/136），
+        而产品承诺的是**涨腿**那一半（涨腿 47.8% / 跌腿 56.8%，差 8.4pp）。
+     ③ 「多空价差」要兑现必须有**空头腿**，5 万本金做不了空 ⇒
+        它度量的是排序有没有区分度，**不是可兑现收益**。
+     ⇒ 处置：**口径写进标签**（常驻可见，不靠 hover；标签必须短，首屏只有 4 个图），
+        数字与差额写进 tooltip（hover 才展开，不占首屏）。
+     ⚠️ tooltip 是 `title` 属性 = **纯文本**，里面写 `**加粗**` 会显示成字面星号。 */
+  const grossUp = stats?.gross_up_excess ?? null;
+  const costShare = stats?.cost_share ?? null;
+  const hitUp = stats?.hit_rate_up ?? null;
+  const hitDown = stats?.hit_rate_down ?? null;
+  const costDrag = stats?.avg_cost_drag ?? null;
+  const p2 = v => v == null ? '—' : fmtPct(v, 2);
+  const n1 = v => v == null ? '—' : fmtNum(v);
+  const tipHit = `涨腿 ${n1(hitUp)} · 跌腿 ${n1(hitDown)} 合并。产品承诺的是涨腿那一半`
+    + `（每天 10 只会涨）；跌腿是回避清单。`;
+  const tipUp = '净超额：每笔已扣 ' + (costDrag == null ? '—' : fmtPct(costDrag, 2)) + ' 摩擦。'
+    + (grossUp == null ? '' : '同口径毛超额 ' + p2(grossUp) + '，')
+    + (costShare == null ? '' : '摩擦占毛超额的 ' + (costShare * 100).toFixed(0) + '%。')
+    + (costShare != null && costShare >= 1 ? '净数因此把符号都吃掉了。' : '')
+    + '口径是逐笔平均，不是按日等权组合。';
+  const tipDown = '跌篮子相对大盘的超额：正 = 挑出的确实跑输市场，回避有效。'
+    + '这条腿是回避清单，不做空也能兑现 —— 与「多空价差」不是一回事。';
+  const tipBreadth = '涨篮子减跌篮子。市场涨跌不影响这个数 —— 它是排序有没有区分度的度量。'
+    + '注意：兑现它需要空头腿，5 万本金做不了空，所以它不是可兑现收益。';
   const fig = (cls, val, label, tip) => `<div class="fig ${cls}"${tip ? ` title="${esc(tip)}"` : ''}><b>${val}</b><span>${label}</span></div>`;
   /* 无值槽。措辞由**上面的判据**算出来，不手写 —— 手写就会在
      MIN_WINDOWS 改动后静默过期（第 140 层），而这里说的正是
@@ -1424,23 +1478,24 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
         **字段在、值不是 null** ⇒ 下面那个 null 分支**今天不可达**。
         而「为什么会是 null」我**没有取证**（端点异常？上游缺字段？别的？）
         ⇒ 那条分支只说**它确定依赖的那个数**，绝不指控成因
-        （第 168 层搜的是我记得的名字 / 断言对成因错的同族）。 */
+        （第 168 层搜的是我记得的名字 / 断言对成因错的同族）。
+     ⚠️ 空槽也要带口径：数字没出来**不等于**口径不重要 ——
+        W≥10 那天它会带着这些口径冒出来，用户必须那时就知道。 */
   const voidWhy = windows === null
     ? '独立成交窗口数未知，而这一组数全部依赖它，所以算不出来'
     : `独立成交窗口 ${windows} 个，不到判据要求的 ${MIN_WINDOWS} 个，所以这一组数还没法给`;
-  const voided = (label) => fig('void', '▪▪▪', label, `这里本来就没有数，不是没渲染出来 —— ${voidWhy}`);
+  const voided = (label, tip) => fig('void', '▪▪▪', label,
+    `这里本来就没有数，不是没渲染出来 —— ${voidWhy}` + (tip ? `。口径：${tip}` : ''));
   $('docket-figures').innerHTML = has
-    ? fig('rise', fmtNum(rate), '命中率')
-      + fig(exc >= 0 ? 'rise' : 'fall', fmtPct(exc, 2), '涨组合超额')
-      + fig(downExc >= 0 ? 'rise' : 'fall', fmtPct(downExc, 2), '跌篮子回避',
-            '跌篮子相对大盘的超额：正 = 挑出的确实跑输市场，回避有效')
-      + fig(breadth >= 0 ? 'rise' : 'fall', fmtPct(breadth, 2), '多空价差',
-            '涨篮子减跌篮子。市场涨跌不影响这个数——它是排序有没有区分度的度量')
-      + fig('idle', String(judged), '已判定笔数')
-    : voided('命中率')
-      + voided('涨组合超额')
-      + voided('跌篮子回避')
-      + voided('多空价差')
+    ? fig('rise', fmtNum(rate), '命中率·涨跌合并', tipHit)
+      + fig(exc >= 0 ? 'rise' : 'fall', fmtPct(exc, 2), '涨篮子超额·净', tipUp)
+      + fig(downExc >= 0 ? 'rise' : 'fall', fmtPct(downExc, 2), '跌篮子超额', tipDown)
+      + fig(breadth >= 0 ? 'rise' : 'fall', fmtPct(breadth, 2), '多空价差·需空头腿', tipBreadth)
+      + fig('idle', String(judged), '已判定条数')
+    : voided('命中率·涨跌合并', tipHit)
+      + voided('涨篮子超额·净', tipUp)
+      + voided('跌篮子超额', tipDown)
+      + voided('多空价差·需空头腿', tipBreadth)
       + fig('idle', String(judged), `判定条数（独立成交 ${windows ?? '未知'} 个）`);
 }
 
@@ -1613,11 +1668,26 @@ function renderHeld(live) {
     ? `<div class="held-why${live.honored === false ? ' danger' : ' warn'}">${boldify(esc(live.reason))}</div>`
     : '';
 
+  /* 🚨 2026-10-20 「持仓基准日」这个词是**错的**，而且错在会让人买错票的地方。
+     `live.as_of` 由 run_daily 每天写 `state["as_of"] = today`（不论当天是否换仓日）
+     ⇒ 它的语义是「**最后一次出单日**」，不是「持仓是哪天定的」。
+     实测（2026-10-20）：holdings.json 的 10 只与 `pred_2026-10-15.parquet` 的 up
+     **10/10 逐只相同**，与 10-19 榜只交集 4/10 ⇒ 手上其实是 10-15 那份，
+     其中 6 只已不在最新名单里。写「持仓基准日 10-19」会让人以为持有的是最新榜。
+     ⇒ 真正的字段是 `held_since`（后端已改为真的落盘），`held_since_is_fallback`
+       标记它是不是从 as_of 回落的。**回落时必须说「实际持仓日未知」** ——
+       宁可说不知道，也不能把「出单日」说成「持仓日」。 */
+  const heldSince = live.held_since ?? null;
+  const heldFallback = live.held_since_is_fallback === true || !heldSince;
+  const heldWhen = heldFallback
+    ? `名单出单日 <b>${esc(live.as_of || '未知')}</b>　<span style="color:var(--up)">实际持仓日未知</span>`
+    : `持仓沿用 <b>${esc(heldSince)}</b> 的名单`;
+
   box.innerHTML = `
     <div class="held-top">
       <b>你现在持有 ${upCodes.length} 只</b>
       <span>${cadence} · ${countdown}</span>
-      <span style="color:var(--faint)">持仓基准日 ${esc(live.as_of || '未知')}</span>
+      <span style="color:var(--faint)">${heldWhen}</span>
     </div>
     ${why}
     <div class="held-codes">
@@ -2025,6 +2095,121 @@ function ledNum(v) {
   return (+v).toPrecision(3);
 }
 
+/* 改进台账的 note / evidence 是**带 Markdown 的工程复盘**（## 标题、**加粗**、
+   围栏代码块、竖线表格、无序/有序列表）。原来直接 esc() 当纯文本吐出来 ⇒
+   用户看到的是字面的「## 发生了什么」与「**加粗**」。
+   68 条记录里 60+ 条带 Markdown ⇒ 这不是个别瑕疵，是整页的呈现方式错了。
+
+   ⚠️ **安全顺序：先整体转义，再做 Markdown 变换。**
+   先转义 ⇒ 内容里的任何 <script> 早已变成 &lt;script&gt;，
+   之后无论怎么切都不会变成可执行标签；
+   反过来（先切 Markdown 再转义）会把**我们自己的** <pre>/<strong> 也转掉。
+   纯文本化之后不引入 <em> 斜体：单星号与双星号的边界在真实内容里会歧义，
+   猜错会把无关的段落吞进标签里。 */
+function md(src) {
+  if (!src) return '';
+  const lines = esc(src).split('\n');
+  const out = [];
+  let i = 0;
+  /* 行内渲染 —— 逐字符扫描，不用正则。
+     🚨 两种真实内容形态**互相冲突**，正则做不对：
+       ① 加粗**跨越**行内代码（开标记在代码前、闭标记在代码后）
+       ② 双星号出现在代码**内部**（形如 0.05**(1/n)**）
+     段原子法（先切代码段再逐段加粗）配不对 ①；
+     先加粗再切代码会把 ② 里的双星号当成加粗标记。
+     ⇒ 只能扫：遇反引号就整段吞到下一个反引号（里面的双星号一律不算标记）；
+       遇双星号且不在代码里，就找配对的那一对，**配对区间内部再单独做代码替换**。
+     输入已整体转义（esc 在外层做过），所以这里插的标签是唯一可信的标签。
+
+     ⚠️⚠️ 本函数**源码里不许出现裸反引号**（含注释里）。
+     原因：tests/test_audit_frontend.py 的 _backtick_expr() 会**递归抠取
+     反引号模板字面量**来让探针跑文件里的原文。它按字面扫源码 ⇒
+     我原先写的正则里含有**奇数个**反引号，提取器以为那里开了个模板，
+     一路吞到后面，把 factorNames 那段模板吃掉了 ⇒ 守卫当场红。
+     ⇒ 反引号一律用 String.fromCharCode(96) 取，围栏用 TICK 拼三个。 */
+  const TICK = String.fromCharCode(96);
+  const FENCE = TICK + TICK + TICK;
+  const inlineCode = s => {
+    let out = '', i = 0;
+    while (i < s.length) {
+      if (s[i] === TICK) {
+        const j = s.indexOf(TICK, i + 1);
+        if (j > i) { out += `<code>${s.slice(i + 1, j)}</code>`; i = j + 1; continue; }
+      }
+      out += s[i]; i++;
+    }
+    return out;
+  };
+  const inline = t => {
+    let out = '', i = 0;
+    const n = t.length;
+    while (i < n) {
+      if (t[i] === TICK) {                      // 行内代码：整段吞掉，里面的双星号不算标记
+        const j = t.indexOf(TICK, i + 1);
+        if (j > i) { out += `<code>${t.slice(i + 1, j)}</code>`; i = j + 1; continue; }
+      }
+      if (t[i] === '*' && t[i + 1] === '*') {   // 加粗：可以跨代码段
+        const j = t.indexOf('**', i + 2);
+        if (j > i) { out += `<strong>${inlineCode(t.slice(i + 2, j))}</strong>`; i = j + 2; continue; }
+      }
+      out += t[i]; i++;
+    }
+    return out;
+  };
+  /* 段落边界判据：围栏、标题、两种列表 —— 都不该把「段落」截断。
+     ⚠️ 这里原本写成一个含三个裸反引号的正则 ⇒ 破坏模板提取器（见上）。 */
+  const isBlockStart = s => s.startsWith(FENCE)
+    || /^#{2,4}\s/.test(s) || /^\s*[-*]\s/.test(s) || /^\s*\d+\.\s/.test(s);
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith(FENCE)) {                 // 围栏代码块
+      const buf = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith(FENCE)) buf.push(lines[i++]);
+      i++;
+      out.push(`<pre class="md-pre">${buf.join('\n')}</pre>`);
+      continue;
+    }
+    /* 表格：竖线分隔的行 + 紧跟一行只有竖线与横线的分隔行。
+       判据是**分隔行必须紧跟表头**——否则正文里出现一行竖线会被误当表头。 */
+    if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+      const cells = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const head = cells(l);
+      i += 2;
+      const body = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) body.push(cells(lines[i++]));
+      out.push('<table class="md-table"><thead><tr>'
+        + head.map(h => `<th>${inline(h)}</th>`).join('')
+        + '</tr></thead><tbody>'
+        + body.map(r => '<tr>' + r.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('')
+        + '</tbody></table>');
+      continue;
+    }
+    let m = l.match(/^(#{2,4})\s+(.*)$/);          // 标题
+    if (m) { out.push(`<div class="md-h">${inline(m[2])}</div>`); i++; continue; }
+    m = l.match(/^\s*[-*]\s+(.*)$/);              // 无序列表
+    if (m) {
+      const buf = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) buf.push(lines[i++].replace(/^\s*[-*]\s+/, ''));
+      out.push('<ul class="md-list">' + buf.map(x => `<li>${inline(x)}</li>`).join('') + '</ul>');
+      continue;
+    }
+    m = l.match(/^\s*\d+\.\s+(.*)$/);            // 有序列表
+    if (m) {
+      const buf = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) buf.push(lines[i++].replace(/^\s*\d+\.\s+/, ''));
+      out.push('<ol class="md-list">' + buf.map(x => `<li>${inline(x)}</li>`).join('') + '</ol>');
+      continue;
+    }
+    if (!l.trim()) { i++; continue; }             // 空行
+    const buf = [];
+    while (i < lines.length && lines[i].trim()
+           && !isBlockStart(lines[i])) buf.push(lines[i++]);
+    out.push(`<p class="md-p">${inline(buf.join(' '))}</p>`);
+  }
+  return out.join('');
+}
+
 function loadLedger() {
   jget('/api/evolution/ledger').then(d => {
     const box = $('ledger-body');
@@ -2060,7 +2245,7 @@ function loadLedger() {
         ? `<div style="font-size:11.5px;color:var(--down);margin-top:5px">作废：${esc(e.invalidates.join('；'))}</div>`
         : '';
       const ev = e.evidence
-        ? `<div style="font-size:11px;color:var(--faint);margin-top:4px">${esc(e.evidence)}</div>` : '';
+        ? `<div style="font-size:11px;color:var(--faint);margin-top:4px">${md(e.evidence)}</div>` : '';
       return `
       <div class="evo-entry" style="border-left:3px solid ${SEV[e.severity] || 'var(--line)'}">
         <div class="head"><b>${esc(e.title)}</b> ${DIR[e.direction] || ''}
@@ -2068,7 +2253,7 @@ function loadLedger() {
         <div style="font-size:12.5px;margin:6px 0 2px">
           <span style="color:var(--muted)">${esc(e.metric)}</span>：
           <code style="font-size:12px">${arrow}</code></div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.6">${esc(e.note)}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">${md(e.note)}</div>
         ${inv}${ev}
       </div>`;
     };
