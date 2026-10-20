@@ -1,0 +1,15 @@
+{
+  "code_sha": "2b6247c6d5c549076cb676bd39f0e573691c4472",
+  "code_dirty": true,
+  "code_file_sha256": "17c22e3fd215eb9811fd7e0e287aaf90e1618039bd5dca497c9643aca36f2f2e",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_deployed_d2.py",
+  "stamped_at": "2026-10-20T19:03:39+00:00",
+  "source_parquet_sha256": {
+    "ic_matrices": "3a529ad5c695a2250732361bdc0f3646a08820aea0053fff71a82d0de31adda5",
+    "wf_weights_backtest_k21_daily": "785d1aaf20f1dfcec4dfdfd4acd64357384378454ac265178a150422e6b5d995"
+  },
+  "data_root": "/Users/airboom/opencode/aplus/data",
+  "prereg": "docs/PREREG_DEPLOYED_D2_2026-10-20.md"
+}
