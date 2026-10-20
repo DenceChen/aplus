@@ -1,6 +1,6 @@
 {
-  "as_of": "2026-10-16",
-  "days_since_rebalance": 1,
+  "as_of": "2026-10-20",
+  "days_since_rebalance": 5,
   "every": 21,
   "buffer_multiple": null,
   "up": [
@@ -50,5 +50,6 @@
     "电魂网络",
     "华瓷股份",
     "紫竹高科"
-  ]
+  ],
+  "held_since": null
 }

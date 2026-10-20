@@ -1,0 +1,27 @@
+M1-sampling-back-to-code-order	aplus/trading_calendar.py
+if sample >= len(files):
+        return list(files)
+    return sorted(files, key=_hash_key)[:sample]
+=== 变异体 ===
+if sample >= len(files):
+        return list(files)
+    return sorted(files)[:40]
+
+M2-coverage-branch-removed	aplus/trading_calendar.py
+if coverage >= COVERAGE_MIN:
+        return RUN_DAY_TRADING
+    if coverage > 0:
+        return RUN_DAY_TRADING_DAY_PARTIAL
+    return RUN_DAY_WORKDAY_NOT_IN_STORE
+=== 变异体 ===
+return RUN_DAY_TRADING
+
+M3-threshold-too-strict	aplus/trading_calendar.py
+COVERAGE_MIN = 1.0 - 2.0 * CALIBRATED_STALE_FRACTION
+=== 变异体 ===
+COVERAGE_MIN = 0.95
+
+M4-threshold-too-loose	aplus/trading_calendar.py
+COVERAGE_MIN = 1.0 - 2.0 * CALIBRATED_STALE_FRACTION
+=== 变异体 ===
+COVERAGE_MIN = 0.0

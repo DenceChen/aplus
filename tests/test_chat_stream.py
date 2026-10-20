@@ -679,20 +679,20 @@ def test_llm_info_matches_real_client_defaults(root):
     tc = TestClient(create_app(root, llm=chain))
     body = tc.get("/api/llm/info").json()
     assert body["chain"][0]["model"] == MiniMaxM31FlashClient(api_key="k").model
-    assert body["chain"][0]["model"] == "MiniMax-M3.1-Flash-Preview"
+    assert body["chain"][0]["model"] == "MiniMax-M3.1-Flash"
     assert body["chain"][1]["model"] == GlmProxyClient().model == "glm-5.3"
 
 
 def test_llm_info_never_leaks_the_retired_m3_model(root):
     """M3 客户端已删除。界面上再出现 'MiniMax-M3'（且不是 .1）就是漂移。
-    注意断言写法：'MiniMax-M3.1-Flash-Preview' 里也含 'MiniMax-M3'，
+    注意断言写法：'MiniMax-M3.1-Flash' 里也含 'MiniMax-M3'，
     所以必须用「后面不接 . 或数字」的否定先行。"""
     chain = FallbackChain(MiniMaxM31FlashClient(api_key="sk-x"), GlmProxyClient())
     tc = TestClient(create_app(root, llm=chain))
     raw = tc.get("/api/llm/info").text
     assert re.search(r"MiniMax-M3(?![\d.])", raw) is None, raw
     # 正例：.1 版本必须能原样通过（防止断言写太狠，把真模型也毙了）
-    assert re.search(r"MiniMax-M3(?=[\d.])", "MiniMax-M3.1-Flash-Preview") is not None
+    assert re.search(r"MiniMax-M3(?=[\d.])", "MiniMax-M3.1-Flash") is not None
 
 
 def test_llm_info_model_is_null_when_absent_not_a_hardcoded_name(root):

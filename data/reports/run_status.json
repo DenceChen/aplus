@@ -1,8 +1,16 @@
 {
-  "date": "2026-10-18",
-  "status": "skipped",
+  "date": "2026-10-20",
+  "status": "ok",
   "steps": {
-    "run_day_gate": "WEEKEND"
+    "bond_update": "ok",
+    "verify": "ok",
+    "factor_audit": "ok",
+    "predict": "ok",
+    "bond_paper": "ok",
+    "stats": "ok"
   },
-  "updated_at": "2026-10-18 18:30:02"
+  "updated_at": "2026-10-20 21:12:53",
+  "attempted_date": "2026-10-20",
+  "outcome": "ok",
+  "outcome_reason": "全部步骤跑完，名单已发布。"
 }

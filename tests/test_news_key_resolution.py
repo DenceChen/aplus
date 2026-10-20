@@ -19,7 +19,7 @@ from aplus.news import search_api_key
 def test_reads_key_from_m31_flash_config():
     """现行配置：key 在 `m31_flash` 段下（MiniMax 只剩这一个模型）。"""
     cfg = {"primary": "m31-flash",
-           "m31_flash": {"api_key": "sk-m31", "model": "MiniMax-M3.1-Flash-Preview"}}
+           "m31_flash": {"api_key": "sk-m31", "model": "MiniMax-M3.1-Flash"}}
     assert search_api_key(cfg) == "sk-m31"
 
 

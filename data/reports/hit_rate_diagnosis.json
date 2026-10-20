@@ -1,24 +1,24 @@
 {
   "excluded": {
     "no_data": 1,
-    "flat": 3
+    "flat": 4
   },
-  "verdicts": 136,
-  "trading_days": 7,
+  "verdicts": 155,
+  "trading_days": 8,
   "span": [
     "2026-10-09",
-    "2026-10-15"
+    "2026-10-16"
   ],
-  "n_windows": 5,
+  "n_windows": 6,
   "window_span": [
     "2026-10-13",
-    "2026-10-19"
+    "2026-10-20"
   ],
   "独立样本单位": "成交窗口（exit_date，缺则退回 pred_date 并加 'legacy:' 前缀单独成组）——不是交易行：同一窗口内的行共享同一次开平仓的价格路径，按行算等于把一次抽样当几十次",
   "overall": {
-    "n": 136,
-    "hits": 71,
-    "n_windows": 5,
+    "n": 155,
+    "hits": 87,
+    "n_windows": 6,
     "windows": [
       {
         "window": "2026-10-13",
@@ -49,43 +49,49 @@
         "n": 20,
         "hits": 12,
         "rate": 0.6
+      },
+      {
+        "window": "2026-10-20",
+        "n": 19,
+        "hits": 16,
+        "rate": 0.8421
       }
     ],
-    "rate": 0.5221,
-    "unweighted_mean_of_window_rates": 0.5686,
-    "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [56, 20, 20, 20, 20]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
+    "rate": 0.5613,
+    "unweighted_mean_of_window_rates": 0.6142,
+    "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [56, 20, 20, 20, 20, 19]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
     "ci95": [
-      0.0842,
-      0.9599
+      0.1642,
+      0.9584
     ],
-    "ci95_caliber": "独立观测单位 = 成交窗口（W=5 个 exit_date）",
+    "ci95_caliber": "独立观测单位 = 成交窗口（W=6 个 exit_date）",
     "ci95_method": "正态近似，SE 的分母是窗口数 W 而非行数 N",
-    "half_width": 0.437843,
+    "half_width": 0.397066,
     "ci95_clipped": false,
-    "z": 0.099,
-    "p_two_sided": 0.9213,
+    "z": 0.303,
+    "p_two_sided": 0.7622,
     "ci95_row_level": [
-      0.4381,
-      0.606
+      0.4832,
+      0.6394
     ],
     "ci95_row_level_caliber": "独立观测单位 = 交易行（N 行）——🚨 被窗口叠加虚增：同一窗口内的行共享同一次开平仓的价格路径，不是独立重抽样；保留它是为了让读者看见两个口径差多少，不许当成可用区间",
-    "half_width_row_level": 0.083952,
-    "z_row_level": 0.515,
-    "p_two_sided_row_level": 0.6066,
+    "half_width_row_level": 0.078122,
+    "z_row_level": 1.538,
+    "p_two_sided_row_level": 0.1241,
     "row_level_inflated_by_window_stacking": true,
-    "inflation_factor": 5.215362,
-    "mde_rate_points": 0.6258,
+    "inflation_factor": 5.08265,
+    "mde_rate_points": 0.5676,
     "mde_caliber": "80% 检出力、双侧 α=0.05，MDE=(z₀.₉₇₅+z₀.₈₀)·SE(聚类口径)",
-    "abs_gap_to_50pct": 0.0221,
-    "gap_over_mde": 0.035,
-    "measurement_note": "点估计离 50% 只有 0.035 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
-    "evidence": "薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）"
+    "abs_gap_to_50pct": 0.0613,
+    "gap_over_mde": 0.108,
+    "measurement_note": "点估计离 50% 只有 0.108 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
+    "evidence": "薄（独立成交窗口 6 <10，聚类区间宽到不能当结论用）"
   },
   "by_direction": {
     "down": {
-      "n": 67,
-      "hits": 38,
-      "n_windows": 5,
+      "n": 77,
+      "hits": 45,
+      "n_windows": 6,
       "windows": [
         {
           "window": "2026-10-13",
@@ -116,42 +122,48 @@
           "n": 10,
           "hits": 7,
           "rate": 0.7
+        },
+        {
+          "window": "2026-10-20",
+          "n": 10,
+          "hits": 7,
+          "rate": 0.7
         }
       ],
-      "rate": 0.5672,
-      "unweighted_mean_of_window_rates": 0.6719,
-      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [27, 10, 10, 10, 10]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
+      "rate": 0.5844,
+      "unweighted_mean_of_window_rates": 0.6766,
+      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [27, 10, 10, 10, 10, 10]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
       "ci95": [
-        0.1329,
-        1.0
+        0.1901,
+        0.9788
       ],
-      "ci95_caliber": "独立观测单位 = 成交窗口（W=5 个 exit_date）",
+      "ci95_caliber": "独立观测单位 = 成交窗口（W=6 个 exit_date）",
       "ci95_method": "正态近似，SE 的分母是窗口数 W 而非行数 N",
-      "half_width": 0.434297,
-      "ci95_clipped": true,
-      "z": 0.303,
-      "p_two_sided": 0.7618,
+      "half_width": 0.39434,
+      "ci95_clipped": false,
+      "z": 0.42,
+      "p_two_sided": 0.6748,
       "ci95_row_level": [
-        0.4485,
-        0.6858
+        0.4743,
+        0.6945
       ],
       "ci95_row_level_caliber": "独立观测单位 = 交易行（N 行）——🚨 被窗口叠加虚增：同一窗口内的行共享同一次开平仓的价格路径，不是独立重抽样；保留它是为了让读者看见两个口径差多少，不许当成可用区间",
-      "half_width_row_level": 0.118641,
-      "z_row_level": 1.11,
-      "p_two_sided_row_level": 0.2672,
+      "half_width_row_level": 0.110078,
+      "z_row_level": 1.503,
+      "p_two_sided_row_level": 0.1328,
       "row_level_inflated_by_window_stacking": true,
-      "inflation_factor": 3.660601,
-      "mde_rate_points": 0.6208,
+      "inflation_factor": 3.582364,
+      "mde_rate_points": 0.5637,
       "mde_caliber": "80% 检出力、双侧 α=0.05，MDE=(z₀.₉₇₅+z₀.₈₀)·SE(聚类口径)",
-      "abs_gap_to_50pct": 0.0672,
-      "gap_over_mde": 0.108,
-      "measurement_note": "点估计离 50% 只有 0.108 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
-      "evidence": "薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）"
+      "abs_gap_to_50pct": 0.0844,
+      "gap_over_mde": 0.15,
+      "measurement_note": "点估计离 50% 只有 0.15 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
+      "evidence": "薄（独立成交窗口 6 <10，聚类区间宽到不能当结论用）"
     },
     "up": {
-      "n": 69,
-      "hits": 33,
-      "n_windows": 5,
+      "n": 78,
+      "hits": 42,
+      "n_windows": 6,
       "windows": [
         {
           "window": "2026-10-13",
@@ -182,44 +194,50 @@
           "n": 10,
           "hits": 5,
           "rate": 0.5
+        },
+        {
+          "window": "2026-10-20",
+          "n": 9,
+          "hits": 9,
+          "rate": 1.0
         }
       ],
-      "rate": 0.4783,
-      "unweighted_mean_of_window_rates": 0.4634,
-      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [29, 10, 10, 10, 10]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
+      "rate": 0.5385,
+      "unweighted_mean_of_window_rates": 0.5529,
+      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [29, 10, 10, 10, 10, 9]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
       "ci95": [
-        0.0404,
-        0.9161
+        0.1396,
+        0.9374
       ],
-      "ci95_caliber": "独立观测单位 = 成交窗口（W=5 个 exit_date）",
+      "ci95_caliber": "独立观测单位 = 成交窗口（W=6 个 exit_date）",
       "ci95_method": "正态近似，SE 的分母是窗口数 W 而非行数 N",
-      "half_width": 0.437855,
+      "half_width": 0.398898,
       "ci95_clipped": false,
-      "z": -0.097,
-      "p_two_sided": 0.9225,
+      "z": 0.189,
+      "p_two_sided": 0.8501,
       "ci95_row_level": [
-        0.3604,
-        0.5961
+        0.4278,
+        0.6491
       ],
       "ci95_row_level_caliber": "独立观测单位 = 交易行（N 行）——🚨 被窗口叠加虚增：同一窗口内的行共享同一次开平仓的价格路径，不是独立重抽样；保留它是为了让读者看见两个口径差多少，不许当成可用区间",
-      "half_width_row_level": 0.117867,
-      "z_row_level": -0.361,
-      "p_two_sided_row_level": 0.7177,
+      "half_width_row_level": 0.110634,
+      "z_row_level": 0.681,
+      "p_two_sided_row_level": 0.4956,
       "row_level_inflated_by_window_stacking": true,
-      "inflation_factor": 3.714835,
-      "mde_rate_points": 0.6259,
+      "inflation_factor": 3.605551,
+      "mde_rate_points": 0.5702,
       "mde_caliber": "80% 检出力、双侧 α=0.05，MDE=(z₀.₉₇₅+z₀.₈₀)·SE(聚类口径)",
-      "abs_gap_to_50pct": 0.0217,
-      "gap_over_mde": 0.035,
-      "measurement_note": "点估计离 50% 只有 0.035 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
-      "evidence": "薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）"
+      "abs_gap_to_50pct": 0.0385,
+      "gap_over_mde": 0.068,
+      "measurement_note": "点估计离 50% 只有 0.068 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
+      "evidence": "薄（独立成交窗口 6 <10，聚类区间宽到不能当结论用）"
     }
   },
   "with_market": {
     "逆大盘": {
-      "n": 67,
-      "hits": 26,
-      "n_windows": 5,
+      "n": 77,
+      "hits": 33,
+      "n_windows": 6,
       "windows": [
         {
           "window": "2026-10-13",
@@ -250,42 +268,48 @@
           "n": 10,
           "hits": 5,
           "rate": 0.5
+        },
+        {
+          "window": "2026-10-20",
+          "n": 10,
+          "hits": 7,
+          "rate": 0.7
         }
       ],
-      "rate": 0.3881,
-      "unweighted_mean_of_window_rates": 0.4319,
-      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [27, 10, 10, 10, 10]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
+      "rate": 0.4286,
+      "unweighted_mean_of_window_rates": 0.4766,
+      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [27, 10, 10, 10, 10, 10]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
       "ci95": [
-        0.0,
-        0.8152
+        0.0326,
+        0.8246
       ],
-      "ci95_caliber": "独立观测单位 = 成交窗口（W=5 个 exit_date）",
+      "ci95_caliber": "独立观测单位 = 成交窗口（W=6 个 exit_date）",
       "ci95_method": "正态近似，SE 的分母是窗口数 W 而非行数 N",
-      "half_width": 0.427145,
-      "ci95_clipped": true,
-      "z": -0.514,
-      "p_two_sided": 0.6075,
+      "half_width": 0.39598,
+      "ci95_clipped": false,
+      "z": -0.354,
+      "p_two_sided": 0.7237,
       "ci95_row_level": [
-        0.2714,
-        0.5047
+        0.318,
+        0.5391
       ],
       "ci95_row_level_caliber": "独立观测单位 = 交易行（N 行）——🚨 被窗口叠加虚增：同一窗口内的行共享同一次开平仓的价格路径，不是独立重抽样；保留它是为了让读者看见两个口径差多少，不许当成可用区间",
-      "half_width_row_level": 0.116687,
-      "z_row_level": -1.88,
-      "p_two_sided_row_level": 0.0601,
+      "half_width_row_level": 0.110536,
+      "z_row_level": -1.267,
+      "p_two_sided_row_level": 0.2053,
       "row_level_inflated_by_window_stacking": true,
-      "inflation_factor": 3.660601,
-      "mde_rate_points": 0.6106,
+      "inflation_factor": 3.582364,
+      "mde_rate_points": 0.566,
       "mde_caliber": "80% 检出力、双侧 α=0.05，MDE=(z₀.₉₇₅+z₀.₈₀)·SE(聚类口径)",
-      "abs_gap_to_50pct": 0.1119,
-      "gap_over_mde": 0.183,
-      "measurement_note": "点估计离 50% 只有 0.183 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
-      "evidence": "薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）"
+      "abs_gap_to_50pct": 0.0714,
+      "gap_over_mde": 0.126,
+      "measurement_note": "点估计离 50% 只有 0.126 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
+      "evidence": "薄（独立成交窗口 6 <10，聚类区间宽到不能当结论用）"
     },
     "顺大盘": {
-      "n": 69,
-      "hits": 45,
-      "n_windows": 5,
+      "n": 78,
+      "hits": 54,
+      "n_windows": 6,
       "windows": [
         {
           "window": "2026-10-13",
@@ -316,88 +340,94 @@
           "n": 10,
           "hits": 7,
           "rate": 0.7
+        },
+        {
+          "window": "2026-10-20",
+          "n": 9,
+          "hits": 9,
+          "rate": 1.0
         }
       ],
-      "rate": 0.6522,
-      "unweighted_mean_of_window_rates": 0.7034,
-      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [29, 10, 10, 10, 10]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
+      "rate": 0.6923,
+      "unweighted_mean_of_window_rates": 0.7529,
+      "unweighted_mean_note": "⚠️ 窗口率的**简单平均**，**不是整体命中率**——每窗口行数不等（实测 [29, 10, 10, 10, 10, 9]）⇒ 整体命中率只有 `rate`（Σhits/Σn）。此列仅用于展示窗口之间的离散度，不进任何判断。",
       "ci95": [
-        0.2347,
+        0.323,
         1.0
       ],
-      "ci95_caliber": "独立观测单位 = 成交窗口（W=5 个 exit_date）",
+      "ci95_caliber": "独立观测单位 = 成交窗口（W=6 个 exit_date）",
       "ci95_method": "正态近似，SE 的分母是窗口数 W 而非行数 N",
-      "half_width": 0.417478,
+      "half_width": 0.369308,
       "ci95_clipped": true,
-      "z": 0.714,
-      "p_two_sided": 0.475,
+      "z": 1.021,
+      "p_two_sided": 0.3074,
       "ci95_row_level": [
-        0.5398,
-        0.7646
+        0.5899,
+        0.7947
       ],
       "ci95_row_level_caliber": "独立观测单位 = 交易行（N 行）——🚨 被窗口叠加虚增：同一窗口内的行共享同一次开平仓的价格路径，不是独立重抽样；保留它是为了让读者看见两个口径差多少，不许当成可用区间",
-      "half_width_row_level": 0.112381,
-      "z_row_level": 2.654,
-      "p_two_sided_row_level": 0.008,
+      "half_width_row_level": 0.102428,
+      "z_row_level": 3.68,
+      "p_two_sided_row_level": 0.0002,
       "row_level_inflated_by_window_stacking": true,
-      "inflation_factor": 3.714835,
-      "mde_rate_points": 0.5967,
+      "inflation_factor": 3.605551,
+      "mde_rate_points": 0.5279,
       "mde_caliber": "80% 检出力、双侧 α=0.05，MDE=(z₀.₉₇₅+z₀.₈₀)·SE(聚类口径)",
-      "abs_gap_to_50pct": 0.1522,
-      "gap_over_mde": 0.255,
-      "measurement_note": "点估计离 50% 只有 0.255 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
-      "evidence": "薄（独立成交窗口 5 <10，聚类区间宽到不能当结论用）"
+      "abs_gap_to_50pct": 0.1923,
+      "gap_over_mde": 0.364,
+      "measurement_note": "点估计离 50% 只有 0.364 个 MDE ⇒ 连符号都定不了，只支持『测不到』这类形状陈述，不支持关于水平的任何陈述",
+      "evidence": "薄（独立成交窗口 6 <10，聚类区间宽到不能当结论用）"
     }
   },
   "beta_adjusted_excess": {
     "合计": {
-      "n": 136,
-      "n_windows": 5,
-      "日均超额pct": 0.29,
-      "年化pct": 73.08,
-      "t": 0.729,
-      "p_two_sided": 0.4663
+      "n": 155,
+      "n_windows": 6,
+      "日均超额pct": 0.6035,
+      "年化pct": 152.08,
+      "t": 1.508,
+      "p_two_sided": 0.1314
     },
     "down": {
-      "n": 67,
-      "n_windows": 5,
-      "日均超额pct": 0.3032,
-      "年化pct": 76.42,
-      "t": 0.565,
-      "p_two_sided": 0.5718
+      "n": 77,
+      "n_windows": 6,
+      "日均超额pct": 0.8357,
+      "年化pct": 210.61,
+      "t": 1.378,
+      "p_two_sided": 0.1683
     },
     "up": {
-      "n": 69,
-      "n_windows": 5,
-      "日均超额pct": 0.2772,
-      "年化pct": 69.85,
-      "t": 0.469,
-      "p_two_sided": 0.6389
+      "n": 78,
+      "n_windows": 6,
+      "日均超额pct": 0.3742,
+      "年化pct": 94.31,
+      "t": 0.712,
+      "p_two_sided": 0.4764
     }
   },
   "beta_adjusted_excess_caliber": "🚨 本节仍是**行级**口径（n = 行数，年化按 252 次/年线性外推），与命中率两节的聚类口径**不同口径**，不可互相印证。要改成窗口级必须另写预注册，不许顺手改。",
   "score_ranking_power": {
     "by_quartile": {
       "Q1最低": {
-        "n": 13,
-        "rate": 0.4615
+        "n": 15,
+        "rate": 0.6
       },
       "Q2": {
-        "n": 12,
-        "rate": 0.3333
+        "n": 15,
+        "rate": 0.6
       },
       "Q3": {
-        "n": 12,
-        "rate": 0.3333
+        "n": 14,
+        "rate": 0.2857
       },
       "Q4最高": {
-        "n": 13,
-        "rate": 0.5385
+        "n": 15,
+        "rate": 0.5333
       }
     },
     "monotonic_increasing": false,
     "missing_adjusted_score": {
-      "down": 67,
+      "down": 77,
       "up": 19
     }
   },

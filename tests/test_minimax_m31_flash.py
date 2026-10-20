@@ -1,4 +1,4 @@
-"""M3.1-Flash-Preview 客户端测试：Anthropic 兼容协议 + 强制思考。
+"""M3.1-Flash 客户端测试：Anthropic 兼容协议 + 强制思考。
 
 M3.1 与 M3 的关键差异：
 
@@ -11,7 +11,7 @@ M3.1 与 M3 的关键差异：
 
 测试覆盖三件事：
 
-  ① 默认 base_url 是 `api.minimax.cn/anthropic`、model 是 M3.1-Flash-Preview
+  ① 默认 base_url 是 `api.minimax.cn/anthropic`、model 是 M3.1-Flash
   ② `_extract_text` 忽略 thinking 块、只取 text 块、允许空 text
   ③ chat() 把 Anthropic response 转成纯文本（无 thinking 块）
 """
@@ -20,7 +20,7 @@ import pytest
 from aplus.llm import MiniMaxM31FlashClient
 
 
-def _resp(content_blocks, model="MiniMax-M3.1-Flash-Preview"):
+def _resp(content_blocks, model="MiniMax-M3.1-Flash"):
     return {
         "id": "x", "type": "message", "role": "assistant", "model": model,
         "content": content_blocks,
@@ -30,9 +30,9 @@ def _resp(content_blocks, model="MiniMax-M3.1-Flash-Preview"):
 
 def test_default_endpoint_and_model():
     c = MiniMaxM31FlashClient(api_key="x")
-    # api.minimax.cn/anthropic 与 M3.1-Flash-Preview 是用户最新指示的端点
+    # api.minimax.cn/anthropic 与 M3.1-Flash 是用户最新指示的端点（2026-10-20 起无 -Preview 后缀）
     assert c.base_url == "https://api.minimax.cn/anthropic"
-    assert c.model == "MiniMax-M3.1-Flash-Preview"
+    assert c.model == "MiniMax-M3.1-Flash"
 
 
 def test_extract_text_ignores_thinking_blocks():

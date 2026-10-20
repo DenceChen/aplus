@@ -20,10 +20,14 @@ from aplus.alloc import build_allocation
 from aplus.pipeline import SyncPipeline
 from aplus.predict import build_predictions, filter_universe
 from aplus.reports import (
+    OUTCOME_FAILED,
+    OUTCOME_OK,
     append_verification,
+    build_run_status,
     latest_prediction_date,
     load_predictions,
     load_verification_history,
+    outcome_for_run_day,
     pending_prediction_dates,
     save_allocation,
     save_predictions,
@@ -34,7 +38,7 @@ from aplus.sources import default_sources
 from aplus.store import LocalStore
 from aplus.trading_calendar import (
     RUN_DAY_LABELS, RUN_DAY_TRADING, RUN_DAY_WEEKEND,
-    classify_run_day, trading_days,
+    classify_run_day, coverage_detail, trading_days,
 )
 from aplus.verify import (
     UNJUDGEABLE_REASON,
@@ -484,6 +488,35 @@ def predict_block_reason(store_root) -> str | None:
     return None
 
 
+def current_positions_from_state(prev) -> list | None:
+    """从持仓状态取「**今天之前**手上那一份」，供调仓差异去比。
+
+    ## 为什么必须是 `prev` 而不是今天刚写进去的那份
+
+    `state["up"]` 在**调仓日**已经被写成今天的名单了。拿它去比 ⇒
+    目标名单 ⊆ 今天名单 ⇒ 差异恒为「全 keep + 全 add」，
+    **remove 结构上不可能出现**。⇒ 只能取**进函数时**读到的 `prev`。
+
+    ## 返回 `None` 的含义
+
+    状态读不出来（`load_state` 返回 None）⇒ **没有当前持仓** ⇒
+    调仓差异不可信 ⇒ 传 `None` 给 `build_allocation` ⇒
+    产物里 `rebalance_source = "none"`（区别于「手上空仓」＝`[]`，
+    那种情况下全 add 是**真的**答案）。
+
+    ## 名字与代码必须**逐位**对齐才配对
+
+    `up` 与 `up_names` 是两个平行列表。长度不符时**不配对**（只给代码）——
+    错配的名字比没有名字更糟：它会让用户以为自己在看另一只票。
+    """
+    if not prev:
+        return None
+    codes = list(prev.get("up") or [])
+    names = list(prev.get("up_names") or [])
+    name_of = dict(zip(codes, names)) if len(codes) == len(names) else {}
+    return [{"code": c, "name": name_of.get(c, "")} for c in codes]
+
+
 def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     """出当日预测与配置方案。
 
@@ -716,8 +749,14 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     else:
         # 非换仓日：持仓**原封不动**。名单照发（每天 10 涨 10 跌是要求），
         # 但名次变化 ≠ 该换仓。
+        #
+        # ⚠️ `held_since` 现在**真的落盘**了（`save_state` 写它），
+        #    所以这里打的是**建仓日**而不是 `?`。
+        #    仍打 `?` ⇒ 说明这个状态是**旧格式**（没有这个键）⇒
+        #    「建仓日未知」这件事必须打出来，不能用一个问号糊过去。
+        held_since = state.get("held_since") or "未知"
         print(f"[predict] 距上次换仓 {state.get('days_since_rebalance', '?')}/"
-              f"{every} 个交易日 —— 持仓沿用 {state.get('held_since', '?')} 的名单"
+              f"{every} 个交易日 —— 持仓沿用 {held_since} 的名单"
               f"（{len(state.get('up') or [])} 只），今日名单只作参考")
 
     if due:
@@ -734,12 +773,35 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     for _, r in down.iterrows():
         print(f"    {r['code']} {r['name']} score={r['score']:.2f} mom20={r['mom20']:.2%}")
 
-    plan = build_allocation(up, capital=capital)
+    # ── 调仓差异：**必须拿当前持仓去比**（2026-10-20 修）────────────
+    # 以前这里写的是 `build_allocation(up, capital=capital)` —— 没传
+    # `current_positions` ⇒ `aplus/alloc.py` 里 `current_codes` 为空 ⇒
+    # keep/remove **结构上不可能出现** ⇒ 产物里只有 5 条 add，
+    # 界面于是只列「要买的 5 只」，**看不出该留哪只、该卖哪只**。
+    #
+    # ⚠️ 传的是 `prev`（**今天之前**手上那份），不是 `state["up"]`——
+    #    后者在调仓日已经被写成今天的名单了，拿它比 ⇒ 永远全 add。
+    #    `prev` 是 None（状态读不出来）⇒ 传 None ⇒ `rebalance_source="none"`
+    #    ⇒ 差异**明说不可信**，而不是装成一份齐全的调仓表。
+    plan = build_allocation(up, capital=capital,
+                            current_positions=current_positions_from_state(prev))
     save_allocation(reports_dir, today, plan.to_dict())
     equity = sum(p["weight"] for p in plan.positions)
     print(f"[alloc] 配置：{len(plan.positions)} 只 × 10% = 权益 {equity:.0%}，现金 {plan.cash_weight:.0%}")
     for p in plan.positions:
         print(f"    {p['code']} {p['name']} {p['amount']:.0f} 元")
+    _counts = {"keep": 0, "add": 0, "remove": 0}
+    for _r in plan.rebalance:
+        _counts[_r["action"]] = _counts.get(_r["action"], 0) + 1
+    if plan.rebalance_source == "current_positions":
+        print(f"[alloc] 调仓差异（相对当前持仓）：留 {_counts['keep']} · "
+              f"买 {_counts['add']} · 卖 {_counts['remove']}")
+        for _r in plan.rebalance:
+            if _r["action"] == "remove":
+                print(f"    卖 {_r['code']} {_r['name']}（不在新名单里）")
+    else:
+        print("[alloc] ⚠️ 调仓差异**不可信**：当前持仓读不出来 ⇒ "
+              "只知道要买哪些，不知道该留哪只、该卖哪只")
 
     # ── 前瞻验证：每个交易日收盘后自动累积一次证据 ──────────────────
     # 为什么必须自动跑：前瞻窗口 2026-10-13 起算，K=63 需 189 个交易日
@@ -1132,6 +1194,34 @@ def main():
         _pipeline(args, run)
 
 
+def _classify_with_coverage(today: str):
+    """交易日判定 —— **必须带覆盖率**。
+
+    ## 为什么不接覆盖率，第四态就是死的
+
+    `classify_run_day(day, known)` 不给 `coverage` 时走**旧的三态**
+    （`TRADING_DAY` / `WEEKEND` / `WORKDAY_NOT_IN_STORE`）。
+    `coverage=None` ⇒ `RUN_DAY_TRADING_DAY_PARTIAL` 在生产上**永不可达**
+    ⇒ 「仓里只采到一半股票」与「仓里完全没今天」在产物里**长得一样**
+    ⇒ 两者都可能被读成「不是工作日」而**继续出一张残缺榜**。
+
+    一张残缺榜比没有榜更坏：缺掉的那些票拿不到今天的因子 ⇒ 它们不在
+    横截面里 ⇒ 横截面被悄悄缩小 ⇒ 名次变了而**没有任何东西会报**
+    （本仓静默失效清单里「一只票定全池」那族的远亲）。
+
+    ## 为什么成本可以忽略
+
+    `coverage_detail` 与 `trading_days` **读同一份缓存快照**
+    （`aplus/trading_calendar.py::_snapshot`）⇒ 多这一次调用不额外读盘。
+    ⇒ 分子分母也一起报（`hit/total`）：只报一个比例，读者无法判断
+    「0.5」是「1/2 只」还是「95/200 只」。
+    """
+    day = date.fromisoformat(today)
+    cov = coverage_detail(day)
+    verdict = classify_run_day(day, trading_days(), coverage=cov.coverage)
+    return verdict, cov
+
+
 def run_day_gate(today, data_root, run):
     """**交易日闸**：非交易日一个字都不发布。
 
@@ -1155,21 +1245,28 @@ def run_day_gate(today, data_root, run):
     """
     from aplus.reports import write_run_status
 
-    verdict = classify_run_day(date.fromisoformat(today), trading_days())
+    verdict, cov = _classify_with_coverage(today)
+    cov_pct = f"{cov.coverage * 100:.1f}%（{cov.hit}/{cov.total} 只已到当天）"
     if verdict == RUN_DAY_TRADING:
-        print(f"[gate] {today} 是交易日，正常发布")
+        print(f"[gate] {today} 是交易日，正常发布（覆盖率 {cov_pct}）")
         return None
 
     reports_dir = Path(data_root) / "reports"
-    write_run_status(reports_dir, {
-        "date": today, "status": "skipped",
-        "steps": {"run_day_gate": verdict},
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-    })
+    # ★ 2026-10-20：状态里必须说清**这次尝试的结局**，而不只是「跑在哪天、跑没跑成」。
+    # 旧写法只写 `status:"skipped"` + 一个门名 ⇒ 界面上是「部分完成 · run_day_gate」，
+    # 用户既不知道今天有没有出单，也不知道该修 cron 还是修采集。
+    # ⇒ `outcome` 把「不是工作日」与「工作日但仓里没数据（采集失败）」**分开**。
+    outcome, outcome_reason = outcome_for_run_day(verdict, coverage=cov.coverage)
+    write_run_status(reports_dir, build_run_status(
+        attempted_date=today, outcome=outcome, outcome_reason=outcome_reason,
+        status="skipped", steps={"run_day_gate": verdict},
+        updated_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+    ))
     reason = RUN_DAY_LABELS[verdict]
     print(f"[gate] {today} 判定为 {verdict} ⇒ 不发布任何名单。{reason}")
+    print(f"[gate] 本次尝试的结局：{outcome} —— {outcome_reason}")
     run.log(f"交易日闸拦下发布：{verdict}", level="info", date=today,
-            verdict=verdict, reason=reason)
+            verdict=verdict, reason=reason, outcome=outcome)
     # 周末是**正常**的一天（不是失败），所以 rc=0；
     # 「工作日不在仓里」是**必须有人来看**，rc=2。
     rc = 0 if verdict == RUN_DAY_WEEKEND else 2
@@ -1248,12 +1345,25 @@ def _pipeline(args, run):
     run_step("stats", lambda: step_stats(reports_dir, today))
 
     status = reduce_run_status(steps)
-    write_run_status(reports_dir, {"date": today, "status": status, "steps": steps,
-                                   "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")})
+    # ★ 2026-10-20：把「这次尝试的结局」也落进状态文件。
+    # `status` 说「跑成没跑成」，`outcome` 说「**出了单没出单**、为什么」。
+    # 两个是**不同的量** ⇒ 并排写，不合并成一个字段。
+    _not_ok = {k: v for k, v in steps.items() if v != "ok"}
+    if status == "ok":
+        outcome, outcome_reason = OUTCOME_OK, "全部步骤跑完，名单已发布。"
+    else:
+        outcome = OUTCOME_FAILED
+        outcome_reason = (
+            f"这次跑完了，但有 {len(_not_ok)} 步没过（{'/'.join(_not_ok) or '?'}）"
+            f"⇒ **今天的名单可能没出全**。细节看 data/run_daily.log。")
+    write_run_status(reports_dir, build_run_status(
+        attempted_date=today, outcome=outcome, outcome_reason=outcome_reason,
+        status=status, steps=steps,
+        updated_at=time.strftime("%Y-%m-%d %H:%M:%S")))
     run.log("流水线完成", level="info" if status == "ok" else "error",
-            date=today, status=status,
+            date=today, status=status, outcome=outcome,
             failed=[k for k, v in steps.items() if v != "ok"])
-    print(f"[done] {today} 全流程完成（{status}）")
+    print(f"[done] {today} 全流程完成（{status}）· 本次尝试的结局：{outcome}")
 
 
 if __name__ == "__main__":

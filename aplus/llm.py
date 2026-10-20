@@ -198,7 +198,27 @@ class ClaudePClient:
 
 
 class MiniMaxM31FlashClient:
-    """M3.1-Flash-Preview 直连：Anthropic Messages 协议 + 强制思考。
+    """M3.1-Flash 直连：Anthropic Messages 协议 + 强制思考。
+
+    ## 🚨 服务端**不校验模型名**，会静默回落（2026-10-20 实测）
+
+    发四个名字过去，全部 **HTTP 200 + 正常正文 + `stop_reason=end_turn`**，
+    但响应里的 `model` 字段各不相同：
+
+    | 发出去的 | 响应 `model`（= 真正跑的那个） |
+    |---|---|
+    | `MiniMax-M3.1-Flash` | `MiniMax-M3.1-Flash` ✅ 逐位对上 |
+    | `MINIMAX-M3.1-FLASH`（错大小写） | `MiniMax-M3.1-Flash`（归一化后认出） |
+    | `MiniMax-M9.9-Flash-NotAModel`（不存在） | **`MiniMax-M3`** ⬅️ 静默回落 |
+    | `MiniMax-M3.1-Flash-Preview-Extra`（不存在） | **`MiniMax-M3`** ⬅️ 静默回落 |
+
+    ⇒ **拼错模型名不会报错，只会悄悄换成一个更弱的模型继续跑。**
+    它满足「看起来正常」的全部条件：200、有内容、无异常、无 stderr。
+    ⇒ **判「跑的是哪个模型」只能读响应的 `model` 字段，读请求里那个字符串是恒真的。**
+      注意本类 `self.model` 存的是**请求侧**的名字，而 `/api/llm/info`
+      从对象上读它 —— 所以配置层报出来的模型名**证明不了**服务端认了这个名字。
+    ⇒ 这也是上面「M3 客户端已删除」那条纪律的动机：
+      一个从不报错的降级路径，比一个会崩的缺失路径更危险。
 
     ## 为什么仓库里没有 M3
 
@@ -207,6 +227,12 @@ class MiniMaxM31FlashClient:
     `from aplus.llm import MiniMaxClient` 把更弱的模型悄悄接回线上，
     而链路配置（`~/.aplus/llm.json`）看起来一切正常。
     删掉比"默认不装配"更可靠：不可用之物不会被人误用。
+
+    **2026-10-20 用户改要求**：模型换成 `MiniMax-M3.1-Flash`（无 `-Preview` 后缀）。
+    已实测该名被服务端逐位认出（上行表第一行），
+    而带 `-Preview` 的旧名**同样仍然可用** —— 所以这次改名不是修一个坏配置，
+    是**换用**。上面 10-14 那条记录保留原样：它记的是当时的事实，改写它就是伪造。
+    本仓凡「带日期的历史记录」一律**追加不改写**。
 
     ## 关键参数
 
@@ -249,7 +275,7 @@ class MiniMaxM31FlashClient:
         self,
         api_key: str,
         base_url: str = "https://api.minimax.cn/anthropic",
-        model: str = "MiniMax-M3.1-Flash-Preview",
+        model: str = "MiniMax-M3.1-Flash",
         timeout: int = 120,
         max_tokens: int = 8192,
         max_retries: int = 3,
@@ -385,7 +411,7 @@ def default_llm_chain(secrets_path=None, cwd: str = "."):
         MiniMaxM31FlashClient(
             m31_cfg["api_key"],
             m31_cfg.get("base_url", "https://api.minimax.cn/anthropic"),
-            m31_cfg.get("model", "MiniMax-M3.1-Flash-Preview"),
+            m31_cfg.get("model", "MiniMax-M3.1-Flash"),
         )
         if m31_cfg.get("api_key") else None
     )

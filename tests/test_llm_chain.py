@@ -73,7 +73,7 @@ def test_default_chain_primary_order_from_config(tmp_path):
     cfg.write_text(json.dumps({
         "primary": "m31-flash",
         "m31_flash": {"api_key": "sk-x", "base_url": "https://api.minimax.cn/anthropic",
-                       "model": "MiniMax-M3.1-Flash-Preview"},
+                       "model": "MiniMax-M3.1-Flash"},
     }), encoding="utf-8")
 
     from aplus.llm import default_llm_chain

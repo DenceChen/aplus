@@ -304,6 +304,114 @@ def write_run_status(reports_dir, status: dict) -> None:
     path.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+# ── 「今天那次尝试的结局」：与「那一次跑成没跑成」是**两个不同的量** ──
+#
+# 🚨 **为什么必须分开**（本仓反复吃过的亏：两个各自正确的数被当成同一个量）：
+#
+# | 字段 | 它说的是 |
+# |---|---|
+# | `date` / `status` / `steps` | **那一次尝试**跑在哪天、跑成没跑成、哪一步没过 |
+# | `attempted_date` / `outcome` / `outcome_reason` | **那一次尝试的结局**：出了单没出单、为什么没出 |
+#
+# 实测事故（2026-10-20 18:30）：采集失败 ⇒ fail-closed **一份名单都没出**，
+# 落盘的是 `status:"skipped"` + `steps.run_day_gate:"WORKDAY_NOT_IN_STORE"`。
+# ⇒ 界面上只有「部分完成 · run_day_gate」——**一个门名**：
+# 它没告诉用户「所以今天没出单」，更没说「不是 cron 没跑，是采集没拿到数据」。
+# 而用户真正要修的是**采集**。
+#
+# ⇒ `status:"skipped"` 本身也是**歧义**的：同一个值同时表示
+# 「今天不是工作日」（本来就不出单）与「今天工作日但采集失败」（本该出单却没出）。
+# ⇒ 这两件事必须用**两个不同的 outcome 值**分开，否则界面无从说真话。
+OUTCOME_OK = "ok"                        # 正常发布（出了单）
+OUTCOME_NOT_A_WORKDAY = "not_a_workday"  # 今天不是工作日 ⇒ 本来就不出单（不是故障）
+OUTCOME_DATA_MISSING = "data_missing"    # 今天是工作日但仓里**完全**没今天的数据 ⇒ 没出单（要查采集）
+OUTCOME_FAILED = "failed"                # 跑了，但某一步炸了 ⇒ 没出单（要查那一步）
+# 2026-10-20 新增：**部分覆盖** —— 今天是工作日，仓里**有一部分**股票有今天的数据。
+# 🚨 它必须与 `data_missing` 分开：后者是「完全没数据」（采集全挂），
+# 前者是「有些有、有些没有」（采集挂了一半 / 还在路上）。
+# 合在一起的话，界面会说「仓里没有这一天的数据」—— 而事实上**有一部分有** ⇒ **事实错误**，
+# 而且会把排查方向指错（用户去查「完全没采到」，而真因是「采了一半」）。
+OUTCOME_PARTIAL_COVERAGE = "partial_coverage"
+
+RUN_STATUS_OUTCOMES = (OUTCOME_OK, OUTCOME_NOT_A_WORKDAY,
+                        OUTCOME_DATA_MISSING, OUTCOME_FAILED,
+                        OUTCOME_PARTIAL_COVERAGE)
+
+
+def outcome_for_run_day(verdict: str, coverage: float | None = None) -> tuple[str, str]:
+    """`classify_run_day` 的判决 → `(outcome, 一行话)`。
+
+    **纯函数、模块级、可 import** ⇒ 守卫能在 1 毫秒里问它、
+    能对它打变异（判据埋在一条 20 分钟的流水线后面就等于没有守卫）。
+    ⚠️ `coverage` 是**参数**（不是在这里读盘）：纯函数纪律不因为多一个输入而破。
+
+    ## 为什么「工作日但仓里没数据」必须**单独**一个值
+
+    周末/节假日 ⇒ 本来就不出单（不是故障，用户不该被吓到）；
+    工作日但仓里没这一天 ⇒ **本该出单却没出**（采集挂了，用户该去查采集）。
+    ⇒ 两者合成一个 `skipped` 时，界面只能说「部分完成」，
+    用户既不知道今天有没有单，也不知道该修 cron 还是修采集。
+
+    ## 为什么「部分覆盖」又必须**单独**一个值
+
+    仓里**有一部分**股票有今天的数据 ⇒ 与「完全没数据」是**两件事**：
+    后者去查「采集全挂」，前者去查「采集挂了一半 / 还在路上」。
+    ⇒ 合成一句「仓里没有这一天的数据」是**事实错误**，且把排查方向指错。
+    """
+    from .trading_calendar import (  # 局部 import：避免模块级循环依赖
+        RUN_DAY_TRADING, RUN_DAY_WEEKEND, RUN_DAY_TRADING_DAY_PARTIAL,
+    )
+
+    if verdict == RUN_DAY_TRADING:
+        return OUTCOME_OK, "交易日，正常发布"
+    if verdict == RUN_DAY_WEEKEND:
+        return (OUTCOME_NOT_A_WORKDAY,
+                "今天是周末 ⇒ 交易所不开市，**本来就不出单**（不是故障）。"
+                "下一个交易日照常出。")
+    if verdict == RUN_DAY_TRADING_DAY_PARTIAL:
+        pct = "未知" if coverage is None else f"{coverage * 100:.1f}%"
+        return (OUTCOME_PARTIAL_COVERAGE,
+                f"今天是工作日，但仓里只有 **{pct}** 的股票有今天的数据 ⇒ **今天没出单**。"
+                "部分覆盖出的榜是**残缺**的（缺的那些票拿不到今天的因子 ⇒ 它们不在横截面里，"
+                "横截面被悄悄缩小）⇒ 宁可不发。"
+                "**要查的是采集**：看 data/run_daily.log 的 [update] 段"
+                "（常见原因：主源超时 / 还没采完）。")
+    return (OUTCOME_DATA_MISSING,
+            "今天是工作日，但仓里**完全**没有这一天的数据 ⇒ **今天没出单**。"
+            "🚨 仓里没有交易所日历 ⇒「法定节假日」与「采集失败」在这件事上**同形**；"
+            "若今天恰是法定节假日，本条会读成采集失败（方向保守：挡住一次本不该有的交付）。"
+            "**要查的是采集**：看 data/run_daily.log 的 [update] 段"
+            "（常见原因：主源超时 / 数据未就绪）。")
+
+
+def build_run_status(*, attempted_date: str, outcome: str, outcome_reason: str,
+                     status: str, steps: dict, updated_at: str) -> dict:
+    """`run_status.json` 的内容。**两个量并排，不合并。**
+
+    `date` / `status` / `steps` **保持原义**（那一次尝试跑在哪天、跑成没跑成、
+    哪一步没过）—— 改了会连带改坏 `guard_daily.py` 的补跑判据
+    （它的唯一判据是 `status == "ok"`）与前端的既有渲染。
+
+    新增三个字段是**加**，不是**改**：
+    - `attempted_date`：这次尝试是**为哪一天**做的（`'YYYY-MM-DD'`）。
+      今天与 `date` 同值；分开命名是为了让前端有一个**没有歧义**的字段可读。
+    - `outcome`：这次尝试的**结局**（`ok` / `not_a_workday` / `data_missing` / `failed`）。
+    - `outcome_reason`：一句人能懂的话（写清「出了没出单、为什么、该查什么」）。
+    """
+    if outcome not in RUN_STATUS_OUTCOMES:
+        raise ValueError(
+            f"outcome 必须是 {RUN_STATUS_OUTCOMES} 之一，收到 {outcome!r}")
+    return {
+        "date": attempted_date,
+        "status": status,
+        "steps": steps,
+        "updated_at": updated_at,
+        "attempted_date": attempted_date,
+        "outcome": outcome,
+        "outcome_reason": outcome_reason,
+    }
+
+
 def read_run_status(reports_dir):
     path = _run_status_path(reports_dir)
     if not path.exists():

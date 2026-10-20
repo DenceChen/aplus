@@ -33,7 +33,8 @@ sys.path.insert(0, str(ROOT))
 
 from aplus.trading_calendar import (  # noqa: E402
     RUN_DAY_LABELS, RUN_DAY_TRADING, RUN_DAY_WEEKEND,
-    RUN_DAY_WORKDAY_NOT_IN_STORE, classify_run_day,
+    RUN_DAY_WORKDAY_NOT_IN_STORE, RUN_DAY_TRADING_DAY_PARTIAL,
+    Coverage, classify_run_day,
 )
 
 
@@ -85,8 +86,11 @@ def test_every_state_has_a_label_that_says_it_out_loud():
     """
     label = RUN_DAY_LABELS[RUN_DAY_WORKDAY_NOT_IN_STORE]
     assert "节假日" in label and "采集失败" in label
+    # ⚠️ 2026-10-20：第四态 `TRADING_DAY_PARTIAL` 加进来了（覆盖率判据）。
+    #    三个**旧**状态的文案与语义一个字没改 —— 这里只多认一档。
     assert set(RUN_DAY_LABELS) == {RUN_DAY_TRADING, RUN_DAY_WEEKEND,
-                                   RUN_DAY_WORKDAY_NOT_IN_STORE}
+                                   RUN_DAY_WORKDAY_NOT_IN_STORE,
+                                   RUN_DAY_TRADING_DAY_PARTIAL}
 
 
 # ── B. 闸的副作用：写盘路径只能是 tmp_path ────────────────────────
@@ -111,13 +115,28 @@ def RD():
 
 @pytest.fixture
 def cal(RD, monkeypatch, tmp_path):
-    """把 `trading_days` 换成一份**只含 2026-10-16** 的合成日历。
+    """把 `trading_days` **与** `coverage_detail` 换成同一份合成仓。
 
     ⚠️ 合成而非真实：真实日历要读 40 个 parquet（0.27 s）且
     **明天就会变**（仓里每天推进）⇒ 钉在它上面等于钉在一个每天漂移的
     事实上，而「日历内容」不是这道闸要守的性质（性质是**三态分流**）。
+
+    🚨 2026-10-20：**两个口径必须来自同一个仓**。
+    闸门接上覆盖率之后，`classify_run_day` 的四态判据里
+    **覆盖率取代了二值问题**（`coverage` 不为 `None` 时 `known` 不参与判决）
+    ⇒ 只换掉 `trading_days` 会让判据**一半读合成仓、一半读真仓**
+    ⇒ 两端口径不同源（真仓的覆盖率会把「不在库里」判成「在库里」，
+    而这个错**不报错**、只让守卫生效）。
+    ⇒ 这里**两个都换**，合成的仓语义统一为「只含 2026-10-16」。
     """
     monkeypatch.setattr(RD, "trading_days", lambda: {IN_STORE})
+
+    def _coverage(day, *a, **k):
+        # 合成仓里只有 2026-10-16 有数据 ⇒ 那天满格，其余为 0
+        c = 1.0 if str(day) <= IN_STORE else 0.0
+        return Coverage(c, 1 if c else 0, 1)
+
+    monkeypatch.setattr(RD, "coverage_detail", _coverage)
     return tmp_path
 
 
@@ -136,6 +155,59 @@ def test_b_a_workday_absent_from_the_store_exits_two(RD, cal):
     """rc=2 而非 0：「仓里没有这一天」必须有人来看。"""
     rc, verdict = RD.run_day_gate("2026-10-19", str(cal), run=_NullRun())
     assert (rc, verdict) == (2, RUN_DAY_WORKDAY_NOT_IN_STORE)
+
+
+def test_b_a_partially_covered_workday_is_refused_and_says_how_much(RD, cal,
+                                                                   monkeypatch):
+    """🚨 第四态：工作日、仓里**部分**股票有今天的数据 ⇒ 拒绝发布。
+
+    ## 为什么这一态必须单独存在
+    「仓里只采到一半」与「仓里完全没今天」在产物里**长得一样**
+    ⇒ 两者都可能被读成「今天不是工作日」而**继续出一张残缺榜**。
+    一张残缺榜比没有榜更坏：缺掉的那些票拿不到今天的因子 ⇒ 它们不在
+    横截面里 ⇒ 横截面被悄悄缩小 ⇒ **名次变了而没有任何东西会报**。
+
+    ## 为什么必须报出分子分母
+    只报「50%」的话，读者无法判断是「1/2 只」还是「95/200 只」
+    ⇒ `outcome_reason` 里必须带**百分比**。
+    """
+    monkeypatch.setattr(RD, "coverage_detail",
+                        lambda day, *a, **k: Coverage(0.5, 100, 200))
+    rc, verdict = RD.run_day_gate("2026-10-19", str(cal), run=_NullRun())
+    assert (rc, verdict) == (2, RUN_DAY_TRADING_DAY_PARTIAL)
+    st = _status(cal)
+    assert st["outcome"] == "partial_coverage"
+    assert "50.0%" in st["outcome_reason"]
+    # 闸门拦下时**一个字都不许发布**（沿用周末那条的纪律）
+    published = [p.name for p in (cal / "reports").rglob("*")
+                 if p.is_file() and "run_status" not in p.name]
+    assert published == []
+
+
+def test_b_the_gate_reads_both_calibers_from_the_same_store(RD, monkeypatch, tmp_path):
+    """🚨 覆盖率判据**取代**了二值问题 ⇒ 两个口径必须同源。
+
+    若闸门从真仓取覆盖率、而日历取合成仓（或反过来），则
+    「日历说不在库里、覆盖率说满格」那个格子里会出现**互相矛盾**的读数
+    ⇒ 判决由**另一个仓**决定 ⇒ 而这个错**不报错**、只让守卫生效。
+    """
+    calls = {"td": 0, "cov": 0}
+
+    def _td(*a, **k):
+        calls["td"] += 1
+        return {IN_STORE}
+
+    def _cov(day, *a, **k):
+        calls["cov"] += 1
+        return Coverage(1.0, 1, 1)
+
+    monkeypatch.setattr(RD, "trading_days", _td)
+    monkeypatch.setattr(RD, "coverage_detail", _cov)
+    rc = RD.run_day_gate(IN_STORE, str(tmp_path), run=_NullRun())
+    assert rc is None                      # 满覆盖 ⇒ 正常发布
+    assert calls["td"] == 1 and calls["cov"] == 1, (
+        f"两个口径必须都被读一次：td={calls['td']} cov={calls['cov']}"
+        " —— 少读一个就是「判据只跑了一半」")
 
 
 def test_b_a_trading_day_returns_none_and_writes_nothing(RD, cal):

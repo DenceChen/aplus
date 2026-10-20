@@ -37,6 +37,14 @@ STATE_NAME = "holdings.json"
 
 REQUIRED_KEYS = ("as_of", "days_since_rebalance", "every", "up", "down")
 
+#: 「持仓是哪天定的」这个键。
+#:
+#: 🚨 **它刻意不在 `REQUIRED_KEYS` 里**：它是后加的，旧 state 文件没有它。
+#: 把它加进必需键 ⇒ `load_state` 把旧文件判成**坏状态** ⇒ 整份持仓被当成
+#: 「读不出来」⇒ 明天按**首次建仓**重新买一遍（多付一次成本 + 拿着错仓位）。
+#: ⇒ 缺它必须**可读**，只是「建仓日未知」。
+HELD_SINCE_KEY = "held_since"
+
 
 def state_path(reports_dir) -> Path:
     return Path(reports_dir) / STATE_NAME
@@ -70,6 +78,48 @@ def load_state(reports_dir) -> dict | None:
     return data
 
 
+def held_since_info(state) -> dict:
+    """「手上这份名单是哪天的」——**连同它可不可信**。
+
+    ## 三种状态，各不相同（不是一个日期 + 一个猜测）
+
+    | 情形 | `held_since` | `is_fallback` | `reliable` |
+    |---|---|---|---|
+    | 状态里有真值（run_daily 落盘下来的） | 真值 | `False` | `True` |
+    | 状态里没有（旧文件 / 建仓日未知） | `as_of` | `True` | `False` |
+    | 状态读不出来 | `None` | `False` | `False` |
+
+    ## 为什么回落必须是**显式三态**而不是一个光秃秃的日期
+
+    `as_of` 的语义是「**最后一次出单日**」（`run_daily.py` 每天**无条件**写
+    `state["as_of"] = today`，不论当天是否调仓日）；
+    `held_since` 的语义是「**持仓是哪天定的**」。
+    两者在**非调仓日必然不同** ⇒ 把回落值当持仓日，等于告诉用户
+    「你持有的是今天那份名单」——**那份名单里可能一只都不在你手上**
+    （实测 2026-10-20：手上是 10-15 那份，10-19 榜只交集 4/10）。
+
+    ⇒ 回落时必须显式说「这是回落的、不可信」，让前端显示「实际持仓日未知」。
+    **宁可说不知道，也不能把「出单日」说成「持仓日」。**
+
+    ## `reliable` 与 `is_fallback` 为什么是**互补**而不是两个独立真值
+
+    「可靠」只有一个含义：这个日期是**建仓日**。
+    要么是（`reliable=True`，此时 `is_fallback=False`），
+    要么不是（`reliable=False`），而「不是」时**只可能**是回落来的
+    （`is_fallback=True`）——第三个分支「两者都假」对应**根本没有状态**
+    （`state is None`），此时 `held_since` 是 `None`，没有东西可回落。
+    """
+    if not state:
+        return {"held_since": None, "is_fallback": False, "reliable": False}
+    raw = state.get(HELD_SINCE_KEY)
+    if isinstance(raw, str) and raw.strip():
+        return {"held_since": raw.strip(), "is_fallback": False, "reliable": True}
+    as_of = state.get("as_of")
+    if isinstance(as_of, str) and as_of.strip():
+        return {"held_since": as_of.strip(), "is_fallback": True, "reliable": False}
+    return {"held_since": None, "is_fallback": False, "reliable": False}
+
+
 def save_state(reports_dir, state: dict) -> None:
     """落盘持仓状态。参数非法**当场报错**——写进去之后每天都会读到它。
 
@@ -88,6 +138,16 @@ def save_state(reports_dir, state: dict) -> None:
     if isinstance(d, bool) or not isinstance(d, int) or d < 0:
         raise ValueError(f"days_since_rebalance 必须是非负整数，收到 {d!r}")
 
+    # ★ `held_since`（持仓是哪天定的）必须**真的落盘**。
+    #   以前它只活在 `state` 字典里、写盘时被丢掉 ⇒ 落盘文件里
+    #   `grep -c held_since` = 0 ⇒ 「持仓基准日」只好拿 `as_of` 顶，
+    #   而 `as_of` 是**最后出单日** ⇒ 非调仓日两者必然不同 ⇒ 界面在说谎。
+    #   不知道就是 `None`（缺就是缺），**不拿 as_of 冒充**。
+    raw_held = state.get(HELD_SINCE_KEY)
+    if raw_held is not None and not isinstance(raw_held, str):
+        raise ValueError(f"held_since 必须是字符串或 None，收到 {raw_held!r}")
+    held_since = raw_held.strip() if isinstance(raw_held, str) and raw_held.strip() else None
+
     new_on = str(state.get("as_of") or "")
     cur = load_state(reports_dir)
     if cur and new_on and str(cur.get("as_of") or "") > new_on:
@@ -102,6 +162,7 @@ def save_state(reports_dir, state: dict) -> None:
         "down": list(state.get("down") or []),
         "up_names": list(state.get("up_names") or []),
         "down_names": list(state.get("down_names") or []),
+        "held_since": held_since,
     }
     p = state_path(reports_dir)
     p.parent.mkdir(parents=True, exist_ok=True)

@@ -6,22 +6,22 @@
   "by_score_col": {
     "score": {
       "score_col": "score",
-      "n_rows_total": 140,
-      "n_rows_judgeable": 136,
-      "n_rows_dropped_undecidable": 4,
+      "n_rows_total": 160,
+      "n_rows_judgeable": 155,
+      "n_rows_dropped_undecidable": 5,
       "dropped_breakdown": {
-        "flat": 3,
+        "flat": 4,
         "no_data": 1
       },
       "n_rows_score_missing": 0,
-      "n_rows_scored": 136,
-      "n_independent_pred_dates": 7,
+      "n_rows_scored": 155,
+      "n_independent_pred_dates": 8,
       "independent_unit": "⚠️ 判决臂按 **pred_date** 分组，而 `pred_date` 是**出单日**不是**成交日**：多个 `pred_date` 可映射到同一 `entry_date`（周末/节假日出单），此时它们**不是独立事件**。独立成交窗口数与逐条映射见 `independence_caliber`。**不变的那半句**：条目数不是独立观测数。",
       "independence_caliber": {
         "verdict_arm_unit": "pred_date（判决臂，预注册 G4 口径，一个字未改）",
         "control_arm_unit": "entry_date（**对照臂，不是判决臂**：更接近「独立成交窗口」的真身）",
-        "n_pred_dates": 7,
-        "n_entry_dates": 5,
+        "n_pred_dates": 8,
+        "n_entry_dates": 6,
         "pred_to_entry_dates": {
           "2026-10-09": [
             "2026-10-12"
@@ -43,6 +43,9 @@
           ],
           "2026-10-15": [
             "2026-10-16"
+          ],
+          "2026-10-16": [
+            "2026-10-19"
           ]
         },
         "n_entry_dates_claimed_by_several_pred_dates": 1,
@@ -59,86 +62,86 @@
       "arms": {
         "down": {
           "Q1": {
-            "n": 20,
-            "hit_rate": 0.6
+            "n": 23,
+            "hit_rate": 0.6086956521739131
           },
           "Q2": {
-            "n": 14,
-            "hit_rate": 0.6428571428571429
+            "n": 16,
+            "hit_rate": 0.625
           },
           "Q3": {
-            "n": 20,
-            "hit_rate": 0.5
+            "n": 23,
+            "hit_rate": 0.5217391304347826
           },
           "Q4": {
-            "n": 13,
-            "hit_rate": 0.5384615384615384
+            "n": 15,
+            "hit_rate": 0.6
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.6,
-              0.6428571428571429,
-              0.5,
-              0.5384615384615384
+              0.6086956521739131,
+              0.625,
+              0.5217391304347826,
+              0.6
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.066750578547983,
-            "permutation_p_two_sided": 0.6729163541822909,
-            "null_abs_rho_q95_power_floor": 0.13844683574626546,
+            "point_biserial_rho": -0.11774517790006403,
+            "permutation_p_two_sided": 0.4095295235238238,
+            "null_abs_rho_q95_power_floor": 0.16598722383395212,
             "detectable_at_alpha05": false,
             "control_arm_entry_date": {
               "role": "control_only_not_the_verdict_arm",
               "available": true,
               "group_by": "entry_date（独立**成交窗口**；判决臂按 pred_date）",
-              "n_groups": 5,
+              "n_groups": 6,
               "n_rows_unassigned": 0,
-              "permutation_p_two_sided": 0.6198190090495476,
-              "null_abs_rho_q95_power_floor": 0.1338633683322503,
+              "permutation_p_two_sided": 0.36608169591520423,
+              "null_abs_rho_q95_power_floor": 0.16228054900312733,
               "detectable_at_alpha05": false,
-              "q95_over_verdict_arm_q95": 0.9668936643491414,
+              "q95_over_verdict_arm_q95": 0.9776689148405011,
               "note": "分组变粗 ⇒ 组内置换自由度**大体**更大 ⇒ `q95` 更高 ⇒ 更容易判 `POWERLESS`。⚠️ **但这不是定律**：方向由组大小分布决定，不是组数的单调函数（实测两臂比值方向相反：`up` 1.0679 / `down` 0.9951）⇒ 读这一个数要看同臂的 `q95_over_verdict_arm_q95`，不许当成单向保证。"
             }
           }
         },
         "up": {
           "Q1": {
-            "n": 21,
-            "hit_rate": 0.6666666666666666
+            "n": 24,
+            "hit_rate": 0.7083333333333334
           },
           "Q2": {
-            "n": 14,
-            "hit_rate": 0.2857142857142857
+            "n": 16,
+            "hit_rate": 0.375
           },
           "Q3": {
-            "n": 20,
-            "hit_rate": 0.35
+            "n": 22,
+            "hit_rate": 0.4090909090909091
           },
           "Q4": {
-            "n": 14,
-            "hit_rate": 0.5714285714285714
+            "n": 16,
+            "hit_rate": 0.625
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.6666666666666666,
-              0.2857142857142857,
-              0.35,
-              0.5714285714285714
+              0.7083333333333334,
+              0.375,
+              0.4090909090909091,
+              0.625
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": -0.07532010742917343,
-            "permutation_p_two_sided": 0.5243737813109345,
-            "null_abs_rho_q95_power_floor": 0.21407608578828757,
+            "point_biserial_rho": -0.13757401307800796,
+            "permutation_p_two_sided": 0.4687765611719414,
+            "null_abs_rho_q95_power_floor": 0.26471470167240035,
             "detectable_at_alpha05": false,
             "control_arm_entry_date": {
               "role": "control_only_not_the_verdict_arm",
               "available": true,
               "group_by": "entry_date（独立**成交窗口**；判决臂按 pred_date）",
-              "n_groups": 5,
+              "n_groups": 6,
               "n_rows_unassigned": 0,
-              "permutation_p_two_sided": 0.5307234638268087,
-              "null_abs_rho_q95_power_floor": 0.22234208620003304,
+              "permutation_p_two_sided": 0.24603769811509424,
+              "null_abs_rho_q95_power_floor": 0.2229560461490987,
               "detectable_at_alpha05": false,
-              "q95_over_verdict_arm_q95": 1.0386124418395812,
+              "q95_over_verdict_arm_q95": 0.8422503349474696,
               "note": "分组变粗 ⇒ 组内置换自由度**大体**更大 ⇒ `q95` 更高 ⇒ 更容易判 `POWERLESS`。⚠️ **但这不是定律**：方向由组大小分布决定，不是组数的单调函数（实测两臂比值方向相反：`up` 1.0679 / `down` 0.9951）⇒ 读这一个数要看同臂的 `q95_over_verdict_arm_q95`，不许当成单向保证。"
             }
           }
@@ -156,22 +159,22 @@
     },
     "adjusted_score": {
       "score_col": "adjusted_score",
-      "n_rows_total": 140,
-      "n_rows_judgeable": 136,
-      "n_rows_dropped_undecidable": 4,
+      "n_rows_total": 160,
+      "n_rows_judgeable": 155,
+      "n_rows_dropped_undecidable": 5,
       "dropped_breakdown": {
-        "flat": 3,
+        "flat": 4,
         "no_data": 1
       },
-      "n_rows_score_missing": 86,
-      "n_rows_scored": 50,
-      "n_independent_pred_dates": 7,
+      "n_rows_score_missing": 96,
+      "n_rows_scored": 59,
+      "n_independent_pred_dates": 8,
       "independent_unit": "⚠️ 判决臂按 **pred_date** 分组，而 `pred_date` 是**出单日**不是**成交日**：多个 `pred_date` 可映射到同一 `entry_date`（周末/节假日出单），此时它们**不是独立事件**。独立成交窗口数与逐条映射见 `independence_caliber`。**不变的那半句**：条目数不是独立观测数。",
       "independence_caliber": {
         "verdict_arm_unit": "pred_date（判决臂，预注册 G4 口径，一个字未改）",
         "control_arm_unit": "entry_date（**对照臂，不是判决臂**：更接近「独立成交窗口」的真身）",
-        "n_pred_dates": 7,
-        "n_entry_dates": 5,
+        "n_pred_dates": 8,
+        "n_entry_dates": 6,
         "pred_to_entry_dates": {
           "2026-10-09": [
             "2026-10-12"
@@ -193,6 +196,9 @@
           ],
           "2026-10-15": [
             "2026-10-16"
+          ],
+          "2026-10-16": [
+            "2026-10-19"
           ]
         },
         "n_entry_dates_claimed_by_several_pred_dates": 1,
@@ -206,45 +212,45 @@
         "Q4": 2
       },
       "quartile_sizes_note": "四分位按名次取整分段，**段大小不均**（n=10 → 3/2/3/2）。这是「组内排名分段的必然」而不是缺陷：只有 n % 4 == 0 才均衡。⇒ 各段命中率的样本量不同，**跨段比较必须读 n**；G4 判的是**单调性**而非段间差值，故不受段大小影响。",
-      "score_missing_note": "⚠️ `adjusted_score` 有 86/136 条可判定记录**缺分数** ⇒ 本口径只用 50 条。引用本口径的任何结论都只能带这个分母。",
+      "score_missing_note": "⚠️ `adjusted_score` 有 96/155 条可判定记录**缺分数** ⇒ 本口径只用 59 条。引用本口径的任何结论都只能带这个分母。",
       "arms": {
         "up": {
           "Q1": {
-            "n": 15,
-            "hit_rate": 0.6666666666666666
+            "n": 18,
+            "hit_rate": 0.7222222222222222
           },
           "Q2": {
-            "n": 10,
-            "hit_rate": 0.3
+            "n": 12,
+            "hit_rate": 0.4166666666666667
           },
           "Q3": {
-            "n": 15,
-            "hit_rate": 0.3333333333333333
+            "n": 17,
+            "hit_rate": 0.4117647058823529
           },
           "Q4": {
-            "n": 10,
-            "hit_rate": 0.3
+            "n": 12,
+            "hit_rate": 0.4166666666666667
           },
           "_stats": {
             "hit_rate_sequence_q1_to_q4": [
-              0.6666666666666666,
-              0.3,
-              0.3333333333333333,
-              0.3
+              0.7222222222222222,
+              0.4166666666666667,
+              0.4117647058823529,
+              0.4166666666666667
             ],
             "monotone_nondecreasing": false,
-            "point_biserial_rho": 0.05818755046489644,
-            "permutation_p_two_sided": 0.4626768661566922,
-            "null_abs_rho_q95_power_floor": 0.14993693241399494,
+            "point_biserial_rho": -0.10411489577886336,
+            "permutation_p_two_sided": 0.8821058947052647,
+            "null_abs_rho_q95_power_floor": 0.27629687477728787,
             "detectable_at_alpha05": false,
             "control_arm_entry_date": {
               "role": "control_only_not_the_verdict_arm",
               "available": true,
               "group_by": "entry_date（独立**成交窗口**；判决臂按 pred_date）",
-              "n_groups": 5,
+              "n_groups": 6,
               "n_rows_unassigned": 0,
-              "permutation_p_two_sided": 0.4626768661566922,
-              "null_abs_rho_q95_power_floor": 0.14993693241399494,
+              "permutation_p_two_sided": 0.8821058947052647,
+              "null_abs_rho_q95_power_floor": 0.27629687477728787,
               "detectable_at_alpha05": false,
               "q95_over_verdict_arm_q95": 1.0,
               "note": "分组变粗 ⇒ 组内置换自由度**大体**更大 ⇒ `q95` 更高 ⇒ 更容易判 `POWERLESS`。⚠️ **但这不是定律**：方向由组大小分布决定，不是组数的单调函数（实测两臂比值方向相反：`up` 1.0679 / `down` 0.9951）⇒ 读这一个数要看同臂的 `q95_over_verdict_arm_q95`，不许当成单向保证。"
@@ -264,11 +270,11 @@
     }
   },
   "verdict": "NOT_PASSED_POWERLESS",
-  "verdict_reason": "闸门臂 up：四分位不单调；点二列 ρ=-0.0753，置换 p=0.5244，零分布 95 分位（检出力下限）= 0.2141 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许发布，先攒前瞻期；down 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）单调=False ρ=-0.0668 检出力下限=0.1384",
+  "verdict_reason": "闸门臂 up：四分位不单调；点二列 ρ=-0.1376，置换 p=0.4688，零分布 95 分位（检出力下限）= 0.2647 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许发布，先攒前瞻期；down 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）单调=False ρ=-0.1177 检出力下限=0.1660",
   "publish_allowed": false,
   "what_this_cannot_prove": [
-    "**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——判据臂只有 7 个**出单日**，而真实独立成交窗口 **5** 个（出单日≠成交日，见 `independence_caliber`），任何形状都极易出现，包括真的单调的那种；「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
-    "**不能**用条目数 140 当独立观测数 —— 它是 7 个出单日× 每臂 10 只，而那 7 个出单日只对应 **5** 个成交窗口",
+    "**不能**把 NOT_PASSED_POWERLESS 读成「打分没有排序力」——判据臂只有 8 个**出单日**，而真实独立成交窗口 **6** 个（出单日≠成交日，见 `independence_caliber`），任何形状都极易出现，包括真的单调的那种；「没过关」与「被证伪」是两件事（§0 那句话就是这么错的）",
+    "**不能**用条目数 160 当独立观测数 —— 它是 8 个出单日× 每臂 10 只，而那 8 个出单日只对应 **6** 个成交窗口",
     "本脚本只测 G4 一个判据；G1/G2/G3/G5/G6 未测 ⇒ 即使 G4 通过也**不许**据此发布"
   ]
 }
