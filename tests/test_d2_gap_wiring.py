@@ -422,7 +422,7 @@ def test_a_missing_or_incomplete_ledger_yields_no_projection():
 #
 # 🚨 ①②~⑤ 全部钉在**接线/形状**层（袋子里有没有、两处调用有没有传、
 # 投影字段对不对）。它们全绿的那一轮，屏上**一个交付口径的字都没有**。
-# 机制：`d2LedgerVerdict` 把内容劈成两半 —— 交付口径的 `8.34%`/`11.66pp`
+# 机制：`d2LedgerVerdict` 把内容劈成两半 —— 交付口径的天花板与缺口
 # 在 `headline`，其余在 `detail`；而生产唯一命中的那一支（支 2，`weights.caveat`
 # 有值）**保留自己的 headline、只搬 `ledger.detail`** ⇒ **`headline` 在生产
 # 里没有通路**。
@@ -490,7 +490,10 @@ console.log(JSON.stringify({{
 
 
 def test_the_two_deliverable_numbers_reach_the_screen():
-    """交付口径的「上限 8.34%」与「差 11.66pp」**必须出现在屏上文本里**。
+    """交付口径的「上限」与「缺口」**必须出现在屏上文本里**。
+
+    ⚠️ **不写死那两个数**（K=63 口径是天花板 12.62%、缺口 7.38pp；
+    K=21 时代是 8.34% / 11.66pp）⇒ 写死即化石 ⇒ 断言从产物读。
 
     这两条正是预注册 §1.2 点名要上屏的数，也是唯一回答
     「离 20% 还差多少」的两行。

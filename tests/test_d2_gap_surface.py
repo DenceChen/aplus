@@ -9,7 +9,7 @@
 
 而同一屏此刻必须能说出的真话在
 `data/reports/d2_signal_requirement.json`：宽度 10 / ¥5 万 / 等权下
-**账户年化天花板 8.34%**，离 20% 差 **11.66pp**；即使本金 → ∞ 且榜宽 → 546
+**账户年化天花板（榜宽 10 · ¥5 万）**，离 20% 差一截；即使本金 → ∞ 且榜宽 → 546
 （该族最宽档），天花板也只有 **12.73%**，仍差 **7.27pp** ⇒
 **没有任何 (榜宽 × 本金) 配置能到 20%**。
 
@@ -94,7 +94,11 @@ def _ledger_numbers() -> dict:
     }
 
 def test_the_verdict_carries_the_deliverable_ceiling_and_its_gap():
-    """屏上必须说「天花板 8.34%、缺口 11.66pp」，而不是只说一个年化点估计。"""
+    """屏上必须说「天花板与缺口」，而不是只说一个年化点估计。
+
+    ⚠️ **不写死那两个数**：台账是 **K=63** 口径（天花板 12.62%、缺口 7.38pp），
+    K=21 时代是 8.34% / 11.66pp ⇒ **写死就是留化石** ⇒ 断言从产物读。
+    """
     w = _verdict()
     n = _ledger_numbers()
     assert w["level"] in ("warn", "danger")
@@ -174,7 +178,7 @@ def test_the_met_target_branch_is_unreachable_while_the_ledger_reports_a_gap():
     got = _docket(_ledger())
     assert got["exists"]
     assert got["r"]["level"] != "ok", (
-        "台账缺口 11.66pp 仍然允许屏上喊「达到 20% 目标」—— 这是活的假绿")
+        "台账缺口（当前 K=63 口径）仍然允许屏上喊「达到 20% 目标」—— 这是活的假绿")
     g50 = f"{_ledger_numbers()['gap_50k_pp']:.2f}"
     assert g50 in got["r"]["headline"] + got["r"]["detail"]
 

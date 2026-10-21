@@ -901,3 +901,46 @@ def test_the_nan_exclusion_probe_reports_that_it_is_not_applicable_to_the_ivol_a
     out = M.nan_exclusion_probe(_fake_xs([{"code": "A", "ivol": 0.1}]),
                                 ["2021-01-04"], arm, sample_days=1)
     assert out["applicable"] is False
+
+
+def test_the_suite_note_matches_what_actually_happened():
+    """🚨 **说明串不许声称没发生的原因**（2026-10-21 抓出并修）。
+
+    ## 缺陷的形态
+
+    `suite_verdict.note` 原先是**写死的常量** ⇒ 不管发生了什么，它都断言
+    「负控「通过」（翻转后显著为正）⇒ **整套判决作废**」
+    ⇒ 而实测 `invalidated_by = []`（**没有任何臂的负控通过**）
+    ⇒ ⇒ **产物声称了一个没发生的原因**
+    ⇒ ⇒ 它把读的人（**包括协调方自己**）导向了错误的理由：
+    真实原因是**逐臂**的两种不可判（覆盖不足 / 测不到）。
+
+    ⇒ **机器生成的解释同样会脱钩** ⇒ 散文那个病不豁免机器。
+
+    ## 判据
+
+    ① 产物里那一格的说法必须与 `invalidated_by` **一致**
+    ② `suite_note()` **两个分支都要对**（⇒ 守卫能直接调它 ⇒
+       **不必重跑 25 分钟的产物**就能验 ⇒ 这是把它抽成模块级函数的理由）
+    """
+    d = _artifact()
+    sv = d.get("suite_verdict") or {}
+    note = str(sv.get("note") or "")
+    invalid = bool(sv.get("invalidated_by"))
+    if invalid:
+        assert "作废" in note, note
+        for aid in sv["invalidated_by"]:
+            assert aid in note, f"作废的臂 {aid} 没有被点名：{note}"
+    else:
+        assert "没有任何臂的负控" in note, (
+            f"没有任何臂的负控通过 ⇒ 说明串却没说这件事：{note}")
+        assert "作废" not in note or "不是" in note, (
+            f"没有任何臂的负控通过 ⇒ 说明串不许声称「整套判决作废」：{note}")
+
+    # ② 函数本身：两个分支各验一次
+    assert "作废" in M.suite_note(["A3"], 0.5)
+    assert "A3" in M.suite_note(["A3"], 0.5), "作废的臂必须被点名"
+    empty = M.suite_note([], 0.5)
+    assert "没有任何臂的负控" in empty, empty
+    assert "不是" in empty, empty
+    assert "作废" not in empty or "不是" in empty, empty

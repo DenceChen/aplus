@@ -706,6 +706,32 @@ def decide(*, gross_annual_pct: float | None,
             "wording": WORDING[LABEL_MEETS], "checks": checks}
 
 
+def suite_note(n_passed: list, coverage_min: float) -> str:
+    """**套级说明串** —— 必须由**实际状态**算出来（2026-10-21）。
+
+    🚨 **原写法是写死的常量** ⇒ 不管发生了什么，它都断言
+    「负控「通过」⇒ 整套判决作废」
+    ⇒ 而实测 `invalidated_by = []`（**没有任何臂的负控通过**）
+    ⇒ ⇒ **产物声称了一个没发生的原因**
+    ⇒ ⇒ 它把读的人（**包括协调方自己**）导向了错误的理由
+    ⇒ ⇒ **机器生成的解释同样会脱钩** ⇒ 散文那个病不豁免机器。
+
+    ⇒ 抽成**模块级函数**（不嵌在 `main()` 里）⇒ 守卫能**直接调它**做正反两向
+    ⇒ 不用重跑 25 分钟的产物就能验。
+    """
+    if n_passed:
+        return ("负控「通过」（翻转后显著为正）⇒ **整套判决作废**；"
+                "作废它的臂：" + "、".join(n_passed)
+                + "。⚠️ 只对**通过覆盖闸**的臂生效 —— "
+                  "一个覆盖不足的池上的负控本身不说明什么。")
+    return ("**没有**任何臂的负控「通过」⇒ 整套判决**不是**被负控作废的。"
+            "⇒ 本产物**没有套级判决**：判决在**逐臂**上（`arms.*.verdict`）。"
+            "⇒ 逐臂的两种「不可判」各有各的原因："
+            "**覆盖不足**（逐日可算成分数 ÷ 全池 < "
+            f"{coverage_min:.4f} ⇒ 池不够 ⇒ 不出判决）"
+            "与**测不到**（MDE ≫ |毛超额| ⇒ 只支持形状陈述）。")
+
+
 def suite_invalid_arms(arms: list, results: dict, controls: dict,
                        n_pool_full: int, coverage_min: float = COVERAGE_MIN) -> list[str]:
     """**整套作废**的触发臂列表。
@@ -1991,9 +2017,9 @@ def assemble(results: dict, controls: dict, arms: list[Arm], args, dates,
             "label": suite_label,
             "invalidated_by": n_passed,
             "wording": WORDING[LABEL_INVALID] if suite_invalid else None,
-            "note": ("负控「通过」（翻转后显著为正）⇒ **整套判决作废**。"
-                     "⚠️ 只对**通过覆盖闸**的臂生效 —— "
-                     "一个 0.92% 覆盖的池上的负控本身不说明什么。"),
+            # 🚨 说明串由**实际状态**算出来（见 `suite_note` 的 docstring：
+            # 原写法是写死的常量 ⇒ 声称了一个没发生的原因 ⇒ 误导了读的人）。
+            "note": suite_note(n_passed, coverage_min),
         },
         "what_this_cannot_prove": [
             "「测不到」**不等于**「没有超额」—— 只等于在这个样本量下测不到。",
