@@ -23,3 +23,8 @@ gate_ok, note = _syntax_gate(p, mutant)
 === 变异体 ===
 ok, note = _syntax_gate(p, mutant)
         if not ok:
+
+H5 闸门的 ps 调用去掉 -ax（只列当前终端 ⇒ launchd 的生产跑查不到 ⇒ 闸门恒绿）	scripts/mutation_harness.py
+PS_ARGV = ["ps", "-ax", "-o", "pid=,command="]
+=== 变异体 ===
+PS_ARGV = ["ps", "-o", "pid=,command="]

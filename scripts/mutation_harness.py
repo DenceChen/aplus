@@ -433,11 +433,99 @@ def run(specs: list[Spec], node: str) -> tuple[int, int]:
     return ok, len(specs)
 
 
+#: `ps` 的调用参数。⚠️ **`-ax` 不可省**（见 `production_runs_in_flight` 的说明）：
+#: 不带它只列**当前终端**的进程 ⇒ launchd 的生产跑**根本查不到**
+#: ⇒ ⇒ 闸门**恒绿** ⇒ 变成一个「看起来正常的装饰」。
+PS_ARGV = ["ps", "-ax", "-o", "pid=,command="]
+
+
+def parse_production_runs(ps_text: str) -> list[tuple[int, str]]:
+    """从 `ps -ax -o pid=,command=` 的输出里挑出**生产跑**。
+
+    ## 认得什么
+
+    | 命令行 | 是不是生产跑 | 为什么 |
+    |---|---|---|
+    | `.../.venv/bin/python .../scripts/run_daily.py` | ✅ 是 | 生产入口 / 守卫补跑 |
+    | `.../bin/zsh -c ... tail -F ... run_daily.log` | ❌ | 那是**看日志的**，不是跑 |
+    | `.../python -m pytest -q ...` | ❌ | 变异台自己的子进程 |
+
+    ## 为什么要按**命令行**认，而不是按 PID 文件
+
+    PID 会**被回收再分配**（第 115 层）⇒ 「这个 PID 是我的」只有单一证据时不可信。
+    ⇒ 认**命令行**（谁在跑什么）比认**号码**（谁占着那个坑）稳。
+    """
+    hits: list[tuple[int, str]] = []
+    for line in (ps_text or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        pid_s, cmd = parts[0], parts[1].strip()
+        if ("/python" in cmd and cmd.endswith("scripts/run_daily.py")
+                and "pytest" not in cmd):
+            try:
+                hits.append((int(pid_s), cmd))
+            except ValueError:
+                continue
+    return hits
+
+
+def production_runs_in_flight() -> list[tuple[int, str]]:
+    """在飞的**生产** `run_daily.py` 进程（**按命令行找**，不按 PID 文件）。
+
+    ## 为什么变异台必须有这道闸（2026-10-21 晚，差点出事）
+
+    变异台会**真的改写**目标脚本 ⇒ 而 `scripts/run_daily.py` 是**生产入口**
+    （`launchd` 的 `com.aplus.daily` 每晚 18:30 拉它）。
+    ⇒ **若生产跑在飞的同时有人在跑变异台**：
+    ① 正在跑的那一跑**已经 import 完了** ⇒ 它不受影响（安全）；
+    ② 但**任何一次重启**（守卫补跑、launchd 重试）会**重新 import**
+    ⇒ ⇒ **新进程会读到被改坏的脚本** ⇒ 它会**对着生产路径跑**
+    ⇒ ⇒ 那是「变异体被执行」，不是「变异体被测试」。
+
+    实测 2026-10-20 就有过**两次 run_start 相隔 3 分钟**
+    （19:30:02 → 19:33:45）⇒ ⇒ **重启是常态，不是假设**。
+
+    ⇒ ⇒ **在生产跑在飞时拒绝跑变异台**（宁可晚点跑，不要污染生产）。
+
+    ## 怎么找（⚠️ 不许用 `pgrep -f`）
+
+    `pgrep -f` 会**命中自己**（第 158 层：本仓记忆里逐字记着那个坑）
+    ⇒ 这里用 `ps -o pid=,command=` 逐行看**命令行的结尾**
+    ⇒ 只认 `.../scripts/run_daily.py` 结尾的（我的 watcher 外壳命令行里是
+    `run_daily.log` ⇒ **不会**被误认）。
+    """
+    try:
+        # ⚠️ **必须带 `-ax`**：`ps` 不带 `-a`/`-x` 只列**当前终端**的进程
+        # ⇒ 而 launchd 拉起的生产跑**没有终端** ⇒ 那样查**永远查不到**
+        # ⇒ ⇒ **闸门会恒绿**（正是第 112 层那种「看起来正常的装饰」）。
+        out = subprocess.run(PS_ARGV, capture_output=True,
+                             text=True, timeout=20).stdout
+    except Exception:  # noqa: BLE001 — 查不到就当「查不到」，但**不放行**
+        return []
+    return parse_production_runs(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("specs", type=Path, help="变异规格文本文件")
     ap.add_argument("--node", required=True, help="被测的 pytest node id")
     a = ap.parse_args()
+    # 🚨🚨 **前置闸**：生产跑在飞 ⇒ 拒绝跑变异台（理由见
+    # `production_runs_in_flight` 的 docstring）。
+    flying = production_runs_in_flight()
+    if flying:
+        print("⛔ **生产跑在飞，拒绝跑变异台**：", flush=True)
+        for pid, cmd in flying:
+            print(f"   pid={pid}  {cmd}")
+        print("   ⇒ 变异台会**改写** `scripts/run_daily.py`（生产入口）⇒"
+              "\n     而任何一次**重启**（守卫补跑 / launchd 重试）会**重新 import**"
+              " ⇒ 读到被改坏的脚本 ⇒ 那是「变异体被执行」。\n"
+              "   ⇒ **等生产链跑完再跑**（或先把生产停了）。")
+        return 2
     ok, total = run(load_specs(a.specs), a.node)
     print("\n" + "=" * 74)
     print(f"变异台：{ok}/{total} 条符合预期（基线已验绿）")
