@@ -75,7 +75,7 @@
 |---|---|---|---|---|---|
 | **判决臂** | **10.5563%** | 涨腿 10 | 满仓 1.0 | K=21 | `basket_nav_01_2026-10-16.json::tiers[1].cagr` |
 | 5万×交付宽度 10 | **8.3441%** | 涨腿 10 | 满仓 1.0 | — | `d2_signal_requirement.json::headline.account_annual_ceiling_pct.at_deliverable_width_and_50k` |
-| 实盘半仓（**对照臂**） | **6.1558%** | 涨腿 **5** | **半仓 0.5** | K=21 | `deployed_account_nav.json::gap_to_target.control_arm_half_cagr` |
+| 实盘半仓（**对照臂**） 🚨**该行是 2026-10-18 当时的读数**（生产那时是「5 只 × 10% = 0.5」）；**2026-10-20 生产改成满仓 10 只 ⇒ W = 1.0** ⇒ 「半仓」臂按 W 缩放 ⇒ **与满仓臂逐位相同** ⇒ 该产物**已不提供增量信息**（它自己现在写着 `arms_are_identical = true`）⇒ **此行的数不得再当「生产半仓读数」引用** | ~~6.1558%~~ | 涨腿 **5** | **半仓 0.5**（**历史配置**） | K=21 | `deployed_account_nav.json::gap_to_target.control_arm_half_cagr`（⚠️ **该字段今天已不是半仓**） |
 | 交付形态摩擦 | 摩擦 **80.81%/年** ⇒ `SINGLE_SIDED_UNREACHABLE` | 涨腿 10 | 满仓 1.0 | **日频 rpy=146.4** | `delivery_caliber_friction.json::verdict` |
 
 > **2026-10-20 旁注**（后补，**不是**原始登记内容 —— 上表正文一字未改，

@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
-r"""实盘半仓账户的年化 —— D2（年化 20%）在**真钱敞口下**的读数。
+r"""实盘配置账户的年化 —— D2（年化 20%）在**真钱敞口下**的读数。
 
 ## 它回答什么
 
 `basket_nav_01_2026-10-16.json` 的判决档 `c=+10.5563%` 量的是
 **满仓账户**（10 只等权、权益权重 1.0）。
-但生产实盘**从来不是满仓**：
 
-    aplus/alloc.py::build_allocation(max_positions=5, per_stock_cap=0.10)
-    equity_weight = 5 × 0.10 = 0.5
-    scripts/run_daily.py:647  build_allocation(up, capital=capital)
-                             ← **只传 capital** ⇒ 走默认值 ⇒ 半仓
-
-⇒ 判决档那个数**不是用户账户会拿到的数**。本脚本补上这一列。
+⚠️ **2026-10-21 更正（本文件的 docstring 曾是一处时点化石）**：
+这段曾写「生产实盘**从来不是满仓**」并举 `max_positions=5 ⇒ W=0.5`。
+那是 **2026-10-16 的事实**：生产配置在 **2026-10-20** 改成
+**满仓 10 只 × ¥5,000（`W = 1.0`）** ⇒ 今天的 `W` 是 **1.0**，不是 0.5。
+⇒ **本文的一切读数都从生产签名读**（见下节）⇒ **配置改了它自己会跟着改**，
+不需要改本文件 ⇒ 化石只留在**这段散文**里。
 
 ## 敞口权重从生产签名读，不手打
 
-🚨 `W = 0.5` **不是本文件的常量**。它由 `build_allocation` 的两个默认参数
-相乘而来，而 `run_daily.py:647` 只传 `capital` ⇒ 哪天有人改默认值，
-本文件的读数**必须跟着变**。手打 `0.5` 会让它在改动后仍然绿
+🚨 `W` **不是本文件的常量**。它由 `build_allocation` 的两个默认参数
+相乘而来，而生产调用点**不传**这两个参数（只传 `capital` 与其它）
+⇒ 哪天有人改默认值，本文件的读数**必须跟着变**。
+手打 `0.5`（或 `1.0`）会让它在改动后仍然绿
 （记忆 `guards-that-pin-existence-not-property`）。
+守卫：`tests/test_deployed_account_nav.py::test_A1c_the_caller_really_does_pass_only_capital`
+（它查的是**调用点的实参表**，不是这段散文）。
 
 ## 摩擦路线：只走 A，`annual_friction` 已排除
 
@@ -122,8 +124,15 @@ def deployed_exposure() -> dict:
             f"⇒ 生产可能显式传参，本脚本的「读签名」前提失效，拒绝出数。")
     return {
         "source": "inspect.signature(aplus.alloc.build_allocation).parameters[...].default",
-        "caller": "scripts/run_daily.py:647  build_allocation(up, capital=capital)",
-        "caller_passes_only": "capital",
+        # ⚠️ **不写行号**：行号会随任何改动腐烂（第 73 层）。
+        # 守卫查的是**调用点的实参表**（`test_A1c_…`）⇒ 这里只是给人看的说明。
+        "caller": "scripts/run_daily.py :: step_predict_and_allocate → "
+                  "build_allocation(up, capital=capital, current_positions=…, "
+                  "is_rebalance_day=…, closes=…)",
+        "caller_passes_only": "capital（**以及** current_positions / is_rebalance_day / "
+                              "closes / held_since / days_since_rebalance / rebalance_every"
+                              "—— 但**不传** max_positions / per_stock_cap ⇒ "
+                              "敞口走的是签名默认值 ⇒ 读签名是对的）",
         "max_positions": int(n_pos),
         "per_stock_cap": float(cap),
         "equity_weight": float(n_pos) * float(cap),
@@ -358,6 +367,23 @@ def main() -> None:
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "role": "⚠️ 对照臂 / 推算，**不是判决**。依赖下列四条假设。",
         "question": "实盘半仓敞口下，D2（年化 20%）的读数是多少",
+        # 🚨 **自 2026-10-20 起「半仓」臂与「满仓」臂是同一个东西**（2026-10-21 实测抓到）：
+        #   「半仓」臂按**生产的权益权重 W** 缩放（`half_exposure_daily(df, W)`），
+        #   而生产在 2026-10-20 从「5 只 × 10% = 0.5」改成「**10 只 × 10% = 1.0**」
+        #   ⇒ W = 1.0 ⇒ **两臂逐位相同** ⇒
+        #   **本产物现在的「满仓 vs 半仓」对比 = 拿一个东西跟它自己比**
+        #   ⇒ **它不再提供任何增量信息**。
+        # ⇒ 而**「半仓要赚多少」那个问题**（alloc.py 的 docstring 引用着 4.97%）
+        #   **不受影响** ⇒ 那是**闭式数**（市场腿 9.9471% × 0.5），不是本产物的读数。
+        # ⇒ 想恢复这个对比 ⇒ 必须把半仓臂改成**固定的 W=0.5**（一个**历史配置臂**）
+        #   ⇒ 那是**换臂** ⇒ 要预注册（不在本轮）。
+        "arms_are_identical": bool(abs(W - 1.0) < 1e-12),
+        "comparison_vacuous_reason": (
+            "生产权益权重 W = 1.0（满仓 10 只 × 10%）⇒ 「半仓」臂按 W 缩放 ⇒ "
+            "**与满仓臂逐位相同** ⇒ 本产物的两臂对比**不提供增量信息**；"
+            "现役（K=63）读数走 `deployed_d2_verdict.json`。"
+            if abs(W - 1.0) < 1e-12 else
+            "（W ≠ 1 ⇒ 两臂不同，对比有效）"),
         "source_daily": str(DAILY.relative_to(ROOT)),
         "leg": LEG,
         "exposure": expo,
@@ -522,6 +548,11 @@ def main() -> None:
     print(f"摩擦   路线A 年化 {cost_annual * 100:.4f}%/年（满权益）→ {cost_annual * W * 100:.4f}%/年（半仓）")
     print(f"       非零成本日 {nonzero_cost_days}/{len(df)}")
     print(f"逐年收益 满仓 {full_t['cagr']:+.6%}   半仓 {half_t['cagr']:+.6%}   W={W}")
+    if abs(W - 1.0) < 1e-12:
+        print("   ⚠️ **W = 1.0 ⇒ 两臂逐位相同** ⇒ 「满仓 vs 半仓」这个对比"
+              "**在今天等于拿一个东西跟它自己比** ⇒ 本产物**不再提供增量信息**"
+              "（现役 K=63 读数走 deployed_d2_verdict.json）。"
+              "⚠️ **不许**把这两个相同的数读成「半仓也能到这个数」。")
     print(f"        MDE  满仓 {full_t['mde_as_annual_pct']:+.6%}  半仓 {half_t['mde_as_annual_pct']:+.6%}")
     print(f"CAGR 比 {cagr_ratio:.6f}（≠ W，差 {cagr_ratio - W:+.6f}）"
           f"  MDE 比 {half_t['mde_as_annual_pct'] / full_t['mde_as_annual_pct']:.6f}")
