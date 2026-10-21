@@ -1,0 +1,6 @@
+W1 守卫找到那条 run 但它没结束就放弃（安全网断掉的那一版）	scripts/guard_daily.py
+if row.get("run_id") == run_id and row.get("finished"):
+                return row.get("status")
+=== 变异体 ===
+if row.get("run_id") == run_id:
+                return row.get("status") if row.get("finished") else None

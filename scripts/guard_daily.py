@@ -72,12 +72,30 @@ def _daily_run_in_flight(data_root):
 
 
 def _wait_for_run(run_id, data_root, budget_s=WAIT_BUDGET_S, poll_s=POLL_S):
-    """等某一跑结束。返回它最终**成没成**（`None` = 超时，仍在飞）。"""
+    """等某一跑结束。返回它最终**成没成**（`None` = 超时，仍在飞）。
+
+    ## 🚨🚨 2026-10-21 修一个**真 bug**（这一行的原实现把安全网弄断了）
+
+    原实现是：
+
+        if row.get("run_id") == run_id:
+            return row.get("status") if row.get("finished") else None
+
+    ⇒ **找到那条 run、发现它还没结束 ⇒ 立刻返回 `None`（放弃）**
+    ⇒ ⇒ 「等了 7200s 那一跑仍未结束」那句话是**假的**（实际等了 **0 秒**）
+    ⇒ ⇒ **安全网是坏的**：18:30 那班若**失败**，守卫会**立刻放弃而不补跑**
+    ⇒ ⇒ 而**没有任何东西会红** ⇒ 因为那条守卫把 `_wait_for_run`
+    **整个 monkeypatch 掉了** ⇒ 真函数**从没被跑过**。
+
+    ⇒ 现在：**找到但未结束 ⇒ 继续等**（不是放弃）
+    ⇒ 只有**真超时**（budget 用完）才返回 `None`。
+    ⇒ 且**超时那一刻的等待时长是真的**（消息里那句「等了 Ns」从此不再撒谎）。
+    """
     deadline = time.time() + budget_s
     while time.time() < deadline:
         for row in _daily_runs(data_root):
-            if row.get("run_id") == run_id:
-                return row.get("status") if row.get("finished") else None
+            if row.get("run_id") == run_id and row.get("finished"):
+                return row.get("status")
         time.sleep(poll_s)
     return None
 
