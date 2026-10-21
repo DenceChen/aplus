@@ -1009,8 +1009,8 @@ vs `lot_investable_rate_overall` = 0.6978721739130435（**差 1 ulp**）⇒
   而**账户每 63 个交易日才换一次仓** ⇒ **K 越大，账户与每日榜单的脱节越大**。
 - **19:30**：守卫那一跑（`com.aplus.guard`）—— 它现在**先问「今天是否有一跑在飞」**，在飞就**等它跑完**，
   不再并发（§17.2 的第 ② 处修法）。
-- **21:00**：前瞻注册（`com.aplus.forward`）｜**21:40**：夜间复盘（系统 crontab，产物 `data/reports/daily_review.json`）
-  ｜**22:05**：目标进度快照（系统 crontab，产物 `data/reports/goal_progress_<date>.json`）⇒ **今晚起「目标进度」页会有第二份快照，`change` 块会第一次有内容**。
+- **21:00**：前瞻注册（`com.aplus.forward`）｜**21:40**：夜间复盘（**launchd** `com.aplus.dailyreview`，产物 `data/reports/daily_review.json`；🚨 本机 crontab 写入被系统策略挡住 ⇒ cron 形态**从未跑过**）
+  ｜**22:05**：目标进度快照（**launchd** `com.aplus.goalprogress`，产物 `data/reports/goal_progress_<date>.json`；同上）⇒ **今晚起「目标进度」页会有第二份快照，`change` 块会第一次有内容**。
 - **03:30**（次日起）：红利 PIT 分片续采（`com.aplus.dividendpit`）⇒ 红利/低波那条臂的最终判决在数据到齐后才有意义。
 
 ---
