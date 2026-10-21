@@ -9,6 +9,29 @@
 读 `data/reports/goal_progress_<日期>.json` ⇒ 产出一个**单文件** HTML
 （`data/reports/static/index.html`）⇒ 丢到任何静态服务器就能看。
 
+**另外读两份产物**（2026-10-21 加，都是**只读**）：
+
+| 产物 | 屏上那一块 |
+|---|---|
+| `data/reports/predictions/pred_<日期>.parquet` | **今天的名单**（看涨 10 只 / 回避 10 只） |
+| `data/reports/allocation/alloc_<日期>.json` | 名单里**哪些是配置单真的买到的** |
+
+⇒ 「今天的名单」是**产品的缺口**：用户的核心诉求之一是「每天推荐下个交易日
+会涨会跌股票各 10 只」，而静态页此前有 D2 缺口、有 8 条目标进度，
+**唯独没有那份名单** ⇒ 从家看进度却看不到「今天该看什么」。
+
+⚠️ **依赖**：stdlib ＋ `pandas`（读 parquet）。页面本身仍然**零外部请求**
+（自包含单文件）⇒ 「不依赖后端」这条性质没有被破坏。
+
+## 🚨 「今天」是哪一天（这一条决定名单取哪一份）
+
+名单在**每晚 18:30 那班**出（`scripts/run_daily.py`），它的 `pred_date` 是
+**出单日**，成交日由 `ENTRY_LAG=1` 隔着一天推出 ⇒ 早上打开页面时，
+**最近一班出的那一份**就是「今天该看什么」。
+
+⇒ 取最新**一律按 `pred_date` 的值**（不按文件名）⇒ 且页面必须把名单
+**自己的日期**写出来 ⇒ 否则「昨天那一份」会被读成「今天那一份」。
+
 ## 🚨 为什么这个页面**不许**有后端
 
 * 服务器只有 **896MB 内存**，aplus 的主库（5460 只 × 8 年）是 **GB 级** ⇒ 传不过去，
@@ -178,6 +201,42 @@ STATIC_CSS = """
   .gl-crit code { font-family: var(--mono); font-size: .94em; }
   .goal-detail { padding: 0 0 12px 16px; }
   .goal-detail .goal-reason { margin-top: 2px; }
+
+  /* ── 今天的名单（2026-10-21）──
+     🚨 只有**布局**；颜色/字号**一律用上面这些变量**（不新造色相）。
+     🚨 **两栏并排**（看涨 | 回避）⇒ 20 行只占 10 行的高度：
+        手机上（≤600px）**仍然两栏** ⇒ 每栏 ~165px，
+        一行 = 代码(50) + 名字(44) + 分数(20) + 「已买」(22) + 间隙(12) ≈ 148px
+        ⇒ 放得下 ⇒ **不许**加 `overflow-x:auto`（那会变成横滚，
+           而这一块必须「放得下」——活页同一条纪律）。
+     ⚠️ 名字用 `min-width:0 + overflow-wrap:anywhere` ⇒ 名字再长也是**换行**，
+        绝不撑出横向滚动条（也绝不截断）。 */
+  .picks-meta { color: var(--faint); font-size: 11.5px; line-height: 1.7; margin: 0 0 4px; }
+  .picks-note { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin: 6px 0 0; }
+  .picks-gate { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin: 0 0 8px;
+                border-left: 2px solid var(--line-strong); padding-left: 8px; }
+  .picks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+  .picks-colhead { font-size: 12px; font-weight: 600; color: var(--text);
+                   padding-bottom: 3px; border-bottom: 1px solid var(--line); }
+  .picks-up .picks-colhead { color: var(--up); }
+  .picks-down .picks-colhead { color: var(--down); }
+  .picks-list { list-style: none; margin: 0; padding: 0; }
+  .pk-row { display: flex; align-items: baseline; gap: 6px; padding: 1.5px 0;
+            border-bottom: 1px solid var(--panel-edge); font-size: 12px; }
+  .pk-code { font-family: var(--mono); font-size: 11px; color: var(--muted);
+             font-variant-numeric: tabular-nums; flex: none; }
+  .pk-name { color: var(--text); font-weight: 600; min-width: 0; overflow-wrap: anywhere;
+             flex: 1 1 auto; }
+  .pk-score { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums;
+              flex: none; }
+  .pk-bought { font-size: 10px; line-height: 1.6; color: var(--bg); background: var(--muted);
+               border-radius: 2px; padding: 0 4px; white-space: nowrap; flex: none; }
+  @media (max-width: 600px) {
+    .picks-grid { gap: 0 10px; }
+    .pk-row { font-size: 10.5px; gap: 2px; }
+    .pk-code { font-size: 9.5px; }
+    .pk-bought { font-size: 9px; padding: 0 2px; }
+  }
 """
 
 
@@ -500,6 +559,246 @@ def build_timeline(reports_dir: Path) -> tuple[list, list]:
     return history, gaps
 
 
+# ══════════════════════════════════════════════════════════════════
+# 今天的名单（D1 的**形态**产物 · 2026-10-21 加）
+# ══════════════════════════════════════════════════════════════════
+#
+# 🚨 **为什么这一块是交付而不是美化**：用户的核心诉求之一是
+#    「每天推荐下个交易日会涨会跌股票各 10 只」⇒ 静态页有 D2 缺口、
+#    有 8 条目标进度，**唯独没有今天那份名单** ⇒ 从家看进度却看不到
+#    「今天该看什么」⇒ 那是**产品的缺口**。
+#
+# 🚨 **名单的每个数都是「直读」**（代码 / 名字 / 分数全部来自
+#    `data/reports/predictions/pred_<date>.parquet`）⇒ 导出器**一个数都不算**
+#    （第 109 层：核对脚本自己算 = 自己给自己发信用）。
+#
+# 🚨 **「今天」是哪一天**：名单在**每晚 18:30 那班**出（`scripts/run_daily.py`），
+#    它的 `pred_date` 是**出单日**，成交日由 `ENTRY_LAG=1` 隔着一天推出
+#    ⇒ 早上打开页面时，**最近一班出的那一份**就是「今天该看什么」。
+#    ⇒ 页面必须把名单**自己的日期**写出来 ⇒ 否则「昨天那一份」会被读成
+#    「今天那一份」（禁令：不许拿昨天的冒充今天的）。
+#
+# 🚨 **取最新一律按 `pred_date` 的值**，不按文件名 ⇒ 文件名里的日期与
+#    parquet 里那一列是两件事。
+
+PICKS_SUBDIR = "predictions"
+ALLOC_SUBDIR = "allocation"
+PRED_FILE_RE = re.compile(r"^pred_(\d{4}-\d{2}-\d{2})\.parquet$")
+ALLOC_FILE_RE = re.compile(r"^alloc_(\d{4}-\d{2}-\d{2})\.json$")
+
+# 屏上分数保留几位小数（**排版口径**，与活页 `r.score?.toFixed(2)` 同一个）
+SCORE_DECIMALS = 2
+
+# 名单块在页面上的锚：`_self_check` 用它把「名单里的数」与「指标里的数」分开
+# （理由见 `_self_check` 的 docstring）
+PICKS_SECTION_OPEN = '<section class="panel" id="today-picks">'
+
+# 下一班的时刻（页面上的诚实边界用）
+NEXT_BATCH_TIME = "18:30"
+
+# 上线闸门的判决标签 → 屏上的一句话（**查表**，不许临场编；表里没有就原样印标签）
+GATE_VERDICT_LABELS = {
+    "PASS": "通过",
+    "NOT_PASSED_POWERLESS": "测不出（**不是**「测出不过线」）",
+    "NOT_PASSED_MEASURED": "测出来了，但没过线",
+}
+
+
+def _rel(path: Path) -> str:
+    """仓内相对路径（屏上的出处一律用它 ⇒ 读者能自己找到那个产物）。"""
+    try:
+        return str(Path(path).resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _as_date_str(x) -> str:
+    """`pred_date` 的归一化（字符串 / Timestamp 都变成 `YYYY-MM-DD`）。"""
+    s = str(x)
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    return s
+
+
+def latest_pick_file(reports_dir: Path):
+    """按 **`pred_date` 的值**取最新的一份名单。
+
+    返回 `(path, date, problems)`：
+    * `path` / `date` = 那一份（`None` ⇒ 一份可用的都没有）
+    * `problems` = 读不出来的那几份的说明（**明说**，不许静默跳过）
+
+    🚨 读不出来的文件**不参与**「取最新」⇒ 但**必须**被记进 `problems`
+    ⇒ 否则「今天没有名单」会看起来像「今天没有出单」而不是「出单的那份坏了」。
+    """
+    problems = []
+    cands = []
+    d = reports_dir / PICKS_SUBDIR
+    if not d.is_dir():
+        return None, None, ["%s 目录不存在" % _rel(d)]
+    for p in sorted(d.glob("pred_*.parquet")):
+        if not PRED_FILE_RE.match(p.name):
+            problems.append("%s：文件名不匹配 `pred_<日期>.parquet` ⇒ 跳过" % p.name)
+            continue
+        try:
+            import pandas as pd
+            df = pd.read_parquet(p)
+        except Exception as exc:  # noqa: BLE001  —— 任何读失败都要**说出来**
+            problems.append("%s：读不出来（%s: %s）" % (p.name, type(exc).__name__, exc))
+            continue
+        if "pred_date" not in df.columns:
+            problems.append("%s：没有 `pred_date` 列 ⇒ 跳过" % p.name)
+            continue
+        dates = sorted({_as_date_str(x) for x in df["pred_date"].dropna().tolist()})
+        if not dates:
+            problems.append("%s：`pred_date` 全是空 ⇒ 跳过" % p.name)
+            continue
+        cands.append((dates[-1], p.name, p))
+    if not cands:
+        return None, None, problems
+    cands.sort(key=lambda t: (t[0], t[1]))
+    date, _name, path = cands[-1]
+    return path, date, problems
+
+
+def read_pick_rows(path: Path, date: str) -> dict:
+    """读一份名单里**属于 `date` 那天**的行（直读，一个数都不改）。
+
+    ⚠️ 行序**保持产物里的原样**（那是系统给出的顺序）⇒ 导出器不重排。
+    """
+    import pandas as pd
+    df = pd.read_parquet(path)
+    if "pred_date" in df.columns:
+        df = df[df["pred_date"].map(_as_date_str) == date]
+    out = {"up": [], "down": []}
+    for _, row in df.iterrows():
+        direction = str(row.get("direction") or "").strip()
+        if direction not in out:
+            continue
+        score = row.get("score")
+        try:
+            score_f = float(score)
+            score_disp = "%.*f" % (SCORE_DECIMALS, score_f)
+        except (TypeError, ValueError):
+            score_f, score_disp = None, "—"
+        out[direction].append({
+            "code": str(row.get("code") or ""),
+            "name": str(row.get("name") or ""),
+            "score": score_f,
+            "score_display": score_disp,
+        })
+    return out
+
+
+def read_alloc(reports_dir: Path, date: str) -> dict:
+    """读配置单（**哪几个位真的拿到了钱**）。
+
+    🚨 **只取 `positions`**（实际持仓）⇒ **不取** `cash_weight` / `capital`：
+    那两个是**部署比例**字段，口径台账已封禁（屏上不许出现投入率/闲置比例）。
+    """
+    path = reports_dir / ALLOC_SUBDIR / ("alloc_%s.json" % date)
+    rel = _rel(path)
+    miss = {"state": "missing", "path": rel, "positions": [], "n": 0, "reason": ""}
+    if not path.is_file():
+        miss["reason"] = "文件不存在"
+        return miss
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        miss["reason"] = "读不出来（%s: %s）" % (type(exc).__name__, exc)
+        return miss
+    if not isinstance(doc, dict):
+        miss["reason"] = "内容不是一个对象"
+        return miss
+    positions = doc.get("positions")
+    if not isinstance(positions, list):
+        miss["reason"] = "`positions` 不是一个列表"
+        return miss
+    out = []
+    for p in positions:
+        if not isinstance(p, dict):
+            continue
+        out.append({"code": str(p.get("code") or ""), "name": str(p.get("name") or "")})
+    return {"state": "ok", "path": rel, "positions": out, "n": len(out), "reason": ""}
+
+
+def read_gate(reports_dir: Path, filename: str, key: str) -> dict:
+    """读一道上线闸门（**读不出来 ≠ 通过** ⇒ 第 89 层：缺档不许回落成「通过」）。"""
+    path = reports_dir / filename
+    rel = _rel(path)
+    bad = {"available": False, "path": rel, "publish_allowed": None,
+           "verdict": None, "prereg": None, "reason": ""}
+    if not path.is_file():
+        bad["reason"] = "文件不存在"
+        return bad
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        bad["reason"] = "读不出来（%s: %s）" % (type(exc).__name__, exc)
+        return bad
+    if not isinstance(doc, dict):
+        bad["reason"] = "内容不是一个对象"
+        return bad
+    pa = doc.get(key)
+    if not isinstance(pa, bool):
+        # 🚨 缺字段 / 不是严格布尔 ⇒ **读不到**，不是「通过」
+        bad["verdict"] = doc.get("verdict")
+        bad["reason"] = "字段 `%s` 不是严格布尔" % key
+        return bad
+    return {"available": True, "path": rel, "publish_allowed": pa,
+            "verdict": doc.get("verdict"), "prereg": doc.get("prereg"), "reason": ""}
+
+
+def build_picks_view(reports_dir: Path, page_date: str | None) -> dict:
+    """「今天的名单」这一块的**显示模型**（屏上那些数都在这里）。"""
+    view = {
+        "state": "not_published",
+        "date": None,
+        "source_path": None,
+        "up": [],
+        "down": [],
+        "alloc": {"state": "missing", "path": None, "positions": [], "n": 0, "reason": ""},
+        "gates": {
+            "up": read_gate(reports_dir, "score_ranking_power.json", "publish_allowed"),
+            "down": read_gate(reports_dir, "downleg_gate.json", "avoidance_list_publish_allowed"),
+        },
+        "problems": [],
+        "score_caliber": "名单产物 `score` 字段（原始值未改）· 屏上保留 %d 位小数"
+                         % SCORE_DECIMALS,
+        "freeze_note": "名单冻结在导出时刻；下一班 %s 更新" % NEXT_BATCH_TIME,
+        "not_published_note": "名单尚未发布（下一班 %s）" % NEXT_BATCH_TIME,
+        "day_note": "",
+    }
+    path, date, problems = latest_pick_file(reports_dir)
+    if path is None or date is None:
+        view["problems"] = problems + ["没有任何一份可用的 `pred_*.parquet`"]
+        return view
+
+    rows = read_pick_rows(path, date)
+    view["state"] = "published"
+    view["date"] = date
+    view["source_path"] = _rel(path)
+    view["up"] = rows["up"]
+    view["down"] = rows["down"]
+    view["problems"] = problems
+
+    alloc = read_alloc(reports_dir, date)
+    view["alloc"] = alloc
+    if alloc["state"] == "ok":
+        bought = {p["code"] for p in alloc["positions"]}
+        for leg in ("up", "down"):
+            for r in view[leg]:
+                if r["code"] in bought:
+                    r["bought"] = True
+    # 🚨 名单的日期 vs 页面的日期：两者不等 ⇒ **明说**这一份是「最近一班」
+    #    出的（不许让读者把「昨天那一份」读成「今天那一份」）。
+    if page_date and date < page_date:
+        view["day_note"] = ("这一份是最近一班（名单日期 %s）出的；今天（%s）那一班 %s 出。"
+                            % (date, page_date, NEXT_BATCH_TIME))
+    else:
+        view["day_note"] = "名单日期 %s（今天这一班）。" % date
+    return view
+
+
 def build_model(snapshot: dict, snapshot_path: Path, reports_dir: Path,
                 exported_at: str) -> dict:
     goals = [build_goal_view(g) for g in (snapshot.get("goals") or [])]
@@ -518,6 +817,8 @@ def build_model(snapshot: dict, snapshot_path: Path, reports_dir: Path,
         "honest_boundaries": list(snapshot.get("honest_boundaries") or []),
         "timeline": history,
         "gaps": gaps,
+        # 🚨 今天的名单（直读 parquet + 配置单 + 两道闸门；一个数都不算）
+        "today_picks": build_picks_view(reports_dir, snapshot.get("snapshot_date")),
     }
     # 🚨 机械替换被封禁的字面串 —— **渲染层与 JSON 岛共用这一份模型**，
     #    所以两处都不会漏（两处各做一次 ⇒ 两份副本之间没有守卫，第 96 层的形状）。
@@ -906,6 +1207,108 @@ def read_favicon(index_html: Path) -> str:
     return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii")
 
 
+def _gate_line_html(arm: str, gate: dict, key: str) -> str:
+    """一道上线闸门在屏上的一行（**读不到 ≠ 通过** ⇒ 第 89 层）。"""
+    label = "看涨清单" if arm == "up" else "回避清单"
+    path = gate.get("path") or "?"
+    if not gate.get("available"):
+        return prose("⚠️ %s上线闸门**读不到**（`%s`：%s）⇒ 读不到**不是**通过。"
+                     % (label, path, gate.get("reason") or "原因未知"))
+    verdict = gate.get("verdict")
+    vlabel = GATE_VERDICT_LABELS.get(verdict, verdict or "判决未知")
+    if gate.get("publish_allowed") is True:
+        return prose("✅ %s上线闸门**通过**（`%s`::`%s` = true · 判决 %s）"
+                     % (label, path, key, vlabel))
+    return prose("⚠️ %s上线闸门：**不许发布**（`%s`::`%s` = false · 判决 %s）"
+                 % (label, path, key, vlabel))
+
+
+def picks_panel_html(view: dict) -> str:
+    """「今天的名单」那一块。
+
+    🚨 **措辞铁律**：这是**系统给出的**两个榜（看涨清单 / 回避清单），
+       **不是**买卖指令 ⇒ 屏上不许出现「买这些」「该买」这类话。
+    🚨 **不许截断**：20 行**一行都不许少**（放得下就放，放不下就横滚）。
+    """
+    head_sub = "系统今天给出的两个榜 · 不是买卖指令"
+    if view.get("state") != "published":
+        why = "；".join(view.get("problems") or []) or "原因未知"
+        return (
+            '<section class="panel" id="today-picks">'
+            '<div class="panel-head"><h2>今天的名单</h2>'
+            '<span class="sub">%s</span>'
+            '<span class="right">—</span></div>'
+            '<div style="padding:6px 20px 12px">'
+            '<div class="picks-meta">%s</div>'
+            '<div class="picks-note">%s</div>'
+            '</div></section>'
+            % (esc(head_sub), esc("今日" + (view.get("not_published_note") or "")),
+               prose("没有可用的名单产物（%s）⇒ 这一块**没有**任何代码。" % why)))
+
+    alloc = view.get("alloc") or {}
+    meta = "%s · 名单日期 %s · 出处：%s" % (
+        view.get("freeze_note"), view.get("date"), view.get("source_path"))
+    gates = (_gate_line_html("up", view["gates"]["up"], "publish_allowed")
+             + "<br>" + _gate_line_html("down", view["gates"]["down"],
+                                        "avoidance_list_publish_allowed"))
+    legs = []
+    for key, title in (("up", "看涨清单"), ("down", "回避清单")):
+        items = []
+        for r in view[key]:
+            badge = '<span class="pk-bought">已买</span>' if r.get("bought") else ""
+            items.append(
+                '<li class="pk-row"><span class="pk-code">%s</span>'
+                '<span class="pk-name">%s</span>'
+                '<span class="pk-score">%s</span>%s</li>'
+                % (esc(r["code"]), esc(r["name"]), esc(r["score_display"]), badge))
+        legs.append(
+            '<div class="picks-col picks-%s">'
+            '<div class="picks-colhead">%s · %d 只</div>'
+            '<ul class="picks-list">%s</ul></div>'
+            % (key, esc(title), len(view[key]), "".join(items)))
+    if alloc.get("state") == "ok":
+        bought = "、".join("%s %s" % (p["code"], p["name"]) for p in alloc["positions"])
+        alloc_line = prose("配置单（`%s`）里**实际拿到 %d 只**：%s"
+                           "（上面标「已买」的那几只）。"
+                           % (alloc.get("path"), alloc.get("n") or 0, bought))
+    else:
+        alloc_line = prose("⚠️ **配置单缺失**（`%s`：%s）⇒ 本页**不标注**哪些进了实盘配置"
+                           "（没有配置单就没有可对照的东西）。"
+                           % (alloc.get("path") or "?", alloc.get("reason") or "原因未知"))
+    note = prose("%s · 分数口径：%s · 本页**不报命中率、不给置信区间**。"
+                 % (view.get("day_note") or "", view.get("score_caliber") or ""))
+    return (
+        '<section class="panel" id="today-picks">'
+        '<div class="panel-head"><h2>今天的名单</h2>'
+        '<span class="sub">%s</span>'
+        '<span class="right">名单日期 %s</span></div>'
+        '<div style="padding:6px 20px 12px">'
+        '<div class="picks-meta">%s</div>'
+        '<div class="picks-gate">%s</div>'
+        '<div class="picks-grid">%s</div>'
+        '<div class="picks-note">%s</div>'
+        '<div class="picks-meta">%s</div>'
+        '</div></section>'
+        % (esc(head_sub), esc(view.get("date") or ""), prose(meta), gates,
+           "".join(legs), alloc_line, note))
+
+
+def picks_docket_note(view: dict) -> str:
+    """**判决板**里那一行关于名单的话（⇒ 名单的冻结提示在**首屏**）。
+
+    🚨 **为什么要在判决板再说一遍**：名单块排在 D2 之后 ⇒ 在 390px 宽的
+       手机上，名单块的冻结提示落在 **y=1341**（首屏上限 1200px **之外**）
+       ⇒ 只写在名单块里 ⇒ 手机读者要滑一下才看得到「它是冻结的」。
+       ⇒ 同一句话在**判决板**也出现一次 ⇒ **首屏**就有。
+       ⚠️ **两份说的是同一句话**（`freeze_note` 同一个字符串）⇒ 不是两份手打副本。
+    """
+    if not view:
+        return ""
+    if view.get("state") != "published":
+        return prose("今天的%s。" % (view.get("not_published_note") or ""))
+    return prose("今天的%s。" % (view.get("freeze_note") or ""))
+
+
 def render_html(model: dict, css: str, favicon: str = "") -> str:
     goals = model["goals"]
     d2 = next((g for g in goals if g.get("registry_class") == "D2"), None)
@@ -926,6 +1329,11 @@ def render_html(model: dict, css: str, favicon: str = "") -> str:
             % (esc(model.get("snapshot_date")),
                "\n".join(d2_caliber_card_html(c) for c in d2["calibers"]),
                d2_gap_row_html(d2)))
+
+    # ── 今天的名单（D1 的形态产物 · **直读** parquet + 配置单）──
+    #    🚨 位置：**D2 之后、8 条目标之前** ⇒ 读者先看「离 20% 多远」，
+    #       再看「今天该看什么」，最后才是 8 条目标的明细。
+    picks_block = picks_panel_html(model.get("today_picks") or {})
 
     # ── 诚实边界：9 条**一个字不少**，但默认折叠（它是「次级」信息）──
     bounds = "".join("<li>%s</li>" % prose(b)
@@ -1007,6 +1415,7 @@ def render_html(model: dict, css: str, favicon: str = "") -> str:
     <div class="docket-warn warn">
       <b>本页是静态快照。</b>
       <span>页面上每个数都<b>冻结在下面的快照时间</b>，刷新不会得到新数；每晚更新一次。</span>
+      <span class="docket-freeze">{picks_freeze}</span>
     </div>
     <div class="static-meta">
       快照时间 {generated_at} · 快照日期 {date} · 快照文件 <code>{snapshot_file}</code>
@@ -1022,6 +1431,7 @@ def render_html(model: dict, css: str, favicon: str = "") -> str:
 </div>
 <main>
 {d2_block}
+{picks_block}
 <section class="panel">
   <div class="panel-head"><h2>8 条目标</h2>
     <span class="sub">逐条：状态 · 读数 · 出处路径（每行：状态 · 关键读数 · 判据；点开看完整证据链）</span>
@@ -1046,8 +1456,10 @@ def render_html(model: dict, css: str, favicon: str = "") -> str:
         generated_at=esc(model.get("generated_at")),
         snapshot_file=esc(model.get("snapshot_file")),
         exported_at=esc(model.get("exported_at")),
+        picks_freeze=picks_docket_note(model.get("today_picks") or {}),
         registry=prose(model.get("goal_registry")),
         d2_block=d2_block,
+        picks_block=picks_block,
         n_goals=len(goals),
         cards=cards,
         bounds_block=bounds_block,
@@ -1123,6 +1535,49 @@ def main(argv=None) -> int:
     return 0
 
 
+def split_picks_section(page: str) -> tuple[str, str]:
+    """把页面切成「名单块」与「其余」。
+
+    🚨 **为什么**：跨口径那个倍数的判据（「屏上不许出现 `2.35`」）是
+       **为指标写的** ⇒ 名单里的**股票分数**是另一类数：某只票的分数恰好
+       渲染成 `2.35`（或 `2.3501`）时，那条判据会把**一次合法的导出**判死
+       ⇒ 过严的守卫和恒真的守卫一样有害（第 112 层：它会让人去改本来正确的读数）。
+       ⇒ 判据**收窄到它写的那块**（指标区），
+         名单块**另立一条更严的**（每个数都必须等于 parquet 里的那个分数）。
+    """
+    i = page.find(PICKS_SECTION_OPEN)
+    if i < 0:
+        return page, ""
+    j = page.find("</section>", i)
+    if j < 0:
+        return page, ""
+    return page[:i] + page[j:], page[i:j]
+
+
+def _screen_region(page: str) -> str:
+    """页面上**看得见的**部分（切掉内联的 JSON 岛）。
+
+    🚨 为什么：**数据岛是数据，不是屏**。名单的**股票分数**也进数据岛
+       ⇒ 一只票的分数恰好是 `2.35` 时，数据岛里就有这个串
+       ⇒ 拿「屏上不许出现 `2.35`」这条**指标**判据去管数据岛
+       ⇒ 会把**一次合法的导出**判死（第 112 层：过严的守卫会把人
+       推向「改本来正确的读数」）。
+    """
+    marker = '<script type="application/json" id="aplus-progress-snapshot">'
+    i = page.find(marker)
+    return page if i < 0 else page[:i]
+
+
+def _numbers_in(text: str) -> set:
+    out = set()
+    for tok in re.findall(r"-?\d+(?:\.\d+)?", text):
+        try:
+            out.add(float(tok))
+        except ValueError:
+            pass
+    return out
+
+
 def _self_check(page: str, model: dict) -> None:
     """导出前的最后一道闸：屏上不许出现的东西，一处都不许有。
 
@@ -1144,17 +1599,49 @@ def _self_check(page: str, model: dict) -> None:
     if "2.3450" in page:
         raise SystemExit("页面里出现了跨口径那个倍数 ⇒ 拒绝导出")
 
-    values = set()
-    for tok in re.findall(r"-?\d+(?:\.\d+)?", page):
-        try:
-            values.add(float(tok))
-        except ValueError:
-            pass
+    rest, picks = split_picks_section(_screen_region(page))
+    values = _numbers_in(rest)
     for banned in (2.35, 2.3450157528864404):
         if banned in values:
             raise SystemExit("页面里出现了跨口径那个倍数的数值 ⇒ 拒绝导出")
-    if page.count("2.35") != page.count("22.3554"):
+    if rest.count("2.35") != rest.count("22.3554"):
         raise SystemExit("页面里有一处 `2.35` 不属于合法读数 `22.3554` ⇒ 拒绝导出")
+
+    # 🚨 名单块另立判据：它**不许**藏那个倍数，且**每一个数**都得是 parquet 里的那个分数
+    if 2.3450157528864404 in _numbers_in(picks):
+        raise SystemExit("名单块里出现了跨口径那个倍数的数值 ⇒ 拒绝导出")
+    # 🚨 数据岛里也不许有那个倍数（它是**数据**，但它会被 grep 到）
+    if 2.3450157528864404 in _numbers_in(page):
+        raise SystemExit("页面的数据区里出现了跨口径那个倍数的数值 ⇒ 拒绝导出")
+
+    picks_model = model.get("today_picks") or {}
+    for leg in ("up", "down"):
+        for r in picks_model.get(leg) or []:
+            if r.get("score") is None:
+                if r.get("score_display") != "—":
+                    raise SystemExit("名单 %s 没有分数却显示 %r ⇒ 拒绝导出"
+                                     % (r.get("code"), r.get("score_display")))
+            elif r.get("score_display") != "%.*f" % (SCORE_DECIMALS, r.get("score")):
+                raise SystemExit("名单 %s 的分数显示 %r 与产物里的 %r 不符 ⇒ 拒绝导出"
+                                 % (r.get("code"), r.get("score_display"), r.get("score")))
+
+    alloc = picks_model.get("alloc") or {}
+    marked = {r.get("code") for leg in ("up", "down")
+              for r in (picks_model.get(leg) or []) if r.get("bought")}
+    if alloc.get("state") == "ok":
+        want = {p.get("code") for p in (alloc.get("positions") or [])}
+        if marked != want:
+            raise SystemExit("标成「已买」的那几只与配置单里的 positions 不一致 ⇒ 拒绝导出")
+    else:
+        # 🚨 配置单读不出来 ⇒ **不许**把「买到的」当成空/0（第 89 层）
+        if marked:
+            raise SystemExit("配置单缺失却标出了「已买」⇒ 拒绝导出")
+        if "已买" in page:
+            raise SystemExit("配置单缺失却页面上有「已买」⇒ 拒绝导出")
+
+    if picks_model.get("state") != "published":
+        if re.search(r"\d{6}\.(SH|SZ)", page):
+            raise SystemExit("名单尚未发布却页面上有代码 ⇒ 拒绝导出")
 
     # 🚨 每个读数都必须带出处路径（快照里 `kind = derived` 的那些走 `sources`）。
     for g in model["goals"]:

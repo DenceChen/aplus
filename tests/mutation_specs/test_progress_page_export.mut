@@ -102,3 +102,56 @@ M19 文本型读数的值**不再渲染 Markdown**（屏上又出现裸的 ** �
     val_html = prose(val) if m["is_text"] else esc(val)
 === 变异体 ===
     val_html = esc(val)
+
+L1 取**较早**的那一份名单（按 pred_date 取最新被改掉）	scripts/export_progress_page.py
+    date, _name, path = cands[-1]
+=== 变异体 ===
+    date, _name, path = cands[0]
+
+L2 每一栏只渲染前 5 行（名单被截断）	scripts/export_progress_page.py
+        for r in view[key]:
+=== 变异体 ===
+        for r in view[key][:5]:
+
+L3 「已买」的标注类名被改（标还在、但守卫认不出）	scripts/export_progress_page.py
+            badge = '<span class="pk-bought">已买</span>' if r.get("bought") else ""
+=== 变异体 ===
+            badge = '<span class="pk-held">已买</span>' if r.get("bought") else ""
+
+L4 配置单缺失时**回落成「0 只」**（不许回落：第 89 层）	scripts/export_progress_page.py
+if not path.is_file():
+        miss["reason"] = "文件不存在"
+        return miss
+=== 变异体 ===
+if not path.is_file():
+        return {"state": "ok", "path": rel, "positions": [], "n": 0, "reason": ""}
+
+L5 「今日名单尚未发布」被换成别的说法	scripts/export_progress_page.py
+        "not_published_note": "名单尚未发布（下一班 %s）" % NEXT_BATCH_TIME,
+=== 变异体 ===
+        "not_published_note": "本日无",
+
+L6 名单的「冻结在导出时刻」被摘掉	scripts/export_progress_page.py
+        "freeze_note": "名单冻结在导出时刻；下一班 %s 更新" % NEXT_BATCH_TIME,
+=== 变异体 ===
+        "freeze_note": "下一班 %s 更新" % NEXT_BATCH_TIME,
+
+L7 名单上的分数被换成**手打的 1.00**（不再是 parquet 里的那个值）	scripts/export_progress_page.py
+                % (esc(r["code"]), esc(r["name"]), esc(r["score_display"]), badge))
+=== 变异体 ===
+                % (esc(r["code"]), esc(r["name"]), esc("1.00"), badge))
+
+L8 看涨栏与回避栏的内容**对调**	scripts/export_progress_page.py
+        for r in view[key]:
+=== 变异体 ===
+        for r in view["down" if key == "up" else "up"]:
+
+L9 跨口径那个倍数的判据被扩回**全页**（一只票的分数 2.35 就把导出判死）	scripts/export_progress_page.py
+    rest, picks = split_picks_section(_screen_region(page))
+=== 变异体 ===
+    rest, picks = split_picks_section(page)
+
+L10 判决板里那句「名单冻结在导出时刻」被摘掉（⇒ 手机上首屏看不到）	scripts/export_progress_page.py
+      <span class="docket-freeze">{picks_freeze}</span>
+=== 变异体 ===
+      <span class="docket-freeze"></span>

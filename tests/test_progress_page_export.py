@@ -163,7 +163,16 @@ def test_the_page_never_carries_the_two_banned_field_names(exported):
 
 
 def test_the_page_never_carries_the_cross_caliber_multiple(exported):
-    """「还差几倍」只取同口径那一列（台账自己标 `is_the_gap = false` 的那列不许显示）。"""
+    """「还差几倍」只取同口径那一列（台账自己标 `is_the_gap = false` 的那列不许显示）。
+
+    🚨 2026-10-21：第三条判据**收窄到「指标区」**（看得见的部分 ∧ 名单块之外）。
+       理由：名单里的**股票分数**是另一类数 —— 某只票的分数恰好渲染成 `2.35`
+       是**完全可能**的（实测 2026-10-09 那一份里就有一只 `2.35`）
+       ⇒ 那条判据若管全页，会把**一次合法的导出**判死
+       ⇒ 过严的守卫和恒真的守卫一样有害：它会把人推向「改本来正确的读数」（第 112 层）。
+       ⇒ 名单块**另立一条更严的**：它不许藏那个倍数，且每个数都得等于
+         parquet 里的那个分数（`test_every_score_and_name_on_the_page_comes_from_the_parquet`）。
+    """
     page = exported["page"]
     assert CROSS_CALIBER_DISPLAY not in page
     values = set()
@@ -173,9 +182,17 @@ def test_the_page_never_carries_the_cross_caliber_multiple(exported):
         except ValueError:
             pass
     assert CROSS_CALIBER_VALUE not in values
-    # ⚠️ 合法读数 U = 22.3554% 的显示串里含子串 "2.35" ⇒ 每一处 "2.35" 都得是它的一部分
-    assert page.count("2.35") == page.count("22.3554"), \
-        "页面里有一处 `2.35` 不属于合法读数 `22.3554`"
+    # ⚠️ 合法读数 U = 22.3554% 的显示串里含子串 "2.35" ⇒ 指标区里每一处
+    #    "2.35" 都得是它的一部分（**指标区** = 看得见的部分 ∧ 名单块之外）
+    mod = _load_exporter()
+    screen = mod._screen_region(page)
+    rest, picks = mod.split_picks_section(screen)
+    assert rest.count("2.35") == rest.count("22.3554"), \
+        "指标区里有一处 `2.35` 不属于合法读数 `22.3554`"
+    # 名单块另立判据：**逐位**不许有那个倍数
+    assert CROSS_CALIBER_VALUE not in mod._numbers_in(picks), \
+        "名单块里出现了跨口径那个倍数的数值"
+    assert CROSS_CALIBER_DISPLAY not in picks, "名单块里出现了跨口径那个倍数的显示串"
 
 
 def test_the_page_shows_the_same_caliber_multiple_and_says_which_one(exported):
@@ -919,3 +936,319 @@ def test_the_visible_page_never_shows_raw_markdown_markers(exported):
     # 正控：确实渲染了（不是「一条都没渲染」也判绿）
     assert "<b>" in visible, "页面里一个加粗都没渲染 ⇒ 判据可能坏了"
     assert "<code>" in visible, "页面里一个行内代码都没渲染 ⇒ 判据可能坏了"
+
+
+# ══════════════════════════════════════════════════════════════════
+# 28~35 · 「今天的名单」那一块（2026-10-21）
+# ══════════════════════════════════════════════════════════════════
+#
+# 🚨 **这一块守的是「产品缺口」**：用户的核心诉求之一是
+#    「每天推荐下个交易日会涨会跌股票各 10 只」⇒ 静态页有 D2 缺口、
+#    有 8 条目标进度，**唯独没有今天那份名单** ⇒ 从家看进度却看不到
+#    「今天该看什么」⇒ 那是**产品的缺口**，不是排版问题。
+#
+# ## 这里的「今天」是哪一天（这一条决定第 28 条怎么判）
+#    名单在**每晚 18:30 那班**出（`scripts/run_daily.py`），它的 `pred_date`
+#    是**出单日**，成交日由 `ENTRY_LAG=1` 隔着一天推出
+#    ⇒ 早上打开页面时，**最近一班出的那一份**就是「今天该看什么」。
+#    ⇒ 页面必须把名单**自己的日期**写出来 ⇒ 否则「昨天那一份」会被读成
+#    「今天那一份」（禁令：不许拿昨天的冒充今天的）。
+#
+# ## 为什么第 28 条判「不许出现**更早**的日期」而不是「必须等于今天」
+#    「今天」在两个时刻是两个数：名单自己的日期（出单日）与页面日期。
+#    判据 = 「名单块里那个日期 **= 最新一份 `pred_*.parquet` 的 `pred_date`**」
+#    ⇒ 取错文件（拿了前一份）当场变红；
+#    ⇒ 页面日期比名单日期新时，页面**明写**「今天那一班 18:30 出」
+#       ⇒ 不会把昨天那一份读成今天那一份。
+#
+# ## 数字从哪来
+#    下面的期望值**全部由本文件自己从真产物算**（`pandas` 读 parquet /
+#    `json` 读配置单）⇒ 不问导出器、不写死 10/10/5
+#    （写死 = 「守卫坏了也判绿」）。
+
+PICKS_SECTION = '<section class="panel" id="today-picks">'
+
+
+def _picks_fragment(page: str) -> str:
+    """页面上「今天的名单」那一块（**不在 JSON 岛里**）。"""
+    i = page.find(PICKS_SECTION)
+    assert i >= 0, "页面上没有「今天的名单」那一块"
+    j = page.find("</section>", i)
+    assert j > i, "「今天的名单」那一块没有闭合"
+    return page[i:j]
+
+
+def _picks_leg(frag: str, leg: str) -> str:
+    """某一栏（`up` / `down`）的 HTML（栏头 + 那一栏的行）。"""
+    start = frag.find('<div class="picks-col picks-%s">' % leg)
+    assert start >= 0, "名单块里没有 %s 那一栏" % leg
+    a = frag.find('<ul class="picks-list">', start)
+    assert a > start, "%s 那一栏没有名单表" % leg
+    b = frag.find("</ul>", a)
+    assert b > a, "%s 那一栏的名单表没有闭合" % leg
+    return frag[start:b]
+
+
+def _pick_rows(frag: str) -> list:
+    """名单块里每一行 ⇒ `[(代码, 那一行的 HTML)]`（**保持屏上顺序**）。"""
+    out = []
+    for row in re.findall(r'<li class="pk-row[^"]*">(.*?)</li>', frag, re.S):
+        m = re.search(r'<span class="pk-code">([^<]*)</span>', row)
+        if m:
+            out.append((m.group(1), row))
+    return out
+
+
+def _latest_pick_artifact():
+    """真产物里**按 `pred_date` 取最新**的那一份名单。
+
+    ⚠️ 测试**自己**算一遍（不调用导出器的函数）⇒ 导出器取错文件时
+    两边会**对不上** ⇒ 守卫才判得出来。
+    """
+    import pandas as pd
+    best = None
+    for p in sorted((REPORTS / "predictions").glob("pred_*.parquet")):
+        df = pd.read_parquet(p)
+        if "pred_date" not in df.columns:
+            continue
+        dates = sorted({str(x)[:10] for x in df["pred_date"].dropna().tolist()})
+        if not dates:
+            continue
+        key = (dates[-1], p.name)
+        if best is None or key > (best[0], best[1].name):
+            best = (dates[-1], p, df)
+    assert best, "真产物里没有一份可用的名单 parquet ⇒ 守卫坏了"
+    date, path, df = best
+    df = df[df["pred_date"].map(lambda x: str(x)[:10]) == date]
+    return date, path, df
+
+
+def _expected_pick_rows(df, leg: str) -> list:
+    """真产物里某一腿的 `[(代码, 名字, 屏上应显示的分数)]`。
+
+    ⚠️ 分数口径 = 导出器的 `SCORE_DECIMALS`（两位小数）⇒ 这里**重算一遍**，
+    不是抄导出器的常量 ⇒ 口径被改宽/改窄时两边会不一致。
+    """
+    out = []
+    for _, r in df[df["direction"] == leg].iterrows():
+        out.append((str(r["code"]), str(r["name"]), "%.2f" % float(r["score"])))
+    return out
+
+
+def _export_subset(tmp_path, with_predictions=True, with_allocation=True) -> str:
+    """在 tmp 目录里造一份「产物子集」并导出 ⇒ 造出缺档的两种情形。
+
+    🚨 造的是**同一批产物的一份拷贝**（不是重造的数据）⇒ 页面上的数
+       与真产物逐位相同 ⇒ 守卫量的仍是真东西。
+    """
+    rep = tmp_path / "reports"
+    rep.mkdir(parents=True, exist_ok=True)
+    snap = REPORTS / "goal_progress_2026-10-21.json"
+    (rep / snap.name).write_text(snap.read_text(encoding="utf-8"), encoding="utf-8")
+    if with_predictions:
+        (rep / "predictions").mkdir(exist_ok=True)
+        for p in sorted((REPORTS / "predictions").glob("pred_*.parquet")):
+            (rep / "predictions" / p.name).write_bytes(p.read_bytes())
+    if with_allocation:
+        (rep / "allocation").mkdir(exist_ok=True)
+        for p in sorted((REPORTS / "allocation").glob("alloc_*.json")):
+            (rep / "allocation" / p.name).write_text(
+                p.read_text(encoding="utf-8"), encoding="utf-8")
+    for name in ("score_ranking_power.json", "downleg_gate.json"):
+        src = REPORTS / name
+        if src.is_file():
+            (rep / name).write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    out = tmp_path / "index.html"
+    r = _run_exporter(["--out", str(out), "--reports-dir", str(rep)])
+    assert r.returncode == 0, "导出 rc=%s：%s" % (r.returncode, r.stderr)
+    return out.read_text(encoding="utf-8")
+
+
+# ── 28. 名单的日期 = 最新那一份，且不许出现更早的日期 ─────────────
+
+def test_the_picks_block_shows_the_latest_pick_date_and_never_an_earlier_one(exported):
+    """名单块里的日期必须 = **最新一份** `pred_*.parquet` 的 `pred_date`。
+
+    🚨 取**前一份**（昨天的那份）⇒ 日期更早 ⇒ 当场变红。
+    """
+    date, _path, _df = _latest_pick_artifact()
+    frag = _picks_fragment(exported["page"])
+    assert date in frag, "名单块里没有最新那一份的日期 %s" % date
+    for d in sorted(set(re.findall(r"\d{4}-\d{2}-\d{2}", frag))):
+        assert d >= date, \
+            "名单块里出现了**更早**的日期 %s（最新那一份是 %s）" % (d, date)
+
+
+# ── 29. 两条腿各有多少只 = 产物里各有多少只 ───────────────────────
+
+def test_each_leg_shows_exactly_the_stocks_the_artifact_has(exported):
+    """看涨腿/回避腿的**代码集合**与真产物逐个相同（不是写死 10/10）。
+
+    ⚠️ 判的是**集合**不是条数 ⇒ 「两栏对调」「少一行」都判得出来。
+    """
+    _date, _path, df = _latest_pick_artifact()
+    frag = _picks_fragment(exported["page"])
+    for leg in ("up", "down"):
+        want = [c for c, _n, _s in _expected_pick_rows(df, leg)]
+        assert want, "真产物里 %s 腿没有行 ⇒ 守卫坏了" % leg
+        got = [c for c, _row in _pick_rows(_picks_leg(frag, leg))]
+        assert got == want, \
+            "%s 腿屏上是 %r，真产物是 %r" % (leg, got, want)
+
+
+# ── 30. 配置单里买到的那些只被标出来了 ───────────────────────────
+
+def test_the_picks_block_marks_exactly_the_positions_the_allocation_funded(exported):
+    """标成「已买」的集合 = 配置单 `positions` 的集合（**逐个相等**）。"""
+    date, _path, _df = _latest_pick_artifact()
+    alloc = json.loads(
+        (REPORTS / "allocation" / ("alloc_%s.json" % date)).read_text(encoding="utf-8"))
+    want = {p["code"] for p in alloc["positions"]}
+    assert want, "配置单里没有 positions ⇒ 守卫坏了"
+    frag = _picks_fragment(exported["page"])
+    marked = {code for code, row in _pick_rows(frag) if "pk-bought" in row}
+    assert marked == want, \
+        "标成「已买」的与配置单里的 positions 不一致：屏上 %r，配置单 %r" % (marked, want)
+    # 正控：屏上真的有「已买」这几个字（不是只靠一个类名蒙对）
+    n_badges = len(re.findall(r'<span class="pk-bought">[^<]*</span>', frag))
+    assert n_badges == len(want), \
+        "「已买」的标注数 %d 与配置单里的只数 %d 不符" % (n_badges, len(want))
+    assert "已买" in frag, "屏上没有「已买」这两个字 ⇒ 标注认不出来"
+
+
+# ── 31. 配置单缺失 ⇒ 明说缺，且不许出现「买到的」 ─────────────────
+
+def test_when_the_allocation_is_missing_the_page_says_so_and_marks_nothing(tmp_path):
+    """配置单读不出来 ⇒ **明说缺**（不许回落成「0 只」）。
+
+    🚨 第 89 层：「拒绝出判决」与「判决为空」必须分得开。
+    """
+    page = _export_subset(tmp_path, with_predictions=True, with_allocation=False)
+    assert "配置单缺失" in page, "配置单缺失时页面没有明说"
+    assert "已买" not in page, "配置单缺失却标了「已买」"
+    assert "买到的" not in page, "配置单缺失却出现了「买到的」字样"
+    # 名单本身**照常**显示（它与配置单是两件事）
+    assert "今天的名单" in page
+    assert "看涨清单" in page and "回避清单" in page
+
+
+# ── 32. 今天没有名单 ⇒ 「尚未发布」且不含任何代码 ────────────────
+
+def test_when_no_pick_list_exists_the_page_says_it_is_not_published(tmp_path):
+    """没有名单 ⇒ 页面显示「尚未发布（下一班 18:30）」且**一个代码都不许有**。
+
+    🚨 不许拿昨天的冒充今天的 ⇒ 没有就是没有。
+    """
+    page = _export_subset(tmp_path, with_predictions=False)
+    assert "尚未发布" in page, "没有名单时页面没有说「尚未发布」"
+    assert "18:30" in page, "没有名单时页面没有说下一班的时刻"
+    codes = sorted(set(re.findall(r"\d{6}\.(?:SH|SZ)", page)))
+    assert not codes, "没有名单却页面上有代码：%r" % codes
+
+
+# ── 33. 「名单冻结在导出时刻」的提示在**看得见**的地方 ─────────────
+
+def test_the_pick_list_says_it_is_frozen_at_the_export_moment(exported):
+    """名单的冻结提示**必须**在看得见的部分，且**不在任何折叠区里**。
+
+    ⚠️ 静态页没有 API ⇒ 名单也是导出时刻的快照 ⇒ 读者不知道这一点，
+       就会把昨天那一份当成今天那一份。
+    """
+    page = exported["page"]
+    frag = _picks_fragment(page)
+    assert "名单冻结在导出时刻" in frag, "名单块里没有「名单冻结在导出时刻」这句"
+    assert "18:30" in frag, "名单块里没有下一班的时刻"
+    visible = _visible(page)
+    assert "名单冻结在导出时刻" in visible, \
+        "看得见的部分没有这句（它只在数据岛里 ⇒ 等于没说）"
+    # 🚨 **判决板（首屏）里也必须有同一句话**：
+    #    名单块排在 D2 之后 ⇒ 在 390px 宽的手机上它落到 y=1341
+    #    （首屏上限 1200px **之外**）⇒ 只写在名单块里 ⇒ 手机读者要滑一下。
+    #    ⚠️ 两处说的是**同一句话**（同一个 `freeze_note` 字符串）⇒ 不是两份手打副本。
+    m = re.search(r'<span class="docket-freeze">(.*?)</span>', page, re.S)
+    assert m, "判决板里没有那句关于名单的冻结提示"
+    assert "名单冻结在导出时刻" in html.unescape(re.sub(r"<[^>]+>", "", m.group(1))), \
+        "判决板里那句话不是名单的冻结提示：%r" % m.group(1)
+    assert page.find('<span class="docket-freeze">') < page.find("<main>"), \
+        "判决板里那句话排在 <main> 之后 ⇒ 它不在首屏"
+    # 名单块**不在任何折叠区里** ⇒ 它在首屏（结构层判，与视口无关）
+    i = page.find(PICKS_SECTION)
+    for region in _details_regions(page):
+        r_start = page.find(region)
+        assert not (r_start <= i < r_start + len(region)), \
+            "名单块落在折叠区里 ⇒ 首屏看不到它"
+
+
+# ── 34. 名单上的分数逐位来自 parquet（不许手打） ─────────────────
+
+def test_every_score_and_name_on_the_page_comes_from_the_parquet(exported):
+    """每一行的代码/名字/分数都必须与 parquet 里的那一行**逐位相同**。
+
+    ⚠️ 分数的口径 = 屏上保留两位小数（`SCORE_DECIMALS`）⇒ 这里**重算**，
+       不抄导出器的常量 ⇒ 口径被改时两边会不一致。
+    """
+    _date, _path, df = _latest_pick_artifact()
+    frag = _picks_fragment(exported["page"])
+    want = {}
+    for leg in ("up", "down"):
+        for code, name, disp in _expected_pick_rows(df, leg):
+            want[code] = (name, disp)
+    assert want, "真产物里没有名单 ⇒ 守卫坏了"
+    rows = dict(_pick_rows(frag))
+    assert set(rows) == set(want), \
+        "屏上的代码集合与真产物不一致：缺 %r / 多 %r" % (
+            sorted(set(want) - set(rows)), sorted(set(rows) - set(want)))
+    for code, row in rows.items():
+        name, disp = want[code]
+        assert re.search(r'<span class="pk-name">%s</span>' % re.escape(name), row), \
+            "第 %s 行的名字与 parquet 不符" % code
+        m = re.search(r'<span class="pk-score">([^<]*)</span>', row)
+        assert m, "第 %s 行没有分数" % code
+        assert m.group(1) == disp, \
+            "第 %s 行的分数 %r ≠ parquet 算出来的 %r" % (code, m.group(1), disp)
+
+
+# ── 35. 名单一个都不许少、不许被截断 ─────────────────────────────
+
+def test_the_pick_list_is_complete_and_not_truncated(exported):
+    """20 行**一个不少**、顺序与产物相同、**不许出现省略号**。
+
+    ⚠️ 活页那条纪律：被截掉的正是**结论本身** ⇒ 放得下或可横滚。
+    """
+    _date, _path, df = _latest_pick_artifact()
+    frag = _picks_fragment(exported["page"])
+    want = [c for leg in ("up", "down")
+            for c, _n, _s in _expected_pick_rows(df, leg)]
+    got = [c for c, _row in _pick_rows(frag)]
+    assert got == want, "屏上的名单与产物不一致（条数或顺序）：%r vs %r" % (got, want)
+    assert "…" not in frag, "名单里出现了省略号 ⇒ 那是截断"
+    assert "..." not in frag, "名单里出现了 `...` ⇒ 那是截断"
+
+
+# ── 36. 一只票的分数恰好渲染成 `2.35` ⇒ **不许**把导出判死 ──────
+
+def test_a_stock_score_that_renders_as_2_35_does_not_block_the_export(tmp_path):
+    """「屏上不许出现 `2.35`」是**指标**判据 ⇒ 它不许管**股票分数**。
+
+    🚨 2026-10-21 实测：`pred_2026-10-09.parquet` 那一份里就有一只
+    渲染成 `2.35` 的分数 ⇒ 判据若管全页，那一天**整页导不出来**
+    ⇒ 服务器上留着的还是旧的那份（用户看到的不是今天的）。
+    ⇒ 这条把「收窄判据」这件事**钉住**：收窄不是放水，是把判据放回它
+    写的那块（指标区），并给名单块**另立一条更严的**。
+    """
+    rep = tmp_path / "reports"
+    (rep / "predictions").mkdir(parents=True)
+    (rep / "allocation").mkdir(parents=True)
+    snap = REPORTS / "goal_progress_2026-10-21.json"
+    (rep / snap.name).write_text(snap.read_text(encoding="utf-8"), encoding="utf-8")
+    src = REPORTS / "predictions" / "pred_2026-10-09.parquet"
+    (rep / "predictions" / src.name).write_bytes(src.read_bytes())
+    a = REPORTS / "allocation" / "alloc_2026-10-09.json"
+    (rep / "allocation" / a.name).write_text(a.read_text(encoding="utf-8"),
+                                             encoding="utf-8")
+    out = tmp_path / "index.html"
+    r = _run_exporter(["--out", str(out), "--reports-dir", str(rep)])
+    assert r.returncode == 0, \
+        "一只票的分数渲染成 2.35 就把导出判死了：%s" % (r.stderr + r.stdout)[-300:]
+    frag = _picks_fragment(out.read_text(encoding="utf-8"))
+    assert "2.35" in frag, "夹具坏了：这一份里没有渲染成 2.35 的分数"

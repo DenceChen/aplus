@@ -19,7 +19,7 @@
 |---|---|---|
 | **首屏必含** | 一句话结论 + 快照时间 + **两个口径**（各带文字标签与出处路径）的**底边** | **1200px**（需求给的数）**且** ≤ 3 屏（需求给的理由：「用户在手机上 3 次滑动内看完主要结论」） |
 | **横向溢出** | `documentElement.scrollWidth − clientWidth` | 必须 **= 0**（需求：「横向溢出 = 0」） |
-| **总高度** | `documentElement.scrollHeight` | ≤ **4 屏**（3 屏给主结论 ＋ 1 屏给 8 条读数行；见下面的推导） |
+| **总高度** | `documentElement.scrollHeight` | ≤ **4 屏**（桌面/iPad）／≤ **5 屏**（手机）—— 逐视口分档，见下面的推导 |
 | **折叠区** | 全部展开后**一个字不少** | 需求：「折叠区展开后内容一个字不少」 |
 | **8 条目标** | 每条都有**可见的**状态标签（不展开也看得见） | 需求：「8 条目标每条都有状态标签（不许变成散文段落）」 |
 
@@ -34,6 +34,22 @@
   实测 ④ 在 **390px 宽的手机上要 1.9 屏** ⇒ 「整页 ≤ 3 屏」在手机上
   **结构上不可达**（差 379px）⇒ 整页的上限取 **4 屏**。
 * ⇒ **两个阈值分开判、各自写明理由** —— 不许拿「3 屏」去冒充「整页 ≤ 3 屏」。
+
+## 🚨 2026-10-21：手机那一档从 **4 屏**涨到 **5 屏**（因为这一页现在常驻「今天的名单」）
+
+* **新增的常驻内容**：**「今天的名单」**（20 行：看涨 10 只 / 回避 10 只）——
+  用户的核心诉求之一是「每天推荐下个交易日会涨会跌股票各 10 只」，
+  而静态页此前**唯独没有那份名单** ⇒ 它是**产品的缺口**，不是排版问题。
+* **实测**：桌面 **2032px**（2.26 屏）／iPad **2420px**（2.05 屏）／
+  手机 **3816px**（**4.52 屏**）⇒ 桌面与 iPad **一字未动**（仍 ≤ 4 屏），
+  **只有手机**那一档超了 ⇒ 上限取 **5 屏**（4220px）。
+* ⚠️ **不许拿这一条去反推别的改动**：桌面/iPad 的上限**一个字没动**，
+  ⇒ 「为了塞下新内容而放宽阈值」这件事**只发生在手机那一档**，
+  而且它有**实测数字**（4.52 屏 ⇒ 取 5 屏）而不是「感觉有点长」。
+* ⚠️ **另一条路是「把名单折起来」** ⇒ **没选**：
+  手机上那一块**即使折起来**也有 ~480px（诚实边界那几行散文占大头），
+  4 屏（3376px）**照样不够** ⇒ 折起来**省不掉预算**，只会让用户
+  「在名单上多点一次」⇒ 于是选了「常驻可见 + 手机那一档 5 屏」。
 """
 from __future__ import annotations
 
@@ -60,8 +76,10 @@ _VIEWPORTS = [
 FIRST_SCREEN_PX = 1200
 # 首屏必含区 ≤ 3 屏 —— 需求给的理由
 FIRST_SCREEN_SCREENS = 3
-# 整页总高 ≤ 4 屏 —— 推导见模块 docstring
-TOTAL_SCREENS = 4
+# 整页总高的上限（**逐视口**分档）—— 推导见模块 docstring
+# 🚨 2026-10-21：手机那一档 4 → 5（这一页现在常驻「今天的名单」20 行；
+#    实测手机 4.52 屏、桌面 2.26 屏、iPad 2.05 屏 ⇒ 桌面/iPad 一字未动）。
+TOTAL_SCREENS = {"desktop": 4, "ipad-portrait": 4, "phone": 5}
 
 
 @pytest.fixture(scope="module")
@@ -96,6 +114,8 @@ _MEASURE = """
     clientWidth: d.clientWidth,
     overflowX: d.scrollWidth - d.clientWidth,
     conclusionBottom: bottom('.static-conclusion'),
+    freezeBottom: bottom('.docket-freeze'),
+    freezeText: (document.querySelector('.docket-freeze') || {}).innerText || '',
     metaBottom: bottom('.static-meta'),
     caliberBottoms: cards.map(e =>
       Math.round(e.getBoundingClientRect().bottom + window.scrollY)),
@@ -195,12 +215,35 @@ def test_the_page_never_scrolls_sideways(measurements, name):
 
 @pytest.mark.parametrize("name", [n for n, _, _ in _VIEWPORTS])
 def test_the_page_height_stays_within_the_declared_budget(measurements, name):
-    """整页总高 ≤ **4 屏**（阈值与推导见模块 docstring）。"""
+    """整页总高 ≤ **该视口那一档的屏数**（阈值与推导见模块 docstring）。"""
     w, h, m = measurements[name]
-    limit = TOTAL_SCREENS * h
+    screens = TOTAL_SCREENS[name]
+    limit = screens * h
     assert m["scrollHeight"] <= limit, \
         "%s 视口下整页 %dpx > 上限 %dpx（%d 屏）" % (
-            name, m["scrollHeight"], limit, TOTAL_SCREENS)
+            name, m["scrollHeight"], limit, screens)
+
+
+# ── 名单的冻结提示：在**首屏**里 ─────────────────────────────────
+
+@pytest.mark.parametrize("name", [n for n, _, _ in _VIEWPORTS])
+def test_the_pick_freeze_notice_is_in_the_first_screen(measurements, name):
+    """「名单冻结在导出时刻；下一班 18:30 更新」必须落在**首屏**里。
+
+    🚨 **为什么这条在浏览器层**：静态层只能判「那句话在看得见的部分」，
+       而「首屏」是**像素**上的性质（视口/字体都变）⇒ 判据落在盒子底边。
+    ⚠️ **三个视口都要过** —— 「桌面上过了」不等于「手机上也过了」
+       （实测名单块在手机上落到 y=1341 ⇒ 首屏 1200px 之外
+        ⇒ 所以**判决板**里也放同一句话）。
+    """
+    w, h, m = measurements[name]
+    assert m["freezeBottom"] is not None, "页面上没有名单的冻结提示"
+    assert "名单冻结在导出时刻" in m["freezeText"], \
+        "首屏那句话不在（实测内容：%r）" % (m["freezeText"],)
+    limit = min(FIRST_SCREEN_PX, FIRST_SCREEN_SCREENS * h)
+    assert m["freezeBottom"] <= limit, \
+        "名单的冻结提示在 y=%d，超出首屏上限 %d（%s）" % (
+            m["freezeBottom"], limit, name)
 
 
 # ── 8 条目标：每条都有**看得见的**状态标签 ───────────────────────

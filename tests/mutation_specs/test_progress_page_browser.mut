@@ -17,3 +17,8 @@ B4 两个口径被折进 <details>（首屏就看不见那一块了）	scripts/e
             '<div class="d2-gap-calibers">%s%s</div>'
 === 变异体 ===
             '<details class="fold"><summary>两个口径</summary><div class="d2-gap-calibers">%s%s</div></details>'
+
+B5 判决板里那句「名单冻结在导出时刻」被摘掉（⇒ 手机上首屏看不到它）	scripts/export_progress_page.py
+      <span class="docket-freeze">{picks_freeze}</span>
+=== 变异体 ===
+      <span class="docket-freeze"></span>

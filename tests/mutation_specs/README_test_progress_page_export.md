@@ -9,8 +9,8 @@
 
 | 规格 | 变异条数 | 目标 node | 杀的是哪一层 |
 |---|---|---|---|
-| `tests/mutation_specs/test_progress_page_export.mut` | **21**（M1–M19 ＋ D1/U1） | `tests/test_progress_page_export.py`（**53** 条守卫） | 静态 / node 级：结构、内容、CSS 禁令 |
-| `tests/mutation_specs/test_progress_page_browser.mut` | **4**（B1–B4） | `tests/e2e/test_progress_page_browser.py`（**14** 条守卫） | 浏览器级：像素、视口矩阵、展开后可见 |
+| `tests/mutation_specs/test_progress_page_export.mut` | **31**（M1–M19 ＋ D1/U1 ＋ **L1–L10**） | `tests/test_progress_page_export.py`（**62** 条守卫） | 静态 / node 级：结构、内容、CSS 禁令、**今天的名单** |
+| `tests/mutation_specs/test_progress_page_browser.mut` | **5**（B1–B5） | `tests/e2e/test_progress_page_browser.py`（**17** 条守卫） | 浏览器级：像素、视口矩阵、展开后可见、**冻结提示在首屏** |
 
 ```bash
 .venv/bin/python scripts/mutation_harness.py \
@@ -33,7 +33,7 @@
 
 ---
 
-## 实测结果（2026-10-21）：**21/21 ＋ 4/4 逐条 `rc = 1`**（基线均已验绿）
+## 实测结果（2026-10-21）：**31/31 ＋ 5/5 逐条 `rc = 1`**（基线均已验绿）
 
 ### 静态 / node 级（21 条）
 
@@ -60,6 +60,52 @@
 | **M17** | **目标行里的读数一块被摘掉** | 4 条 |
 | **M18** | **CSS 里加一条 `text-overflow: ellipsis`** | `test_the_page_never_truncates_content_with_ellipsis` |
 | **M19** | **文本型读数的值不再渲染 Markdown**（屏上出现裸记号） | `test_the_visible_page_never_shows_raw_markdown_markers` |
+| **L1** | **取较早的那一份名单**（按 `pred_date` 取最新被改掉） | 5 条（含 `…_shows_the_latest_pick_date_and_never_an_earlier_one`） |
+| **L2** | **每一栏只渲染前 5 行**（名单被截断） | 4 条（含 `…_each_leg_shows_exactly_the_stocks_the_artifact_has`） |
+| **L3** | **「已买」的标注类名被改**（标还在、但守卫认不出） | `test_the_picks_block_marks_exactly_the_positions_the_allocation_funded` |
+| **L4** | **配置单缺失时回落成「0 只」** | `test_when_the_allocation_is_missing_the_page_says_so_and_marks_nothing` |
+| **L5** | **「今日名单尚未发布」被换成别的说法** | `test_when_no_pick_list_exists_the_page_says_it_is_not_published` |
+| **L6** | **名单的「冻结在导出时刻」被摘掉** | `test_the_pick_list_says_it_is_frozen_at_the_export_moment` |
+| **L7** | **名单上的分数被换成手打的 `1.00`** | 2 条（含 `…_every_score_and_name_on_the_page_comes_from_the_parquet`） |
+| **L8** | **看涨栏与回避栏的内容对调** | 2 条（含 `…_each_leg_shows_exactly_the_stocks_the_artifact_has`） |
+| **L9** | **跨口径那个倍数的判据被扩回全页** | `test_a_stock_score_that_renders_as_2_35_does_not_block_the_export` |
+| **L10** | **判决板里那句「名单冻结在导出时刻」被摘掉** | `test_the_pick_list_says_it_is_frozen_at_the_export_moment` |
+
+## 🚨 L9 为什么值得单记：**判据收窄不是放水，是把判据放回它写的那块**
+
+「屏上不许出现 `2.35`」这条是**为指标写的**（合法的 `95% 单侧上界 U = 22.3554%`
+里含子串 `2.35`）。2026-10-21 加上「今天的名单」之后，**股票分数**也进了页面：
+
+> 实测 `pred_2026-10-09.parquet` 那一份里就有一只票的分数渲染成 **2.35**
+> ⇒ 判据若管全页，那一天**整页导不出来**（导出器自己拒收 ⇒ rc=2）
+> ⇒ 服务器上留着的还是**旧的那份** ⇒ 用户看到的不是今天的。
+
+⇒ 处置 = **三层**（不是「放宽」）：
+① 判据**收窄到「指标区」**（看得见的部分 ∧ 名单块之外）——
+   数据岛是**数据**不是屏，股票分数是**另一类数**；
+② **名单块另立一条更严的**：每个数都必须等于 parquet 里的那个分数
+   （`…_every_score_and_name_on_the_page_comes_from_the_parquet`）；
+③ **把这条收窄本身钉住**（`…_a_stock_score_that_renders_as_2_35_does_not_block_the_export`
+   ＋ 变异 L9）⇒ 收窄不会悄悄变回全页。
+
+⚠️ 同一族的失效方向是**「为了让绿灯而改判据」** ⇒ 所以收窄必须
+**带一条新判据 + 一条变异**，否则它和「偷偷放松」长得一模一样。
+
+## 🚨 L5 第一轮**存活**了一次：一句「尚未发布」住在**两个地方**
+
+第一轮写判决板那一行时，屏幕上那句「今日名单尚未发布」是**手打的**，
+而模型里另有一份 `not_published_note` ⇒ 变异 L5（改模型里那一份）**屏上一个字都没变**
+⇒ **62 条守卫全绿** ⇒ 台子如实报「存活」。
+
+⇒ 这就是第 96 层「**两份副本之间没有守卫**」的当场复发：
+**同一个事实住在两处 ⇒ 改一处等于没改**。
+⇒ 修法：**一个字只许住一处** ⇒ 模型里那一份变成
+`"名单尚未发布（下一班 %s）"`，名单块渲染成「今日 + 它」、
+判决板渲染成「今天的 + 它」⇒ **同一句**，两边不可能漂 ⇒ L5 当场被杀。
+
+⇒ 教训（与「被否的对象必须还是你送出去的那个」同族）：
+**变异存活的第一解释永远是「变异改的那一处没有喂给被断言的那个东西」**
+⇒ 修法不是把断言放宽，而是**把两份副本合成一份**。
 
 ### 浏览器级（4 条）
 
@@ -69,6 +115,15 @@
 | **B2** | **CSS 里加一条固定宽度**（整页被撑出横向滚动条） | `test_the_page_never_scrolls_sideways[×3 视口]` |
 | **B3** | **折叠体被加上 `hidden`**（展开后什么都看不见） | `test_opening_every_fold_keeps_every_word` |
 | **B4** | **两个口径被折进 `<details>`** | `test_the_first_screen_holds_…[×3 视口]` |
+| **B5** | **判决板里那句「名单冻结在导出时刻」被摘掉** | `test_the_pick_freeze_notice_is_in_the_first_screen[×3 视口]` |
+
+⚠️ **2026-10-21：手机那一档的总高上限从 4 屏涨到 5 屏** —— 这一页现在常驻
+「今天的名单」20 行（用户的核心诉求之一 ⇒ 静态页此前**唯独没有那份名单**）。
+实测：桌面 **2.26 屏** / iPad **2.05 屏** / 手机 **4.52 屏**
+⇒ **桌面与 iPad 的上限一个字没动**，只有手机那一档动了。
+⇒ 「另一条路（把名单折起来）」**没选**：手机上那一块即使折起来也有 ~480px
+（散文占大头）⇒ 4 屏**照样不够** ⇒ 折起来省不掉预算，只会多一次点击。
+推导写在 `tests/e2e/test_progress_page_browser.py` 的模块 docstring 里。
 
 ---
 
