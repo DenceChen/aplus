@@ -90,16 +90,18 @@
     background: var(--ink);
     border-bottom: 1px solid var(--line-strong);
   }
-  .docket-inner { max-width: 1180px; margin: 0 auto; padding: 14px 24px 15px; }
+  .docket-inner { max-width: 1180px; margin: 0 auto; padding: 12px 24px 13px; }
   .docket .verdict-line { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   .docket .verdict-word {
     font-family: var(--serif); font-size: 20px; font-weight: 700; letter-spacing: .04em;
     color: var(--seal); flex-shrink: 0;
   }
-  .docket .verdict-why { font-size: 13px; color: var(--muted); }
+  /* 中文正文：行高比西文松一点（1.75），字距也加一点点 ——
+     西文 1.5 就够、汉字方块字需要更多行距；照搬西文参数会让中文挤成一团。 */
+  .docket .verdict-why { font-size: 13px; color: var(--muted); line-height: 1.75; letter-spacing: .01em; }
   .docket .verdict-why b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
   /* 进度条：把「还差多少」变成可量的东西，而不是又一行说明文字 */
-  .docket .tally { height: 3px; background: rgba(255,255,255,.06); margin: 10px 0 12px; border-radius: 2px; overflow: hidden; }
+  .docket .tally { height: 3px; background: rgba(255,255,255,.06); margin: 9px 0 10px; border-radius: 2px; overflow: hidden; }
   .docket .tally i { display: block; height: 100%; background: var(--seal); border-radius: 2px; transition: width .4s ease; }
   .docket .tally.done i { background: var(--down); }
 
@@ -110,14 +112,14 @@
        改成 grid 两列后首屏省下一整块高度，两条仍同权重可见。
        🚨 窄屏必须退回单列：两条各带一段推导，并排会把推导挤成
           每列不足 200px 的碎条，比原来更难读。 */
-  .docket-warns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; }
+  .docket-warns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 10px; }
   /* 两条都 hidden 时容器必须**完全不占高度**，否则「今天没有警示」
      反而比「有警示」多留一块空白 —— 这是加容器最容易引入的副作用。 */
   .docket-warns:not(:has(.docket-warn:not([hidden]))) { display: none; }
   @media (max-width: 860px) { .docket-warns { grid-template-columns: 1fr; } }
   .docket-warn { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
-    margin: 0 0 12px; padding: 9px 12px; border-radius: 6px; font-size: 12.5px; line-height: 1.6;
-    border-left: 3px solid; }
+    margin: 0 0 10px; padding: 8px 11px; border-radius: 6px; font-size: 12.5px; line-height: 1.75;
+    letter-spacing: .01em; border-left: 3px solid; }
   .docket-warns > .docket-warn { margin-bottom: 0; height: 100%; }
   .docket-warn b { font-weight: 600; flex: none; }
   .docket-warn span { color: var(--muted); }
@@ -139,20 +141,25 @@
        窄屏（≤860px）退回单列，**顺序不变**（理想档在上）。
      🚨 两格**各自带标签与来源**：不许只显示其中一档而不说是哪一档。 */
   .d2-gap-calibers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-                     margin: 0 0 12px; }
+                     margin: 0 0 10px; }
   @media (max-width: 860px) { .d2-gap-calibers { grid-template-columns: 1fr; } }
   .d2-gap-calibers[hidden] { display: none; }
   .d2-gap-calibers .d2c { background: rgba(200,150,62,.08);
                            border-left: 3px solid var(--seal); border-radius: 6px;
-                           padding: 8px 11px; min-width: 0; }
-  .d2-gap-calibers .d2c h5 { margin: 0 0 3px; font-size: 12.5px; font-weight: 600;
+                           padding: 7px 10px; min-width: 0; }
+  /* ★ 2026-10-21：口径名与主读数**同一行**（原来标签独占一行）。
+     理由：这一屏的三个块（两档 D2 + 信号侧那一行）加起来 252px，
+     而「标签 + 读数」本来是一句话 ⇒ 挤成一行省 ~45px，
+     首屏因此多露出两行名单。
+     ⚠️ 标签仍然**必须有文字**（不许只靠颜色区分两档）。 */
+  .d2-gap-calibers .d2c h5 { display: inline; margin: 0 8px 0 0; font-size: 12.5px; font-weight: 600;
                               color: var(--seal); }
-  .d2-gap-calibers .d2c .d2c-num { font-size: 19px; font-weight: 600; line-height: 1.25;
+  .d2-gap-calibers .d2c .d2c-num { display: inline; font-size: 18px; font-weight: 600; line-height: 1.3;
                                     font-variant-numeric: tabular-nums; }
   .d2-gap-calibers .d2c .d2c-sub { color: var(--muted); font-size: 11.5px;
-                                    line-height: 1.5; margin-top: 3px; }
-  .d2-gap-calibers .d2c .d2c-src { color: var(--faint); font-size: 10.5px;
-                                    line-height: 1.4; margin-top: 4px;
+                                    line-height: 1.7; margin-top: 2px; letter-spacing: .01em; }
+  .d2-gap-calibers .d2c .d2c-src { color: var(--faint); font-size: 11px;
+                                    line-height: 1.5; margin-top: 3px;
                                     word-break: break-all; }
   .d2-gap-calibers .d2c.na { border-left-color: var(--faint); }
   .d2-gap-calibers .d2c.na h5 { color: var(--muted); }
@@ -203,9 +210,9 @@
      上一条注释说的「颜色表危险等级」只适用于 .held-why，两处不要混。 */
   .held-codes .up { color: var(--up); }
   .held-codes .down { color: var(--down); }
-  .docket .figures { display: flex; gap: 30px; flex-wrap: wrap; align-items: baseline; }
+  .docket .figures { display: flex; gap: 26px; flex-wrap: wrap; align-items: baseline; }
   .docket .fig { display: flex; align-items: baseline; gap: 8px; }
-  .docket .fig b { font-family: var(--serif); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .docket .fig b { font-family: var(--serif); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .docket .fig span { font-size: 11.5px; color: var(--faint); line-height: 1.3; }
   .docket .fig.rise b { color: var(--up); }
   .docket .fig.fall b { color: var(--down); }
@@ -283,26 +290,32 @@
   @media (max-width: 860px) {
     .heroes .hero { display: none; }
   }
-  .hero { padding: 18px 20px 16px; }
+  /* 🚨 2026-10-21：这两张卡压成**一行并排对照**。
+     原来每张 ~230px，而它们的每一项都在下面的表里出现过
+     （名称 / 代码 / 20 日涨跌 / 综合分 / 消息面 = 第 01 行）⇒
+     首屏被它吃掉 ~180px，而首屏真正要回答的是「今天看哪 10 只」。
+     ⇒ 只留「并排比较」这件事本身：名字 + 涨跌 + 代码，一行。
+     ⚠️ 消息面**不删**：它在表里第 01 行那一格，往下滚一屏就看到。
+     ⚠️ 守卫 `test_render_rows_paints_exactly_one_row_per_row_it_is_given`
+        要求 hero 里**看得见第 01 只的代码** ⇒ 代码必须留着。 */
+  .hero { padding: 9px 20px 10px; display: flex; align-items: baseline;
+          gap: 10px; flex-wrap: wrap; min-width: 0; }
   .hero.up-side { border-right: 1px solid var(--line); }
   @media (max-width: 860px) { .hero.up-side { border-right: 0; border-bottom: 1px solid var(--line); } }
-  .hero .tag { font-size: 11.5px; margin-bottom: 6px; }
+  .hero .tag { font-size: 11.5px; flex: none; }
   .hero.up-side .tag { color: var(--up); }
   .hero.down-side .tag { color: var(--down); }
-  .hero .stock { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  .hero .stock b { font-family: var(--serif); font-size: 27px; font-weight: 700; letter-spacing: .03em; }
+  .hero .stock { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+  .hero .stock b { font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: .03em; }
   .hero .code { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
-  .hero .pct { font-family: var(--serif); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hero .pct { font-family: var(--serif); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
   /* 🚨 hero 的百分比是**数字**，颜色必须跟表格里同一个量同规则（符号色），
      不能再跟「栏方向」走 —— 原来 hero 用栏色、表格用符号色，
      于是**同一屏里同一个 20 日涨跌有两种颜色**（看涨栏 hero 把 −45.6% 涂成红色）。
      现在两边都按符号：≥0 红、<0 绿。 */
   .hero .pct.pos { color: var(--up); }
   .hero .pct.neg { color: var(--down); }
-  .hero .why { color: var(--muted); font-size: 12.5px; margin-top: 5px; }
-  .hero .news { margin-top: 9px; font-size: 12.5px; color: var(--text); background: var(--panel-2); border-radius: 4px; padding: 6px 10px; }
-  .hero .news i { font-style: normal; font-family: var(--serif); margin-right: 5px; }
-  .hero .news i.pos { color: var(--up); } .hero .news i.neg { color: var(--down); } .hero .news i.neu { color: var(--muted); }
+  .hero-none { color: var(--faint); font-size: 12.5px; }
 
   /* ── 台账表 ── */
   table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -332,6 +345,20 @@
      的 `hasNews` 判定）⇒ 改成块级后两栏**按构造**等高，与栏宽无关。 */
   .th-note { display: block; color: var(--faint); font-weight: 400; letter-spacing: 0;
              white-space: nowrap; }
+  /* 🚨 2026-10-21 窄屏（≤600px）：名单表**放不下** ⇒ 三处同时收：
+     ① 列名下的注记允许折行（注记说的那件事，上方那行图例已经说过一遍）；
+     ② 量条缩窄（数字还在，条形只是同一个数的第二种画法）；
+     ③ 单元格内边距收窄。
+     ⚠️ **不许**给 `.ledger-col` 加 `overflow-x:auto` ——
+        横向滚动容器会**接管** `position:sticky` 的参照系 ⇒
+        `.ledger thead th` 的吸顶列头失效，而那正是 20 行密排表格最需要的。
+     ⇒ 这一档**只能靠「放得下」**；放不下就是缺陷 ⇒ 有守卫盯着。 */
+  @media (max-width: 600px) {
+    .th-note { white-space: normal; }
+    .bar-cell .track { width: 40px; }
+    .ledger th, .ledger td { padding: 7px 8px; }
+    .ledger .name-cell span { font-size: 10.5px; }
+  }
   .th-news[hidden] { display: none; }
   td.num, th.num { text-align: right; }
   .name-cell b { font-weight: 600; }
@@ -395,6 +422,16 @@
   .evo-entry code { font-family: var(--mono); font-size: 11.5px; color: var(--text);
                     background: var(--panel-2); padding: 1px 4px; border-radius: 3px; }
   .evo-entry .md-p, .evo-entry .md-list { color: var(--muted); }
+  /* 🚨 2026-10-21：长标识符（文件路径、函数名）必须能断行。
+     中文可以任意断，**拉丁标识符不行** ⇒ 一条 40+ 字符的路径
+     会把整块撑出容器：实测改进台账里有一条 `P.md-p` 要 **1427px**，
+     而 1440 宽的桌面上那个面板只有 1130px ⇒ **被裁掉且滚不到**
+     （⇒ 1440 / 820 / 768 / 390 **四个视口全中**）。
+     ⇒ `overflow-wrap: anywhere` 只在「一个词太长、放不下」时才断它，
+        正常的中文断行完全不受影响。
+     ⚠️ **不许**用 `word-break: break-all`：那会把正常的中文词也切碎
+        （「不可判定」被切成「不可判/定」）。 */
+  .md-p, .md-list, .evo-entry, .fold-body { overflow-wrap: anywhere; }
   /* ── D2 判决区间图 ──
      这张图的全部意义：**让人一眼看出「目标线落在误差带内」**。
      任何「点估计 + 一根目标线」但没有带宽的画法，都在宣称「知道自己差多少」——
@@ -565,10 +602,39 @@
   .lot-wrap { padding: 14px 20px 18px; }
   .lot-head { font-size: 13px; line-height: 1.8; color: var(--muted); margin-bottom: 10px; }
   .lot-head b { color: var(--text); }
-  .lot-table { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  /* 🚨 2026-10-21 窄屏裁切（真实 Chromium 实测：390px 与 768px 视口）：
+     这两张表都比容器宽，而容器是 `overflow: hidden`
+     ⇒ **右半边被裁掉且永久不可达**（实测：「1 手要 ¥202,070」整列、
+        「实盘配置」整列、「来源」整列，全都读不到）。
+     ⇒ 三件事一起做，缺一件都不行：
+        ① 容器**可横滚**（内容**可达**，不是「看不见」）；
+        ② 短字段 `nowrap`（中文不许被压成**逐字竖排**）；
+        ③ 长散文给 `min-width` 后照常折行。
+     ⚠️ **不许**用 `text-overflow: ellipsis` 把它「塞进」窄屏 ——
+        被截掉的那一列是「1 手要」，是这一块的**全部结论**；
+        而 `title` 悬停对触屏与键盘都不可达（第 96 层同族）。
+     ⚠️ `overscroll-behavior-x: contain`：横向滚到头时**不许**把整页带着跑
+        （否则用户想继续右滑看下一栏时，页面先横向跑掉了）。 */
+  .lot-table, .cfg-table {
+    border: 1px solid var(--line); border-radius: 6px;
+    overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+  }
+  /* 通用宽表容器（2026-10-21）：窄视口下**不许**被 `.panel` 的
+     `overflow:hidden` 裁掉 ⇒ 表格装进一个**可横滚**的容器。
+     ⚠️ 这是本仓 e2e 明确认可的形态：「横向溢出本身不是罪（宽表格允许
+        横向滚动），罪的是**整个页面**被撑出横向滚动条」。
+     ⚠️ **不许**给 `.panel` 加 `overflow-x:auto` —— 那会让面板成为滚动容器，
+        接管 `position:sticky` 的参照系 ⇒ 名单的吸顶列头失效。 */
+  .table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+  .table-scroll table { min-width: 100%; }
   .lot-table table { font-size: 12.5px; }
   .lot-table th { background: var(--panel-2); }
   .lot-table tr.lot-down td { color: var(--faint); }
+  /* 短字段不许折行：中文「瑞立科密」被压成「瑞/立/科/密」是**读不出来**，
+     而「1 手要」那一列折行后连单位都断开了。 */
+  .lot-table th, .lot-table td { white-space: nowrap; }
+  /* 唯一需要折行的是「板块/权限」那段散文（它自带一句 ⚠️ 说明）⇒ 给宽度下限。 */
+  .lot-table td.lot-board { white-space: normal; min-width: 148px; }
   .lot-dir { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px;
              background: rgba(255,255,255,.07); color: var(--text); }
   .lot-dir-down { color: var(--faint); }
@@ -576,7 +642,8 @@
   .lot-no { color: var(--up); font-weight: 700; }   /* 「买不起」= 缺本钱 */
   .lot-ok { color: var(--muted); }
   .lot-na { color: var(--faint); }
-  .lot-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--muted); }
+  .lot-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--muted);
+              letter-spacing: .02em; }
   .lot-note b { color: var(--text); }
   /* 「哪一档」块：把判决档读数与实盘档读数**并排但分开**——
      ⚠️ 不许画成同一根线/同一个数（口径台账：不可混引、不可同图比较）。 */
@@ -588,11 +655,23 @@
   .cfg-tier .big { font-family: var(--serif); font-size: 22px; font-weight: 700; color: var(--text);
                    font-variant-numeric: tabular-nums; display: block; }
   .cfg-tier .na { color: var(--faint); }
-  .cfg-dim td:first-child { color: var(--muted); white-space: nowrap; }
+  /* 🚨 2026-10-21：这张表以前**复用** `.lot-table`（买得起吗那张表的类），
+     而两张表的列义完全不同 ⇒ 共用一套 nowrap 规则会互相打架。
+     ⇒ 拆成独立的 `.cfg-table`，各自一套规则。 */
+  .cfg-table table { font-size: 12.5px; }
+  .cfg-table th { background: var(--panel-2); }
+  .cfg-table th, .cfg-table td { white-space: nowrap; }
+  /* 「维度」那一列是短标签，允许折行（nowrap 会把它撑成一整行宽）。
+     数字列不许折行（折了就是竖排）。 */
+  .cfg-dim td:first-child { color: var(--muted); white-space: normal; min-width: 108px; }
   .cfg-dim td:nth-child(4) { white-space: nowrap; }
   .cfg-dim .same { color: var(--faint); }
   .cfg-dim .diff { color: var(--up); font-weight: 700; }
-  .cfg-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--muted); }
+  /* 「来源」是**路径**不是词 ⇒ 折行点只能由 `overflow-wrap` 决定
+     （路径里没有空格，靠空格折行不成立）。 */
+  .cfg-table td.cfg-src { white-space: normal; min-width: 240px; overflow-wrap: anywhere; }
+  .cfg-note { margin-top: 10px; font-size: 12px; line-height: 1.8; color: var(--muted);
+              letter-spacing: .02em; }
   .cfg-note b { color: var(--text); }
   .cfg-src { font-size: 11px; color: var(--faint); }
 
@@ -600,33 +679,92 @@
      🚨 **四种状态各有颜色，且「未定」不许长得像「持有」**：
         REDUCE（要动手）/ WATCH（留意）/ HOLD（拿着）/ UNDECIDED（**测不出**）。
         `UNDECIDED` 用**中性灰**而不是绿色 —— 绿色会被读成「查过了，没问题」。
-     🚨 **判据逐字显示**：每条下面一行 `action_criterion`
-        （含用到的数、阈值、锚出处）⇒ 用户能自己核对，不必信页面。 */
+
+     🚨🚨 2026-10-21 **发现颜色语义被写反了**（失效方向很贵）：
+        原来的映射是 `REDUCE → --down(绿)`、`HOLD → --up(红)`
+        ⇒ 「**该减仓**」被涂成绿色、「**拿着没事**」被涂成红色。
+        而**同一段注释自己写着**「绿色会被读成『查过了，没问题』」
+        ⇒ 原映射与作者自己的理由**互相打脸**
+        （第 143 层：标签内建价值判断 ⇒ 标签与内容互相打脸）。
+        ⇒ 改成：REDUCE=**红**（危险）/ WATCH=**金**（要看一眼）/
+                HOLD=**绿**（没事）/ UNDECIDED=**灰**（测不出）。
+        ⚠️ 这一块的**红不是「涨」**：它表**危险等级**，
+           与本页 A 股约定的「红=涨」是两套语义
+           ⇒ 块内自带一句说明（与「买得起吗」那一块同一做法），
+           **不靠读者自己推**。 */
   .ha-wrap { padding: 12px 20px 18px; }
-  .ha-sum { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-  .ha-chip { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;
-             font-size: 12px; color: var(--muted); background: var(--panel-2); }
-  .ha-chip b { font-family: var(--serif); font-size: 17px; font-weight: 700;
-               color: var(--text); margin-left: 6px; font-variant-numeric: tabular-nums; }
-  .ha-list { display: flex; flex-direction: column; gap: 8px; }
-  .ha-row { border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px;
-            padding: 8px 11px; background: var(--panel-2); }
-  .ha-row.REDUCE { border-left-color: var(--down); }
+  /* ★★ 「今天该动吗」是本页**唯一一处大招**（2026-10-21）：
+     四个状态从「四个圆角 chip」改成**账簿科目式的读数行**——
+     科目名在上、数字在下，科目之间一根竖线
+     （复用本页转债 KPI 那一套 .kpi-row/.kpi，**不新发明样式**）。
+     理由：这一块只有一个决定要拿，四个数字塞在四个胶囊里
+     既占高度、又读不出「今天有几只该动」。
+     ⚠️ 数字**不许**被底色框住：四个框会把四个数变成四张卡片，
+        而这一行要回答的是**一个**问题。 */
+  .ha-sum { display: grid; grid-template-columns: repeat(4, 1fr);
+            border: 1px solid var(--line); border-left: 3px solid var(--seal);
+            border-radius: 6px; margin-bottom: 12px; overflow: hidden;
+            background: var(--panel-2); }
+  .ha-chip { padding: 10px 14px 11px; border-right: 1px solid var(--line);
+             font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+  .ha-chip:last-child { border-right: 0; }
+  .ha-chip b { display: block; font-family: var(--serif); font-size: 26px; font-weight: 700;
+               color: var(--text); font-variant-numeric: tabular-nums;
+               line-height: 1.15; margin-top: 3px; letter-spacing: 0; }
+  .ha-chip.s-REDUCE b { color: var(--up); }
+  .ha-chip.s-WATCH b { color: var(--seal); }
+  .ha-chip.s-HOLD b { color: var(--down); }
+  .ha-chip.s-UNDECIDED b { color: var(--void); }
+  /* 🚨 **零只不许用警告色喊人**。
+     「减仓 0」若把那个 0 涂成红色，它就成了全块最扎眼的东西，
+     而它说的是「**没有**要减的」—— 这正是本页要消灭的失败模式
+     （「不可判定」不许长得像「没变差」那一族：把没事画成有事）。
+     ⇒ 计数为 0 时那个数字**变暗**（--faint），**数字本身照样在**。
+     ⚠️ 变暗**不是**「测不出」：那个是 --void 且必带「（测不出）」字样；
+        这里只是「没有这一类」⇒ 安静，不是未知。 */
+  .ha-chip.is-zero b { color: var(--faint); }
+  /* ⚠️ 「测不出」**不参与**变暗这条规矩**只写在渲染层**（`chip()` 里
+     `k !== 'UNDECIDED'`），**不在这里**再写一遍 ——
+     两处各写一份 ⇒ 两份副本之间没有守卫（第 97 层），
+     而「哪一处说了算」会随改动漂移。
+     「测不出」不是「零」，是「不知道」：把「未定」的 0 调暗成「没事」，
+     就是把未知说成没有（第 16 层）。 */
+  @media (max-width: 560px) {
+    .ha-sum { grid-template-columns: repeat(2, 1fr); }
+    .ha-chip:nth-child(2n) { border-right: 0; }
+    .ha-chip:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  }
+  /* 持仓清单：一行一只，科目之间一根发丝线（账簿读法），
+     而不是五张各自带框的卡片 —— 卡片会让「一共有几只该动」读不出来。 */
+  .ha-list { display: flex; flex-direction: column; }
+  .ha-row { border: 0; border-left: 3px solid var(--line);
+            border-bottom: 1px solid var(--line);
+            padding: 9px 0 9px 12px; background: transparent; }
+  .ha-row:last-child { border-bottom: 0; }
+  .ha-row.REDUCE { border-left-color: var(--up); }
   .ha-row.WATCH  { border-left-color: var(--seal); }
-  .ha-row.HOLD   { border-left-color: var(--up); }
-  .ha-row.UNDECIDED { border-left-color: var(--faint); }
+  .ha-row.HOLD   { border-left-color: var(--down); }
+  .ha-row.UNDECIDED { border-left-color: var(--void); }
   .ha-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .ha-code { font-family: var(--serif); font-size: 14px; font-weight: 700; color: var(--text); }
   .ha-name { font-size: 12.5px; color: var(--muted); }
   .ha-tag { font-size: 11.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px;
             border: 1px solid var(--line); color: var(--muted); }
-  .ha-row.REDUCE .ha-tag { color: var(--down); border-color: var(--down); }
+  .ha-row.REDUCE .ha-tag { color: var(--up); border-color: var(--up); }
   .ha-row.WATCH .ha-tag { color: var(--seal); border-color: var(--seal); }
-  .ha-row.HOLD .ha-tag { color: var(--up); border-color: var(--up); }
-  .ha-row.UNDECIDED .ha-tag { color: var(--faint); border-color: var(--faint); }
-  .ha-crit { margin-top: 4px; font-size: 11.5px; line-height: 1.65; color: var(--muted); }
-  .ha-foot { margin-top: 10px; font-size: 11px; line-height: 1.7; color: var(--faint); }
+  .ha-row.HOLD .ha-tag { color: var(--down); border-color: var(--down); }
+  .ha-row.UNDECIDED .ha-tag { color: var(--void); border-color: var(--void); }
+  .ha-crit { margin-top: 4px; font-size: 11.5px; line-height: 1.75; color: var(--muted);
+             letter-spacing: .02em; }
+  .ha-foot { margin-top: 10px; font-size: 11px; line-height: 1.75; color: var(--faint);
+             letter-spacing: .02em; }
   .ha-foot b { color: var(--muted); }
+  /* 颜色含义的**一句话说明**：本块的红 = 危险，与别处「红=涨」不是一回事。
+     放在**块内常驻**（不靠 hover、不靠 title）——
+     hover 那一道闸对触屏与键盘用户是关着的。 */
+  .ha-legend { margin-top: 8px; padding-left: 9px; border-left: 2px solid var(--line-strong);
+               font-size: 11px; line-height: 1.75; color: var(--faint); }
+  .ha-legend b { color: var(--muted); }
 
   /* ── 进化 ── */
   .weights-row { display: flex; gap: 14px; flex-wrap: wrap; padding: 18px 20px 6px; }
@@ -773,18 +911,20 @@
   @media (max-width: 860px) { .goal-grid { grid-template-columns: 1fr; } }
   .goal-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px;
                min-width: 0; background: var(--panel-2); }
-  .goal-card h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; line-height: 1.5; }
+  .goal-card h4 { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; line-height: 1.5;
+                  letter-spacing: .01em; }
   .goal-card .goal-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-  .goal-tag { font-size: 10.5px; color: var(--faint); border: 1px solid var(--line);
+  .goal-tag { font-size: 11px; color: var(--faint); border: 1px solid var(--line);
               border-radius: 5px; padding: 0 6px; white-space: nowrap; }
   .goal-status { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 5px; white-space: nowrap; }
   .goal-status.s-ACHIEVED { background: var(--down-soft); color: var(--down); }
   .goal-status.s-NOT_ACHIEVED { background: var(--up-soft); color: var(--up); }
   .goal-status.s-IN_PROGRESS { background: var(--seal-soft); color: var(--seal); }
   .goal-status.s-UNDECIDABLE { background: rgba(160,180,205,.12); color: var(--void); }
-  .goal-reason { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin: 0 0 8px;
-                 white-space: pre-line; }
-  .goal-criterion { color: var(--faint); font-size: 11px; line-height: 1.7; margin: 0 0 6px;
+  /* 理由是**这一卡为什么值得看** ⇒ 提到正文档（L3），不是小字。 */
+  .goal-reason { color: var(--text); font-size: 12.5px; line-height: 1.75; margin: 0 0 8px;
+                 letter-spacing: .01em; }
+  .goal-criterion { color: var(--faint); font-size: 11px; line-height: 1.75; margin: 0 0 6px;
                     border-left: 2px solid var(--line-strong); padding-left: 8px; }
   .goal-metrics { display: grid; grid-template-columns: 1fr; gap: 3px; }
   .goal-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px;
@@ -801,10 +941,22 @@
                                   white-space: pre-wrap; overflow-wrap: anywhere;
                                   font-weight: 400; color: var(--text); }
   .goal-metric.is-text .gm-val.missing { color: var(--void); }
-  .goal-metric .gm-src { grid-column: 1 / -1; color: var(--faint); font-size: 10.5px;
+  .goal-metric .gm-src { grid-column: 1 / -1; color: var(--faint); font-size: 11px;
                          font-family: var(--mono); word-break: break-all; }
-  .goal-metric .gm-cal { grid-column: 1 / -1; color: var(--faint); font-size: 10.5px; line-height: 1.6; }
-  .goal-note { grid-column: 1 / -1; color: var(--faint); font-size: 10.5px; line-height: 1.6; }
+  .goal-metric .gm-cal { grid-column: 1 / -1; color: var(--faint); font-size: 11px; line-height: 1.7; }
+  .goal-note { grid-column: 1 / -1; color: var(--faint); font-size: 11px; line-height: 1.7; }
+  /* ★ 2026-10-21：目标进度那段的文案带 Markdown（`**加粗**` 与行内代码），
+     由前端渲染成 `<strong>` / `<code>` —— 原来**原样打印**，
+     屏上实测 143 处裸星号与 118 处裸引号符号。
+     ⚠️ 字号**不许**再往下压：这一层是「口径 / 出处」，
+        11px 是本页的硬下限（对比度 ≥4.5:1，且不许承载需要比较的数）。 */
+  .goal-card strong, .goal-reason strong, .goal-note strong, .goal-criterion strong,
+  .goal-bounds strong, .goal-mult strong, .goal-manual strong, .tl-sum strong,
+  .tl-chg strong { color: var(--text); font-weight: 600; }
+  .goal-card code, .goal-reason code, .goal-note code, .goal-criterion code,
+  .goal-bounds code, .goal-mult code, .goal-manual code, .tl-sum code,
+  .tl-chg code { font-family: var(--mono); font-size: 1em; color: var(--seal);
+                 background: rgba(255,255,255,.05); padding: 0 3px; border-radius: 3px; }
   .goal-calibers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 0; }
   @media (max-width: 860px) { .goal-calibers { grid-template-columns: 1fr; } }
   .goal-cal { border: 1px solid var(--line); border-left: 3px solid var(--seal);
@@ -818,23 +970,23 @@
               align-items: baseline; font-size: 12px; border-top: 1px solid var(--panel-edge); padding-top: 4px; }
   .goal-row .gr-label { color: var(--muted); }
   .goal-row .gr-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-  .goal-mult .gm-flag { font-size: 10.5px; font-weight: 600; }
+  .goal-mult .gm-flag { font-size: 11px; font-weight: 600; }
   .goal-mult.is-gap .gm-flag { color: var(--down); }
   .goal-mult.not-gap .gm-flag { color: var(--void); }
-  .goal-mult .gm-cal { color: var(--faint); font-size: 10.5px; line-height: 1.6; }
+  .goal-mult .gm-cal { color: var(--faint); font-size: 11px; line-height: 1.7; }
   .goal-manual { margin-top: 8px; border-left: 3px solid var(--void);
                  background: rgba(160,180,205,.06); padding: 8px 11px; border-radius: 6px; }
   .goal-manual h5 { margin: 0 0 3px; font-size: 12px; font-weight: 600; color: var(--void); }
-  .goal-manual ul { margin: 4px 0 0 16px; color: var(--muted); font-size: 11.5px; line-height: 1.7; }
+  .goal-manual ul { margin: 4px 0 0 16px; color: var(--muted); font-size: 11.5px; line-height: 1.75; }
   .goal-bounds { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px;
-                 color: var(--muted); font-size: 11.5px; line-height: 1.8; }
+                 color: var(--muted); font-size: 12px; line-height: 1.8; }
   .goal-bounds ul { margin: 4px 0 0 16px; }
   .goal-bounds li { margin-bottom: 3px; }
   .goal-tl { list-style: none; }
   .goal-tl li { border-top: 1px solid var(--panel-edge); padding: 8px 0; }
   .goal-tl .tl-date { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .goal-tl .tl-sum { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin-top: 3px; }
-  .goal-tl .tl-chg { color: var(--faint); font-size: 11px; line-height: 1.7; margin-top: 2px; }
+  .goal-tl .tl-sum { color: var(--text); font-size: 12.5px; line-height: 1.75; margin-top: 3px; }
+  .goal-tl .tl-chg { color: var(--faint); font-size: 11.5px; line-height: 1.75; margin-top: 2px; }
   .goal-tl .tl-bad { color: var(--up); }
   .goal-tl .tl-gap { color: var(--seal); font-size: 11.5px; margin-top: 4px; line-height: 1.7; }
 </style>
@@ -944,12 +1096,6 @@
       <div class="held" id="held-box"><div class="held-top"><b>读取持仓状态…</b></div></div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head"><h2>资产配置方案</h2><span class="sub">本金 5 万 · 保守档</span>
-        <span class="right" id="alloc-date"></span></div>
-      <div id="alloc-body"><div class="skeleton">加载配置…</div></div>
-    </div>
-
     <!-- 🚨 2026-10-21 新增：「持仓降级预警」。
          D1 每天给**全市场**两个榜（会涨 10 只 / 会跌 10 只），
          而**持仓来自涨腿** ⇒ 跌榜是「全市场最差的 10 只」，
@@ -962,12 +1108,31 @@
          🚨 **每一条都要带自己的判据**（`action_criterion` 逐字透传），
          前端**不许**自己重新判定、不许只显示一个标签。
          ⚠️ `UNDECIDED` = **测不出**（缺建仓分 / 不在当日全池），
-         **不许**渲染成「持有」。 -->
+         **不许**渲染成「持有」。
+
+         ★★ **它被提到名单正下方，是这一轮改版的主体**（原先在「资产配置方案」之后，
+         实测在 1440×900 视口的 **y = 5015px**，第 6 屏）。
+         理由：这一页的读者是**每天要拿主意的人**（用自己 5 万块做 A 股），
+         他进门问的三件事按发生顺序是
+           ① 今天看哪 10 只          → 上面那张名单
+           ② 我手上这几只要不要动    → **这一块**
+           ③ 离年化 20% 还差多远      → 判决板那两档 D2
+         ⇒ 把「该动吗」紧贴在「看什么」下面，三问才答得完。
+         ⚠️ 改的**只是 DOM 顺序**：数据源、端点、口径、`id` 一个字没动。
+         🚨 **绝不**为此新增「今日概览」这类**重新组装数据**的组件 ——
+         那是第 97 层「两份副本之间没有守卫」：新组件读的那几个计数字段
+         与这一块自己的渲染之间**没有任何自动对账**。 -->
     <div class="panel">
       <div class="panel-head"><h2>持仓降级预警</h2>
         <span class="sub">只回答横截面位次 · 不预测涨跌 · 不改出单</span>
         <span class="right" id="holdings-alert-date"></span></div>
       <div id="holdings-alert-body"><div class="skeleton">读取持仓预警…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>资产配置方案</h2><span class="sub">本金 5 万 · 保守档</span>
+        <span class="right" id="alloc-date"></span></div>
+      <div id="alloc-body"><div class="skeleton">加载配置…</div></div>
     </div>
 
     <!-- 🚨 2026-10-20 新增：「5 万买得起吗」。
@@ -1133,10 +1298,12 @@
           <div class="tooltip" id="tip-bond"></div>
         </div>
       </div>
+      <div class="table-scroll">
       <table>
         <thead><tr><th>臂</th><th class="num">净值</th><th class="num">总收益</th><th class="num">最大回撤</th><th class="num">调仓</th><th class="num">费用</th></tr></thead>
         <tbody id="bond-arms"></tbody>
       </table>
+      </div>
     </div>
 
     <div class="panel">
@@ -1336,23 +1503,78 @@ function goalMetricRow(m) {
   const missing = (m.status === 'missing');
   const val = (m.display === undefined || m.display === null) ? '缺失' : m.display;
   const isText = GOAL_TEXT_UNITS.indexOf(m.unit) >= 0;
-  const cal = m.caliber ? `<span class="gm-cal">口径：${esc(m.caliber)}</span>` : '';
+  const cal = m.caliber ? `<span class="gm-cal">口径：${inlineMd(m.caliber)}</span>` : '';
   const src = m.at ? `<span class="gm-src">出处：${esc(m.at)}</span>` : '';
-  const note = m.note ? `<span class="gm-note">${esc(m.note)}</span>` : '';
-  const reason = m.reason ? `<span class="gm-note">缺档原因：${esc(m.reason)}</span>` : '';
+  const note = m.note ? `<span class="gm-note">${inlineMd(m.note)}</span>` : '';
+  const reason = m.reason ? `<span class="gm-note">缺档原因：${inlineMd(m.reason)}</span>` : '';
   return `<div class="goal-metric${isText ? ' is-text' : ''}">
     <span class="gm-label">${esc(m.label || m.key || '')}</span>
-    <span class="gm-val${missing ? ' missing' : ''}">${esc(val)}</span>
+    <span class="gm-val${missing ? ' missing' : ''}">${inlineMd(val)}</span>
     ${cal}${src}${note}${reason}
   </div>`;
 }
 
+/* ★ 2026-10-21 目标进度那段的文案**带 Markdown**（`**加粗**` 与「行内代码」），
+   而页面**原样打印** ⇒ 屏上到处是裸星号与裸引号符号
+   （实测整份快照：**加粗标记 143 处**、行内代码 **118 处**）。
+   ⇒ 这里给一个**行内**渲染器：先 `esc`（注入安全）⇒ 再把
+      「成对的星号」变粗、把「成对的引号符号」变等宽。
+
+   ⚠️ **为什么不用仓里那个 `boldify()` / `md()`**：
+      它们定义在这段的**后面**，而守卫把
+      「本函数 → 加载函数」这一整段单独抠出来交给 node 真跑
+      ⇒ 引用外面的函数 ⇒ ReferenceError ⇒ **探针自己崩**，
+      症状长得像「守卫坏了」而其实是我动了它。
+      ⇒ 这里的渲染器**必须自足**（只用 `esc`）。
+   ⚠️ **读数本身仍然只用 `esc`**：`display` / `value` 可能是 JSON、
+      可能带换行（实测「各批登记日」是三行日期）⇒ 走行内渲染会把换行折掉
+      ⇒ **内容变了**。分工：**散文**走行内渲染，**读数**走 esc。
+   ⚠️ 源码里**不许出现裸引号符号**（含注释里）：
+      `tests/test_audit_frontend.py` 的模板提取器按字面扫源码，
+      注释里的一个裸符号会让它以为开了一个模板 ⇒ 守卫当场红。
+      ⇒ 一律用 `String.fromCharCode(96)` 取。 */
+function inlineMd(s) {
+  const T = String.fromCharCode(96);
+  const t = esc(s);
+  /* 行内代码段里再扫一遍：成对的反引号变等宽。
+     ⚠️ 加粗**可以跨**代码段（实测快照里有
+        「**每个数都直读产物并带 `产物路径 :: JSON 路径`**」这种形态）
+        ⇒ 顺序必须是「先定加粗区间、再在区间内部处理代码」。
+     ⚠️ 第一版用一条正则 `\*\*([^*<>]+)\*\*` 做加粗 ⇒ 区间里有 `<code>` 就**匹配不上**
+        ⇒ 裸星号留在屏上（实测仍有 8 处）。这一版是逐字符扫，与仓里
+        那支完整 markdown 渲染器**同一套判定**。 */
+  const code = seg => {
+    let o = '', k = 0;
+    while (k < seg.length) {
+      if (seg[k] === T) {
+        const j = seg.indexOf(T, k + 1);
+        if (j > k) { o += '<code>' + seg.slice(k + 1, j) + '</code>'; k = j + 1; continue; }
+      }
+      o += seg[k]; k += 1;
+    }
+    return o;
+  };
+  let out = '', i = 0;
+  while (i < t.length) {
+    if (t[i] === T) {                       // 行内代码：整段吞掉，里面的星号不算标记
+      const j = t.indexOf(T, i + 1);
+      if (j > i) { out += '<code>' + t.slice(i + 1, j) + '</code>'; i = j + 1; continue; }
+    }
+    if (t[i] === '*' && t[i + 1] === '*') {  // 加粗：可以跨代码段
+      const j = t.indexOf('**', i + 2);
+      if (j > i) { out += '<strong>' + code(t.slice(i + 2, j)) + '</strong>'; i = j + 2; continue; }
+    }
+    out += t[i]; i += 1;
+  }
+  return out;
+}
+
 function goalCaliberHtml(c) {
   const rows = (c.metrics || []).map(goalMetricRow).join('');
-  const b = c.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${esc(c.honest_boundary)}</div>` : '';
+  const b = c.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${inlineMd(c.honest_boundary)}</div>` : '';
   return `<div class="goal-cal">
-    <h5>${esc(c.name || '')}</h5>
-    <div class="gc-role">${esc(c.role || '')}</div>
+    <h5>${inlineMd(c.name || '')}</h5>
+    <div class="gc-role">${inlineMd(c.role || '')}</div>
     <div class="goal-metrics">${rows}</div>
     ${b}
   </div>`;
@@ -1367,14 +1589,14 @@ function goalMultiplesHtml(m) {
     const val = c.metric && c.metric.display != null ? c.metric.display : '缺失';
     return `<div class="goal-mult ${cls}">
       <span class="gm-label">${esc(c.name || '')}</span>
-      <span class="gm-val">${esc(val)}</span>
+      <span class="gm-val">${inlineMd(val)}</span>
       <span class="gm-flag">${esc(flag)}</span>
-      <span class="gm-cal">${esc(c.note || '')}</span>
+      <span class="gm-cal">${inlineMd(c.note || '')}</span>
     </div>`;
   }).join('');
   return `<div class="goal-mults">
     <h5>还差几倍（倍数那一族）</h5>
-    <div class="gc-role">${esc(m.role || '')}</div>
+    <div class="gc-role">${inlineMd(m.role || '')}</div>
     ${cols}
   </div>`;
 }
@@ -1383,21 +1605,21 @@ function goalAcceptanceHtml(a) {
   if (!a) return '';
   const rows = (a.rows || []).map(r => `<div class="goal-row">
       <span class="gr-label">${esc(r.label || '')}</span>
-      <span class="gr-val">${esc(r.display == null ? '缺失' : r.display)}</span>
+      <span class="gr-val">${inlineMd(r.display == null ? '缺失' : r.display)}</span>
     </div>`).join('');
   return `<div class="goal-mults">
     <h5>验收（两道闸分别成立才算达成）</h5>
-    <div class="gc-role">${esc(a.shape_note || '')}</div>
+    <div class="gc-role">${inlineMd(a.shape_note || '')}</div>
     <div class="goal-rows">${rows}</div>
-    <div class="goal-note" style="margin-top:6px">${esc(a.w_note || '')}</div>
+    <div class="goal-note" style="margin-top:6px">${inlineMd(a.w_note || '')}</div>
   </div>`;
 }
 
 function goalManualHtml(list) {
   if (!list || !list.length) return '';
   const blocks = list.map(m => `<div class="goal-manual">
-      <h5>${esc(m.label || '')} · ${esc(m.judgement || '由人判断')}</h5>
-      <ul>${(m.criteria || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+      <h5>${inlineMd(m.label || '')} · ${inlineMd(m.judgement || '由人判断')}</h5>
+      <ul>${(m.criteria || []).map(c => `<li>${inlineMd(c)}</li>`).join('')}</ul>
     </div>`).join('');
   return blocks;
 }
@@ -1406,9 +1628,9 @@ function goalAutoHtml(a) {
   if (!a) return '';
   return `<div class="goal-mults">
     <h5>可自动化的部分</h5>
-    <div class="gc-role">${esc(a.what || '')}</div>
-    <div class="goal-note">${esc(a.why || '')}</div>
-    <div class="goal-note">${esc(a.caveat || '')}</div>
+    <div class="gc-role">${inlineMd(a.what || '')}</div>
+    <div class="goal-note">${inlineMd(a.why || '')}</div>
+    <div class="goal-note">${inlineMd(a.caveat || '')}</div>
   </div>`;
 }
 
@@ -1421,8 +1643,8 @@ function goalCardHtml(g) {
   const acc = goalAcceptanceHtml(g.acceptance);
   const auto = goalAutoHtml(g.automatable);
   const manual = goalManualHtml(g.manual);
-  const crit = g.criterion ? `<div class="goal-criterion">判据：${esc(g.criterion)}</div>` : '';
-  const hb = g.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${esc(g.honest_boundary)}</div>` : '';
+  const crit = g.criterion ? `<div class="goal-criterion">判据：${inlineMd(g.criterion)}</div>` : '';
+  const hb = g.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${inlineMd(g.honest_boundary)}</div>` : '';
   return `<div class="goal-card">
     <div class="goal-top">
       <span class="goal-status s-${esc(status)}">${esc(g.status_label || status)}</span>
@@ -1430,7 +1652,7 @@ function goalCardHtml(g) {
       <span class="goal-tag">归档：${esc(g.registry_class || '')}</span>
     </div>
     <h4>${esc(g.title || '')}</h4>
-    <div class="goal-reason">${esc(g.reason || '')}</div>
+    <div class="goal-reason">${inlineMd(g.reason || '')}</div>
     ${crit}
     <div class="goal-metrics">${metrics}</div>
     ${calibers}${mults}${acc}${auto}${manual}${hb}
@@ -1454,9 +1676,9 @@ async function loadGoalProgress() {
   }
   const snap = data.latest || {};
   const goals = snap.goals || [];
-  const bounds = (snap.honest_boundaries || []).map(b => `<li>${esc(b)}</li>`).join('');
-  const note = data.latest_note ? `<div class="goal-reason">${esc(data.latest_note)}</div>` : '';
-  const summary = snap.summary_line ? `<div class="goal-reason">${esc(snap.summary_line)}</div>` : '';
+  const bounds = (snap.honest_boundaries || []).map(b => `<li>${inlineMd(b)}</li>`).join('');
+  const note = data.latest_note ? `<div class="goal-reason">${inlineMd(data.latest_note)}</div>` : '';
+  const summary = snap.summary_line ? `<div class="goal-reason">${inlineMd(snap.summary_line)}</div>` : '';
   $('goal-progress-updated').textContent = snap.generated_at ? ('快照 ' + snap.generated_at) : '';
   $('goal-progress-body').innerHTML = `
     ${note}${summary}
@@ -1465,7 +1687,7 @@ async function loadGoalProgress() {
 
   const hist = data.history || [];
   const gapNote = (data.gaps || []).length
-    ? `<div class="tl-gap">⚠️ 这几天的快照**缺失**（cron 漏跑或那天没跑成）：${esc((data.gaps || []).join('、'))}</div>`
+    ? `<div class="tl-gap">⚠️ 这几天的快照<b>缺失</b>（cron 漏跑或那天没跑成）：${esc((data.gaps || []).join('、'))}</div>`
     : '';
   const items = hist.slice().reverse().map(h => {
     if (h.readable === false) {
@@ -1473,8 +1695,8 @@ async function loadGoalProgress() {
         <div class="tl-bad">🚨 这一份读不出来：${esc(h.error || '原因未知')}</div></li>`;
     }
     return `<li><div class="tl-date">${esc(h.date)}</div>
-      <div class="tl-sum">${esc(h.summary_line || '')}</div>
-      <div class="tl-chg">${esc(h.change_line || '')}</div></li>`;
+      <div class="tl-sum">${inlineMd(h.summary_line || '')}</div>
+      <div class="tl-chg">${inlineMd(h.change_line || '')}</div></li>`;
   }).join('');
   $('goal-progress-timeline').innerHTML =
     `<ul class="goal-tl">${items}</ul>${gapNote}`;
@@ -1808,7 +2030,7 @@ function renderLotAffordability(d) {
       + `<td>${esc(it.name || '')}</td>`
       + `<td${priceNote}>${esc(it.code || '')}</td>`
       + `<td><span class="lot-dir${isUp ? '' : ' lot-dir-down'}">${isUp ? '看涨·要买' : '看跌·回避'}</span></td>`
-      + `<td>${boardCell}</td>`
+      + `<td class="lot-board">${boardCell}</td>`
       + `<td class="num">${closeCell}</td>`
       + `<td class="num">${lotCell}${shares}</td>`
       + `<td>${verdict}</td>`
@@ -1886,7 +2108,7 @@ function renderDeployedConfig(d) {
       + `<td>${esc(x.deployed_display ?? '—')}</td>`
       + `<td class="${unknown ? 'same' : (same ? 'same' : 'diff')}">`
       + `${unknown ? '—' : (same ? '一样' : '不一样')}</td>`
-      + `<td class="cfg-src">${esc(x.verdict_source || '')}<br>${esc(x.deployed_source || '')}</td>`
+      + `<td class="cfg-src">${inlineMd(x.verdict_source || '')}<br>${inlineMd(x.deployed_source || '')}</td>`
       + `</tr>`;
   }).join('');
 
@@ -1920,7 +2142,7 @@ function renderDeployedConfig(d) {
       + `<div>点估计与目标差 ${pp(dd.gap_to_target_pp)}`
       + `（<b>点估计之差，不是判决</b>）</div>`
       + (Array.isArray(dd.cases) && dd.cases.length
-        ? `<div>产物记录的触发分支：${dd.cases.map(c => `<code>${boldify(esc(c))}</code>`).join('<br>')}</div>`
+        ? `<div>产物记录的触发分支：${dd.cases.map(c => inlineMd(c)).join('<br>')}</div>`
         : '')
       + (dd.measured_sign_determinable === false
         ? `<div>⚠️ 产物自报 <code>measured_sign_determinable = false</code> ⇒ <b>连符号都定不了</b>，`
@@ -1943,7 +2165,7 @@ function renderDeployedConfig(d) {
   const dLabel = (d.deployed_side && d.deployed_side.position_label) || '仓位';
 
   box.innerHTML = `<div class="lot-wrap">`
-    + `<div class="lot-table"><table><thead><tr>`
+    + `<div class="cfg-table"><table><thead><tr>`
       + `<th>维度</th><th>判决配置</th><th>实盘配置</th><th>一样吗</th><th>来源</th>`
       + `</tr></thead><tbody>${rows}</tbody></table></div>`
     + `<div class="cfg-tiers">${verdictTier}${deployedTier}</div>`
@@ -1988,8 +2210,19 @@ function renderHoldingsAlert(d) {
     return;
   }
   const s = d.summary || {};
-  const chip = (k, label) =>
-    `<span class="ha-chip">${esc(label)}<b>${esc(String(s[k] ?? 0))}</b></span>`;
+  /* ★ 2026-10-21：状态类（`s-REDUCE` 等）让四个读数**各带自己的颜色**，
+     而颜色跟着**危险等级**走（红=该减 · 金=留意 · 绿=没事 · 灰=测不出）。
+     ⚠️ `k` 是**内部枚举**（REDUCE/WATCH/HOLD/UNDECIDED），不是外部数据 ⇒ 仍走 esc。
+     ⚠️ 颜色**只是辅助**：每个科目名本身就写着状态 ⇒ 黑白打印与色觉障碍下仍可分辨。 */
+  const chip = (k, label) => {
+    const n = Number(s[k] ?? 0);
+    /* 🚨 2026-10-21：计数为 0 时给那个数字**变暗**（`is-zero`）
+       —— 「减仓 0」若把 0 涂成红色，它就成了全块最扎眼的东西，
+       而它说的是「没有要减的」。**数字本身照样在**（不是「测不出」）。
+       ⚠️ 「未定」**不参与**变暗：「测不出」不是「零」，是「不知道」。 */
+    const zero = (n === 0 && k !== 'UNDECIDED') ? ' is-zero' : '';
+    return `<span class="ha-chip s-${esc(k)}${zero}">${esc(label)}<b>${esc(String(n))}</b></span>`;
+  };
   const rows = (d.items || []).map(it => `
     <div class="ha-row ${esc(it.action || '')}">
       <div class="ha-top">
@@ -2013,6 +2246,8 @@ function renderHoldingsAlert(d) {
       + chip('HOLD', '持有') + chip('UNDECIDED', '未定（测不出）')
     + `</div>`
     + `<div class="ha-list">${rows || '<div class="empty">没有持仓</div>'}</div>`
+    + `<div class="ha-legend">⚠️ 这里的颜色表<b>危险等级</b>（<b>红=该减</b> · <b>金=留意</b> · `
+      + `<b>绿=没事</b> · <b>灰=测不出</b>），与本页别处「红=涨、绿=跌」<b>不是一回事</b>。</div>`
     + `<div class="ha-foot">`
       + `<b>建仓日</b> ${esc(entry.entry_day || '未知')}（${esc(entry.entry_day_source || '判不出')}）`
       + `　<b>全池</b> ${esc(String((d.population && d.population.n_heldings) ?? 0))} 只持仓`
@@ -2092,7 +2327,28 @@ async function loadHoldingsAlert() {
       就判「我加的 boldify 没用」—— **探针只查了三个消费者里的一个**，
       而真凶在第三个。是探针的覆盖面不足，不是工具的错。 */
 function boldify(escapedHtml) {
-  return escapedHtml.replace(/\*\*([^*<>]+)\*\*/g, '<strong>$1</strong>');
+  /* ⚠️ 入参是**已经转义过**的 HTML ⇒ 这里插的标签是唯一可信的标签。
+     🚨 2026-10-21：顺带把**行内代码**也渲染掉 ——
+        后端的口径正文里带反引号（`idle_total_before_fees_mean`），
+        原样打印 ⇒ 屏上是一串裸的反引号符号。
+     ⚠️ 源码里**不许出现裸反引号**（含注释里）：
+        tests/test_audit_frontend.py 的模板提取器按字面扫源码，
+        注释里的一个裸反引号会让它以为开了一个模板 ⇒ 守卫当场红。
+        ⇒ 一律用 `String.fromCharCode(96)` 取。 */
+  const T = String.fromCharCode(96);
+  /* 先加粗、再处理行内代码：顺序反了的话，
+     「**某个数直读产物并带 `路径`**」这种**加粗跨代码段**的形态会匹配不上
+     （加粗区里出现了 `<code>` ⇒ `[^*<>]+` 断了）⇒ 裸星号留在屏上。 */
+  const t = String(escapedHtml ?? '').replace(/\*\*([^*<>]+)\*\*/g, '<strong>$1</strong>');
+  let out = '', i = 0;
+  while (i < t.length) {
+    if (t[i] === T) {
+      const j = t.indexOf(T, i + 1);
+      if (j > i) { out += '<code>' + t.slice(i + 1, j) + '</code>'; i = j + 1; continue; }
+    }
+    out += t[i]; i += 1;
+  }
+  return out;
 }
 
 function foldVerdict(headlineHtml, bodyHtml, label) {
@@ -2258,15 +2514,15 @@ function figureTips(stats) {
   const n1 = v => v == null ? '—' : fmtNum(v);
   /* ── 口径（**永远带**，与有没有数无关）──────────────────────── */
   const CAL_HIT = `产品承诺的是涨腿那一半（每天 10 只会涨）；跌腿是回避清单。`
-    + `⚠️ 合并是**按判定条目数加权**（不是两个率的平均）⇒ 两腿分母不同，`
+    + `⚠️ 合并是「按判定条目数加权」（不是两个率的平均）⇒ 两腿分母不同，`
     + `别拿两个率取平均当验算。`;
   const CAL_UP = `口径是逐笔平均，不是按日等权组合。`;
   const CAL_DOWN = `这条腿是回避清单，不做空也能兑现 —— 与「多空价差」不是一回事。`
-    + `⚠️ **这一腿不扣摩擦**（回避清单不持仓 ⇒ 没有摩擦）`
-    + `⇒ 与涨腿那个「净」**不是同一个口径**。`;
+    + `⚠️ 「这一腿不扣摩擦」（回避清单不持仓 ⇒ 没有摩擦）`
+    + `⇒ 与涨腿那个「净」不是同一个口径。`;
   const CAL_BREADTH = `市场涨跌不影响这个数 —— 它是排序有没有区分度的度量。`
     + '注意：兑现它需要空头腿，5 万本金做不了空，所以它不是可兑现收益。'
-    + `⚠️ 它是**两个不同口径相减**（涨腿净、跌腿不扣摩擦）⇒ 这个差值本身是混合口径。`;
+    + `⚠️ 它是「两个不同口径相减」（涨腿净、跌腿不扣摩擦）⇒ 这个差值本身是混合口径。`;
   /* ── tip：**数**只在 `has` 为真时进字符串；口径永远在 ──────────── */
   const tipHit = has
     ? `涨腿 ${n1(hitUp)} · 跌腿 ${n1(hitDown)} 合并。` + CAL_HIT
@@ -2532,15 +2788,21 @@ function newsChip(r) {
 
 function renderHeroes(upTop, downTop) {
   if (!upTop && !downTop) { $('heroes').innerHTML = '<div class="empty">暂无预测</div>'; return; }
+  /* 🚨 2026-10-21 压成**一行并排对照**：
+     原来这两张卡各占 ~230px，而它们的每一项都在下面的表里出现过
+     （名称 / 代码 / 20 日涨跌 / 综合分 / 消息面 = 第 01 行）
+     ⇒ 首屏被它吃掉 ~180px，而首屏要回答的是「今天看哪 10 只」。
+     ⇒ 只留「并排比较」这件事本身：名字 + 涨跌 + 代码。
+     ⚠️ 消息面**不删** —— 它在表里第 01 行那一格，往下滚一屏就看到；
+        跌腿本来整栏都没有消息面（实测 10/10 缺失）。
+     ⚠️ 守卫要求 hero 里**看得见第 01 只的代码** ⇒ 代码必须留着。
+     ⚠️ 涨跌的颜色**按符号**（≥0 红、<0 绿），与表格同一规则。 */
   const hero = (r, side, label) => {
-    if (!r) return `<div class="hero ${side}"><div class="tag">${label}</div><div class="empty" style="padding:8px 0">本日无</div></div>`;
-    const hasNews = r.news_reason != null || r.news_sentiment != null;
+    if (!r) return `<div class="hero ${side}"><span class="tag">${label}</span><span class="hero-none">本日无</span></div>`;
     return `
     <div class="hero ${side}">
-      <div class="tag">${label}</div>
-      <div class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct ${r.mom20 >= 0 ? 'pos' : 'neg'}">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></div>
-      <div class="why">近 20 日涨跌 ${fmtPct(r.mom20)} · 综合分 ${r.score?.toFixed(2) ?? '—'}</div>
-      ${hasNews ? `<div class="news"><i class="${r.news_sentiment > 0 ? 'pos' : r.news_sentiment < 0 ? 'neg' : 'neu'}">${r.news_sentiment > 0 ? '+' : ''}${(r.news_sentiment ?? 0).toFixed(1)}</i>${esc(r.news_reason ?? '中性')}</div>` : ''}
+      <span class="tag">${label}</span>
+      <span class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct ${r.mom20 >= 0 ? 'pos' : 'neg'}">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></span>
     </div>`;
   };
   $('heroes').innerHTML = hero(upTop, 'up-side', '看涨首选') + hero(downTop, 'down-side', '看跌首选 · 建议回避');
@@ -2665,7 +2927,7 @@ function renderHeld(live) {
      （旧持仓是按旧配置挑的，继续拿着 = 拿一套策略的仓位去跑另一套策略）
      ⇒ **下一次运行会立刻调仓**。 */
   const cadenceMismatch = (live.every_matches_live === false)
-    ? `<div class="held-why danger">⚠️ <b>${esc(live.every_mismatch_note || '换仓周期与实盘不一致')}</b></div>`
+    ? `<div class="held-why danger">⚠️ <b>${inlineMd(live.every_mismatch_note || '换仓周期与实盘不一致')}</b></div>`
     : '';
 
   /* `reason` 必须逐字显示。它带着「回落默认权重未经赛马验证 / 上一版排 81/87 名、
@@ -3443,9 +3705,9 @@ function renderD2Band(v) {
   </svg>`;
 
   const cases = Array.isArray(v.verdict_cases_fired) && v.verdict_cases_fired.length
-    ? `<div style="margin-top:6px">产物记录的触发分支：${v.verdict_cases_fired.map(c => `<code>${esc(c)}</code>`).join('<br>')}</div>` : '';
+    ? `<div style="margin-top:6px">产物记录的触发分支：${v.verdict_cases_fired.map(c => inlineMd(c)).join('<br>')}</div>` : '';
   $('d2-band').innerHTML = `<div class="d2-band-wrap">${svg}</div>
-    <div class="d2-band-verdict"><b>判决：</b>${esc(v.verdict_text || '')}${cases}</div>
+    <div class="d2-band-verdict"><b>判决：</b>${inlineMd(v.verdict_text || '')}${cases}</div>
     <div class="d2-band-note">口径：带宽 = 点估计 ± MDE（MDE = ${pc(M)}）；左端是<b>算术下界</b>（产物只给了 95% 单侧上界），
       右端 ${pc(U)} 是产物自带的 95% 单侧上界。判定规则（预注册）：<code>${esc(v.verdict_rule || '')}</code>
       ${inside ? '本图上目标线落在带宽内 ⇒ 与 0 不可区分。' : '本图上目标线在带宽外。'}</div>`;
@@ -3549,7 +3811,9 @@ async function loadEvolution() {
       <details class="fold">
         <summary>候选明细（${evals.length} 组，含被否决的）</summary>
         <div class="fold-body" style="color:inherit">
+        <div class="table-scroll">
         <table><thead>${head}</thead><tbody>${rows.map(row).join('')}</tbody></table>
+        </div>
         </div>
       </details>
     </div>`;

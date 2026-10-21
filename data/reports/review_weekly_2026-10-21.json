@@ -1,0 +1,1497 @@
+{
+  "generated_at": "2026-10-21T10:39:22",
+  "review_date": "2026-10-21",
+  "questions": {
+    "q1_what_can_the_user_open_today": "data/reports/predictions/（今日名单 up 10 / down 10） + data/reports/deployed_d2_verdict.json::verdict.cagr = 0.10424461770356563（**实盘档**：生产今天真的在跑的那一档）",
+    "q2_how_far_from_20pct": "7.380045327257831 pp（**理想档**：公式上界，假设 100% 部署 ⇒ 不含整手与闲置现金的代价）｜9.575538229643438 pp（**实盘档**：含整手与闲置现金 ⇒ 用户真正拿到的那个）"
+  },
+  "d1": {
+    "delivered": true,
+    "notes": [
+      "当天（2026-10-21）没有 pred_*.parquet ⇒ 回落到 pred_2026-10-20.parquet"
+    ],
+    "run_status": {
+      "date": "2026-10-20",
+      "status": "ok",
+      "outcome": "ok",
+      "outcome_reason": "全部步骤跑完，名单已发布。",
+      "at": "data/reports/run_status.json::date/status/outcome/outcome_reason"
+    },
+    "list": {
+      "file": "data/reports/predictions/pred_2026-10-20.parquet",
+      "is_the_review_date": false,
+      "fallback_note": "⚠️ **当天没有名单文件**，这里用的是最新的一份 ⇒ **不是当天的交付**（不同时刻的观测不是同一个事实）",
+      "rows": 20,
+      "up": 10,
+      "down": 10,
+      "shape_ok_10_10": true
+    },
+    "sample": {
+      "n_independent_windows": {
+        "value": 6,
+        "at": "n_independent_windows"
+      },
+      "overall_hit_rate": {
+        "value": 0.5612903225806452,
+        "at": "overall_hit_rate"
+      },
+      "n_predictions": {
+        "value": 160,
+        "at": "n_predictions"
+      },
+      "note": "W（独立成交窗口）是 D1 的验收分母；W < 10 ⇒ 不许报命中率结论（DELIVERY_DECISIONS §4）"
+    },
+    "gate": {
+      "verdict": {
+        "value": "NOT_PASSED_POWERLESS",
+        "at": "verdict"
+      },
+      "publish_allowed": {
+        "value": false,
+        "at": "publish_allowed"
+      },
+      "power_floor_up": {
+        "value": 0.28285270904389365,
+        "at": "by_score_col::score::arms::up::_stats::null_abs_rho_q95_power_floor"
+      },
+      "note": "判决臂是 up（GATE_ARM）；down 是并列报告，非闸门。POWERLESS = 测不出，**不是**「打分没有排序力」"
+    }
+  },
+  "d2": {
+    "notes": [],
+    "verdict_arm": {
+      "what": "判决档（满仓 / 涨腿 10 只 / 8 因子逐年 IC 定权）",
+      "cagr": {
+        "value": 0.10556283216930074,
+        "at": "tiers::1::cagr"
+      },
+      "mde_annual": {
+        "value": 0.22673751360772554,
+        "at": "verdict_mde_annual"
+      },
+      "upper_one_sided_95": {
+        "value": 0.3323003457770263,
+        "at": "verdict_upper_one_sided_95"
+      },
+      "target": {
+        "value": 0.2,
+        "at": "target"
+      },
+      "at": "data/reports/basket_nav_01_2026-10-16.json"
+    },
+    "verdict_cases_fired": [
+      "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+      "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.56% 低于目标，但 95% 上界 +33.23% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+    ],
+    "deliverable_50k": {
+      "what": "理想档（5 万可交付档：宽度 10、**满仓假设**、真实摩擦） —— ⚠️ **公式上界**：假设 **100% 部署**，**不含**整手与闲置现金的代价 ⇒ 比实盘档**乐观**",
+      "account_annual_at_50k_pct": {
+        "value": 12.61995467274217,
+        "at": "headline::account_annual_ceiling_pct::at_deliverable_width_and_50k"
+      },
+      "gap_to_target_pp": {
+        "value": 7.380045327257831,
+        "at": "headline::account_annual_ceiling_pct::gap_to_target_at_deliverable_width_and_50k_pp"
+      },
+      "required_gross_at_50k_deliverable": {
+        "value": 11.281298415805717,
+        "at": "headline::required_gross_at_50k_deliverable"
+      },
+      "measured_gross_at_deliverable_width": {
+        "value": 4.810755920048621,
+        "at": "headline::measured_gross_best::at_deliverable_width"
+      },
+      "at": "data/reports/d2_signal_requirement.json::headline"
+    },
+    "deployed_live": {
+      "what": "实盘档（生产配置：满仓 10 只 × ¥5,000 + 实盘 4 因子 + 配置层整手过滤 + K=63 + 逐笔成本 + 闲置现金 0 计息）",
+      "cagr": {
+        "value": 0.10424461770356563,
+        "at": "cagr"
+      },
+      "mde_annual": {
+        "value": 0.1193097827749865,
+        "at": "mde_annual"
+      },
+      "upper_one_sided_95": {
+        "value": 0.22355440047855213,
+        "at": "upper_one_sided_95"
+      },
+      "gap_to_target_pp": {
+        "value": 9.575538229643438,
+        "at": "gap_to_target_pp"
+      },
+      "measured_sign_determinable": {
+        "value": false,
+        "at": "measured_sign_determinable"
+      },
+      "cases": [
+        "`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）",
+        "`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.42% 低于目标，但 95% 上界 +22.36% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**"
+      ],
+      "at": "data/reports/deployed_d2_verdict.json::verdict"
+    }
+  },
+  "commits": {
+    "counts": {
+      "交付": 53,
+      "手段": 24,
+      "收尾": 34,
+      "未归类": 156
+    },
+    "total": 267,
+    "drift_rate": 0.12734082397003746,
+    "drift_rate_note": "跑偏率 = 收尾档 / 当天总提交数（DELIVERY_GATE §6 的字面公式）；目标 < 40%",
+    "drift_rate_over_classified": 0.3063063063063063,
+    "drift_rate_over_classified_note": "跑偏率 = 收尾档 / **已归类**提交数。与上面的字面公式并列 ⇒ 归不出档的老提交不再稀释读数。",
+    "items": [
+      {
+        "sha": "d1226271",
+        "class": "交付",
+        "subject": "交付: 红利/低波长腿的判决出了 —— 不可判（负控作废）；三条候选族全部有测量"
+      },
+      {
+        "sha": "6abe4976",
+        "class": "交付",
+        "subject": "交付: G4 闸门（D1 的验收判据）刷新一次 —— 它本来**没有任何定时任务在跑**"
+      },
+      {
+        "sha": "fa1977b7",
+        "class": "交付",
+        "subject": "交付: 概览页新增「目标进度」tab —— 目标达成进度自己会更新，不用每次都问"
+      },
+      {
+        "sha": "73fcb9b0",
+        "class": "交付",
+        "subject": "交付: 红利 PIT 采集 5/5 分片全部采完 —— 最后一条 D2 杠杆的数据前提到位"
+      },
+      {
+        "sha": "648ac42b",
+        "class": "收尾",
+        "subject": "收尾: 修门禁的 4 条红 —— 两条守卫前提过期 + 一处乱码 + 我自己新增的一态"
+      },
+      {
+        "sha": "dae5047a",
+        "class": "交付",
+        "subject": "交付: 红利 PIT 采集的分片覆盖件（2/5）+ 分片登记改成模式表"
+      },
+      {
+        "sha": "2c84dd1c",
+        "class": "交付",
+        "subject": "交付: 持仓降级预警接进日频 + 概览页新增一屏 —— 「我手上这 5 只哪只该减」"
+      },
+      {
+        "sha": "0be14cb3",
+        "class": "交付",
+        "subject": "交付: 首屏把 D2 缺口的两档并排给出，并退休「唯一可引用的缺口陈述」那个键"
+      },
+      {
+        "sha": "c2d00519",
+        "class": "交付",
+        "subject": "交付: D2 台账加「同口径倍数」一列 —— 「还差 2.35×」是 K=63 的要求 ÷ K=21 研究臂的实测"
+      },
+      {
+        "sha": "fe02f5f8",
+        "class": "交付",
+        "subject": "交付: 「还差几倍」先建行再改引用 —— CLAUDE.md 的口径台账里**压根没有这一行**"
+      },
+      {
+        "sha": "2bfe6f4b",
+        "class": "收尾",
+        "subject": "收尾: §16.2 就地改正 —— 「投入率 69.79%」本身是对的，错的是字段名与跨口径倍数"
+      },
+      {
+        "sha": "9721396e",
+        "class": "收尾",
+        "subject": "收尾: 撤回我自己的「跨臂」判定（实测证伪）—— 真缺陷只剩「字段名与内容相反」"
+      },
+      {
+        "sha": "0357a7f7",
+        "class": "收尾",
+        "subject": "收尾: §16.2 的「投入率 69.79%」就地标注撤回（跨臂拼接，不可引用）"
+      },
+      {
+        "sha": "bdcb1fb4",
+        "class": "收尾",
+        "subject": "收尾: 立债 —— `deployed_d2_verdict.json` 的两个比例字段名字与内容相反"
+      },
+      {
+        "sha": "a8ae6fb1",
+        "class": "收尾",
+        "subject": "收尾: 登记 D2 缺口链上的三个口径/命名缺陷（2.35× 跨 K、idle 字段名反、投入率跨臂）"
+      },
+      {
+        "sha": "c5e9e3ac",
+        "class": "交付",
+        "subject": "交付: K 相关产物的 K=63 重跑件入库（被中断的那个 agent 跑完但没来得及提交）"
+      },
+      {
+        "sha": "adcbdfd1",
+        "class": "交付",
+        "subject": "交付: 夜间复盘也报两个口径 —— 用户每天早上读的那句「离 20% 差多少」偏乐观"
+      },
+      {
+        "sha": "c09d10bd",
+        "class": "交付",
+        "subject": "交付: K=63 重跑判决档，并把「两种读法分档」这件事写进判决文档"
+      },
+      {
+        "sha": "f8f09ac4",
+        "class": "交付",
+        "subject": "交付: 把「实盘跑的 K」与「D2 判决档假设的 K」钉在一起 —— 一次晋级就能静默还回 9pp"
+      },
+      {
+        "sha": "adab1b7e",
+        "class": "交付",
+        "subject": "交付: CLAUDE.md 的 D2 口径台账与现役台账对齐 —— 它抄的数已过期 3 处"
+      },
+      {
+        "sha": "e69ee6bf",
+        "class": "收尾",
+        "subject": "收尾: 交付闸 §0 的 D2 行换成现役实盘档 —— 那一格在最重要的数上是陈旧的"
+      },
+      {
+        "sha": "f5d146f0",
+        "class": "交付",
+        "subject": "交付: 前瞻验证不许在主库被改写时建面板 —— 撕裂读会静默污染前瞻证据"
+      },
+      {
+        "sha": "724e3c3b",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 基本面族轮次 B 的机理全集与族 A 判决 —— 「有 edge，但吃不到」"
+      },
+      {
+        "sha": "8557f3c7",
+        "class": "交付",
+        "subject": "交付: 采集链路的抗断供 —— 一只票的网络超时不再让整天的交付靠运气"
+      },
+      {
+        "sha": "df93960a",
+        "class": "交付",
+        "subject": "交付: 持仓级降级预警 —— 「我手上这几只里，哪几只已经掉到最差那一档」"
+      },
+      {
+        "sha": "0d4f7f8e",
+        "class": "收尾",
+        "subject": "收尾: 决策登记补第 16 节 —— K=63 口径的缺口台账（11.66pp → 7.38pp）与「还差 2.35×」"
+      },
+      {
+        "sha": "2e6ab393",
+        "class": "交付",
+        "subject": "交付: D2 缺口台账换到 K=63 口径 —— 缺口 11.66pp → **7.38pp**，达标所需毛超额 11.28%（实测 4.81%，还差 **2.35×**）"
+      },
+      {
+        "sha": "bca3593b",
+        "class": "交付",
+        "subject": "交付: 前瞻底稿的分桶入口搬进 aplus/，并把页面的命中率接到同一口径"
+      },
+      {
+        "sha": "113ab16f",
+        "class": "收尾",
+        "subject": "收尾: 记下一个新鲜度盲区 —— `fresh` 不等于「内容仍然正确」"
+      },
+      {
+        "sha": "f3bf80fe",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 红利/低波**长腿**测量器 —— 12 个臂全部「覆盖不足，不可判」"
+      },
+      {
+        "sha": "96fe00bd",
+        "class": "收尾",
+        "subject": "收尾: 口径台账补三行（实盘配置档 / 旧实盘档 / 配置层 vs 名单层）"
+      },
+      {
+        "sha": "6457d2b5",
+        "class": "交付",
+        "subject": "交付: 修一条**过严**的守卫 + 一类「两种跑法两个结果」的导入缺陷"
+      },
+      {
+        "sha": "2edd471e",
+        "class": "收尾",
+        "subject": "收尾: 订正决策登记里的两处数字（实测推翻了我自己引的两个数）"
+      },
+      {
+        "sha": "5ea3e8d4",
+        "class": "交付",
+        "subject": "交付: 实盘配置的真实判决 —— 缺口 18.89pp → 9.58pp，但**不是「D2 变好了」**"
+      },
+      {
+        "sha": "f3dd3f66",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 基本面族轮次 A —— 修 `trimmed_ic::t` 的遮蔽缺陷 + 机理①现在被判定"
+      },
+      {
+        "sha": "2b6247c6",
+        "class": "交付",
+        "subject": "交付(前端): 换仓周期不一致时明说「下一次运行会立刻调仓」"
+      },
+      {
+        "sha": "4686c42f",
+        "class": "交付",
+        "subject": "交付(前端): 非调仓日明说「今天不动」+ 板块与交易权限标记 + 补登记新产物"
+      },
+      {
+        "sha": "c4beabe5",
+        "class": "交付",
+        "subject": "交付: 生产配置改造落地 —— 敞口 100% + 配置层可买性过滤 + 非调仓日不出订单 + signal_id"
+      },
+      {
+        "sha": "c4e72a6b",
+        "class": "收尾",
+        "subject": "收尾: 更正 D1 的验收分母 —— 是 3 不是 6（我在 §11 里那句是错的）"
+      },
+      {
+        "sha": "638b5b42",
+        "class": "交付",
+        "subject": "交付: 前瞻底稿按信号身份归属 —— D1 的验收分母从 6 降到 3（**之前的 6 是数错了**）"
+      },
+      {
+        "sha": "5d3463ab",
+        "class": "收尾",
+        "subject": "收尾: 更正「闲置现金 ≈ 1.8pp/年」—— 那是整手粒度余数，救不回"
+      },
+      {
+        "sha": "bf13cd18",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 股息率 PIT 分片采集上线 —— 全池 5 天覆盖完，每晚 03:30 自动续采"
+      },
+      {
+        "sha": "3b546e9b",
+        "class": "交付",
+        "subject": "交付: 实盘换仓周期 K 21 → 63 —— 账户 +1.11% → +10.16%，缺口 18.89pp → 9.84pp"
+      },
+      {
+        "sha": "8fbddbad",
+        "class": "收尾",
+        "subject": "收尾: 决策登记补第 11 节 —— 「整手可买性」属于配置层，不属于名单层"
+      },
+      {
+        "sha": "7bf2abbf",
+        "class": "收尾",
+        "subject": "收尾: 决策登记补第 10 节 —— K（调仓周期）的决策框架，理由只用摩擦算术"
+      },
+      {
+        "sha": "26ff2600",
+        "class": "收尾",
+        "subject": "收尾: 修 PLATFORM.md §4 —— 资产配置规则的四条陈述已全部不成立"
+      },
+      {
+        "sha": "b0d3614e",
+        "class": "收尾",
+        "subject": "收尾: 修 DELIVERY_GATE §0 —— 「目标与现状」表里的 D2 那一行是实质错误"
+      },
+      {
+        "sha": "4a716d74",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 股息率 PIT 管道 + 红利/低波长腿预注册 —— 唯一还带新信息源的未测家族"
+      },
+      {
+        "sha": "19fd1101",
+        "class": "收尾",
+        "subject": "收尾: 决策登记补第 9 节 —— 测量到了什么，§1 的敞口决策如何落实"
+      },
+      {
+        "sha": "69f1fff1",
+        "class": "交付",
+        "subject": "交付: 候选池的板块/权限/整手暴露 —— 科创板是 D1 可执行性的主要障碍"
+      },
+      {
+        "sha": "9b56acd4",
+        "class": "交付",
+        "subject": "交付: 每晚复盘从「挂在会话调度上」改成「仓自有产物 + 系统 crontab」"
+      },
+      {
+        "sha": "f26ea5a1",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 5 万账户的 edge 清单调研 —— 下一轮指向「红利/低波长持篮子」，并排除 10 条族"
+      },
+      {
+        "sha": "7f21a3b5",
+        "class": "收尾",
+        "subject": "收尾: 口径台账增补 —— 本轮新增的四个口径只登记路径，并记下 D1 发布闸的 P0 方向修正"
+      },
+      {
+        "sha": "b03fe2b7",
+        "class": "交付",
+        "subject": "交付: 转债侧的 5 万账户读数 —— 绕开了「整手买不起」，没绕开「测不出」"
+      },
+      {
+        "sha": "aa0a9a78",
+        "class": "手段",
+        "subject": "手段(服务于 D1): 溯源收口 —— 交付面产物从「不可引用」变成「有据可查」"
+      },
+      {
+        "sha": "6fb67b04",
+        "class": "交付",
+        "subject": "交付: D1 的另一半（每天 10 只会跌）从「有单无判」变成有据的三态闸门"
+      },
+      {
+        "sha": "fc26b6d3",
+        "class": "交付",
+        "subject": "交付(前端): 首屏加「今天这 10 只 5 万买得起吗」+「实盘配置 vs 判决配置」六维对照"
+      },
+      {
+        "sha": "d0d23ea3",
+        "class": "交付",
+        "subject": "交付: 修 D1 发布闸的单调性方向 —— 判据与实现相反，会拦住目标信号、放行反预测信号"
+      },
+      {
+        "sha": "7feacee7",
+        "class": "收尾",
+        "subject": "收尾: 本轮交付决策登记 —— 只登记「先于数据定死」的四条，其余明确标待测量"
+      },
+      {
+        "sha": "eec41579",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 基本面因子族调研 + 事前预注册 —— D2 唯一杠杆「让毛超额变大」的第一条可执行路径"
+      },
+      {
+        "sha": "feea5ffa",
+        "class": "手段",
+        "subject": "手段(服务于 D1): 前瞻注册第 5 批 —— 从这轮起，测的是「真正在交易的那一支」"
+      },
+      {
+        "sha": "60401c9c",
+        "class": "交付",
+        "subject": "交付: 收口五处「界面/产物在骗用户」的生产缺陷 + 撤回一条从未实现的风控承诺"
+      },
+      {
+        "sha": "1ca7a230",
+        "class": "手段",
+        "subject": "手段: 改掉散文里被明文禁止的复利相减，并让 D1 现状那句不再自指日期"
+      },
+      {
+        "sha": "ce50d714",
+        "class": "交付",
+        "subject": "交付(前端): 年化 20% 的判决区间图上屏；并按对抗复核修 8 处口径/可读性缺陷"
+      },
+      {
+        "sha": "6413983b",
+        "class": "手段",
+        "subject": "手段: 修 visible_as_of 的多股票横截面塌缩 —— 500 只票被去重成 38 行"
+      },
+      {
+        "sha": "250b3ed2",
+        "class": "交付",
+        "subject": "交付: PIT 版 BM 因子接入 + 第四批前瞻候选（第一个跨信息源的信号族）"
+      },
+      {
+        "sha": "f3a83e35",
+        "class": "手段",
+        "subject": "手段: 用 PIT 快照差分证伪「出路 A」—— is_never_revised() 是假白名单"
+      },
+      {
+        "sha": "09bc97b5",
+        "class": "交付",
+        "subject": "交付(前端): 资产配置区补「调仓清单」—— 卖出/买入/保留，并说清它此刻可不可信"
+      },
+      {
+        "sha": "8b68f473",
+        "class": "交付",
+        "subject": "交付：修 /api/bond-paper 500 —— 转债页签从「加载失败」变可用"
+      },
+      {
+        "sha": "2a6d7c2c",
+        "class": "手段",
+        "subject": "手段：把六处已被重跑作废的旧数更正为新值（正文不动，只加旁注）"
+      },
+      {
+        "sha": "b6a90606",
+        "class": "交付",
+        "subject": "交付(前端): 首屏四个数补口径披露；「持仓基准日」不再把出单日说成持仓日"
+      },
+      {
+        "sha": "fdfd271f",
+        "class": "收尾",
+        "subject": "收尾：九份产物按依赖顺序重跑并盖章 —— 输入指纹逐位对账全绿"
+      },
+      {
+        "sha": "0b368ee2",
+        "class": "交付",
+        "subject": "交付(前端): 名单方向与数字正负分色 —— 色相只表正负；进化页 65,650px → 1,710px"
+      },
+      {
+        "sha": "07af4fe2",
+        "class": "收尾",
+        "subject": "收尾：更正六格判决标签的两处读错（字段值≠推导标签 + 跨格取极值）"
+      },
+      {
+        "sha": "4852c2ee",
+        "class": "未归类",
+        "subject": "docs(变异台): 把「备份文件名是编码」写进唯一会做备份的那一处"
+      },
+      {
+        "sha": "c19381fc",
+        "class": "未归类",
+        "subject": "fix(溯源): 六格产物进 PATTERN_GENERATORS——门禁点名「盖了章却解析不出生成器」"
+      },
+      {
+        "sha": "bfd066cb",
+        "class": "未归类",
+        "subject": "chore(判决台): 六格产物入库 + 口径台账建行六行 + 边界声明"
+      },
+      {
+        "sha": "c51313e4",
+        "class": "交付",
+        "subject": "交付(判决台): cap_weighted_benchmark 六格变量化 + 预注册入 git"
+      },
+      {
+        "sha": "89388e0e",
+        "class": "收尾",
+        "subject": "收尾(前端/登记): 六格变量化登记收口 + 第 193 层 + 行号锚改符号"
+      },
+      {
+        "sha": "a0c3f315",
+        "class": "交付",
+        "subject": "交付(前端): 榜单交互与阅读体验一轮 —— 列名去伪化 + 两栏表头按构造等高"
+      },
+      {
+        "sha": "7bff5101",
+        "class": "交付",
+        "subject": "交付：判决卡上屏 + 推导折叠，D2 缺口台账进页面"
+      },
+      {
+        "sha": "a303984f",
+        "class": "收尾",
+        "subject": "收尾 文档 重写 README 结构并修掉 5 处与产物脱钩的数字"
+      },
+      {
+        "sha": "b44a6abf",
+        "class": "交付",
+        "subject": "交付: D1 上线闸门判决上首屏 + 命中率门槛改独立成交窗口口径"
+      },
+      {
+        "sha": "d5461e8c",
+        "class": "收尾",
+        "subject": "收尾：六项产品决策登记（判据登记，非交付物）"
+      },
+      {
+        "sha": "e9f9449a",
+        "class": "手段",
+        "subject": "手段: D2 缺口台账两个裸 float 改成带榜宽的 dict + 补 5 万本金口径"
+      },
+      {
+        "sha": "c625e741",
+        "class": "手段",
+        "subject": "手段: D2 天花板/毛额两个键从裸 float 改成装榜宽的 dict + 补 5 万口径"
+      },
+      {
+        "sha": "fad78209",
+        "class": "收尾",
+        "subject": "收尾 探针：cap_exposure_sigma + 变异台 4/4 + 跨度三口径注记对齐"
+      },
+      {
+        "sha": "67e574f3",
+        "class": "交付",
+        "subject": "交付: 修 D1 静默假绿——回填持锁时不再假装 predict 成功"
+      },
+      {
+        "sha": "851fdd0b",
+        "class": "收尾",
+        "subject": "收尾: score_ranking_power 加 entry_date 对照臂 + 撤销「周末重影」与「分组越粗越保守」两句已被实测打回的散文"
+      },
+      {
+        "sha": "206880d7",
+        "class": "收尾",
+        "subject": "收尾: 日跑守卫加固 + 跌腿/real-holdings 变异台，forward_d2_verdict 补判据"
+      },
+      {
+        "sha": "0cd2cc77",
+        "class": "交付",
+        "subject": "交付: 入库择时/跌腿/D2-horizon/口径 9 份报告 + sidecar，并补 provenance 落盘链路"
+      },
+      {
+        "sha": "06c6f024",
+        "class": "手段",
+        "subject": "手段: 择时/跌腿/D2-口径三臂预注册与生成器"
+      },
+      {
+        "sha": "e118dc72",
+        "class": "手段",
+        "subject": "手段：交付形态摩擦封口（D1 日频）+ 23 条守卫 + 变异台 9/9"
+      },
+      {
+        "sha": "f0493323",
+        "class": "收尾",
+        "subject": "收尾: 用书关闭「换止损/持有规则」这条杠杆——止损是幻觉，Sharpe 法的前置条件我们不满足"
+      },
+      {
+        "sha": "02769717",
+        "class": "交付",
+        "subject": "交付: 入库 2026-10-16 日跑产出的 9 份报告 + 5 份 sidecar"
+      },
+      {
+        "sha": "4c663595",
+        "class": "交付",
+        "subject": "交付: 修 D1「标题写 10 只而 up 表格只渲染 9 行」，并补 forward_d2_verdict 的生成器登记"
+      },
+      {
+        "sha": "e1fc6b2a",
+        "class": "收尾",
+        "subject": "收尾: 补交 MISTAKE_LOG 190/191/192 与 CLAUDE.md 层数 189→192（上一条 00501b0 漏 add）"
+      },
+      {
+        "sha": "169a2a36",
+        "class": "收尾",
+        "subject": "收尾: D1 渲染行数守卫 + 命中率聚类端点守卫 + adjusted_score 缺失成因补记"
+      },
+      {
+        "sha": "00501b06",
+        "class": "收尾",
+        "subject": "收尾: D2 判决守卫 22 条 + 变异台 4/4 + 预注册补记 §6 + MISTAKE_LOG 190/191"
+      },
+      {
+        "sha": "83fd0f45",
+        "class": "手段",
+        "subject": "手段(交付): 前瞻 D2 判决脚本 —— 首次对着「每天 10 涨 10 跌」量超额"
+      },
+      {
+        "sha": "1ca74bdb",
+        "class": "交付",
+        "subject": "交付: D2 达标所需毛超额 g*(N) —— 首次算出「本金无限时 13.9304%/年」"
+      },
+      {
+        "sha": "b82be9dc",
+        "class": "手段",
+        "subject": "手段: market 逐位身份从「只验 rep 0」改成「数出来的全量计数」"
+      },
+      {
+        "sha": "453bf523",
+        "class": "收尾",
+        "subject": "收尾：第 181 层撤销段落地 + 时序波动率定仓两条路的封口"
+      },
+      {
+        "sha": "c07ead1f",
+        "class": "手段",
+        "subject": "手段: ic_guided_race 7y 重跑换真章 —— 数据根从 /tmp 快照迁回仓内"
+      },
+      {
+        "sha": "f8fa3b58",
+        "class": "手段",
+        "subject": "手段: 撤回 required_excess 的 **(1/yrs)，正确值 +9.1434%（第 181 层）"
+      },
+      {
+        "sha": "21711b78",
+        "class": "交付",
+        "subject": "交付: 跌腿判决读「现任那一行」而非候选池极值（D1 级）"
+      },
+      {
+        "sha": "c73cd7a4",
+        "class": "交付",
+        "subject": "交付: 重跑四份报告刷新溯源章（第 156 层：盖章只盖代码不盖输入）"
+      },
+      {
+        "sha": "2d43b355",
+        "class": "交付",
+        "subject": "交付：修 D1 两腿部分重叠的第三种形态 + 钉住「10 涨」产品契约"
+      },
+      {
+        "sha": "00229dee",
+        "class": "交付",
+        "subject": "交付：D1/D2 五个判决产物入库（账户净值 / 随机臂 / horizon / 摩擦 / IC 半衰期）"
+      },
+      {
+        "sha": "cd3905cb",
+        "class": "交付",
+        "subject": "交付: 实盘半仓敞口下的账户年化（判决档只测过满仓）+ not_a_verdict_note 接线"
+      },
+      {
+        "sha": "d808d580",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 把「连符号都定不了」从\"还没攒够\"拆成\"结构上不可能\""
+      },
+      {
+        "sha": "b73b2fc0",
+        "class": "收尾",
+        "subject": "收尾(排在 1769612 之后): 交付物闸 + k126 第 6 剂量点 + 3 份预注册"
+      },
+      {
+        "sha": "17696124",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 基准抽样收敛为单一真相源 + seed 参数化，首次可问\"换一批票会怎样\""
+      },
+      {
+        "sha": "7eaa26ef",
+        "class": "手段",
+        "subject": "手段(服务于 D2): 测量 IC 序列日间自相关，并当场撤回一次口径错"
+      },
+      {
+        "sha": "e0981f15",
+        "class": "未归类",
+        "subject": "fix(aplus): §18.7 撤回两处——所需超额漏年化 + 只报一支基准"
+      },
+      {
+        "sha": "fcd6541e",
+        "class": "未归类",
+        "subject": "fix(aplus): ① 组合净值的判决落地，且判决逻辑第一次有守卫（8 条 / 变异台 9/9）"
+      },
+      {
+        "sha": "b7247d7d",
+        "class": "未归类",
+        "subject": "fix(aplus): 散文的数不再写死——第 73 层的第四次复发，副本在产物里"
+      },
+      {
+        "sha": "caecad74",
+        "class": "未归类",
+        "subject": "feat(aplus): no_data 重判 + 聚类诊断落盘 + 契约面守卫替掉手抄字面量"
+      },
+      {
+        "sha": "aeb5e1c4",
+        "class": "未归类",
+        "subject": "docs(aplus): 预注册 7 年账户净值——年化20%判决的全部判据先写死"
+      },
+      {
+        "sha": "f74c8e4e",
+        "class": "未归类",
+        "subject": "feat(aplus): 资金可执行性产物 + 变异台判决 + 年化20%路径的诚实结论"
+      },
+      {
+        "sha": "543db7e3",
+        "class": "未归类",
+        "subject": "feat(nav): 组合绝对净值年化产物 + 撤回「全仓无尺子」的错误结论"
+      },
+      {
+        "sha": "fe2cbc84",
+        "class": "未归类",
+        "subject": "docs: 第 165 层——审计动作的空转伪装成审计结论 + 13 处 files0 债登记"
+      },
+      {
+        "sha": "ad37b087",
+        "class": "未归类",
+        "subject": "fix(forward): latest 不许由一只票代表全池——静默停摆的定时炸弹"
+      },
+      {
+        "sha": "0f2c61a7",
+        "class": "未归类",
+        "subject": "test(vintage): 重复计数守卫收敛成单点探测器 + 派生常量而非重打字面量"
+      },
+      {
+        "sha": "ce73b459",
+        "class": "未归类",
+        "subject": "fix(mutation): 变异台计分累加器被同名解包遮蔽 + renderDocket 调用点按位置传参"
+      },
+      {
+        "sha": "b28f5b87",
+        "class": "未归类",
+        "subject": "test: 模块内重名 def 静默覆盖的守卫 + 删掉本批抓到的 4 处死副本"
+      },
+      {
+        "sha": "39a5e0c6",
+        "class": "未归类",
+        "subject": "fix(vintage): 去重计数落进 manifest 账本，不只活在 stdout"
+      },
+      {
+        "sha": "da30c605",
+        "class": "未归类",
+        "subject": "test(vintage): 溯源接线守卫 + 变异台——PIT 真相源从今天起有章可查"
+      },
+      {
+        "sha": "d868b3f6",
+        "class": "未归类",
+        "subject": "docs(vintage): vintage 链的溯源缺口与修订率判据登记"
+      },
+      {
+        "sha": "f73078e5",
+        "class": "未归类",
+        "subject": "docs(mistake_log): 第 163 层——五次栽在同一动作：手写探针代替仓里已有的量具"
+      },
+      {
+        "sha": "8b47d031",
+        "class": "未归类",
+        "subject": "feat(benchmark): 基准年化项（第 125 层补章）—— 把 benchmark_annual=0.0 这个藏起来的假设摆到签名上"
+      },
+      {
+        "sha": "d6afba17",
+        "class": "未归类",
+        "subject": "fix(docs): 第 160 层——「测不到」被写成「没有超额」，修文档并补上缺失的文档层守卫"
+      },
+      {
+        "sha": "faa6fec3",
+        "class": "未归类",
+        "subject": "docs(mistake_log): 第 159 层——权威答案就印在产物里，我却用「读函数名 + 推断」把它跳过了"
+      },
+      {
+        "sha": "9c5358eb",
+        "class": "未归类",
+        "subject": "fix(regime_control): 判决链收官——六个格全 INSUFFICIENT，字段名/实现的分歧登记为待裁决"
+      },
+      {
+        "sha": "8191eced",
+        "class": "未归类",
+        "subject": "fix(regime_control): 判决链三份产物接上 stamp + MIN_BASKET 对照臂与 A/B 口径分解"
+      },
+      {
+        "sha": "165bc417",
+        "class": "未归类",
+        "subject": "fix(aplus): 口径守卫从「集合相等」拆成两个方向——第一版把自己判红"
+      },
+      {
+        "sha": "99ff14d3",
+        "class": "未归类",
+        "subject": "fix(aplus): caliber 补 n 的标签——正向守卫当场抓到漏网"
+      },
+      {
+        "sha": "bd7de7f1",
+        "class": "未归类",
+        "subject": "fix(aplus): 回本本金表口径标签落地——债登记转正向守卫"
+      },
+      {
+        "sha": "e6f3d4e4",
+        "class": "未归类",
+        "subject": "fix(wordson): stats.json 登记 + GOAL 第五节按只读字段重写"
+      },
+      {
+        "sha": "4a903fd0",
+        "class": "未归类",
+        "subject": "fix(wordson): 判决窗口缺口登记 + 附则二数字更正"
+      },
+      {
+        "sha": "fdaea1e2",
+        "class": "未归类",
+        "subject": "chore(aplus): run_daily 2026-10-15 产物入库 + cap_exposure 登记 + 判决逐年补跑脚本"
+      },
+      {
+        "sha": "99df2793",
+        "class": "未归类",
+        "subject": "docs(aplus): 自查更正——撤回「flat 污染均值」的指控"
+      },
+      {
+        "sha": "ab1e6b18",
+        "class": "未归类",
+        "subject": "docs(aplus): notna() ≠ is_valid()——flat 污染与两个字段名不同量"
+      },
+      {
+        "sha": "22379199",
+        "class": "未归类",
+        "subject": "docs(aplus): 判决窗口附则——sweep 缺 MIN_BASKET，登记事后对照臂"
+      },
+      {
+        "sha": "f298b31a",
+        "class": "未归类",
+        "subject": "docs: 预注册——实盘 4 因子信号在判决窗口上的复测"
+      },
+      {
+        "sha": "a10a9d5a",
+        "class": "未归类",
+        "subject": "docs: 目标判决——5 万 + 20%/年 + 每天 10 只，闭式可证无解"
+      },
+      {
+        "sha": "0d2854e4",
+        "class": "未归类",
+        "subject": "docs(regime_control): 补书证——+40.29%/年 是 L=0.003 的价差，不是 alpha"
+      },
+      {
+        "sha": "96317867",
+        "class": "未归类",
+        "subject": "docs(regime_control): 登记 n_ranked 掩体——302%/年 与「8 行全败」并存"
+      },
+      {
+        "sha": "70dbfba9",
+        "class": "未归类",
+        "subject": "fix(bond): 一只死债冻住整个转债宇宙 4 个交易日——探针从单点改法定人数"
+      },
+      {
+        "sha": "45a2f1f3",
+        "class": "未归类",
+        "subject": "fix(wordson/a+): 曝光对照臂那句话问错了问题 + 第 150/151 层"
+      },
+      {
+        "sha": "e63a6f0d",
+        "class": "未归类",
+        "subject": "fix(wordson): 判据推导化 + 声明化 + 变异台 7/7；门禁 6 红归因批（147 层）"
+      },
+      {
+        "sha": "5e6bab45",
+        "class": "未归类",
+        "subject": "feat(gate): G4/S3 上线闸门 + 三态判决 + 变异台 9/9（NOT_PASSED_POWERLESS）"
+      },
+      {
+        "sha": "14fcb3a0",
+        "class": "未归类",
+        "subject": "refactor(nav-caliber): 结清 §7.1 债条——删掉从未被读的抽样死变量"
+      },
+      {
+        "sha": "9aa81ace",
+        "class": "未归类",
+        "subject": "fix(wordson 第140层): 强制重跑的出口没人守 + 判决表手抄件带 σ 重写"
+      },
+      {
+        "sha": "76e953f8",
+        "class": "未归类",
+        "subject": "fix(factor_width_mde): 形状23第三个受害者——窗口末端钉死，判决强度重算"
+      },
+      {
+        "sha": "7929021d",
+        "class": "未归类",
+        "subject": "docs(aplus): 第 139 层——判决的元信息（窗口边界/判决强度）从未被登记"
+      },
+      {
+        "sha": "5c65e4cf",
+        "class": "未归类",
+        "subject": "fix(aplus): 「回本无解」是 −0.021σ 的噪声 —— 产物必须自报判决强度，五档全部「结论不成立」"
+      },
+      {
+        "sha": "b11ef8fb",
+        "class": "未归类",
+        "subject": "feat(aplus): §8 基准项从假设变成参数 + §7.2 重跑补记（判决一字未改）"
+      },
+      {
+        "sha": "1ecb60ee",
+        "class": "未归类",
+        "subject": "feat(aplus): G1 实测基准年化 9.9471% —— 判决链上「缺的那个数」补上（判决方向未变）"
+      },
+      {
+        "sha": "32cfe825",
+        "class": "未归类",
+        "subject": "test(aplus): 把整手缺口钉成「看得见的缺口」而不是「已处理」"
+      },
+      {
+        "sha": "eb8d6c09",
+        "class": "未归类",
+        "subject": "feat(aplus): 第 137 层第二半——对账守了自己的覆盖面 + 整手可行性缺口"
+      },
+      {
+        "sha": "357f6674",
+        "class": "未归类",
+        "subject": "fix(aplus): 第 137 层——判决表是手抄件，而「重跑」曾是个空操作"
+      },
+      {
+        "sha": "310dd548",
+        "class": "未归类",
+        "subject": "docs(aplus): G3-bis 预注册补正——「>0」这一支还要再分 P/R 两档"
+      },
+      {
+        "sha": "c617d8bf",
+        "class": "未归类",
+        "subject": "docs(aplus): 量化「+16%」矛盾——两个数问的不是同一件事"
+      },
+      {
+        "sha": "f7b22f3a",
+        "class": "未归类",
+        "subject": "feat(aplus): 判决窗口上的基准净值测量 + 口径守卫（4/4 变异全杀）"
+      },
+      {
+        "sha": "8f948e0e",
+        "class": "未归类",
+        "subject": "docs(aplus): 口径预注册——目标 20% 是净值、判决量是超额"
+      },
+      {
+        "sha": "93b65a09",
+        "class": "未归类",
+        "subject": "docs(aplus): 榜宽 TODO §11——毛超额是算术年化，目标是复利口径"
+      },
+      {
+        "sha": "d4a427c2",
+        "class": "未归类",
+        "subject": "fix(aplus): provenance 三处 cwd 依赖 + 裸名/产物缺失两条假理由（第125层冻结解除后）"
+      },
+      {
+        "sha": "74c187ff",
+        "class": "未归类",
+        "subject": "docs(aplus): 链④落盘 + 天花板算完 + 第136层（守卫对真实失效方向不敏感）"
+      },
+      {
+        "sha": "1f70c660",
+        "class": "未归类",
+        "subject": "docs(aplus): 记下 §1.3 的可证伪预测与 40/40 rep 的事后佐证"
+      },
+      {
+        "sha": "a561fe86",
+        "class": "未归类",
+        "subject": "fix(aplus): 安慰剂按判决窗口重跑落盘——预注册三条预测全部兑现，另登记两条 provenance 缺陷"
+      },
+      {
+        "sha": "e733ce38",
+        "class": "未归类",
+        "subject": "fix(aplus): 第 135 层——三个量错配让整条预测挂在没人核过的等号上"
+      },
+      {
+        "sha": "a8ebd9de",
+        "class": "未归类",
+        "subject": "feat(audit): 安慰剂重跑的预注册预测落成会红的代码 + 冻结外部锚"
+      },
+      {
+        "sha": "02ea27d1",
+        "class": "未归类",
+        "subject": "test(parity): 探针落成测试 —— 我写进文档的两个数复现不出来（第 134 层）"
+      },
+      {
+        "sha": "d6201724",
+        "class": "未归类",
+        "subject": "docs(133): 「结构性必然」只需一次重写就能否掉——待办清单比代码更难推翻"
+      },
+      {
+        "sha": "df2468a2",
+        "class": "未归类",
+        "subject": "test(parity): K4 架构守卫落地 + 缺口预注册（live vs 参照实现对账）"
+      },
+      {
+        "sha": "18abb1f4",
+        "class": "未归类",
+        "subject": "docs(prereg): 撤回单日探针结论 + 生产口径 P5/P6 + 尺子改 cos_R"
+      },
+      {
+        "sha": "7660430b",
+        "class": "未归类",
+        "subject": "docs(aplus): 等权≡均值—方差 的预注册 —— 换到权重空间，门槛就不需要存在"
+      },
+      {
+        "sha": "fb40cfd9",
+        "class": "未归类",
+        "subject": "docs(aplus): 第 132 层 —— 假 fresh：章能查的那一半之外剩下什么"
+      },
+      {
+        "sha": "2e271746",
+        "class": "未归类",
+        "subject": "fix(aplus): 用真抽取表重建 verdict_composite.json —— 换掉 8e4b327 里的合成版"
+      },
+      {
+        "sha": "44a55019",
+        "class": "未归类",
+        "subject": "fix(aplus): 第 132 层 —— 测试把自己的输出写进了生产产物路径"
+      },
+      {
+        "sha": "2d55d9e9",
+        "class": "未归类",
+        "subject": "fix(aplus): 第 130/131 层 —— 超时余量由实测推导 + 三个长跑生成器在盖章那行炸"
+      },
+      {
+        "sha": "5a7f98ca",
+        "class": "未归类",
+        "subject": "feat(aplus): 两个长跑生成器接上 stamp(expect_bytes) —— 14/46 分钟那一档最需要"
+      },
+      {
+        "sha": "8e4b327a",
+        "class": "未归类",
+        "subject": "fix(aplus): 单点依赖起点侧修掉 + stamp(expect_bytes) + 第 128/129 层"
+      },
+      {
+        "sha": "f420d167",
+        "class": "未归类",
+        "subject": "feat(aplus): 权重目标函数错配诊断 + 变异台 14/14 + 两层新守卫"
+      },
+      {
+        "sha": "e903f291",
+        "class": "未归类",
+        "subject": "feat(aplus): 命中率分层诊断 + 变异台基线正控 + 反转打分器预注册"
+      },
+      {
+        "sha": "f60a2c93",
+        "class": "未归类",
+        "subject": "docs(aplus): 预注册等权对照臂——那套权重是「动量主导」遗留物，从未对照 IC 校过"
+      },
+      {
+        "sha": "a4ce49dd",
+        "class": "未归类",
+        "subject": "docs(aplus): 预注册市值加权基准——口径两端都得换，只换分母等于把市值赌注当因子"
+      },
+      {
+        "sha": "742d1f0b",
+        "class": "未归类",
+        "subject": "feat(aplus): turn 输入完整性判决 TURN_CLEAN——顺带把市值加权基准的路打通"
+      },
+      {
+        "sha": "b42acf2e",
+        "class": "未归类",
+        "subject": "docs(aplus): 预注册 turn 输入完整性诊断——因子分子可能被污染，排在基准之前"
+      },
+      {
+        "sha": "361cbe73",
+        "class": "未归类",
+        "subject": "docs(aplus): 补口径对照——6.89% 与 6.95% 分属两个窗口，别当矛盾读"
+      },
+      {
+        "sha": "d0a9cfcb",
+        "class": "未归类",
+        "subject": "feat(aplus): 安慰剂对照出判决 PLACEBO_NULL —— 排除差基准，但主档本身也不显著"
+      },
+      {
+        "sha": "e472b48a",
+        "class": "未归类",
+        "subject": "chore(aplus): 榜宽/归因/五档权重产物与首次 sidecar 入库（带诚实标注）"
+      },
+      {
+        "sha": "bc4da630",
+        "class": "未归类",
+        "subject": "fix(aplus): 自愈网的洞是「没人负责读」+ 守卫判据从代理换成真相"
+      },
+      {
+        "sha": "f2814182",
+        "class": "未归类",
+        "subject": "test(aplus): 把「NaN 有两族，只有一族是损伤」量出来并钉住边界"
+      },
+      {
+        "sha": "a09fbdb7",
+        "class": "未归类",
+        "subject": "fix(aplus): 三条静默失效的形状——单点时间轴 / 数据根默认值 / 入口点不自足"
+      },
+      {
+        "sha": "27bcdfd7",
+        "class": "未归类",
+        "subject": "chore(aplus): 门禁唯一入口 scripts/run_gate.py + 失误日志 107/108"
+      },
+      {
+        "sha": "b998176e",
+        "class": "未归类",
+        "subject": "feat(aplus): 成本 P0 结清后的全套重跑 + 榜宽/归因/可行性三组实验"
+      },
+      {
+        "sha": "b37e50db",
+        "class": "未归类",
+        "subject": "refactor(aplus): 判决分支审计落地 —— coverage / hurdle / bond 顺序显式化"
+      },
+      {
+        "sha": "a7e0a46e",
+        "class": "未归类",
+        "subject": "fix(aplus): 停牌日空串解析 —— 一条自我维持的整列缺失（P0）"
+      },
+      {
+        "sha": "bfce503f",
+        "class": "未归类",
+        "subject": "fix(web): 前端 10 处缺陷全修 + 判据层加固——记录即缺陷，xfail 不算豁免"
+      },
+      {
+        "sha": "4b6c6cec",
+        "class": "未归类",
+        "subject": "fix+chore: 边车文件顶掉主文件的假绿三连 + 数据清理 400MB + 报告纳入版本库"
+      },
+      {
+        "sha": "092e47e5",
+        "class": "未归类",
+        "subject": "feat(aplus): 追问真流式（SSE）+ 防连点 + 模型名读运行态"
+      },
+      {
+        "sha": "aef0a8af",
+        "class": "未归类",
+        "subject": "feat(aplus): K 扫描扫到 K=63 证伪单调衰减 + α/β 分解 + 第 71/72 层静默失效"
+      },
+      {
+        "sha": "cf2dcaf7",
+        "class": "未归类",
+        "subject": "fix(aplus): 双口径实测——16 倍整份落在空头腿，撤回「池子越深越强」"
+      },
+      {
+        "sha": "9f7e2b3d",
+        "class": "未归类",
+        "subject": "fix(aplus): 第七/八种静默失效——口径混比、假退出码"
+      },
+      {
+        "sha": "627db466",
+        "class": "未归类",
+        "subject": "fix(aplus): 第五/六种静默失效——公式常数错 3 倍、假装能调的开关"
+      },
+      {
+        "sha": "f8107169",
+        "class": "未归类",
+        "subject": "fix(aplus): 第三个 P0——R 按位置存、按顺序读，子集实验整块错标"
+      },
+      {
+        "sha": "5f919a0d",
+        "class": "未归类",
+        "subject": "fix(aplus): 口径事故——因子端原始值 vs 收益端秩的混算"
+      },
+      {
+        "sha": "bb420990",
+        "class": "未归类",
+        "subject": "docs(aplus): 项目全局 CLAUDE.md + 自进化抓手写入记忆"
+      },
+      {
+        "sha": "39b9cf0f",
+        "class": "未归类",
+        "subject": "feat(aplus): 合成判决脚本——按预注册规则机械执行，门槛由 σ_r 推导"
+      },
+      {
+        "sha": "e1c6a60e",
+        "class": "未归类",
+        "subject": "feat(aplus): 因子合成层——组合IC恒等式与滚动扩展窗无前视装配"
+      },
+      {
+        "sha": "3ab4535c",
+        "class": "未归类",
+        "subject": "test(wordson): 月频判决落地——3/8 年不过线，预注册判据被数据否掉"
+      },
+      {
+        "sha": "bf8d89cc",
+        "class": "未归类",
+        "subject": "feat(scripts): 月频判决机械化——预注册判据不许有旋钮"
+      },
+      {
+        "sha": "139fa1d6",
+        "class": "未归类",
+        "subject": "docs: 预注册 rev5 低尾逐年判决规则——在看到数据前定死"
+      },
+      {
+        "sha": "58413dd6",
+        "class": "未归类",
+        "subject": "fix(aplus): breadth_t 实测定向——子代理方向反了，真实读数低于零信号基线"
+      },
+      {
+        "sha": "26aeac2f",
+        "class": "未归类",
+        "subject": "test(aplus): breadth_t 是门禁构造物——零信号基线 +4.88，高于显著性闸"
+      },
+      {
+        "sha": "66712db6",
+        "class": "未归类",
+        "subject": "feat(aplus): 实测 σ_r——量级估计 0.023 低估了 15.5%，月频结论翻转"
+      },
+      {
+        "sha": "426d18be",
+        "class": "未归类",
+        "subject": "docs(aplus): σ_r 的资源顺序是硬的——面板 1.69GB vs 可用 2.0GB"
+      },
+      {
+        "sha": "f616800e",
+        "class": "未归类",
+        "subject": "fix(aplus): yearly 只报全截面——整条月频路线压在它没统计的那一档上"
+      },
+      {
+        "sha": "8ae178ce",
+        "class": "未归类",
+        "subject": "docs(aplus): 月频「刚好越过」有两个未测输入，逐年分解更要紧"
+      },
+      {
+        "sha": "6dc5ce0e",
+        "class": "未归类",
+        "subject": "feat(aplus): 补上 IC→收益那座桥——排序强不等于赚得到"
+      },
+      {
+        "sha": "5e4a2866",
+        "class": "未归类",
+        "subject": "docs(mistakes): 条目 61——卡死检测把 20 分钟的正常计算报成卡死"
+      },
+      {
+        "sha": "64b75b10",
+        "class": "未归类",
+        "subject": "fix(race): breadth_t 是披露不是闸——我刚犯完条目 57 就又犯了一遍"
+      },
+      {
+        "sha": "f88e0148",
+        "class": "未归类",
+        "subject": "fix(cost): 股票侧 0.003 与转债侧 0.003 是同一个数、不同的含义"
+      },
+      {
+        "sha": "d96a47e2",
+        "class": "未归类",
+        "subject": "fix(race): 门槛诊断接入判决 + 三处注释在替代码辩护"
+      },
+      {
+        "sha": "3cca3d7d",
+        "class": "未归类",
+        "subject": "docs(mistakes): 第四轮台账 50–55——五起错误，四起的数字看起来完全正常"
+      },
+      {
+        "sha": "eff780f3",
+        "class": "未归类",
+        "subject": "feat(forward): 批次可用性查询——**批次有效 ≠ 证据可引用**"
+      },
+      {
+        "sha": "c3455784",
+        "class": "未归类",
+        "subject": "docs(cost): 50% 敞口的真依据是风险封顶，不是成本——「省手续费」是错的"
+      },
+      {
+        "sha": "c2fa59bc",
+        "class": "未归类",
+        "subject": "feat(hurdle): 把「要不要降频」从策略争论变成一道算术题"
+      },
+      {
+        "sha": "fcfcbe0e",
+        "class": "未归类",
+        "subject": "fix(audit): 派生字段也按分母判定——审计曾给自己那份化石开无罪判决"
+      },
+      {
+        "sha": "b7cd67ae",
+        "class": "未归类",
+        "subject": "feat(aplus): 基准污染引用面审计——谁在拿作废报告当证据"
+      },
+      {
+        "sha": "8753de8d",
+        "class": "未归类",
+        "subject": "feat(aplus): 赛马报告盖章 + 登记它的生成模块"
+      },
+      {
+        "sha": "9f1ccab8",
+        "class": "未归类",
+        "subject": "fix(aplus): 横截面缓存溯源守卫——堵住\"假重跑\""
+      },
+      {
+        "sha": "e469b93b",
+        "class": "未归类",
+        "subject": "feat(aplus): 报告溯源守卫——「这份数字是哪个 commit 算出来的」必须可回答"
+      },
+      {
+        "sha": "bb4c23b2",
+        "class": "未归类",
+        "subject": "test(aplus): 钉住「本金量决定费率区」与「少投不等于省钱」"
+      },
+      {
+        "sha": "b5436edd",
+        "class": "未归类",
+        "subject": "feat(aplus): capital-aware 交易成本模型——最低佣金在小本金下咬死日频调仓"
+      },
+      {
+        "sha": "00da4808",
+        "class": "未归类",
+        "subject": "fix(vintage): manifest 的 n_cols 少记 1 列——两个字段里只有一个错，更难发现"
+      },
+      {
+        "sha": "eafa3590",
+        "class": "未归类",
+        "subject": "fix(amount): 一条注释的化石——它描述的退化早就被修掉了"
+      },
+      {
+        "sha": "756540a0",
+        "class": "未归类",
+        "subject": "fix(vintage): 缺口判据接入交易日历——周末不再被报成「永久丢失」"
+      },
+      {
+        "sha": "baae0bdc",
+        "class": "未归类",
+        "subject": "feat(vintage): 采集守卫——独立作业，只抓今天，绝不用过去的日期重采"
+      },
+      {
+        "sha": "9ecfbfd2",
+        "class": "未归类",
+        "subject": "feat(vintage): PIT 采集器 + vintage 存储层（39 测试）"
+      },
+      {
+        "sha": "9468b7e5",
+        "class": "未归类",
+        "subject": "feat(wordson): 基本面族第一次进检验装置——BM@K=21 IC 压线过闸，并连带三条自我否决"
+      },
+      {
+        "sha": "55638030",
+        "class": "未归类",
+        "subject": "exp(aplus): 赛马冠军对随机 t=−0.65 —— excess_t 量的是基准，不是选股能力"
+      },
+      {
+        "sha": "5544c63d",
+        "class": "未归类",
+        "subject": "fix(aplus): horizon_sweep 成交闸门对齐 + 随机臂种子稳健性面板"
+      },
+      {
+        "sha": "a55b3b31",
+        "class": "未归类",
+        "subject": "feat(wordson): 持仓周期扫描——「因子没价值」是市场事实还是口径事故"
+      },
+      {
+        "sha": "1533a089",
+        "class": "未归类",
+        "subject": "test(wordson): 因子 vs 随机 = 零结果；市场基准污染是架构性的"
+      },
+      {
+        "sha": "198da65b",
+        "class": "未归类",
+        "subject": "fix(wordson): 多重比较修正 + 合并判据 + 因子 vs 随机决定性实验"
+      },
+      {
+        "sha": "e4b73d91",
+        "class": "未归类",
+        "subject": "feat(bucket-probe): 头部实测为负毛收益 + 随机对照臂消解因果方向"
+      },
+      {
+        "sha": "04ee58c2",
+        "class": "未归类",
+        "subject": "feat(scripts): 排名分桶探针 + 净值拆毛/成本——查「头部是不是反的」"
+      },
+      {
+        "sha": "3307d819",
+        "class": "未归类",
+        "subject": "fix(scripts): 成本聚合口径改回「按日取均值」——sum() 虚高恰好 top_n 倍"
+      },
+      {
+        "sha": "3c846ff8",
+        "class": "未归类",
+        "subject": "fix(wordson): 市场基准混入「信号日尚未上市」的股票——超额虚增约 114 个百分点/年"
+      },
+      {
+        "sha": "3fdd92a2",
+        "class": "未归类",
+        "subject": "fix(榜单出处): 预测文件记下自己是用哪组权重排的，权重变更后概览页必须喊出来"
+      },
+      {
+        "sha": "626fd055",
+        "class": "未归类",
+        "subject": "fix(显著性门槛): 拆掉 df=∞ 的裸渐近值，并把 df 漏传钉进测试"
+      },
+      {
+        "sha": "9382f31b",
+        "class": "未归类",
+        "subject": "fix(wordson): 用户可见的证据句「32/32」是编的——实为 63/63，改为从数据现算"
+      },
+      {
+        "sha": "4b26d820",
+        "class": "未归类",
+        "subject": "feat(backtest): 低频净值可信度上限——+95%/年对应 60 倍，那个数不像真的"
+      },
+      {
+        "sha": "ca5156b4",
+        "class": "未归类",
+        "subject": "feat(backtest): 负对照剥离 regime——主指标被自己的对照组当场证伪"
+      },
+      {
+        "sha": "86fdbf65",
+        "class": "未归类",
+        "subject": "fix(docket): 警示标题由证据状态驱动——修掉正文与标题互相打架"
+      },
+      {
+        "sha": "6888e6b3",
+        "class": "未归类",
+        "subject": "fix(verify): 收益按 exit_date 落账——同一成交窗口的三天被当三天连乘"
+      },
+      {
+        "sha": "d9b0dc98",
+        "class": "未归类",
+        "subject": "fix(factor): 默认权重的符号与实测 IC 相反——涨榜在挑明天该跌的票"
+      },
+      {
+        "sha": "ef852961",
+        "class": "未归类",
+        "subject": "fix(evolve_race): 显著性否决理由删掉一句不成立的统计断言"
+      },
+      {
+        "sha": "c9a3b7ca",
+        "class": "未归类",
+        "subject": "fix(backtest): 成交闸门的两个口径错误 + 横截面陈旧透传"
+      },
+      {
+        "sha": "983fee93",
+        "class": "未归类",
+        "subject": "fix(weights): 把「已知的坏配置」从内部常量搬到用户眼前"
+      },
+      {
+        "sha": "07444fa2",
+        "class": "未归类",
+        "subject": "feat(verify): 复利口径 + 概览页警示——给「年化 20%」一把真尺子"
+      },
+      {
+        "sha": "521bced0",
+        "class": "未归类",
+        "subject": "fix(wordson): turnratio 双窗口统一覆盖率门槛 + 推翻一个错误的归因"
+      },
+      {
+        "sha": "1c60cb07",
+        "class": "未归类",
+        "subject": "fix(evolve_race): 显著性门槛改用真实 t 分布——一次假阳性晋级"
+      },
+      {
+        "sha": "dc452c0d",
+        "class": "未归类",
+        "subject": "chore: aplus 纳入版本控制——1131 条测试曾零版本跟踪"
+      }
+    ]
+  },
+  "honest_boundaries": [
+    "本复盘只回答 §3 的两问；它**不评价**做得对不对。",
+    "D2 的数**不是点估计**：|c| < M ⇒ 连符号都定不了 ⇒ **不许**说「接近」也不许说「达不到」。",
+    "D1 的命中率在 W < 10 时**不许报**（W = 独立成交窗口，不是条目数）。",
+    "「收尾」档提交不计入进展（§4 绿灯作废清单）⇒ 跑偏率是**防跑偏**的读数，**不是**成就。",
+    "提交归类**只读标题首词**；归不出档就记「未归类」，不替它归档。",
+    "「离 20% 差多少」有**两个口径**（理想档 = 公式上界 / 实盘档 = 含整手与闲置现金）⇒ **两个都要报，并标明是哪个**；**只报理想档 = 偏乐观**（2026-10-21 修）。"
+  ],
+  "vs_previous": {
+    "has_previous": false,
+    "note": "没有上一份复盘 ⇒ 本轮是基线，不许说「缺口变了」"
+  }
+}

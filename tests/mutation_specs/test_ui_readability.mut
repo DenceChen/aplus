@@ -1,0 +1,64 @@
+M1 「该减仓」被涂成绿色（危险色写反：红色是危险、绿色是安全）	aplus/web/index.html
+  .ha-chip.s-REDUCE b { color: var(--up); }
+=== 变异体 ===
+  .ha-chip.s-REDUCE b { color: var(--down); }
+
+M2 「拿着没事」被涂成红色（安全色写反）	aplus/web/index.html
+  .ha-chip.s-HOLD b { color: var(--down); }
+=== 变异体 ===
+  .ha-chip.s-HOLD b { color: var(--up); }
+
+M3 「未定（测不出）」被涂成绿色（绿色会被读成「查过了，没问题」）	aplus/web/index.html
+  .ha-chip.s-UNDECIDED b { color: var(--void); }
+=== 变异体 ===
+  .ha-chip.s-UNDECIDED b { color: var(--down); }
+
+M4 宽表回到 overflow:hidden（超出部分被裁掉且滚不到）	aplus/web/index.html
+    overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+=== 变异体 ===
+    overflow-x: hidden; overflow-y: hidden; overscroll-behavior-x: contain;
+
+M5 短字段不 nowrap（中文被压成逐字竖排：瑞/立/科/密）	aplus/web/index.html
+  .lot-table th, .lot-table td { white-space: nowrap; }
+=== 变异体 ===
+  .lot-table th, .lot-table td { white-space: normal; }
+
+M6 窄屏不再让列名下的注记折行（名单表放不下 ⇒ 被裁掉）	aplus/web/index.html
+    .th-note { white-space: normal; }
+=== 变异体 ===
+    .th-note { white-space: nowrap; }
+
+M7 「今天该动吗」被排回依据区之后（首屏答不完「看什么/该动吗」）	aplus/web/index.html
+<div class="panel-head"><h2>持仓降级预警</h2>
+        <span class="sub">只回答横截面位次 · 不预测涨跌 · 不改出单</span>
+        <span class="right" id="holdings-alert-date"></span></div>
+      <div id="holdings-alert-body"><div class="skeleton">读取持仓预警…</div></div>
+    </div>
+=== 变异体 ===
+<div class="panel-head"><h2>资产配置方案</h2><span class="sub">本金 5 万 · 保守档</span>
+        <span class="right" id="alloc-date"></span></div>
+      <div id="alloc-body"><div class="skeleton">加载配置…</div></div>
+    </div>
+
+M8 目标进度的 Markdown 不再渲染（裸星号与裸引号符号回到屏上）	aplus/web/index.html
+      if (t[i] === '*' && t[i + 1] === '*') {  // 加粗：可以跨代码段
+=== 变异体 ===
+      if (false && t[i] === '*' && t[i + 1] === '*') {  // 加粗：可以跨代码段
+
+M9 零计数不再变暗（「减仓 0」红着喊人）	aplus/web/index.html
+  .ha-chip.is-zero b { color: var(--faint); }
+=== 变异体 ===
+  .ha-chip.is-zero b { color: var(--up); }
+
+M10 「测不出」参与变暗（把未知说成没有）	aplus/web/index.html
+    const zero = (n === 0 && k !== 'UNDECIDED') ? ' is-zero' : '';
+=== 变异体 ===
+    const zero = (n === 0) ? ' is-zero' : '';
+
+M11 首屏那两张「首选卡」又抄了一遍第 01 行（首屏被重复内容吃掉）	aplus/web/index.html
+<span class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct ${r.mom20 >= 0 ? 'pos' : 'neg'}">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></span>
+    </div>`;
+=== 变异体 ===
+<span class="stock"><b>${esc(r.name ?? r.code)}</b><span class="pct ${r.mom20 >= 0 ? 'pos' : 'neg'}">${fmtPct(r.mom20)}</span><span class="code">${esc(r.code ?? '')}</span></span>
+      <div class="why">近 20 日涨跌 ${fmtPct(r.mom20)} · 综合分 ${r.score?.toFixed(2) ?? '—'}</div>
+    </div>`;
