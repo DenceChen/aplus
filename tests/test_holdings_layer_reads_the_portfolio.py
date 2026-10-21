@@ -445,3 +445,36 @@ def test_the_state_is_written_only_after_the_allocation_is_computed():
     assert min(save_lines) > min(alloc_lines), (
         f"状态在配置方案之前落盘（save@{min(save_lines)} < alloc@{min(alloc_lines)}）"
         "⇒ 崩了会留下「已换仓但钱包未知」的半成品 ⇒ 次日非调仓日会说「0 只 / 100% 现金」")
+
+
+def test_the_api_known_flag_and_the_portfolio_reader_never_disagree(tmp_path):
+    """🚨 `/api/status` 的 `held_codes_known` 与 `portfolio_codes` **必须同判据**。
+
+    ## 为什么这条独立于「生产不可达」
+
+    旧写法是 `"held_codes" in state`（**键在不在**），
+    而 `portfolio_codes` 判的是「**是不是 list**」
+    ⇒ 文件里若出现 `"held_codes": null`，
+    API 会说「**已知**（= 空仓）」而钱包读法说「**读不出来**」
+    ⇒ 前端会渲染「你持有 0 只」⇒ **叫用户清仓**。
+
+    ⇒ 生产目前不可达（`save_state` 永远写 list），
+    但「**同一语义被处理了两次**」本身就是形状 17 ⇒ 必须收成一个真相源。
+    """
+    from fastapi.testclient import TestClient
+
+    from aplus.live_rebalance import load_state
+    from aplus.webapp import create_app
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "holdings.json").write_text(json.dumps(
+        {**_state_for_disk(), "held_codes": None}, ensure_ascii=False),
+        encoding="utf-8")
+
+    state = load_state(reports)
+    assert portfolio_codes(state) is None, "钱包读法说有值 ⇒ 夹具前提错了"
+    live = TestClient(create_app(tmp_path)).get("/api/status").json()["live"]
+    assert live["held_codes_known"] is False, (
+        "API 说「已知（空仓）」而钱包读法说「读不出来」⇒ "
+        "前端会渲染「你持有 0 只」⇒ **叫用户清仓**")
+    assert live["held_codes"] == []

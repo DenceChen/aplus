@@ -24,7 +24,7 @@ from .champion_health import champion_health, live_down_leg
 from .evolve import LIVE_REBALANCE_EVERY, candidate_key, live_execution_status
 from .factor import DEFAULT_WEIGHTS
 from .factor_ic import weight_sign_conflicts
-from .live_rebalance import held_since_info, load_state
+from .live_rebalance import held_since_info, load_state, portfolio_codes
 from .provenance import report_jsons
 from .reports import (
     latest_prediction_date,
@@ -293,7 +293,14 @@ def _live_holdings_payload(reports_dir) -> dict:
         #    前端必须显示「读不出来」而不是「空仓」——
         #    **空仓**与**读不出来**是两件事（错的方向是让人卖光）。
         "held_codes": (state or {}).get("held_codes") or [],
-        "held_codes_known": "held_codes" in (state or {}),
+        # ⚠️🚨 **这里必须与 `portfolio_codes` 同一个判据**（2026-10-21 晚，复核发现）。
+        #   旧写法 `"held_codes" in state` 是**第二份语义**（「键在不在」）
+        #   ⇒ 文件里若出现 `"held_codes": null`，它会说「**已知**（空仓）」
+        #   而 `portfolio_codes` 说「**读不出来**」⇒ 两边不一致
+        #   ⇒ 前端会渲染「你持有 0 只」⇒ **叫用户清仓**。
+        # ⇒ 生产目前不可达（`save_state` 永远写 list），
+        #   但**同一语义被处理了两次**就是形状 17 ⇒ 收成一个真相源。
+        "held_codes_known": portfolio_codes(state) is not None,
         "every": (state or {}).get("every"),
         "days_since_rebalance": (state or {}).get("days_since_rebalance"),
         # `honored=False` 时 `reason` 逐字带着「回落默认权重未经赛马验证 /
