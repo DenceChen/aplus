@@ -218,3 +218,36 @@ def test_state_never_regresses_to_an_earlier_day(tmp_path):
     assert got["as_of"] == "2026-10-12", (
         f"状态被回退到 {got['as_of']}——补跑历史日期不该倒退持仓状态")
     assert got["days_since_rebalance"] == 3
+
+
+def test_a_changed_config_forces_a_rebalance():
+    """🚨 **配置变了 ⇒ 必须调仓**（`is_due` 的规则 4）。
+
+    ## 为什么这条必须有守卫（2026-10-21 实测）
+
+    生产配置在 2026-10-21 从 **K=21** 改成 **K=63**。
+    ⇒ 持仓状态里存的 `every` 是 **21**，而新的 `every` 是 **63**
+    ⇒ ⇒ **两者不同 ⇒ 规则 4 ⇒ 今晚就是调仓日**
+    ⇒ ⇒ 账户切到新配置（满仓 10 只 × ¥5,000、整手过滤），
+    这正是 `deployed_d2_verdict.json` 的判决腿所描述的那一档。
+
+    ⇒ ⇒ **若没有规则 4**：账户会**拿着旧配置挑出来的持仓**，
+    **继续跑 63 个交易日** ⇒ ⇒ 而 D2 判决档测的是**满仓 10 只**那一档
+    ⇒ ⇒ **账户与被测量的东西对不上，且零告警**
+    ⇒ ⇒ 一条「21 → 63」的改配置，在账户上要 **3 个月**才生效。
+
+    ⇒ 规则 4 的原话（「旧持仓是按旧配置挑的，继续拿着就是拿一套策略的仓位
+    去跑另一套策略」）就是这个存在的理由 ⇒ ⇒ **它必须有守卫**。
+    """
+    from aplus.live_rebalance import is_due
+
+    # ① 频率变了（**今晚这一条**）
+    assert is_due(_state(every=21, days_since_rebalance=0), 63) is True, (
+        "K 从 21 改成 63 却不调仓 ⇒ 账户会拿着旧配置的仓位跑 63 个交易日")
+    # ② 缓冲变了
+    assert is_due(_state(every=63, days_since_rebalance=0, buffer_multiple=None),
+                  63, buffer_multiple=3.0) is True, (
+        "缓冲区变了却不调仓 ⇒ 同上")
+    # ③ 反向正控：**配置没变**时就不该因为「配置变了」而调仓
+    #    （否则这条守卫会把「恒为调仓日」也一起放行，失去判别力）
+    assert is_due(_state(every=63, days_since_rebalance=0), 63) is False
