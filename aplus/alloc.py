@@ -304,7 +304,8 @@ def build_allocation(
         cur = current_by_code[c]
         # 被清掉的票：**目标权重是 0**。
         # ⚠️ `amount` 写 0 不是「不用卖」—— 持仓的**市值/成本不在状态文件里**
-        #    （`holdings.json` 只存代码与名字）⇒ 编一个数出来就是凭空多算一笔账。
+        #    （`holdings.json` 存**代码与名字**；**权重与金额在这里算**，
+        #    不从状态文件读 ⇒ 那是另一份真相源）⇒ 编一个数出来就是凭空多算一笔账。
         rebalance.append({"code": c, "name": cur.get("name", ""), "action": "remove",
                           "weight": 0.0, "amount": 0.0})
 

@@ -883,6 +883,16 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     held_up = portfolio_codes(prev)
     held_down = list((prev or {}).get("down") or [])
     trade_up, trade_down = list(up["code"]), list(down["code"])
+    if due and buf and held_up is None:
+        # 🚨 **缓冲区没生效，而且必须说出来**（2026-10-21 晚，复核点出）。
+        # 缓冲区判据要拿「你手上那几只」去比今天的排名 ⇒ 钱包读不出来时
+        # **无从比较** ⇒ 缓冲区不生效 ⇒ **换手会比平时大**（从「部分换」变「全换」）。
+        # ⇒ 静默跳过会让人以为「今天也是按缓冲区换的」⇒ **这是一次隐形的换手变化**。
+        # ⚠️ 当前生产**不触发**（`weights.json` 不存在 ⇒ `buffer_multiple=None`），
+        #    但**一旦冠军带缓冲区上线就会咬人** ⇒ 提前说清。
+        print(f"[predict] ⚠️ **缓冲区（{buf}×）没有生效**：手上那批**读不出来**"
+              "（状态里没有「哪几只真的拿到了钱」这一列）⇒ 无从比较"
+              "⇒ 今天的换手会比平时大。")
     if due and buf and held_up:
         # 沿用回测的缓冲区判据，不在这里另写一套（两套实现迟早漂移）
         from aplus.rebalance import buffer_hold, fill_to_top_n
