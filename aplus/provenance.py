@@ -217,6 +217,17 @@ DEFAULT_GENERATORS: dict[str, str] = {
     # 🚨 同样只读已有产物、不重跑回测 ⇒ 产物不比输入更新，
     #   上游 stale 则本产物继承同一 staleness（与 `d2_signal_requirement` 同条纪律）。
     "d2_gap_calibers_2026-10-17.json": "scripts/d2_gap_calibers.py",
+    # 2026-10-21 登记：成长族 + 现金流族的长腿臂（**D2 的第三条路**）。
+    # 预注册 `docs/PREREG_GROWTH_CASHFLOW_ARM_2026-10-21.md`（**看到任何读数之前**写死）。
+    # 🚨 它跑的是**臂 R 同款仪器**（500 只缓存池 · 2019→2023 · 毛超额）
+    #   ⇒ 与交付档（5,460 只 · 2021→2026 · 含整手与逐笔成本）**跨口径**
+    #   ⇒ 产物里的 `baseline_comparison.arm_r_readings_are_not_same_caliber`
+    #   自报 `caliber_match = false` ⇒ **不许**把它的读数当 D2 缺口引用。
+    # ⚠️ 逐日**带日期**的产物名 ⇒ 精确表登记的是这一份；
+    #   同生成器的后续日期由 `PATTERN_GENERATORS` 的模式条覆盖
+    #   （CLAUDE.md 形状 17：枚举写法下**新增一份就又漏登记**）。
+    "growth_cashflow_arm_2026-10-21.json":
+        "scripts/measure_growth_cashflow_arm.py",
     "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
@@ -630,6 +641,16 @@ PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     #   `unknown`（= 不许引用），而「不可引用」与「数据坏了」长得一模一样。
     (re.compile(r"^goal_progress_\d{4}-\d{2}-\d{2}\.json$"),
      "scripts/measure_goal_progress.py"),
+    # 2026-10-21 登记：成长族 + 现金流族的长腿臂（**D2 的第三条路**）。
+    # 预注册 `docs/PREREG_GROWTH_CASHFLOW_ARM_2026-10-21.md`。
+    # 🚨 **走模式表而不是逐名登记**：文件名带日期 ⇒ 逐名写法下
+    #   **新增一份就又漏登记**（CLAUDE.md 形状 17）。
+    # ⚠️ 精确表里也有 `growth_cashflow_arm_2026-10-21.json` 这一条
+    #   ⇒ **`resolve_generator()` 先查精确表** ⇒ 本条只管**别的日期**。
+    #   两者指向**同一个脚本** ⇒ 返回值逐位相同 ⇒「谁命中的」不可观测
+    #   ⇒ 所以这里**不写**「两条互不遮蔽」这类没人能验的话。
+    (re.compile(r"^growth_cashflow_arm_\d{4}-\d{2}-\d{2}\.json$"),
+     "scripts/measure_growth_cashflow_arm.py"),
 ]
 
 

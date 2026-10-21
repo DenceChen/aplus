@@ -1,0 +1,1552 @@
+{
+  "kind": "growth_cashflow_arm",
+  "prereg": "docs/PREREG_GROWTH_CASHFLOW_ARM_2026-10-21.md",
+  "prereg_sections": [
+    "§2 因子定义",
+    "§3 PIT 正确性",
+    "§4 测量口径",
+    "§5 对照臂",
+    "§6 判决",
+    "§7 与基线并列"
+  ],
+  "arm": "armR500_growth_cashflow",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "k_arms": [
+    21,
+    63
+  ],
+  "financial_source": {
+    "path": "/Users/airboom/opencode/aplus/data/reports/financial_annual_cache.parquet",
+    "sha256": "417981166d675421277a0a7697deb3160bd4f8f82a6f301ad8d8a6e631440340",
+    "note": "⚠️ **后修值**：数值是采集时（2026-10-14）的版本，**不是**披露当时的版本 ⇒ 可见性对、数值可能是后修的 ⇒ 本轮读数**只作机理/诊断级**（预注册 §3.3）"
+  },
+  "panel_cache": {
+    "path": "/private/tmp/aplus_fund_armR500.pkl",
+    "sha256": "6cd463a520076cdc28e14427b61ef7ba10b2729d632f8c6c00004547a88e2979"
+  },
+  "caliber": {
+    "this_arm": "**判决臂（臂 R 口径）**：500 只缓存池 · 2019-01-02→2023-12-31 · 榜宽 10 · **毛**超额 · 未扣费 · 无整手 · 未做账户腿 · 市场腿 = 覆盖池等权均值",
+    "baseline_arm": "**交付档（实盘档）**：5,460 只全池 · 2021-01-01→2026-10-12 · K=63 · E=100 满仓 · ¥5 万 · 整手 · 逐笔成本",
+    "unit_note": "⚠️ **单位**：本产物内 `*_fraction` 是**分数**、`*_pct` 是**百分数**；交付档产物的 `gross_excess_annual_pct` 是**百分数** ⇒ 跨产物比较时**必须先换算**（第 182 层）",
+    "account_leg": "本轮**没有**账户腿（无 ¥5 万/整手/逐笔成本）⇒ **不可**与交付档的净值/CAGR 直接比大小"
+  },
+  "factor_definitions": {
+    "g_profit": {
+      "family": "GROWTH",
+      "definition": "归母净利同比增长率 = `PARENTNETPROFITTZ`",
+      "source_columns": [
+        "PARENTNETPROFITTZ"
+      ],
+      "direction": "越大越好",
+      "sign": 1,
+      "long_leg_end": "大的一端",
+      "book_lines": "cn_factor_lines.txt:6501-6502、:6529-6530、:6525-6527",
+      "missing_rule": "源列为空即缺失；**不做** winsorize / 行业中性化 / 再乘任何别的因子",
+      "unit": "**百分数**（58.716278 = 同比 **+58.72%**，不是分数 0.587）—— 实测由 `verify_vendor_growth_columns` 逐行反算确认",
+      "vendor_formula": "厂商列 = `100 × (本期 − 上年) / |上年|`（**分母取绝对值** ⇒ 上年为亏损时符号与 `本期/上年 − 1` 不同）"
+    },
+    "g_rev": {
+      "family": "GROWTH",
+      "definition": "营业总收入同比增长率 = `TOTALOPERATEREVETZ`",
+      "source_columns": [
+        "TOTALOPERATEREVETZ"
+      ],
+      "direction": "越大越好",
+      "sign": 1,
+      "long_leg_end": "大的一端",
+      "book_lines": "cn_factor_lines.txt:6529-6530、:9154",
+      "missing_rule": "同 `g_profit`",
+      "unit": "**百分数**（同 `g_profit`）",
+      "vendor_formula": "同 `g_profit`（基数换成 `TOTALOPERATEREVE`）"
+    },
+    "cf_accrual": {
+      "family": "CASHFLOW",
+      "definition": "应计占营业总收入比 = (`PARENTNETPROFIT` − `KCFJCXSYJLR`) / `TOTALOPERATEREVE`（分子分母都是**总额**，尺度无关）",
+      "source_columns": [
+        "PARENTNETPROFIT",
+        "KCFJCXSYJLR",
+        "TOTALOPERATEREVE"
+      ],
+      "direction": "越小越好",
+      "sign": -1,
+      "long_leg_end": "小的一端",
+      "book_lines": "cn_factor_lines.txt:6473-6478",
+      "missing_rule": "**分母 ≤ 0 ⇒ 该 (日,票) 缺失**（不裁剪、不加 epsilon、不取绝对值）",
+      "unit": "**无量纲比率**（分子分母同为金额 ⇒ 尺度无关）",
+      "vendor_formula": "**本轮自算**（厂商没有这一列）"
+    },
+    "cf_growth": {
+      "family": "CASHFLOW",
+      "definition": "经营现金流净额同比增长率 = `KCFJCXSYJLRTZ`",
+      "source_columns": [
+        "KCFJCXSYJLRTZ"
+      ],
+      "direction": "越大越好",
+      "sign": 1,
+      "long_leg_end": "大的一端",
+      "book_lines": "cn_factor_lines.txt:11252-11255",
+      "missing_rule": "同 `g_profit`",
+      "unit": "**百分数**（同 `g_profit`）",
+      "vendor_formula": "同 `g_profit`（基数换成 `KCFJCXSYJLR`）"
+    }
+  },
+  "factor_definition_verification": {
+    "g_profit": {
+      "column": "PARENTNETPROFITTZ",
+      "base_column": "PARENTNETPROFIT",
+      "n_rows": 8796,
+      "formula_tested": "100 × (本期 − 基期) / |基期|",
+      "match_rate_with_rel_tol_1e-9": 1.0,
+      "median_rel_error": 5.369687393897005e-15,
+      "p99_rel_error": 2.8840842758415856e-13,
+      "unit": "**百分数**（不是分数）",
+      "why_it_matters": "量纲必须由产物自己声明（第 182 层）；本因子只用于**排序**⇒ 乘 100 是单调的 ⇒ **对读数零影响**，这一条是语义声明"
+    },
+    "g_rev": {
+      "column": "TOTALOPERATEREVETZ",
+      "base_column": "TOTALOPERATEREVE",
+      "n_rows": 8781,
+      "formula_tested": "100 × (本期 − 基期) / |基期|",
+      "match_rate_with_rel_tol_1e-9": 1.0,
+      "median_rel_error": 1.2258074324512153e-14,
+      "p99_rel_error": 8.612328835521432e-13,
+      "unit": "**百分数**（不是分数）",
+      "why_it_matters": "量纲必须由产物自己声明（第 182 层）；本因子只用于**排序**⇒ 乘 100 是单调的 ⇒ **对读数零影响**，这一条是语义声明"
+    },
+    "cf_growth": {
+      "column": "KCFJCXSYJLRTZ",
+      "base_column": "KCFJCXSYJLR",
+      "n_rows": 8030,
+      "formula_tested": "100 × (本期 − 基期) / |基期|",
+      "match_rate_with_rel_tol_1e-9": 0.9998754669987546,
+      "median_rel_error": 4.956545442651561e-15,
+      "p99_rel_error": 4.2538716491787836e-13,
+      "unit": "**百分数**（不是分数）",
+      "why_it_matters": "量纲必须由产物自己声明（第 182 层）；本因子只用于**排序**⇒ 乘 100 是单调的 ⇒ **对读数零影响**，这一条是语义声明"
+    }
+  },
+  "coverage": {
+    "bm": {
+      "n_days": 58,
+      "mean_n": 348.63793103448273,
+      "median_n": 356.5,
+      "min_n": 0,
+      "max_n": 436
+    },
+    "g_profit": {
+      "n_days": 58,
+      "mean_n": 349.8448275862069,
+      "median_n": 358.5,
+      "min_n": 0,
+      "max_n": 436
+    },
+    "g_rev": {
+      "n_days": 58,
+      "mean_n": 349.1551724137931,
+      "median_n": 358.5,
+      "min_n": 0,
+      "max_n": 433
+    },
+    "cf_accrual": {
+      "n_days": 58,
+      "mean_n": 349.2931034482759,
+      "median_n": 358.5,
+      "min_n": 0,
+      "max_n": 434
+    },
+    "cf_growth": {
+      "n_days": 58,
+      "mean_n": 349.8448275862069,
+      "median_n": 358.5,
+      "min_n": 0,
+      "max_n": 436
+    }
+  },
+  "pit_check": {
+    "assertion": {
+      "violations": 0,
+      "n_rows": 26228,
+      "lag_days": {
+        "min": 0,
+        "p50": 183.0,
+        "p90": 341.0,
+        "max": 2020,
+        "mean": 205.49538660973005
+      },
+      "violation_examples": []
+    },
+    "assertion_note": "预注册 §3.2.4：**每个 (日,票) 用的报告必须 `NOTICE_DATE ≤ 当日`** ⇒ 违规数必须 = 0；间隔分布 = 当日 − 披露日（自然日）",
+    "aplus_cross_check": {
+      "probe_dates": [
+        {
+          "as_of": "2019-01-02",
+          "n_mine": 401,
+          "n_aplus": 401,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [
+            [
+              "300988",
+              "2015-12-31 00:00:00",
+              "2016-12-31 00:00:00"
+            ]
+          ],
+          "n_report_date_diffs": 1,
+          "same_selection": false
+        },
+        {
+          "as_of": "2019-08-09",
+          "n_mine": 420,
+          "n_aplus": 420,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [
+            [
+              "300881",
+              "2017-12-31 00:00:00",
+              "2018-12-31 00:00:00"
+            ],
+            [
+              "300988",
+              "2015-12-31 00:00:00",
+              "2016-12-31 00:00:00"
+            ]
+          ],
+          "n_report_date_diffs": 2,
+          "same_selection": false
+        },
+        {
+          "as_of": "2020-03-20",
+          "n_mine": 425,
+          "n_aplus": 425,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [
+            [
+              "300881",
+              "2017-12-31 00:00:00",
+              "2018-12-31 00:00:00"
+            ],
+            [
+              "300988",
+              "2015-12-31 00:00:00",
+              "2016-12-31 00:00:00"
+            ]
+          ],
+          "n_report_date_diffs": 2,
+          "same_selection": false
+        },
+        {
+          "as_of": "2020-10-29",
+          "n_mine": 439,
+          "n_aplus": 439,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [],
+          "n_report_date_diffs": 0,
+          "same_selection": true
+        },
+        {
+          "as_of": "2021-06-07",
+          "n_mine": 451,
+          "n_aplus": 451,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [],
+          "n_report_date_diffs": 0,
+          "same_selection": true
+        },
+        {
+          "as_of": "2022-01-11",
+          "n_mine": 468,
+          "n_aplus": 468,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [],
+          "n_report_date_diffs": 0,
+          "same_selection": true
+        },
+        {
+          "as_of": "2022-08-19",
+          "n_mine": 482,
+          "n_aplus": 482,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [],
+          "n_report_date_diffs": 0,
+          "same_selection": true
+        },
+        {
+          "as_of": "2023-03-30",
+          "n_mine": 485,
+          "n_aplus": 485,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [],
+          "n_report_date_diffs": 0,
+          "same_selection": true
+        },
+        {
+          "as_of": "2023-11-08",
+          "n_mine": 490,
+          "n_aplus": 490,
+          "only_in_mine": [],
+          "only_in_aplus": [],
+          "report_date_diffs": [],
+          "n_report_date_diffs": 0,
+          "same_selection": true
+        }
+      ],
+      "note": "逐日 asof（`active_annual_by_day`）与 aplus 的 `annual_from_frame` 在同一日选出同一份报告 ⇒ 可见性判据两路一致；差异逐条列出（**不藏**）"
+    },
+    "cross_check_note": "预注册 §3.2.5：与 `aplus.factor_fundamental.annual_from_frame`（**独立实现**）在探针日上逐票对拍 ⇒ 差异**逐条报出**，**不许藏**",
+    "verdict": "PIT 断言通过"
+  },
+  "instrument_equivalence": {
+    "what": "**同一把尺子**的逐位对拍：本轮的 `leg_table_signed` vs 臂 R 的 `_leg_table`，**同一个 bm / 同一份面板 / 同一批前瞻收益** ⇒ 输出必须**逐位相等**",
+    "why": "臂 R 的 `_leg_table` 从 `LONG_SIGN[factor]` 取方向，而 `LONG_SIGN` 里**没有**本轮四个因子 ⇒ 只能带方向重写⇒ **两份副本** ⇒ 第 137 层：两份副本之间没有守卫",
+    "factor": "bm",
+    "n_a": 10,
+    "fields_compared": [
+      "n",
+      "mean_per_k",
+      "gross_annual_pct",
+      "sd_per_k",
+      "t",
+      "t_crit",
+      "mde_per_k",
+      "mde_annual_pct",
+      "long_leg_annual_pct",
+      "market_leg_annual_pct"
+    ],
+    "n_values_compared": 100,
+    "rows": [
+      {
+        "k": 21,
+        "n_ladder_levels": 5,
+        "n_diffs": 0,
+        "diffs": [],
+        "bitwise_equal": true
+      },
+      {
+        "k": 63,
+        "n_ladder_levels": 5,
+        "n_diffs": 0,
+        "diffs": [],
+        "bitwise_equal": true
+      }
+    ],
+    "bitwise_equal": true,
+    "note": "`mde_formula` 是**散文**（引的是本轮预注册的节号）⇒ 不比；**公式本身相同**（`crit × sd/√n × 244/K`）⇒ 由数值逐位相等证明"
+  },
+  "family_cells": {
+    "g_profit@K21": {
+      "factor": "g_profit",
+      "family": "GROWTH",
+      "k": 21,
+      "sign": 1,
+      "n_pairs": 55,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_fraction": -0.11289138682558661,
+        "gross_annual_pct": -11.289138682558661,
+        "long_leg_annual_fraction": -0.048423227376363294,
+        "market_leg_annual_fraction": 0.06446815944922334,
+        "mean_per_k": -0.009716061980890651,
+        "sd_per_k": 0.03150432068375854,
+        "t": -2.2871860938222417,
+        "t_crit": 2.8457173179471447,
+        "mde_annual_fraction": 0.14045948224517749,
+        "mde_annual_pct": 14.04594822451775,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.009716061980890651,
+          "gross_annual_pct": -0.11289138682558661,
+          "sd_per_k": 0.03150432068375854,
+          "t": -2.2871860938222417,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.012088725930937407,
+          "mde_annual_pct": 0.14045948224517749,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.048423227376363294,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.004859334367742446,
+          "gross_annual_pct": -0.056460837415674134,
+          "sd_per_k": 0.025343930506579352,
+          "t": -1.421949455590086,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.009724882913114446,
+          "mde_annual_pct": 0.11299387765713927,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.00800732203354922,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": 7.839116599919477e-05,
+          "gross_annual_pct": 0.0009108306906573107,
+          "sd_per_k": 0.012550828193327188,
+          "t": 0.046320803514303795,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.004815959174565947,
+          "mde_annual_pct": 0.055956858980670994,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.06537899013988065,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": -0.0005335085233061898,
+          "gross_annual_pct": -0.0061988609374623955,
+          "sd_per_k": 0.007810465668790021,
+          "t": -0.5065773631406223,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.002997004119237334,
+          "mde_annual_pct": 0.034822333575900456,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05826929851176097,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -2.9659%（|t| = 0.373 < 2.846） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.029659243207312766,
+        "t_nc": -0.37289282194994466,
+        "t_crit": 2.8457173179471447,
+        "significantly_positive": false,
+        "better_than_original": true,
+        "clause_b_satisfied": false,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.029659243207312766,
+        "t": -0.37289282194994466,
+        "n_pairs": 55
+      },
+      "verdict": {
+        "state": "GROWTH_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 11.2891% < MDE 14.0459%（比值 0.804 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.8037291966414222,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.06413714285714285,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/factor_width_mde.json::widths['10'].friction_width_aware_annual_pct",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.1555710793961524,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 15.55710793961524,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": 0.0,
+        "source_version": "与 D1 产物同源同口径的那一版（git 历史里 friction_at_50k 与 D1 逐位相等者）",
+        "source_sha": "e9f9449a53d047c2030c77be3ee770cd56f170e4",
+        "k_caliber": null,
+        "d2_row_n10": {
+          "friction_at_50k": 0.06413714285714285,
+          "friction_floor": 0.047870476190476186,
+          "required_gross_at_50k": 0.1555710793961524,
+          "required_gross_at_infinite_capital": 0.13930441272948574
+        }
+      }
+    },
+    "g_profit@K63": {
+      "factor": "g_profit",
+      "family": "GROWTH",
+      "k": 63,
+      "sign": 1,
+      "n_pairs": 19,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_fraction": -0.12519680978449618,
+        "gross_annual_pct": -12.519680978449617,
+        "long_leg_annual_fraction": -0.076803723571248,
+        "market_leg_annual_fraction": 0.04839308621324821,
+        "mean_per_k": -0.03232540580501336,
+        "sd_per_k": 0.05283303019665778,
+        "t": -2.6669524100457496,
+        "t_crit": 3.0947997702111456,
+        "mde_annual_fraction": 0.14528157933856073,
+        "mde_annual_pct": 14.528157933856074,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.03232540580501336,
+          "gross_annual_pct": -0.12519680978449618,
+          "sd_per_k": 0.05283303019665778,
+          "t": -2.6669524100457496,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.03751122745216937,
+          "mde_annual_pct": 0.14528157933856073,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.076803723571248,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.01744837345380515,
+          "gross_annual_pct": -0.06757782734489613,
+          "sd_per_k": 0.04102932473960624,
+          "t": -1.8536911610655065,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.02913064661988005,
+          "mde_annual_pct": 0.11282345675001162,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.01918474113164791,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": 0.002690014420623118,
+          "gross_annual_pct": 0.010418468549714933,
+          "sd_per_k": 0.027961783420809856,
+          "t": 0.41934024163268774,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.01985274768382771,
+          "mde_annual_pct": 0.07689000690244382,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05881155476296317,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": -0.0001940125603897094,
+          "gross_annual_pct": -0.0007514137259537952,
+          "sd_per_k": 0.014871567363617602,
+          "t": -0.05686563654246921,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.010558749779644636,
+          "mde_annual_pct": 0.04089420549576653,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.04764167248729444,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -6.1836%（|t| = 0.755 < 3.095） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.06183583393155278,
+        "t_nc": -0.7553597559345273,
+        "t_crit": 3.0947997702111456,
+        "significantly_positive": false,
+        "better_than_original": true,
+        "clause_b_satisfied": false,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.06183583393155278,
+        "t": -0.7553597559345273,
+        "n_pairs": 19
+      },
+      "verdict": {
+        "state": "GROWTH_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 12.5197% < MDE 14.5282%（比值 0.862 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.8617528137737306,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.02137904761904762,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].friction_at_50k",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.11281298415805717,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 11.281298415805717,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": null,
+        "source_version": "当前版本（另一个 agent 在本轮期间换过口径）",
+        "source_sha": null,
+        "k_caliber": 63,
+        "d2_row_n10": {
+          "friction_at_50k": 0.02137904761904762,
+          "friction_floor": 0.015956825396825396,
+          "required_gross_at_50k": 0.11281298415805717,
+          "required_gross_at_infinite_capital": 0.10739076193583495
+        }
+      }
+    },
+    "g_rev@K21": {
+      "factor": "g_rev",
+      "family": "GROWTH",
+      "k": 21,
+      "sign": 1,
+      "n_pairs": 55,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_fraction": -0.07909298609189899,
+        "gross_annual_pct": -7.909298609189899,
+        "long_leg_annual_fraction": -0.015053302587202253,
+        "market_leg_annual_fraction": 0.06403968350469673,
+        "mean_per_k": -0.006807183229220816,
+        "sd_per_k": 0.03176312363802572,
+        "t": -1.5893720825836335,
+        "t_crit": 2.8457173179471447,
+        "mde_annual_fraction": 0.1416133344207183,
+        "mde_annual_pct": 14.16133344207183,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.006807183229220816,
+          "gross_annual_pct": -0.07909298609189899,
+          "sd_per_k": 0.03176312363802572,
+          "t": -1.5893720825836335,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.012188032880471657,
+          "mde_annual_pct": 0.1416133344207183,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.015053302587202253,
+          "market_leg_annual_pct": 0.06403968350469673
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.004724908536728497,
+          "gross_annual_pct": -0.054898937283893,
+          "sd_per_k": 0.018848574892552036,
+          "t": -1.859072091206087,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.007232508148708505,
+          "mde_annual_pct": 0.08403485658499406,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.009140746220803754,
+          "market_leg_annual_pct": 0.06403968350469673
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": -0.0010543388423003698,
+          "gross_annual_pct": -0.012250413215299535,
+          "sd_per_k": 0.013791096724087614,
+          "t": -0.5669734817751773,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.005291870605878247,
+          "mde_annual_pct": 0.06148649656353772,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.051789270289397234,
+          "market_leg_annual_pct": 0.06403968350469673
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": -0.0003821487490249309,
+          "gross_annual_pct": -0.004440204512480149,
+          "sd_per_k": 0.008988771504383642,
+          "t": -0.3152923592486542,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.0034491394454454253,
+          "mde_annual_pct": 0.04007571546136589,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.0595994789922166,
+          "market_leg_annual_pct": 0.06403968350469673
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -12.0861%（|t| = 1.486 < 2.846） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.12086125368149095,
+        "t_nc": -1.4858303504369377,
+        "t_crit": 2.8457173179471447,
+        "significantly_positive": false,
+        "better_than_original": false,
+        "clause_b_satisfied": true,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.12086125368149095,
+        "t": -1.4858303504369377,
+        "n_pairs": 55
+      },
+      "verdict": {
+        "state": "GROWTH_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 7.9093% < MDE 14.1613%（比值 0.559 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.5585136909277347,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.06413714285714285,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/factor_width_mde.json::widths['10'].friction_width_aware_annual_pct",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.1555710793961524,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 15.55710793961524,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": 0.0,
+        "source_version": "与 D1 产物同源同口径的那一版（git 历史里 friction_at_50k 与 D1 逐位相等者）",
+        "source_sha": "e9f9449a53d047c2030c77be3ee770cd56f170e4",
+        "k_caliber": null,
+        "d2_row_n10": {
+          "friction_at_50k": 0.06413714285714285,
+          "friction_floor": 0.047870476190476186,
+          "required_gross_at_50k": 0.1555710793961524,
+          "required_gross_at_infinite_capital": 0.13930441272948574
+        }
+      }
+    },
+    "g_rev@K63": {
+      "factor": "g_rev",
+      "family": "GROWTH",
+      "k": 63,
+      "sign": 1,
+      "n_pairs": 19,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_fraction": -0.06630218670423389,
+        "gross_annual_pct": -6.630218670423389,
+        "long_leg_annual_fraction": -0.0181623249031544,
+        "market_leg_annual_fraction": 0.04813986180107948,
+        "mean_per_k": -0.017119007222814488,
+        "sd_per_k": 0.06151595845611631,
+        "t": -1.2130189363988044,
+        "t_crit": 3.0947997702111456,
+        "mde_annual_fraction": 0.16915811123767857,
+        "mde_annual_pct": 16.915811123767856,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.017119007222814488,
+          "gross_annual_pct": -0.06630218670423389,
+          "sd_per_k": 0.06151595845611631,
+          "t": -1.2130189363988044,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.04367606970481045,
+          "mde_annual_pct": 0.16915811123767857,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.0181623249031544,
+          "market_leg_annual_pct": 0.04813986180107948
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.010443267634397048,
+          "gross_annual_pct": -0.040446941314172695,
+          "sd_per_k": 0.03630332088482164,
+          "t": -1.2539114094578088,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.025775203919039678,
+          "mde_annual_pct": 0.09982777390866161,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.007692920486906802,
+          "market_leg_annual_pct": 0.04813986180107948
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": -0.001781880016056821,
+          "gross_annual_pct": -0.0069012495859978465,
+          "sd_per_k": 0.026207922845242558,
+          "t": -0.29636209498061167,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.018607514110727457,
+          "mde_annual_pct": 0.07206719750821428,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.041238612215081655,
+          "market_leg_annual_pct": 0.04813986180107948
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": 0.0009636580787350863,
+          "gross_annual_pct": 0.003732263035100969,
+          "sd_per_k": 0.01907750236498171,
+          "t": 0.2201801945019353,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.01354494579940634,
+          "mde_annual_pct": 0.05245979008024043,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05187212483618044,
+          "market_leg_annual_pct": 0.04813986180107948
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -16.2662%（|t| = 2.090 < 3.095） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.16266204153017372,
+        "t_nc": -2.089556022707026,
+        "t_crit": 3.0947997702111456,
+        "significantly_positive": false,
+        "better_than_original": false,
+        "clause_b_satisfied": true,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.16266204153017372,
+        "t": -2.089556022707026,
+        "n_pairs": 19
+      },
+      "verdict": {
+        "state": "GROWTH_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 6.6302% < MDE 16.9158%（比值 0.392 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.3919539312606467,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.02137904761904762,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].friction_at_50k",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.11281298415805717,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 11.281298415805717,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": null,
+        "source_version": "当前版本（另一个 agent 在本轮期间换过口径）",
+        "source_sha": null,
+        "k_caliber": 63,
+        "d2_row_n10": {
+          "friction_at_50k": 0.02137904761904762,
+          "friction_floor": 0.015956825396825396,
+          "required_gross_at_50k": 0.11281298415805717,
+          "required_gross_at_infinite_capital": 0.10739076193583495
+        }
+      }
+    },
+    "cf_accrual@K21": {
+      "factor": "cf_accrual",
+      "family": "CASHFLOW",
+      "k": 21,
+      "sign": -1,
+      "n_pairs": 55,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_fraction": -0.04249820044654401,
+        "gross_annual_pct": -4.249820044654401,
+        "long_leg_annual_fraction": 0.021418208272424195,
+        "market_leg_annual_fraction": 0.0639164087189682,
+        "mean_per_k": -0.003657632005645181,
+        "sd_per_k": 0.042485723954201485,
+        "t": -0.638466817132722,
+        "t_crit": 2.8457173179471447,
+        "mde_annual_fraction": 0.1894191863179935,
+        "mde_annual_pct": 18.94191863179935,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.003657632005645181,
+          "gross_annual_pct": -0.04249820044654401,
+          "sd_per_k": 0.042485723954201485,
+          "t": -0.638466817132722,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.0163024709535978,
+          "mde_annual_pct": 0.1894191863179935,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.021418208272424195,
+          "market_leg_annual_pct": 0.0639164087189682
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": 0.0008077330177979167,
+          "gross_annual_pct": 0.009385088397271032,
+          "sd_per_k": 0.02270206280971088,
+          "t": 0.2638662589730723,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.00871115483264502,
+          "mde_annual_pct": 0.10121532281739927,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.07330149711623926,
+          "market_leg_annual_pct": 0.0639164087189682
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": -0.0017239242886531668,
+          "gross_annual_pct": -0.020030358401493937,
+          "sd_per_k": 0.015848194280136164,
+          "t": -0.8067142839989995,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.006081212766843873,
+          "mde_annual_pct": 0.07065790071951929,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.04388605031747425,
+          "market_leg_annual_pct": 0.0639164087189682
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": -0.0005292406895651693,
+          "gross_annual_pct": -0.006149272773995301,
+          "sd_per_k": 0.006646987831599246,
+          "t": -0.5904861120105799,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.002550558539860979,
+          "mde_annual_pct": 0.02963506112981328,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05776713594497288,
+          "market_leg_annual_pct": 0.0639164087189682
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -9.2768%（|t| = 1.628 < 2.846） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.09276792725737726,
+        "t_nc": -1.6275365518654785,
+        "t_crit": 2.8457173179471447,
+        "significantly_positive": false,
+        "better_than_original": false,
+        "clause_b_satisfied": true,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.09276792725737726,
+        "t": -1.6275365518654785,
+        "n_pairs": 55
+      },
+      "verdict": {
+        "state": "CASHFLOW_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 4.2498% < MDE 18.9419%（比值 0.224 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.2243605902476996,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.06413714285714285,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/factor_width_mde.json::widths['10'].friction_width_aware_annual_pct",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.1555710793961524,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 15.55710793961524,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": 0.0,
+        "source_version": "与 D1 产物同源同口径的那一版（git 历史里 friction_at_50k 与 D1 逐位相等者）",
+        "source_sha": "e9f9449a53d047c2030c77be3ee770cd56f170e4",
+        "k_caliber": null,
+        "d2_row_n10": {
+          "friction_at_50k": 0.06413714285714285,
+          "friction_floor": 0.047870476190476186,
+          "required_gross_at_50k": 0.1555710793961524,
+          "required_gross_at_infinite_capital": 0.13930441272948574
+        }
+      }
+    },
+    "cf_accrual@K63": {
+      "factor": "cf_accrual",
+      "family": "CASHFLOW",
+      "k": 63,
+      "sign": -1,
+      "n_pairs": 19,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_fraction": -0.08101868982563304,
+        "gross_annual_pct": -8.101868982563303,
+        "long_leg_annual_fraction": -0.03299057496330757,
+        "market_leg_annual_fraction": 0.04802811486232545,
+        "mean_per_k": -0.02091876007792984,
+        "sd_per_k": 0.07601034671009846,
+        "t": -1.1996098577426302,
+        "t_crit": 3.0947997702111456,
+        "mde_annual_fraction": 0.20901514024484733,
+        "mde_annual_pct": 20.901514024484733,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.02091876007792984,
+          "gross_annual_pct": -0.08101868982563304,
+          "sd_per_k": 0.07601034671009846,
+          "t": -1.1996098577426302,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.05396702391567779,
+          "mde_annual_pct": 0.20901514024484733,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.03299057496330757,
+          "market_leg_annual_pct": 0.04802811486232545
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.006549831470430103,
+          "gross_annual_pct": -0.02536760125055468,
+          "sd_per_k": 0.033445331517275904,
+          "t": -0.8536334424456203,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.023746043584626914,
+          "mde_annual_pct": 0.09196880372458678,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.022660513611770784,
+          "market_leg_annual_pct": 0.04802811486232545
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": -0.007875425150158865,
+          "gross_annual_pct": -0.0305016466133137,
+          "sd_per_k": 0.028514986754133012,
+          "t": -1.2038645734943414,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.020245519705162498,
+          "mde_annual_pct": 0.07841121917554998,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.017526468249011756,
+          "market_leg_annual_pct": 0.04802811486232545
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": -0.0009476204581327974,
+          "gross_annual_pct": -0.003670149075942898,
+          "sd_per_k": 0.013093580666655676,
+          "t": -0.3154661752954703,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.009296386762637726,
+          "mde_annual_pct": 0.03600505349339055,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.04435796578638257,
+          "market_leg_annual_pct": 0.04802811486232545
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -8.5406%（|t| = 1.538 < 3.095） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.08540581211632886,
+        "t_nc": -1.5381452599342869,
+        "t_crit": 3.0947997702111456,
+        "significantly_positive": false,
+        "better_than_original": false,
+        "clause_b_satisfied": true,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.08540581211632886,
+        "t": -1.5381452599342869,
+        "n_pairs": 19
+      },
+      "verdict": {
+        "state": "CASHFLOW_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 8.1019% < MDE 20.9015%（比值 0.388 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.38762115381079587,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.02137904761904762,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].friction_at_50k",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.11281298415805717,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 11.281298415805717,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": null,
+        "source_version": "当前版本（另一个 agent 在本轮期间换过口径）",
+        "source_sha": null,
+        "k_caliber": 63,
+        "d2_row_n10": {
+          "friction_at_50k": 0.02137904761904762,
+          "friction_floor": 0.015956825396825396,
+          "required_gross_at_50k": 0.11281298415805717,
+          "required_gross_at_infinite_capital": 0.10739076193583495
+        }
+      }
+    },
+    "cf_growth@K21": {
+      "factor": "cf_growth",
+      "family": "CASHFLOW",
+      "k": 21,
+      "sign": 1,
+      "n_pairs": 55,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 21,
+        "gross_annual_fraction": -0.03306364398241589,
+        "gross_annual_pct": -3.306364398241589,
+        "long_leg_annual_fraction": 0.03140451546680744,
+        "market_leg_annual_fraction": 0.06446815944922334,
+        "mean_per_k": -0.0028456414902898923,
+        "sd_per_k": 0.03829713375778819,
+        "t": -0.5510553935596504,
+        "t_crit": 2.8457173179471447,
+        "mde_annual_fraction": 0.17074469350060867,
+        "mde_annual_pct": 17.074469350060866,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 55,
+          "mean_per_k": -0.0028456414902898923,
+          "gross_annual_pct": -0.03306364398241589,
+          "sd_per_k": 0.03829713375778819,
+          "t": -0.5510553935596504,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.014695240014396647,
+          "mde_annual_pct": 0.17074469350060867,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.03140451546680744,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "30": {
+          "n": 55,
+          "mean_per_k": -0.0024754893840643094,
+          "gross_annual_pct": -0.028762829033890075,
+          "sd_per_k": 0.019771475336794887,
+          "t": -0.9285458121960868,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.0075866402261458655,
+          "mde_annual_pct": 0.08814953405617101,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.035705330415333254,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "100": {
+          "n": 55,
+          "mean_per_k": 0.0012558920573699632,
+          "gross_annual_pct": 0.014592269618965285,
+          "sd_per_k": 0.012432599186065558,
+          "t": 0.7491550750113168,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.00477059276021855,
+          "mde_annual_pct": 0.055429744452063154,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.07906042906818864,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "200": {
+          "n": 55,
+          "mean_per_k": -0.0005924616105060785,
+          "gross_annual_pct": -0.006883839664927769,
+          "sd_per_k": 0.00724034426308332,
+          "t": -0.6068513788633474,
+          "t_crit": 2.8457173179471447,
+          "mde_per_k": 0.0027782391602930796,
+          "mde_annual_pct": 0.03228049310054816,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.05758431978429557,
+          "market_leg_annual_pct": 0.06446815944922334
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -12.1234%（|t| = 1.603 < 2.846） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.12123353745463322,
+        "t_nc": -1.602851258937762,
+        "t_crit": 2.8457173179471447,
+        "significantly_positive": false,
+        "better_than_original": false,
+        "clause_b_satisfied": true,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.12123353745463322,
+        "t": -1.602851258937762,
+        "n_pairs": 55
+      },
+      "verdict": {
+        "state": "CASHFLOW_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 3.3064% < MDE 17.0745%（比值 0.194 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.19364375726439792,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.06413714285714285,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/factor_width_mde.json::widths['10'].friction_width_aware_annual_pct",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.1555710793961524,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 15.55710793961524,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": 0.0,
+        "source_version": "与 D1 产物同源同口径的那一版（git 历史里 friction_at_50k 与 D1 逐位相等者）",
+        "source_sha": "e9f9449a53d047c2030c77be3ee770cd56f170e4",
+        "k_caliber": null,
+        "d2_row_n10": {
+          "friction_at_50k": 0.06413714285714285,
+          "friction_floor": 0.047870476190476186,
+          "required_gross_at_50k": 0.1555710793961524,
+          "required_gross_at_infinite_capital": 0.13930441272948574
+        }
+      }
+    },
+    "cf_growth@K63": {
+      "factor": "cf_growth",
+      "family": "CASHFLOW",
+      "k": 63,
+      "sign": 1,
+      "n_pairs": 19,
+      "long_leg": {
+        "n_positions": 10,
+        "k": 63,
+        "gross_annual_fraction": -0.09878181772527019,
+        "gross_annual_pct": -9.878181772527018,
+        "long_leg_annual_fraction": -0.05038873151202195,
+        "market_leg_annual_fraction": 0.04839308621324821,
+        "mean_per_k": -0.025505141461852548,
+        "sd_per_k": 0.062298065343143146,
+        "t": -1.7845551633195451,
+        "t_crit": 3.0947997702111456,
+        "mde_annual_fraction": 0.1713087681910254,
+        "mde_annual_pct": 17.13087681910254,
+        "caliber": "**多头口径**：长腿（因子值排序 top-10，等权）− 市场腿（**同一覆盖池**等权均值）；年化 = 每 K 日均值 × 244/K。🚨 **不是多空口径**（顶−底）：融券不可得，书里的多空数**不是**本项目的可达目标"
+      },
+      "leg_ladder": {
+        "10": {
+          "n": 19,
+          "mean_per_k": -0.025505141461852548,
+          "gross_annual_pct": -0.09878181772527019,
+          "sd_per_k": 0.062298065343143146,
+          "t": -1.7845551633195451,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.04423136227883033,
+          "mde_annual_pct": 0.1713087681910254,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": -0.05038873151202195,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "30": {
+          "n": 19,
+          "mean_per_k": -0.012434516650770973,
+          "gross_annual_pct": -0.04815908036171615,
+          "sd_per_k": 0.041917876684944816,
+          "t": -1.2930235445811888,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.029761514734023758,
+          "mde_annual_pct": 0.11526681896986979,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.00023400585153206144,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "100": {
+          "n": 19,
+          "mean_per_k": 0.0031234426936083024,
+          "gross_annual_pct": 0.01209714313080041,
+          "sd_per_k": 0.020462313519928353,
+          "t": 0.6653583449456765,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.014528155848463701,
+          "mde_annual_pct": 0.0562677782067483,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.06049022934404864,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "200": {
+          "n": 19,
+          "mean_per_k": -0.0016442740932196282,
+          "gross_annual_pct": -0.006368299662628402,
+          "sd_per_k": 0.014464258433631175,
+          "t": -0.4955127593103329,
+          "t_crit": 3.0947997702111456,
+          "mde_per_k": 0.01026956216615456,
+          "mde_annual_pct": 0.03977417727843988,
+          "mde_formula": "MDE_ANN = crit × sd_per_K / √n_pairs × (244/K)（预注册 §4 A3；crit 与判决同一个）",
+          "long_leg_annual_pct": 0.04202478655061982,
+          "market_leg_annual_pct": 0.04839308621324821
+        },
+        "546": {
+          "n": 0,
+          "mean_per_k": null,
+          "gross_annual_pct": null,
+          "t": null,
+          "note": "该档每日可用样本 < N（池子上限不足）或配对日 < 3 ⇒ **不报数、不回落成 0**"
+        }
+      },
+      "negative_control": {
+        "state": "PASS",
+        "reason": "负控（翻号）臂毛超额 -8.7871%（|t| = 1.096 < 3.095） ⇒ 未显著 ⇒ 不作废",
+        "gross_nc": -0.08787099495309865,
+        "t_nc": -1.0959441167425334,
+        "t_crit": 3.0947997702111456,
+        "significantly_positive": false,
+        "better_than_original": true,
+        "clause_b_satisfied": false,
+        "clause_b_note": "预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛**；本产物**只在它显著时**才判作废（否则纯噪声会有一半概率作废），并把 `clause_b_satisfied` 与三个原始数**逐项写出来** ⇒ 读者可按自己的口径重判（**不藏**）"
+      },
+      "negative_control_leg": {
+        "sign_flipped": true,
+        "gross_annual_fraction": -0.08787099495309865,
+        "t": -1.0959441167425334,
+        "n_pairs": 19
+      },
+      "verdict": {
+        "state": "CASHFLOW_POWERLESS",
+        "reason": "MDE 闸先判：|长腿毛超额| 9.8782% < MDE 17.1309%（比值 0.577 < 1） ⇒ 本设计**测不到**这个量级的效应",
+        "effect_over_mde": 0.5766302493934179,
+        "shape_only": true,
+        "wording": "这只等于『测不到』，不等于『没有超额』。"
+      },
+      "thresholds": {
+        "d1_friction_annual_pct": 0.02137904761904762,
+        "d1_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].friction_at_50k",
+        "d1_unit": "分数（0.0641371 = 6.4137%/年；字段名带 `_pct` 但**值是分数**）",
+        "d2_required_gross_annual_pct": 0.11281298415805717,
+        "d2_source": "/Users/airboom/opencode/aplus/data/reports/d2_signal_requirement.json::rows[n=10].required_gross_at_50k",
+        "d2_unit": "分数（0.1555708 = 15.5571%/年）",
+        "d2_headline_percent_form": 11.281298415805717,
+        "d2_headline_note": "headline 的那个数是**百分数**（15.5571 = 15.5571%），与 rows 的**分数**差 100 倍 ⇒ 判决只用 rows",
+        "d1_vs_d2_row_friction_diff": null,
+        "source_version": "当前版本（另一个 agent 在本轮期间换过口径）",
+        "source_sha": null,
+        "k_caliber": 63,
+        "d2_row_n10": {
+          "friction_at_50k": 0.02137904761904762,
+          "friction_floor": 0.015956825396825396,
+          "required_gross_at_50k": 0.11281298415805717,
+          "required_gross_at_infinite_capital": 0.10739076193583495
+        }
+      }
+    }
+  },
+  "control_bm_reproduction": {
+    "mechanism": "**同一台仪器**跑 bm ⇒ 必须复现已发表的负读数；复现不出 ⇒ 本轮四个因子**一律不可信**",
+    "cells": {
+      "bm@K21": {
+        "k": 21,
+        "published_gross_annual_fraction": -0.07589353990333512,
+        "reproduced_gross_annual_fraction": -0.07589353990333512,
+        "abs_diff": 0.0,
+        "within_tolerance": true,
+        "prereg_target": -0.07589353990333512,
+        "prereg_target_matches_published": true,
+        "n_pairs": 55,
+        "t": -1.052981211022256,
+        "note": "**同一台仪器**（同一份面板缓存、同一份财务缓存、同一份前瞻收益、同一份腿表函数）⇒ 若这里复现不出，本轮四个因子的读数**一律不可信**（预注册 §5 C2）"
+      },
+      "bm@K63": {
+        "k": 63,
+        "published_gross_annual_fraction": -0.09984606655373453,
+        "reproduced_gross_annual_fraction": -0.09984606655373453,
+        "abs_diff": 0.0,
+        "within_tolerance": true,
+        "prereg_target": -0.09984606655373453,
+        "prereg_target_matches_published": true,
+        "n_pairs": 19,
+        "t": -1.1499645619178187,
+        "note": "**同一台仪器**（同一份面板缓存、同一份财务缓存、同一份前瞻收益、同一份腿表函数）⇒ 若这里复现不出，本轮四个因子的读数**一律不可信**（预注册 §5 C2）"
+      }
+    },
+    "all_within_tolerance": true,
+    "tolerance": 1e-12
+  },
+  "verdict": {
+    "calibers": {
+      "primary": {
+        "m_candidates": 8,
+        "m_note": "预注册 §6.2：m = 8 = 4 因子 × 2 K 档；对照臂**不计入** m，但用**同一个** t_crit",
+        "by_family": {
+          "GROWTH": {
+            "state": "GROWTH_POWERLESS",
+            "state_counts": {
+              "GROWTH_POWERLESS": 4
+            },
+            "n_cells": 4,
+            "cells_pass_family_a": 0,
+            "family_state_rule": "族级标签 = **逐格分布**（过线格数 / 各态计数），**不取极值**（第 143 层：跨格取极值会抹掉它从哪一行来）"
+          },
+          "CASHFLOW": {
+            "state": "CASHFLOW_POWERLESS",
+            "state_counts": {
+              "CASHFLOW_POWERLESS": 4
+            },
+            "n_cells": 4,
+            "cells_pass_family_a": 0,
+            "family_state_rule": "族级标签 = **逐格分布**（过线格数 / 各态计数），**不取极值**（第 143 层：跨格取极值会抹掉它从哪一行来）"
+          }
+        }
+      }
+    },
+    "primary": {
+      "by_family": {
+        "GROWTH": {
+          "state": "GROWTH_POWERLESS",
+          "state_counts": {
+            "GROWTH_POWERLESS": 4
+          },
+          "n_cells": 4,
+          "cells_pass_family_a": 0,
+          "family_state_rule": "族级标签 = **逐格分布**（过线格数 / 各态计数），**不取极值**（第 143 层：跨格取极值会抹掉它从哪一行来）"
+        },
+        "CASHFLOW": {
+          "state": "CASHFLOW_POWERLESS",
+          "state_counts": {
+            "CASHFLOW_POWERLESS": 4
+          },
+          "n_cells": 4,
+          "cells_pass_family_a": 0,
+          "family_state_rule": "族级标签 = **逐格分布**（过线格数 / 各态计数），**不取极值**（第 143 层：跨格取极值会抹掉它从哪一行来）"
+        }
+      },
+      "voided_by_negative_control": false,
+      "voided_cells": [],
+      "void_note": "预注册 §5 C1：负控**显著为正** ⇒ **整套判决作废**（产物的读数仍全部保留，**不藏**）",
+      "clause_b_literal_reading": {
+        "cells_violating_clause_b": [
+          "cf_growth@K63",
+          "g_profit@K21",
+          "g_profit@K63"
+        ],
+        "n_cells_violating": 3,
+        "what_would_happen": "🚨 预注册 §5 C1 第二句「负控毛超额不得高于原臂」**没有写显著性门槛** ⇒ **按字面执行**，上列这些格子违反该句 ⇒ **整套判决应当作废**。本产物**只在负控显著时**才判作废（否则纯噪声会有一半概率作废）⇒ 两种读法的差**写在这里**，**不藏**。⇒ 若读者要按字面读法执行 ⇒ 本轮两族判决**作废**。"
+      },
+      "instrument_ok": true
+    }
+  },
+  "baseline_comparison": {
+    "delivered_price_arm": {
+      "source": "data/reports/deployed_d2_verdict.json::k_grid.cells[\"LIVE_DEFAULT|ARM_A|K63|E100\"].k_axis.gross_excess_annual_pct",
+      "gross_annual_pct": 6.303364234768245,
+      "caliber": "**交付档**：5,460 只全池 · 2021-01-01→2026-10-12 · K=63 · E=100 满仓 · ¥5 万 · 整手过滤 · 逐笔成本 · 市场腿 = 抽样 150 只等权日收益",
+      "is_the_baseline_for_gap": true
+    },
+    "required_gross_at_50k_deliverable": {
+      "source": "data/reports/d2_signal_requirement.json::headline.required_gross_at_50k_deliverable",
+      "percent": 11.281298415805717,
+      "fraction": 0.11281298415805717,
+      "unit_note": "⚠️ **单位陷阱**：headline 是**百分数**（11.2813），`rows[n=10].required_gross_at_50k` 是**分数**（0.1128）"
+    },
+    "same_caliber_gap_multiple": {
+      "value": 1.7897265643606735,
+      "source": "data/reports/d2_signal_requirement.json::headline.multiple_needed_at_50k_deliverable_by_caliber.same_caliber.multiple_needed",
+      "caliber": "**同口径**：K=63 · 生产臂 LIVE_DEFAULT · 配置层 ARM_A · 榜宽 10 · ¥5 万 · 满仓 · 同一等权市场腿",
+      "is_the_gap": true,
+      "note": "**这是本仓唯一可称作「还差几倍」的数**：要求 ÷ **同口径**的实测（K=63 生产臂 6.3034%）。🚨 另有一个**跨口径**倍数（K=21 研究臂实测 ÷ K=63 要求）⇒ 台账自报 `is_the_gap = false` ⇒ **本产物不引用它**"
+    },
+    "arm_r_readings_are_not_same_caliber": {
+      "caliber_match": false,
+      "differences": [
+        "池：500 只缓存池 vs 交付档 5,460 只全池",
+        "窗口：2019-01-02→2023-12-31 vs 2021-01-01→2026-10-12",
+        "市场腿：覆盖池等权均值 vs 抽样 150 只等权日收益",
+        "费用：毛超额（未扣费、无整手）vs 交付档含整手与逐笔成本",
+        "信号：单因子 vs 交付档 4 因子 DEFAULT_WEIGHTS 组合"
+      ],
+      "consequence": "⇒ 「11.2813% ÷ 本轮读数」是**跨口径**的比值 ⇒ **只能作形状陈述**，**不许**写成 D2 缺口"
+    }
+  },
+  "same_ruler_lineup": {
+    "GROWTH": {
+      "instrument": "**臂 R 同一把尺子**：500 只缓存池 · 2019→2023 · K ∈ {21,63} · 榜宽 10 · 毛超额 · 覆盖池市场腿",
+      "rows": {
+        "g_profit@K21": {
+          "gross_annual_fraction": -0.11289138682558661,
+          "gross_annual_pct": -11.289138682558661
+        },
+        "g_profit@K63": {
+          "gross_annual_fraction": -0.12519680978449618,
+          "gross_annual_pct": -12.519680978449617
+        },
+        "g_rev@K21": {
+          "gross_annual_fraction": -0.07909298609189899,
+          "gross_annual_pct": -7.909298609189899
+        },
+        "g_rev@K63": {
+          "gross_annual_fraction": -0.06630218670423389,
+          "gross_annual_pct": -6.630218670423389
+        }
+      },
+      "note": "**同一把尺子下三族并列** ⇒ 族间比较**同口径**；与交付档 +6.3034% 的比较**跨口径**（见上）"
+    },
+    "CASHFLOW": {
+      "instrument": "**臂 R 同一把尺子**：500 只缓存池 · 2019→2023 · K ∈ {21,63} · 榜宽 10 · 毛超额 · 覆盖池市场腿",
+      "rows": {
+        "cf_accrual@K21": {
+          "gross_annual_fraction": -0.04249820044654401,
+          "gross_annual_pct": -4.249820044654401
+        },
+        "cf_accrual@K63": {
+          "gross_annual_fraction": -0.08101868982563304,
+          "gross_annual_pct": -8.101868982563303
+        },
+        "cf_growth@K21": {
+          "gross_annual_fraction": -0.03306364398241589,
+          "gross_annual_pct": -3.306364398241589
+        },
+        "cf_growth@K63": {
+          "gross_annual_fraction": -0.09878181772527019,
+          "gross_annual_pct": -9.878181772527018
+        }
+      },
+      "note": "**同一把尺子下三族并列** ⇒ 族间比较**同口径**；与交付档 +6.3034% 的比较**跨口径**（见上）"
+    }
+  },
+  "wording_guard": {
+    "powerless_wording": "这只等于『测不到』，不等于『没有超额』。",
+    "note": "`POWERLESS` 读作「**这个设计测不到**」；**不许**写「无效」「没有」「已证伪」"
+  },
+  "no_promotion": "本轮读数来自**后修值**财务源（见 `financial_source.note`）⇒ **只作机理/诊断级**，**不产生任何采纳结论**、**不宣称**任何族能到 20%",
+  "what_this_cannot_prove": [
+    "**测不到 ≠ 没有**：`|效应| < MDE` 的格子**只说这个设计测不到这个量级的效应**",
+    "本轮是**毛超额**（未扣费、无整手、无账户腿）⇒ **不能**与交付档的净值/CAGR 比大小",
+    "与基线 +6.3034% 的比较**跨口径**（池/窗口/市场腿/费用/信号五处不同）⇒ 只能作形状陈述",
+    "财务源是**后修值** ⇒ 可见性对、数值可能已被修订过",
+    "**没有**前瞻窗口、**没有**全池臂、**没有**账户腿 ⇒ 本轮**回答不了**「20% 够不够」"
+  ],
+  "scope": {
+    "arm_run": "**臂 R 判决臂**（500 只缓存池 · 2019-01-02→2023-12-31 · K ∈ {21,63} · 榜宽 10 · 毛超额）",
+    "arm_not_run": "**全池 5,460 臂**（交付档口径）**没跑**：① 全池 PIT 财务覆盖 2024-07 才有（实测 2021-01-04 → 42 只）⇒ 交付窗口 2021-01-01→2026-10-12 的**全池财务臂不可构造**；② 内存：全池面板是 **1.7 GB 级 pickle**，而本机同时有**生产采集在跑**（预注册 §3.3 记录当时 swap 已用 3.4/5.1 GB）⇒ 按预注册 §3.3 **只跑 500 只臂**（面板 170 MB，sha256 钉死）",
+    "panel_note": "面板缓存 sha256 与 round B 产物自报的**逐位相同** ⇒ **同一块面板**"
+  }
+}

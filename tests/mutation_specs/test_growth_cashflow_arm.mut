@@ -1,0 +1,139 @@
+M1 负控显著性闸门从 `>=` 改成 `>`（差一个 ulp 就换判）	scripts/measure_growth_cashflow_arm.py
+    sig = abs(t_nc) >= t_crit
+=== 变异体 ===
+    sig = abs(t_nc) > t_crit
+
+M2 「负控显著更好 ⇒ 整套判决作废」那一支被摘掉	scripts/measure_growth_cashflow_arm.py
+    if sig and nc_better:
+=== 变异体 ===
+    if False and nc_better:
+
+M3 「负控显著为正 ⇒ 整套判决作废」那一支被摘掉	scripts/measure_growth_cashflow_arm.py
+    if sig and nc_positive:
+=== 变异体 ===
+    if False and nc_positive:
+
+M4 交付门槛 D1 的比较从严格大于改成大于等于	scripts/measure_growth_cashflow_arm.py
+    d1_ok = gross > d1
+=== 变异体 ===
+    d1_ok = gross >= d1
+
+M5 交付门槛 D2 的比较从严格大于改成大于等于	scripts/measure_growth_cashflow_arm.py
+    d2_ok = gross > d2
+=== 变异体 ===
+    d2_ok = gross >= d2
+
+M6 MDE 闸门的比值门槛被收紧（0.9 的比值不再判「测不到」）	scripts/measure_growth_cashflow_arm.py
+    if ratio is not None and ratio < 1:
+=== 变异体 ===
+    if ratio is not None and ratio < 0.5:
+
+M7 显著性闸门被放宽一倍（刚过线的 t 被判成「没测到」）	scripts/measure_growth_cashflow_arm.py
+    if abs(t) < t_crit:
+=== 变异体 ===
+    if abs(t) < 2 * t_crit:
+
+M8 读不出 MDE 时不再「不报数」（缺档被当成有值继续算）	scripts/measure_growth_cashflow_arm.py
+    if gross is None or mde is None:
+=== 变异体 ===
+    if gross is None:
+
+M9 腿表的标准差从 ddof=1 改成 ddof=0（分母少一个自由度）	scripts/measure_growth_cashflow_arm.py
+        sd = float(s.std(ddof=1))
+=== 变异体 ===
+        sd = float(s.std(ddof=0))
+
+M10 MDE 的年化从 ×244/K 改成 ×244×K（K=63 差 3969 倍）	scripts/measure_growth_cashflow_arm.py
+            "mde_annual_pct": float(mde_per_k * 244.0 / k),
+=== 变异体 ===
+            "mde_annual_pct": float(mde_per_k * 244.0 * k),
+
+M11 腿表的方向取反（长腿取错一端）	scripts/measure_growth_cashflow_arm.py
+            lg, _codes = _long_leg(vals, fwd, sign, n)
+=== 变异体 ===
+            lg, _codes = _long_leg(vals, fwd, -sign, n)
+
+M12 PIT 断言把当日披露当成违规（`lag < 0` 改成 `lag <= 0`）	scripts/measure_growth_cashflow_arm.py
+    bad = active.loc[lag < 0]
+=== 变异体 ===
+    bad = active.loc[lag <= 0]
+
+M13 PIT 断言放宽到 30 天（前视 15 天查不出来）	scripts/measure_growth_cashflow_arm.py
+    bad = active.loc[lag < 0]
+=== 变异体 ===
+    bad = active.loc[lag < -30]
+
+M14 应计因子的分母闸门从 `> 0` 改成 `>= 0`（分母 0 造出 inf）	scripts/measure_growth_cashflow_arm.py
+    out["cf_accrual"] = (num / den.where(den > 0))
+=== 变异体 ===
+    out["cf_accrual"] = (num / den.where(den >= 0))
+
+M15 应计因子的分子两项取反	scripts/measure_growth_cashflow_arm.py
+    num = out["PARENTNETPROFIT"] - out["KCFJCXSYJLR"]
+=== 变异体 ===
+    num = out["KCFJCXSYJLR"] - out["PARENTNETPROFIT"]
+
+M16 成长率因子取错源列（g_profit 拿成营业总收入增速）	scripts/measure_growth_cashflow_arm.py
+    out["g_profit"] = out["PARENTNETPROFITTZ"]
+=== 变异体 ===
+    out["g_profit"] = out["TOTALOPERATEREVETZ"]
+
+M17 因子的方向符号与预注册相反（cf_accrual 越大越好）	scripts/measure_growth_cashflow_arm.py
+LONG_SIGN = {"g_profit": +1, "g_rev": +1, "cf_accrual": -1, "cf_growth": +1}
+=== 变异体 ===
+LONG_SIGN = {"g_profit": +1, "g_rev": +1, "cf_accrual": +1, "cf_growth": +1}
+
+M18 逐位对拍的字段清单漏掉 sd_per_k	scripts/measure_growth_cashflow_arm.py
+_EQUIV_FIELDS = ("n", "mean_per_k", "gross_annual_pct", "sd_per_k",
+=== 变异体 ===
+_EQUIV_FIELDS = ("n", "mean_per_k", "gross_annual_pct",
+
+M19 逐位相等的判据被放松成容差（1 ulp 判成相等）	scripts/measure_growth_cashflow_arm.py
+    return fa == fb
+=== 变异体 ===
+    return abs(fa - fb) < 1e-9
+
+M20 族级标签从「逐格分布」退化成「取极值」	scripts/measure_growth_cashflow_arm.py
+    elif cells and all(v["verdict"]["state"] == f"{prefix}_POWERLESS"
+=== 变异体 ===
+    elif cells and any(v["verdict"]["state"] == f"{prefix}_POWERLESS"
+
+M21 判决臂与交付档的口径标签装反	scripts/measure_growth_cashflow_arm.py
+        "this_arm": ("**判决臂（臂 R 口径）**：500 只缓存池 · 2019-01-02→"
+=== 变异体 ===
+        "this_arm": ("**交付档（实盘档）**：500 只缓存池 · 2019-01-02→"
+
+M22 缺口倍数取成**跨口径**那一列（2.3450× 而不是 1.7897×）	scripts/measure_growth_cashflow_arm.py
+            "value": same["multiple_needed"],
+=== 变异体 ===
+            "value": mc["cross_caliber"]["multiple_needed"],
+
+M23 格子的头条读数取自**翻号臂**（负控臂的数当成读数）	scripts/measure_growth_cashflow_arm.py
+        "gross_annual_fraction": _float(gross),
+=== 变异体 ===
+        "gross_annual_fraction": _float(f10.get("gross_annual_pct")),
+
+M24 「测不到」的措辞被换成「无效」	scripts/measure_growth_cashflow_arm.py
+NOT_MEASURED_WORDING = "这只等于『测不到』，不等于『没有超额』。"
+=== 变异体 ===
+NOT_MEASURED_WORDING = "这个因子无效。"
+
+M25 负控的「不藏」条款被抹掉（读者看不到三个原始数怎么用）	scripts/measure_growth_cashflow_arm.py
+    nc["clause_b_note"] = NC_CLAUSE_B_NOTE
+=== 变异体 ===
+    nc["clause_b_note"] = ""
+
+M26 逐位对拍把本轮的腿表换成了 arm R 的（对拍恒真）	scripts/measure_growth_cashflow_arm.py
+        mine = leg_table_signed(xs, days, "bm", k, fwd_by_k[k],
+=== 变异体 ===
+        mine = _leg_table(xs, days, "bm", k, fwd_by_k[k],
+
+M27 厂商成长率公式的分母去掉绝对值（上年亏损时符号约定被改）	scripts/measure_growth_cashflow_arm.py
+                      / pb[ok].abs().astype(float))
+=== 变异体 ===
+                      / pb[ok].astype(float))
+
+M28 因子的量纲声明被改成「分数」（百分数 ⇒ 分数）	scripts/measure_growth_cashflow_arm.py
+        "unit": ("**百分数**（58.716278 = 同比 **+58.72%**，不是分数 0.587）"
+=== 变异体 ===
+        "unit": ("**分数**（0.587163 = 同比 +58.72%）"

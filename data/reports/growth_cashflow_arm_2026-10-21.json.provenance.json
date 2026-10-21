@@ -1,0 +1,9 @@
+{
+  "code_sha": "eec29ad523d6d7446a8d7c9187612dcb4f755a22",
+  "code_dirty": true,
+  "code_file_sha256": "dc335b78a089cb229e2c25b782dc7c2184ac63199b0ab16722d0ba55f39d79d0",
+  "data_fp": "5460:1792583252.826563",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_growth_cashflow_arm.py",
+  "stamped_at": "2026-10-21T11:48:45+00:00"
+}
