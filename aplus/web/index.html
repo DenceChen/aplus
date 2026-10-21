@@ -920,8 +920,16 @@
      与本页 A 股约定的涨跌红绿**无关** —— 与 .held 的注释同一条纪律。
      🚨 「不可判定」用中性灰（--void）：它既不是好也不是坏，
      把它渲染成红色 = 把「测不出」说成「做不到」（第 16 层）。 */
-  .goal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 12px; }
-  @media (max-width: 860px) { .goal-grid { grid-template-columns: 1fr; } }
+  /* ★ 2026-10-21 改版：目标进度 tab 从「一堵墙」改成「一眼能看完的页」。
+     ⚠️ **8 条目标改成一行一条**（.goal-fold）⇒ 容器是**单列**。
+     🚨 「一行一条」是**任务书的要求**，不是排版偏好：
+        两列网格 ⇒ 一条目标的标题和它的读数被拆到两列 ⇒ 眼睛要在两列间来回跳。
+     ⚠️ `.goal-grid {` 这个选择器**不许改名** ——
+        `tests/test_goal_progress.py::_goal_progress_css_region` 按它**定位那段 CSS**
+        （找不到 ⇒ 夹具前提错 ⇒ 那条守卫会当场喊，而不是静默地量空）。
+        它现在量的是「目标进度那段 CSS 里有没有把数烤进 content:」⇒
+        改名会让那条守卫在**量另一段**（或者量不到）⇒ 判据失焦。 */
+  .goal-grid { display: grid; grid-template-columns: 1fr; gap: 0; margin: 0 0 12px; }
   .goal-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px;
                min-width: 0; background: var(--panel-2); }
   .goal-card h4 { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; line-height: 1.5;
@@ -1002,6 +1010,63 @@
   .goal-tl .tl-chg { color: var(--faint); font-size: 11.5px; line-height: 1.75; margin-top: 2px; }
   .goal-tl .tl-bad { color: var(--up); }
   .goal-tl .tl-gap { color: var(--seal); font-size: 11.5px; margin-top: 4px; line-height: 1.7; }
+
+  /* ── 目标进度 tab：紧凑读数行（2026-10-21 改版）────────────────────
+     ⚠️ **全部限定在 #panel-goal 之下** ——
+        静态导出页（`scripts/export_progress_page.py`）会把**本文件的 CSS**
+        按选择器子串抄过去 ⇒ 这里新增的规则**会被抄走**。
+        抄走本身无害（导出页用同一套 token），但**布局规则不许漂过去**：
+        导出页的 8 条目标是它自己那套结构，live 页多一套 ⇒ 两边会互相改版式。
+        ⇒ **凡是新布局都挂在 #panel-goal 之下** ⇒ 导出页没有这个容器
+           ⇒ 抄过去的规则在那边**一条也不生效** ⇒ 导出页一个像素都不变。 */
+  #panel-goal .goal-summary { color: var(--text); font-size: 15px; line-height: 1.75;
+                              letter-spacing: .01em; margin: 0 0 10px; }
+  /* 一条目标 = 一个 <details>：**summary 是常驻可见的紧凑读数行**，
+     折叠体是这条目标的**完整证据链**（理由 / 读数与出处 / 两个口径 /
+     倍数 / 验收 / 可自动化 / 人工判据 / 诚实边界）⇒ 展开后一个字不少。
+     ⚠️ 类名与静态导出页**同名同义**（两边共用一套结构与 token）。 */
+  #panel-goal .goal-fold { border-top: 1px solid var(--panel-edge); }
+  #panel-goal .goal-fold:first-child { border-top: 0; }
+  #panel-goal .goal-fold > summary { list-style: none; cursor: pointer;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 10px; padding: 5px 0; }
+  #panel-goal .goal-fold > summary::-webkit-details-marker { display: none; }
+  /* ⚠️ 折叠开关是**雪佛龙**（几何状态指示），不是 `→`（那是「去某处」的动词）。
+     ⚠️ 这里用**字面字符**而不是 `\25B8`：目标进度那段 CSS 有一条守卫
+        （`test_the_goal_progress_css_holds_no_baked_number`）不许 `content:`
+        里出现任何数字 ⇒ 转义写法会被它判红（而它判的正是「把测量值烤进样式」）。 */
+  #panel-goal .goal-fold > summary::before { content: '▸'; font-size: 10px; line-height: 1.5; color: var(--faint); }
+  #panel-goal .goal-fold[open] > summary::before { content: '▾'; }
+  #panel-goal .goal-fold > summary:hover { background: rgba(255,255,255,.025); }
+  #panel-goal .goal-fold > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  #panel-goal .goal-fold .goal-status { flex: none; }
+  #panel-goal .gl-title { font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.5; letter-spacing: .01em; }
+  #panel-goal .gl-reads { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+  #panel-goal .gl-read { display: inline-flex; align-items: baseline; gap: 5px; font-size: 12px; }
+  #panel-goal .gl-lab { color: var(--muted); }
+  #panel-goal .gl-val { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* 判据逐字来自快照 ⇒ 它可以折行，但**不许被截断**
+     （`text-overflow: ellipsis` 在本页是禁令：被截掉的正是结论本身）。 */
+  #panel-goal .gl-crit { flex: 1 1 100%; color: var(--faint); font-size: 11px; line-height: 1.75;
+                         border-left: 2px solid var(--line-strong); padding-left: 8px; overflow-wrap: anywhere; }
+  #panel-goal .gl-crit code { font-family: var(--mono); font-size: .94em; }
+  #panel-goal .goal-detail { padding: 0 0 12px 16px; }
+  #panel-goal .goal-detail .goal-reason { margin-top: 2px; }
+  #panel-goal .goal-detail .goal-top { display: flex; align-items: baseline; gap: 8px;
+                                       flex-wrap: wrap; margin-bottom: 6px; }
+  #panel-goal .goal-detail strong { color: var(--text); font-weight: 600; }
+  #panel-goal .goal-detail code, #panel-goal .goal-line code { font-family: var(--mono); font-size: 1em;
+      color: var(--seal); background: rgba(255,255,255,.05); padding: 0 3px; border-radius: 3px; }
+  /* D2 那块（两个口径并排 + 「还差几倍」那一行）**复用概览判决板那套类名**
+     ⇒ 两页看起来是同一个产品；下面的两条是这一屏**独有**的排版修正。 */
+  #panel-goal .goal-d2 { margin: 0 0 12px; }
+  /* ⚠️ 概览那块的口径名**短** ⇒ 标签与主读数同一行；这里的口径名**长**
+     （「实盘档（生产配置 · 满仓 10 只 · K=63 · 整手 · 逐笔成本 · 闲置现金 0 计息）」）
+     ⇒ 同一行会让两格的**主读数不在同一行** ⇒ 「并排对照」这个视觉关系就断了。
+     ⇒ 主读数**单独一行**（两格对齐）。 */
+  #panel-goal .goal-d2 .d2c .d2c-num { display: block; }
+  #panel-goal .goal-d2 .d2c .d2c-sub, #panel-goal .goal-d2 .d2c .d2c-src { overflow-wrap: anywhere; }
+  #panel-goal .goal-d2 .d2c code { font-family: var(--mono); font-size: .94em; }
+  #panel-goal .goal-d2 .gm-flag { font-size: 11px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -1974,7 +2039,13 @@ async function loadOverview() {
      同 renderAlloc 的形态：自己的 try、自己的错误文案。 */
   try { renderHeld(status.live); }
   catch (e) { console.error('[持仓区] 渲染失败', e); $('held-box').innerHTML = `<div class="held-why danger">持仓区渲染失败：${esc(e.message)}</div>`; }
-  try { renderAlloc(await jget('/api/allocation/latest'), status.live?.up?.length ?? null); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
+  /* 🚨 2026-10-21：第二个实参是「你手上现在有几只」⇒ 必须是**钱包**的只数，
+     不是候选池（`live.up` 恒 10 只，其中 6 只从未拿到钱）。
+     ⚠️ `null`（**读不出来**）与 `0`（**真空仓**）是两件事 ⇒ 必须分开传。
+     （`renderAlloc` 本体已经分得开：`heldCount == null` 走「你手上的持仓」兜底，
+       `held > 0` 走「你手上现在的 N 只」，否则「你当前是空仓」。） */
+  try { renderAlloc(await jget('/api/allocation/latest'),
+    status.live?.held_codes_known ? (status.live.held_codes?.length ?? 0) : null); } catch (e) { $('alloc-body').innerHTML = `<div class="empty">尚无配置方案</div>`; }
   /* 🚨 2026-10-20 新增：两块「本钱 / 口径」区块。
      两个 loader **各自带 try/catch**（在函数内部）⇒ 一块读不出来
      不影响另一块，也不影响上面已经画好的名册。
@@ -2936,7 +3007,23 @@ function renderHeld(live) {
     return;
   }
   const every = live.every, days = live.days_since_rebalance, left = live.days_to_rebalance;
-  const upCodes = live.up || [], upNames = live.up_names || [];
+  /* 🚨🚨 2026-10-21：**钱包 ≠ 候选池**（这一段的改法与后端同批）。
+     `live.up` 是那份 10 只涨腿名单（**候选池**），**不是持仓** ——
+     实测那 10 只里 **6 只**因「1 手 > 每份 ¥5,000」配置层配不起来
+     ⇒ 把它渲染成「你持有的票」= **把没买过的票报成在持有**。
+     ⇒ 持仓一律读 `live.held_codes`，并**分三态**：
+       `null` = **读不出来**（状态里没有「哪几只真的拿到了钱」这一列）
+       `[]`   = **真空仓**
+       `[…]`  = 钱包
+     ⚠️ **「读不出来」与「空仓」在屏上必须不同形** ——
+     报成空仓会让用户以为该清仓 ⇒ **错的方向是让人卖光**。
+     ⇒ 名字**按 code 查**（钱包是候选池的子集，**位置不对齐**，不许 zip）。 */
+  const heldCodes = live.held_codes_known ? (live.held_codes || []) : null;
+  const poolCodes = live.up || [], poolNames = live.up_names || [];
+  const poolNameOf = {};
+  poolCodes.forEach((c, i) => { poolNameOf[c] = poolNames[i]; });
+  const heldNames = (heldCodes || []).map(c => poolNameOf[c] || '');
+  const upCodes = poolCodes, upNames = poolNames;   /* 旧名保留（别处还在读） */
   /* ⚠️ 跌腿在 holdings.json 里与 up 并列存，但 `run_daily.py::build_allocation(up, …)`
      只用 up —— 跌腿是**回避清单**，不是持仓（散户不能做空，摩擦也只算单边）。
      把它渲染成「你也持有 10 只跌的」是凭空多算一半仓位。 */
@@ -2979,20 +3066,37 @@ function renderHeld(live) {
        宁可说不知道，也不能把「出单日」说成「持仓日」。 */
   const heldSince = live.held_since ?? null;
   const heldFallback = live.held_since_is_fallback === true || !heldSince;
-  const heldWhen = heldFallback
-    ? `名单出单日 <b>${esc(live.as_of || '未知')}</b>　<span style="color:var(--up)">实际持仓日未知</span>`
-    : `持仓沿用 <b>${esc(heldSince)}</b> 的名单`;
+  /* 🚨 2026-10-21：钱包读不出来时，「持仓沿用 X 的名单」这句**也**要降级 ——
+     否则会出现「持仓沿用 10-21 的名单」+「当前持仓读不出来」**两句打架**
+     （而屏上只有一句是真的）。 */
+  const heldWhen = heldCodes === null
+    ? `<span style="color:var(--up)">实际持仓日与持仓内容<b>都未知</b></span>`
+    : (heldFallback
+      ? `名单出单日 <b>${esc(live.as_of || '未知')}</b>　<span style="color:var(--up)">实际持仓日未知</span>`
+      : `持仓沿用 <b>${esc(heldSince)}</b> 的名单`);
+
+  /* 「你现在持有 N 只」——**三态**，不许把「读不出来」说成「0 只」。 */
+  const heldTitle = heldCodes === null
+    ? '当前持仓<b>读不出来</b>'
+    : (heldCodes.length
+      ? `你现在持有 ${heldCodes.length} 只`
+      : '你现在<b>空仓</b>（确实一只都没有）');
+  const heldRows = heldCodes === null
+    ? '<span class="held-why danger">状态里没有记录「哪几只真的拿到了钱」这一列 '
+      + '⇒ <b>请以券商账户为准</b>，本平台不猜（这不是「空仓」）。</span>'
+    : rows(heldCodes, heldNames, 'up', '持');
 
   box.innerHTML = `
     <div class="held-top">
-      <b>你现在持有 ${upCodes.length} 只</b>
+      <b>${heldTitle}</b>
       <span>${cadence} · ${countdown}</span>
       ${cadenceMismatch}
       <span style="color:var(--faint)">${heldWhen}</span>
     </div>
     ${why}
     <div class="held-codes">
-      <div><b>持有（涨腿）</b> ${rows(upCodes, upNames, 'up', '持')}</div>
+      <div><b>持有（涨腿）</b> ${heldRows}</div>
+      <div><b>今日推荐（候选池，<b>不是</b>持仓）</b> ${rows(poolCodes, poolNames, 'up', '荐')}</div>
       <div><b>回避（跌腿，不是持仓）</b> ${rows(downCodes, downNames, 'down', '避')}</div>
     </div>`;
 }
@@ -3006,6 +3110,12 @@ function renderHeld(live) {
    `undefined == null` 为真 ⇒ 自动走「你手上的持仓」那句兜底文案。 */
 function renderAlloc(a, heldCount) {
   const equity = (a.positions || []).reduce((s, p) => s + p.weight, 0);
+  /* 🚨 2026-10-21：非调仓日 + **钱包读不出来**时，产物是
+     `positions=[] / cash=1.0`（那不是「空仓」，是「不知道」）⇒
+     屏上**不许**显示「权益 0%（0 只 × 10%）· 现金 100%」——
+     那等于叫用户**清仓**（错的方向是让人卖光）。
+     ⚠️ 旧产物没有这个键 ⇒ 默认「已知」⇒ 老产物照旧显示。 */
+  const allocHoldingsKnown = a.holdings_known !== false;
   // ⚠️ 不再用 `a.date ?? ''`：空串渲染出来是「生成于 」——尾巴上什么都没有，
   //   而那与「这一栏还没加载」在页面上**长得一模一样**。
   //   判不出来就说判不出来；后端已经在 /api/allocation/latest 补上 date，
@@ -3043,9 +3153,12 @@ function renderAlloc(a, heldCount) {
       ? `距上次换仓 <b>${a.days_since_rebalance}</b> / <b>${a.rebalance_every}</b> 个交易日`
       : '距上次换仓的进度未知';
     diffHtml = `<div class="alloc-diff">
-      <b>今天不是调仓日 ⇒ 什么都不用动。</b>${prog}；持仓沿用 <b>${esc(since)}</b> 那份名单。
-      下面那张表是「<b>你现在持有什么</b>」，<b>不是</b>「要换成什么」——
-      每天的 10 涨 10 跌名单是<b>参考</b>，换仓日才动。</div>`;
+      <b>今天不是调仓日 ⇒ 什么都不用动。</b>${prog}；${allocHoldingsKnown
+        ? `持仓沿用 <b>${esc(since)}</b> 那份名单。下面那张表是「<b>你现在持有什么</b>」，<b>不是</b>「要换成什么」——
+           每天的 10 涨 10 跌名单是<b>参考</b>，换仓日才动。`
+        : `⚠️ <b>手上那批读不出来</b>（状态里没有「哪几只真的拿到了钱」这一列）
+           ⇒ 下面那张表**不描述**你的持仓 ⇒ <b>请以券商账户为准</b>。
+           ⚠️ <b>这不等于「空仓」</b>（报成空仓会让人以为该清仓）。`}</div>`;
   } else if (!rb) {
     diffHtml = `<div class="alloc-diff warn">
       <b>后端还没有提供调仓清单</b> —— 缺这一块时，下面那张表只说明「目标配置是什么」，
@@ -3089,8 +3202,10 @@ function renderAlloc(a, heldCount) {
     ${diffHtml}
     <div class="alloc-bar"><div class="equity" style="width:${equity * 100}%"></div><div class="cash" style="width:${(1 - equity) * 100}%"></div></div>
     <div class="alloc-legend">
-      <span>权益 <em>${(equity * 100).toFixed(0)}%</em>（${a.positions.length} 只 × 10%）</span>
-      <span>现金 <em>${(a.cash_weight * 100).toFixed(0)}%</em></span>
+      ${allocHoldingsKnown
+        ? `<span>权益 <em>${(equity * 100).toFixed(0)}%</em>（${a.positions.length} 只 × 10%）</span>
+           <span>现金 <em>${(a.cash_weight * 100).toFixed(0)}%</em></span>`
+        : `<span><b>持仓读不出来</b> ⇒ 本方案不描述你的持仓</span>`}
       <span>本金 <em>${(a.capital ?? 0).toLocaleString()}</em> 元</span>
     </div>
     <table><thead><tr><th>持仓</th><th class="num">权重</th><th class="num">金额</th><th class="num">综合分</th></tr></thead><tbody>
