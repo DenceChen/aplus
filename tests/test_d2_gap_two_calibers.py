@@ -724,8 +724,7 @@ def test_the_first_screen_block_is_actually_wired_into_render_docket():
     """
     mod = _wiring_helpers()
     clean = mod.strip_js_comments(HTML.read_text(encoding="utf-8"))
-    body = mod.body_of(clean, "function renderDocket(stats, evo, weights,"
-                               " predictions, gate, d2gap)")
+    body = mod.body_of(clean, "renderDocket")
     calls = re.findall(r"renderD2GapCalibers\(\s*([A-Za-z0-9_$.?]+)\s*\)", body)
     assert calls, (
         "renderDocket 里没有调 renderD2GapCalibers ⇒ 首屏那块永远不出现"

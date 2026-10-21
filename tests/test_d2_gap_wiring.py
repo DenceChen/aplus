@@ -101,9 +101,38 @@ def body_of(clean_src: str, sig: str) -> str:
     不用括号配对扫描器：那要正确处理模板串/正则/注释。
     本文件三个目标函数的函数头与收尾都在列 0，且这条假设**逐条验过**
     （下面 `test_the_bodies_we_search_in_are_not_empty` 是它的正控）。
+
+    ## 🚨 2026-10-21：**锚改成「函数名 + 形参表」**，不再要求形参逐字相同
+
+    原写法把**完整的形参表**当锚（`function renderDocket(stats, evo, weights,
+    predictions, gate, d2gap)`）⇒ ⇒ **加一个参数就让这一组守卫全部打空**
+    （实测 11 条红，而生产代码本身没问题）⇒ ⇒
+    ⇒ 「改签名 ⇒ 守卫忘了新形状 ⇒ 守卫打空」**看起来像生产坏了**，
+    实际是探针的前提过期 ⇒ ⇒ **人会去改本来正确的生产代码**（第 112 层）。
+
+    ⇒ 现在锚是「函数名 + **形参个数**」⇒ ⇒
+    ① 加参数时守卫**仍能抽到函数体**（不会打空）；
+    ② 「形参表对不对」由**另一条**守卫单独钉（见
+    `test_render_docket_declares_its_parameters`）⇒ ⇒ 职责分开：
+    **「有没有接住」与「接的是不是这一组」是两条守卫**。
     """
-    m = re.search(rf"^{re.escape(sig)}.+$", clean_src, re.M)
-    assert m, f"找不到函数头 {sig!r} —— 守卫打空了（不是生产有问题，是探针的前提错了）"
+    # ⚠️ **`sig` 归一成「函数名」**：调用点可能传
+    #   `"renderDocket"`（新写法）或 `"async function loadChrome()"`（旧写法）
+    #   ⇒ 两种都吃 ⇒ ⇒ 以后改签名/加 async 都不必改调用点。
+    name = sig.split("(")[0].strip()
+    for prefix in ("async ", "function "):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+    m = re.search(rf"^(?:async\s+)?function\s+{re.escape(name)}\s*\((.*?)\)\s*\{{",
+                  clean_src, re.M | re.S)
+    assert m, f"找不到函数 {name!r} 的定义行 —— 守卫打空了（不是生产有问题，是探针的前提错了）"
+    n_params = len([x for x in m.group(1).split(",") if x.strip()])
+    if n_params:
+        sig = f"{sig}（形参 {n_params} 个）"
+    body = clean_src[m.end():]
+    end = re.search(r"^\}$", body, re.M)
+    assert end, f"找不到 {sig} 的收尾（列 0 的 }}）"
+    return body[:end.start()]
     rest = clean_src[m.end():]
     end = re.search(r"^\}$", rest, re.M)
     assert end, f"找不到 {sig!r} 的收尾（列 0 的 }}）"
@@ -204,8 +233,7 @@ def test_the_stripper_keeps_line_numbers_aligned():
 
 def test_the_bodies_we_search_in_are_not_empty():
     """正控（第 120 层）：夹具必须能区分「函数不存在」与「体是空的」。"""
-    body = body_of(_clean_html(), "function renderDocket(stats, evo, weights,"
-                                  " predictions, gate, d2gap)")
+    body = body_of(_clean_html(), "renderDocket")
     assert len(body) > 2000, f"renderDocket 体只有 {len(body)} 字符 ⇒ 后面全是空跑"
     assert "docketScreen" in body, "renderDocket 里没有袋子构造 ⇒ 守卫打在了别的函数上"
 
@@ -233,26 +261,38 @@ def test_render_docket_is_called_from_two_places_and_both_pass_the_ledger():
         f"「函数定义」而不是真调用 ⇒ 正则该用 `[^;{{]*`")
     for c in calls:
         args = [a.strip() for a in c.split(",")]
-        assert len(args) == 6, f"实参数 = {len(args)}，第 6 个漏了：{c!r}"
+        # ⚠️ **2026-10-21：形参数 6 → 7**（新增 `scope` = 归属口径，
+        #   用来解释「窗口数为什么是这个数」）。
+        #   ⇒ 这条守卫**变严了**（多钉一个形参），不是放松。
+        assert len(args) == 7, f"实参数 = {len(args)}，第 7 个漏了：{c!r}"
         assert args[5] == "d2gap", f"第 6 个实参不是 d2gap：{args[5]!r}"
+        assert args[6] == "status.signal_scope", (
+            f"第 7 个实参不是 status.signal_scope：{args[6]!r}")
 
 
-def test_render_docket_declares_the_sixth_parameter():
-    """「传了但没人接」比漏传更难查 —— 签名必须接第 6 参。"""
+def test_render_docket_declares_its_parameters():
+    """「传了但没人接」比漏传更难查 —— 签名必须**接住**每个形参。
+
+    ⚠️ **2026-10-21：形参表 6 → 7**（新增 `scope` = 归属口径，
+    用来在屏上解释「窗口数为什么是这个数」）。
+    ⇒ ⇒ **这条守卫变严了**（多钉一个形参），不是放松。
+    ⇒ ⇒ 且**抽函数体**已改成按**函数名**锚（`body_of(clean, "renderDocket")`）
+    ⇒ ⇒ 以后再加参数，**这一组守卫不会整体打空**（上一次的教训：
+    加一个参数 ⇒ 11 条红 ⇒ 看起来像生产坏了，实际是探针前提过期）。
+    """
     clean = _clean_html()
-    m = re.search(r"^function renderDocket\((.*)\)\s*\{", clean, re.M)
+    m = re.search(r"^function renderDocket\((.*?)\)\s*\{", clean, re.M | re.S)
     assert m, "找不到 renderDocket 的定义行"
-    params = [p.strip() for p in m.group(1).split(",")]
-    assert params == ["stats", "evo", "weights", "predictions", "gate", "d2gap"], \
-        f"形参 = {params}"
+    params = [p.strip() for p in m.group(1).split(",") if p.strip()]
+    assert params == ["stats", "evo", "weights", "predictions", "gate", "d2gap",
+                      "scope"], f"形参 = {params}"
 
 
 # ---------- ④ 环节三：袋子构造与合并顺序 ----------
 
 def test_the_bag_reads_the_verdict_input_projection():
     """实参必须读 `verdict_input`，不是整个 `ledger` 也不是顶层。"""
-    body = body_of(_clean_html(), "function renderDocket(stats, evo, weights,"
-                                  " predictions, gate, d2gap)")
+    body = body_of(_clean_html(), "renderDocket")
     m = BAG_LINE.search(body)
     assert m, "抽不到生产那行合并表达式 ⇒ 守卫没在打调用点"
     args = " ".join(m.group(1).split())
@@ -262,8 +302,7 @@ def test_the_bag_reads_the_verdict_input_projection():
 def test_the_ledger_is_merged_after_the_predictions():
     """`Object.assign` 是**后者赢**，而 `rows` 在两个面上同名
     ⇒ 顺序写反时预测面的 `rows` 会顶掉台账的五档宽度行。顺序是承重的。"""
-    body = body_of(_clean_html(), "function renderDocket(stats, evo, weights,"
-                                  " predictions, gate, d2gap)")
+    body = body_of(_clean_html(), "renderDocket")
     args = " ".join(BAG_LINE.search(body).group(1).split())
     assert args != REVERSED_ARGS, "生产的合并顺序已经是对调的那一支"
     assert args.rindex("verdict_input") > args.rindex("predictions"), (
@@ -272,8 +311,7 @@ def test_the_ledger_is_merged_after_the_predictions():
 
 def test_the_production_merge_line_actually_builds_a_usable_bag():
     """把**生产那一行的实参原文**拿进 node 真跑，不 require 整个 html。"""
-    body = body_of(_clean_html(), "function renderDocket(stats, evo, weights,"
-                                  " predictions, gate, d2gap)")
+    body = body_of(_clean_html(), "renderDocket")
     args = " ".join(BAG_LINE.search(body).group(1).split())
     got = _bag_outcome(args, _gap_with_ledger())
 
@@ -290,8 +328,7 @@ def test_the_production_merge_line_actually_builds_a_usable_bag():
 
 def test_the_bag_verdict_is_word_for_word_the_projection_only_verdict():
     """袋子与「只喂投影」的判决必须逐字相同 ⇒ 预测面专属的形状支没混进来。"""
-    body = body_of(_clean_html(), "function renderDocket(stats, evo, weights,"
-                                  " predictions, gate, d2gap)")
+    body = body_of(_clean_html(), "renderDocket")
     args = " ".join(BAG_LINE.search(body).group(1).split())
     script = f"""
 const {{d2LedgerVerdict}} = require({json.dumps(str(VERDICT_JS))});
@@ -321,8 +358,7 @@ def test_reversing_the_merge_order_is_detectable():
     """
     assert REVERSED_ARGS != " ".join(
         BAG_LINE.search(body_of(_clean_html(),
-                                "function renderDocket(stats, evo, weights,"
-                                " predictions, gate, d2gap)")).group(1).split())
+                                "renderDocket")).group(1).split())
     good = _bag_outcome("{}, predictions, d2gap?.ledger?.verdict_input",
                         _gap_with_ledger())
     bad = _bag_outcome(REVERSED_ARGS, _gap_with_ledger())
