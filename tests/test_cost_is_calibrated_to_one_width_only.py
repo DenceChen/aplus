@@ -60,6 +60,7 @@ K 扫描（`data/reports/k_sweep_summary.json`）五档**全部在 N=10**，
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import sys
@@ -412,9 +413,33 @@ def test_the_artifact_is_not_older_than_the_script_that_writes_it():
     art = _ROOT / "data" / "reports" / "factor_width_mde.json"
     src = _ROOT / "scripts" / "factor_width_mde.py"
     assert art.exists(), f"{art} 不存在"
+
+    # 🚨 **2026-10-21：判据从 mtime 换成「字节」**（仓库自己的处方，第 157 层：
+    #   mtime 的假阳性会把人推向「重跑本来正确的东西」）。
+    #   ⇒ 实测这次**假红**：一次批量还原按路径顺序重写了 mtime
+    #   （`data/` 在 `scripts/` 之前）⇒ 产物显得比脚本旧；
+    #   而**章里的字节与盘上脚本逐位相等** ⇒ 它本来就出自当前代码。
+    #   ⇒ **字节判据严格更强**：脚本改过而没重跑 ⇒ 字节不等 ⇒ 红；
+    #   「改了又改回」/批量还原 ⇒ 字节相等 ⇒ **不误伤**。
+    side = art.with_name(art.name + ".provenance.json")
+    if side.exists():
+        sc = json.loads(side.read_text(encoding="utf-8"))
+        got = sc.get("code_file_sha256")
+        want = hashlib.sha256(src.read_bytes()).hexdigest()
+        assert got is not None, (
+            f"{side.name} 里没有 code_file_sha256 ⇒ 判据退化成 mtime（降级）")
+        assert got == want, (
+            f"章里记录的脚本字节与盘上**当前**字节不相等 ⇒ 脚本改过而产物没重跑"
+            f"（章={got[:12]}… 盘上={want[:12]}…）。\n"
+            "**修完 P0 一律重跑，重跑前绝对收益数字不可引用。**\n"
+            "重跑命令：.venv/bin/python scripts/factor_width_mde.py --start 2021-01-01"
+        )
+        return
+
+    # 降级路径：**没有侧车** ⇒ 只能比 mtime ⇒ **明说这是降级判据**
     gap = art.stat().st_mtime - src.stat().st_mtime
     assert gap >= 0, (
-        f"产物比脚本旧 {abs(gap):.0f} 秒 ⇒ 脚本改过而没重跑。\n"
+        f"（降级判据：无 sidecar）产物比脚本旧 {abs(gap):.0f} 秒 ⇒ 脚本改过而没重跑。\n"
         "**修完 P0 一律重跑，重跑前绝对收益数字不可引用。**\n"
         "重跑命令：.venv/bin/python scripts/factor_width_mde.py --start 2021-01-01"
     )

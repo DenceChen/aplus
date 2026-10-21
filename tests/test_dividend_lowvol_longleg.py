@@ -767,7 +767,25 @@ def test_the_artifact_declares_its_coverage_and_its_bias_direction():
                 "sampling_mechanism", "two_legs_warning"):
         assert key in cov, f"覆盖块缺字段 {key}"
     assert cov["n_pool_codes"] == d["artifact_meta"]["n_pool_full"]
-    assert "不可判" in cov["bias_direction"] or "偏保守" in cov["bias_direction"]
+
+    # 🚨 **条件化断言**（2026-10-21 改）：覆盖**够**与覆盖**不够**⇒
+    #   产物该说的话**不同** ⇒ 判据必须**跟着覆盖走**，
+    #   ���能是一张关键词白名单。
+    #   ⇒ 白名单会让「覆盖已达标却仍写『不可判』」也放过
+    #   ⇒ 那是对旧读数（20% 覆盖那版）的残留。
+    #   ⇒ 现在：**覆盖达标 ⇒ 必须写「没有覆盖偏差方向的修正项」；
+    #   覆盖不足 ⇒ 必须写明偏差方向（不可判 / 偏保守）。**
+    if cov["coverage_ratio"] >= cov["coverage_min"]:
+        assert ("达标" in cov["bias_direction"]
+                or "没有覆盖偏差" in cov["bias_direction"]), (
+            f"覆盖已达标（{cov['coverage_ratio']:.4f} ≥ {cov['coverage_min']:.4f}）"
+            f"⇒ 产物必须写明「没有覆盖偏差方向的修正项」"
+            f"（还要单列修订风险），现在写的是：{cov['bias_direction']!r}")
+    else:
+        assert "不可判" in cov["bias_direction"] or "偏保守" in cov["bias_direction"], (
+            f"覆盖不足（{cov['coverage_ratio']:.4f} < {cov['coverage_min']:.4f}）"
+            f"⇒ 产物必须写明偏差方向（不可判 / 偏保守），"
+            f"现在写的是：{cov['bias_direction']!r}")
 
 
 def test_every_arm_in_the_artifact_carries_a_verdict_and_its_wording():
