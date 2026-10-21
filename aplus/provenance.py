@@ -228,6 +228,14 @@ DEFAULT_GENERATORS: dict[str, str] = {
     #   （CLAUDE.md 形状 17：枚举写法下**新增一份就又漏登记**）。
     "growth_cashflow_arm_2026-10-21.json":
         "scripts/measure_growth_cashflow_arm.py",
+    # 2026-10-21 登记：「信号住在买不到的票里」——可买性干预臂
+    # （臂 A 现状 / B 干预 / C 负控 / D 已知为负）。
+    # 预注册 `docs/PREREG_AFFORDABLE_SIGNAL_ARM_2026-10-21.md`。
+    # 🚨 这条登记是**被守卫逼出来的**：`test_every_stamped_report_resolves_
+    #   to_a_registered_generator` 在门禁里点名了本文件 ——
+    #   盖了章却没登记，而「盖一个**解析不出生成器**的章比不盖更坏」（形状 16）。
+    "affordable_signal_arm_2026-10-21.json":
+        "scripts/measure_affordable_signal_arm.py",
     "verdict_composite.json": "scripts/verdict_composite.py",
     "backtest_summary.json": "aplus/backtest.py",
     "lowfreq_plausibility.json": "scripts/lowfreq_plausibility.py",
@@ -651,6 +659,14 @@ PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     #   ⇒ 所以这里**不写**「两条互不遮蔽」这类没人能验的话。
     (re.compile(r"^growth_cashflow_arm_\d{4}-\d{2}-\d{2}\.json$"),
      "scripts/measure_growth_cashflow_arm.py"),
+    # 2026-10-21 登记：可买性干预臂（「信号住在买不到的票里」）。
+    # 预注册 `docs/PREREG_AFFORDABLE_SIGNAL_ARM_2026-10-21.md`。
+    # 🚨 **走模式表而不是逐名登记**：文件名带日期 ⇒ 逐名写法下
+    #   **新增一份就又漏登记**（CLAUDE.md 形状 17）。
+    #   精确表里也有 `affordable_signal_arm_2026-10-21.json` 这一条
+    #   ⇒ `resolve_generator()` 先查精确表 ⇒ 本条只管**别的日期**。
+    (re.compile(r"^affordable_signal_arm_\d{4}-\d{2}-\d{2}\.json$"),
+     "scripts/measure_affordable_signal_arm.py"),
 ]
 
 

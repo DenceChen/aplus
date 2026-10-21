@@ -1,0 +1,164 @@
+M1 MDE 闸被摘掉（判决链顺序：MDE 必须先判）	scripts/measure_affordable_signal_arm.py
+    if ratio is not None and ratio < 1:
+=== 变异体 ===
+    if False and ratio is not None and ratio < 1:
+
+M2 D1 摩擦的边界从「≤」改成「<」（恰好等于摩擦时不再算抵不过）	scripts/measure_affordable_signal_arm.py
+    if gross_pct <= -d1_pct:
+=== 变异体 ===
+    if gross_pct < -d1_pct:
+
+M3 D2 门槛的边界从「≥」改成「>」（恰好等于门槛时不再算达标）	scripts/measure_affordable_signal_arm.py
+    if gross_pct >= d2_pct:
+=== 变异体 ===
+    if gross_pct > d2_pct:
+
+M4 预注册四态没覆盖的那一格被塞进「正但不够」（把符号说反）	scripts/measure_affordable_signal_arm.py
+    return {"state": "NEGATIVE_MEASURED_BELOW_FRICTION",
+=== 变异体 ===
+    return {"state": "POSITIVE_BUT_SHORT",
+
+M5 缺交付阈值时不再报错（回落成「不决定」）	scripts/measure_affordable_signal_arm.py
+    if d1_pct is None or d2_pct is None:
+=== 变异体 ===
+    if False:
+
+M6 负控的显著性闸门从「≥」改成「>」（差一个 ulp 就换判）	scripts/measure_affordable_signal_arm.py
+    sig = abs(c_t) >= t_crit
+=== 变异体 ===
+    sig = abs(c_t) > t_crit
+
+M7 负控的 INCONCLUSIVE 三态被压成 PASS（读不出来也当「没触发作废」）	scripts/measure_affordable_signal_arm.py
+        return {"state": "INCONCLUSIVE",
+=== 变异体 ===
+        return {"state": "PASS",
+
+M8 负控的 VOID 分支被摘掉（负控没变差也不作废）	scripts/measure_affordable_signal_arm.py
+    if sig and not_worse:
+=== 变异体 ===
+    if False and sig and not_worse:
+
+M9 臂 D 没复现时不再作废（整套读数照发）	scripts/measure_affordable_signal_arm.py
+    if not d_ok:
+=== 变异体 ===
+    if False:
+
+M10 负控没变差时不再作废	scripts/measure_affordable_signal_arm.py
+    if nc_state.get("state") == "VOID":
+=== 变异体 ===
+    if False:
+
+M11 干预判决的 POWERLESS 子支被摘掉（测不到被判成有判决）	scripts/measure_affordable_signal_arm.py
+        if a_in and b_in:
+=== 变异体 ===
+        if False:
+
+M12 账户层乘积那一支被摘掉（拿毛超额差去比部署率 ⇒ 第 7 层）	scripts/measure_affordable_signal_arm.py
+        if a_acc is not None and b_acc is not None and b_acc >= a_acc:
+=== 变异体 ===
+        if False:
+
+M13 账户层乘积从「部署率 × 篮子收益」改成「相加」	scripts/measure_affordable_signal_arm.py
+    return float(dep) * float(lg) * 100.0
+=== 变异体 ===
+    return float(dep) + float(lg) * 100.0
+
+M14 臂 B 的干预顺序被翻转（先取 Top10 再剔 ⇒ 变成臂 A）	scripts/measure_affordable_signal_arm.py
+    picks = aff[:N_SLOTS]
+=== 变异体 ===
+    picks = codes[:N_SLOTS]
+
+M15 臂 C 的方向被翻转（取最好的 10 只而不是最差的）	scripts/measure_affordable_signal_arm.py
+    picks = aff[-N_SLOTS:] if len(aff) > N_SLOTS else aff
+=== 变异体 ===
+    picks = aff[:N_SLOTS] if len(aff) > N_SLOTS else aff
+
+M16 整手股数被写死成 100（科创板 200 股的规则丢了）	scripts/measure_affordable_signal_arm.py
+    return px * float(lot_shares_for(code))
+=== 变异体 ===
+    return px * 100.0
+
+M17 可买性阈值被放宽 10 倍（每份 ¥50,000）	scripts/measure_affordable_signal_arm.py
+        if lot <= float(budget):
+=== 变异体 ===
+        if lot <= float(budget) * 10.0:
+
+M18 缺价的名单不再报出来（剔票这件事静默了）	scripts/measure_affordable_signal_arm.py
+    return costs, ok, missing
+=== 变异体 ===
+    return costs, ok, set()
+
+M19 部署率从「逐日分布的均值」退化成「第一天的读数」	scripts/measure_affordable_signal_arm.py
+        "mean": float(s.mean()),
+=== 变异体 ===
+        "mean": float(s.iloc[0]),
+
+M20 「测不到」的措辞被改成「无效」	scripts/measure_affordable_signal_arm.py
+NOT_MEASURED_WORDING = "这只等于『测不到』，不等于『没有超额』。"
+=== 变异体 ===
+NOT_MEASURED_WORDING = "这只等于『无效』，不等于『没有超额』。"
+
+M21 倍数取成**跨口径**那一列（台账自报 is_the_gap = false）	scripts/measure_affordable_signal_arm.py
+        "value": same["multiple_needed"],
+=== 变异体 ===
+        "value": mc["cross_caliber"]["multiple_needed"],
+
+M22 D1 摩擦被手打成一个数（不再从产物读）	scripts/measure_affordable_signal_arm.py
+    d1_k21_frac = fwm["widths"]["10"]["friction_width_aware_annual_pct"]
+=== 变异体 ===
+    d1_k21_frac = 0.05
+
+M23 臂 D 的复现容差被放宽（逐位相等变成差不多相等）	scripts/measure_affordable_signal_arm.py
+BM_REPRO_TOL = 1e-12
+=== 变异体 ===
+BM_REPRO_TOL = 1e-6
+
+M24 MDE 的年化乘数从 244 改成 252（交易日历口径换了）	scripts/measure_affordable_signal_arm.py
+        "mde_annual_pct": float(mde_per_k * 244.0 / k),
+=== 变异体 ===
+        "mde_annual_pct": float(mde_per_k * 252.0 / k),
+
+M25 腿表的 sd 用 ddof=0（总体标准差 ⇒ 分母偏小）	scripts/measure_affordable_signal_arm.py
+    sd = float(s.std(ddof=1))
+=== 变异体 ===
+    sd = float(s.std(ddof=0))
+
+M26 MDE 公式里的 √n 被摘掉	scripts/measure_affordable_signal_arm.py
+    mde_per_k = float(crit * sd / np.sqrt(len(s)))
+=== 变异体 ===
+    mde_per_k = float(crit * sd)
+
+M27 腿表的市场腿被换成长腿（口径混比：拿超额的两腿比）	scripts/measure_affordable_signal_arm.py
+        "market_leg_annual_pct": _annualized(float(pd.Series(pools).mean()), k),
+=== 变异体 ===
+        "market_leg_annual_pct": _annualized(float(pd.Series(longs).mean()), k),
+
+M28 毛超额的年化被多乘一次 K	scripts/measure_affordable_signal_arm.py
+        "gross_annual_pct": _annualized(float(s.mean()), k),
+=== 变异体 ===
+        "gross_annual_pct": _annualized(float(s.mean()), k * 2),
+
+M29 干预判决的 LEVER 分支去掉「部署率更高」这个条件	scripts/measure_affordable_signal_arm.py
+    if b_g >= a_g and b_dep is not None and a_dep is not None and b_dep > a_dep:
+=== 变异体 ===
+    if b_g >= a_g:
+
+M30 池子的排序方向被取反（干预臂会挑最差的一端）	scripts/measure_affordable_signal_arm.py
+    return df.sort_values("score", ascending=False).reset_index(drop=True)
+=== 变异体 ===
+    return df.sort_values("score", ascending=True).reset_index(drop=True)
+
+M31 合成分的权重被换掉（不再用生产的 DEFAULT_WEIGHTS）	scripts/measure_affordable_signal_arm.py
+    df["score"] = composite_score(df, DEFAULT_WEIGHTS)
+=== 变异体 ===
+    df["score"] = composite_score(df, {"mom20": 1.0})
+
+M32 生产池的 filter_universe 被摘掉（ST / 次新 / 买不进不再剔）	scripts/measure_affordable_signal_arm.py
+    df = filter_universe(uni.copy(), as_of=day)
+=== 变异体 ===
+    df = uni.copy().reset_index(drop=True)
+
+M33 部署率的分母从 10 改成 5	scripts/measure_affordable_signal_arm.py
+        deploy_rates.append(len(deployed) / float(N_SLOTS))
+=== 变异体 ===
+        deploy_rates.append(len(deployed) / 5.0)

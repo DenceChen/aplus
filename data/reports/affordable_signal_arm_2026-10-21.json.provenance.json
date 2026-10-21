@@ -1,0 +1,23 @@
+{
+  "code_sha": "2f3d0cc9a8b6029310d6d0494fbda904ee2730d7",
+  "code_dirty": true,
+  "code_file_sha256": "81db27b05cf0073ee1b692eda673189e061a00d892a3b8f4bb3966aab49ffe1b",
+  "data_fp": "5460:1792583252.826563",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_affordable_signal_arm.py",
+  "stamped_at": "2026-10-21T15:16:43+00:00",
+  "arm": "armR500_affordable_signal",
+  "window": [
+    "2019-01-02",
+    "2023-12-31"
+  ],
+  "k_arms": [
+    21,
+    63
+  ],
+  "panel_cache": "/private/tmp/aplus_fund_armR500.pkl",
+  "panel_cache_sha256": "6cd463a520076cdc28e14427b61ef7ba10b2729d632f8c6c00004547a88e2979",
+  "financial_source": "/Users/airboom/opencode/aplus/data/reports/financial_annual_cache.parquet",
+  "financial_source_sha256": "417981166d675421277a0a7697deb3160bd4f8f82a6f301ad8d8a6e631440340",
+  "n_a": 10
+}

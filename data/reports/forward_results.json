@@ -246,5 +246,91 @@
       "window_days": 2,
       "table": []
     }
+  ],
+  [
+    {
+      "as_of": "2026-10-21",
+      "registered_on": "2026-10-12",
+      "window_days": 4,
+      "table": [
+        {
+          "weights": {
+            "mom20": 1.0,
+            "rev5": 0.3,
+            "vol20": 0.5,
+            "vsur": 0.5
+          },
+          "rebalance_every": 1,
+          "buffer_multiple": null,
+          "stats": {
+            "hit_rate_up": 0.5333333333333333,
+            "hit_rate_down": 0.25,
+            "overall_hit_rate": 0.37142857142857144,
+            "avg_up_return": 0.0008463275688348371,
+            "avg_down_return": 0.007508616180620325,
+            "up_excess_vs_market": -0.0049687075462311785,
+            "down_excess_vs_market": -0.0016935810655543098,
+            "excess_breadth": -0.006662288611785488,
+            "excess_tilt": -0.0032751264806768687,
+            "up_basket_n": 15,
+            "down_basket_n": 20,
+            "n_predictions": 40,
+            "n_independent_windows": null,
+            "judged": 35,
+            "avg_cost_drag": 0.0015000000000000002,
+            "gross_up_excess": -0.003468707546231178,
+            "cost_share": null,
+            "excess_t": null,
+            "excess_days": 2,
+            "breadth_t": null,
+            "down_t": null,
+            "n_ranked": 4934
+          }
+        },
+        {
+          "weights": {
+            "mom20": -1.0
+          },
+          "rebalance_every": 1,
+          "buffer_multiple": null,
+          "stats": {
+            "hit_rate_up": 0.75,
+            "hit_rate_down": 0.45,
+            "overall_hit_rate": 0.6,
+            "avg_up_return": 0.009616895319003846,
+            "avg_down_return": 0.020428976762594402,
+            "up_excess_vs_market": 0.003801860203937831,
+            "down_excess_vs_market": -0.014613941647528387,
+            "excess_breadth": -0.010812081443590556,
+            "excess_tilt": 0.01841580185146622,
+            "up_basket_n": 20,
+            "down_basket_n": 20,
+            "n_predictions": 40,
+            "n_independent_windows": null,
+            "judged": 40,
+            "avg_cost_drag": 0.00135,
+            "gross_up_excess": 0.005151860203937831,
+            "cost_share": 0.26204127180472125,
+            "excess_t": null,
+            "excess_days": 2,
+            "breadth_t": null,
+            "down_t": null,
+            "n_ranked": 4937
+          }
+        }
+      ]
+    },
+    {
+      "as_of": "2026-10-21",
+      "registered_on": "2026-10-12",
+      "window_days": 4,
+      "table": []
+    },
+    {
+      "as_of": "2026-10-21",
+      "registered_on": "2026-10-14",
+      "window_days": 2,
+      "table": []
+    }
   ]
 ]
