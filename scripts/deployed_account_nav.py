@@ -315,7 +315,8 @@ def main() -> None:
 
     df = pd.read_parquet(DAILY)
     r_full = account_nav(df, LEG)
-    r_half = half_exposure_daily(df, W)
+    from aplus.exposure_arms import HALF_EXPOSURE_W
+    r_half = half_exposure_daily(df, HALF_EXPOSURE_W)
 
     # ── 还原核对：那把尺子是不是真的在算（外部锚：尺子自己的下游函数） ──
     hist = synthetic_leg_history(r_half, df.index, SYNTHETIC_LEGS_PER_DAY)
@@ -367,23 +368,23 @@ def main() -> None:
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "role": "⚠️ 对照臂 / 推算，**不是判决**。依赖下列四条假设。",
         "question": "实盘半仓敞口下，D2（年化 20%）的读数是多少",
-        # 🚨 **自 2026-10-20 起「半仓」臂与「满仓」臂是同一个东西**（2026-10-21 实测抓到）：
-        #   「半仓」臂按**生产的权益权重 W** 缩放（`half_exposure_daily(df, W)`），
-        #   而生产在 2026-10-20 从「5 只 × 10% = 0.5」改成「**10 只 × 10% = 1.0**」
-        #   ⇒ W = 1.0 ⇒ **两臂逐位相同** ⇒
-        #   **本产物现在的「满仓 vs 半仓」对比 = 拿一个东西跟它自己比**
-        #   ⇒ **它不再提供任何增量信息**。
-        # ⇒ 而**「半仓要赚多少」那个问题**（alloc.py 的 docstring 引用着 4.97%）
-        #   **不受影响** ⇒ 那是**闭式数**（市场腿 9.9471% × 0.5），不是本产物的读数。
-        # ⇒ 想恢复这个对比 ⇒ 必须把半仓臂改成**固定的 W=0.5**（一个**历史配置臂**）
-        #   ⇒ 那是**换臂** ⇒ 要预注册（不在本轮）。
-        "arms_are_identical": bool(abs(W - 1.0) < 1e-12),
-        "comparison_vacuous_reason": (
-            "生产权益权重 W = 1.0（满仓 10 只 × 10%）⇒ 「半仓」臂按 W 缩放 ⇒ "
-            "**与满仓臂逐位相同** ⇒ 本产物的两臂对比**不提供增量信息**；"
-            "现役（K=63）读数走 `deployed_d2_verdict.json`。"
+        # ⚠️ **两臂的 W 现在是分开的**（2026-10-21 改）：
+        #   · 「满仓」臂 = W = 1.0；
+        #   · 「半仓」臂 = **固定 0.5**（`HALF_EXPOSURE_W`，见那里的注释：
+        #     它曾经接的是**生产敞口**，那是 2026-10-16 的巧合）。
+        # ⇒ 两臂**必然不同** ⇒ 那个非线性**不是**退化出来的。
+        # 🚨 而**生产敞口**现在 = 满仓（W=1.0）⇒ 与判决档**同口径**
+        #   ⇒ 本产物**不再**提供「生产 vs 判决档」的增量信息；
+        #   现役（K=63）读数走 `deployed_d2_verdict.json`。
+        "half_arm_w": HALF_EXPOSURE_W,
+        "production_equity_weight": W,
+        "production_arm_equals_full_arm": bool(abs(W - 1.0) < 1e-12),
+        "production_arm_note": (
+            "生产权益权重 W = 1.0（满仓 10 只 × 10%）⇒ **生产臂就是满仓臂** ⇒ "
+            "本产物与判决档同口径 ⇒ **不再提供增量信息**（现役 K=63 读数走 "
+            "`deployed_d2_verdict.json`）。"
             if abs(W - 1.0) < 1e-12 else
-            "（W ≠ 1 ⇒ 两臂不同，对比有效）"),
+            f"生产权益权重 W = {W} ≠ 1 ⇒ 生产臂与满仓臂不同 ⇒ 两者都有信息量。"),
         "source_daily": str(DAILY.relative_to(ROOT)),
         "leg": LEG,
         "exposure": expo,
@@ -549,10 +550,10 @@ def main() -> None:
     print(f"       非零成本日 {nonzero_cost_days}/{len(df)}")
     print(f"逐年收益 满仓 {full_t['cagr']:+.6%}   半仓 {half_t['cagr']:+.6%}   W={W}")
     if abs(W - 1.0) < 1e-12:
-        print("   ⚠️ **W = 1.0 ⇒ 两臂逐位相同** ⇒ 「满仓 vs 半仓」这个对比"
-              "**在今天等于拿一个东西跟它自己比** ⇒ 本产物**不再提供增量信息**"
+        print("   ⚠️ **生产敞口 W = 1.0 ⇒ 生产臂就是满仓臂** ⇒ 本产物与判决档同口径"
+              " ⇒ **不再提供『生产 vs 判决档』的增量信息**"
               "（现役 K=63 读数走 deployed_d2_verdict.json）。"
-              "⚠️ **不许**把这两个相同的数读成「半仓也能到这个数」。")
+              f"（下面那两臂是**满仓 vs 固定半仓 {HALF_EXPOSURE_W}**，不是生产 vs 判决档。）")
     print(f"        MDE  满仓 {full_t['mde_as_annual_pct']:+.6%}  半仓 {half_t['mde_as_annual_pct']:+.6%}")
     print(f"CAGR 比 {cagr_ratio:.6f}（≠ W，差 {cagr_ratio - W:+.6f}）"
           f"  MDE 比 {half_t['mde_as_annual_pct'] / full_t['mde_as_annual_pct']:.6f}")
