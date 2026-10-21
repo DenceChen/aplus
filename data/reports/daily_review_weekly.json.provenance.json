@@ -1,0 +1,12 @@
+{
+  "code_sha": "d12262718ef07cb8e742ddcdaa8ee2bf030182af",
+  "code_dirty": true,
+  "code_file_sha256": "d0a02066ad6d762c5c66efa89694dcffa67bbac0869371c2148c5b0e0e13dae8",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/daily_review.py",
+  "stamped_at": "2026-10-21T02:39:23+00:00",
+  "review_date": "2026-10-21",
+  "d2_gap_pp": 7.380045327257831,
+  "d1_windows": 6
+}

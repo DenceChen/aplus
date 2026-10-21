@@ -53,6 +53,17 @@ FINGERPRINTED = (
     ("d2_gap_calibers", ROOT / "scripts" / "d2_gap_calibers.py",
      ROOT / "data/reports/d2_gap_calibers_2026-10-17.json",
      ROOT / "data/reports/d2_gap_calibers_2026-10-17.json.provenance.json"),
+    # 🚨 2026-10-21 补第四个条目：`score_ranking_power` 此前**零覆盖**。
+    #   它是 **D1 的验收判据**（`::verdict` / `publish_allowed` /
+    #   `n_independent_pred_dates`）⇒ 屏上的 W 计数与「允许发布」那个闸门
+    #   都读它 ⇒ 它过期 = **判决过期**，而没有任何东西会红。
+    #   （同日还发现：全仓**没有任何定时任务**在跑它 ⇒ 它本来就在冻结。
+    #    那是调度缺口，不是本条守卫管的事；守卫只管「改了码没重跑」。）
+    #   ⚠️ **只加字节章判据，不加 mtime 类判据** —— mtime 会把「改了又改回」
+    #   判成过期 ⇒ 逼人去重跑一个本来正确的东西（第 112/157 层）。
+    ("score_ranking_power", ROOT / "scripts" / "score_ranking_power.py",
+     ROOT / "data/reports/score_ranking_power.json",
+     ROOT / "data/reports/score_ranking_power.json.provenance.json"),
 )
 
 
