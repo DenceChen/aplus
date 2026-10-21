@@ -1,0 +1,9 @@
+P1 持仓框的钱包改回候选池（缺陷原样）	aplus/web/index.html
+const heldCodes = live.held_codes_known ? (live.held_codes || []) : null;
+=== 变异体 ===
+const heldCodes = live.up || [];
+
+P2 「读不出来」被当成「真空仓」（三态塌成两态）	aplus/web/index.html
+const heldCodes = live.held_codes_known ? (live.held_codes || []) : null;
+=== 变异体 ===
+const heldCodes = live.held_codes || [];

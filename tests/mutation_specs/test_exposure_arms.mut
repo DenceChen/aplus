@@ -1,0 +1,21 @@
+N1 半仓档的 W 不是半仓了（示意档被改成满仓）	aplus/exposure_arms.py
+HALF_EXPOSURE_W = 0.5
+=== 变异体 ===
+HALF_EXPOSURE_W = 1.0
+
+N2 生产脚本自己又定义了一遍（两份副本开始漂）	scripts/deployed_account_nav.py
+from aplus.exposure_arms import HALF_EXPOSURE_W
+=== 变异体 ===
+from aplus.exposure_arms import HALF_EXPOSURE_W
+    HALF_EXPOSURE_W = 0.5
+
+N3 生产脚本不再从共享模块导入（真相源被绕过）	scripts/deployed_account_nav.py
+from aplus.exposure_arms import HALF_EXPOSURE_W
+=== 变异体 ===
+HALF_EXPOSURE_W = 0.5
+
+N4 半仓档的常量跑到生产敞口读取之前（容易被读成它在定义生产敞口）	scripts/deployed_account_nav.py
+expo = deployed_exposure()
+=== 变异体 ===
+from aplus.exposure_arms import HALF_EXPOSURE_W
+    expo = deployed_exposure()
