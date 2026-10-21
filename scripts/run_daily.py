@@ -1315,7 +1315,7 @@ def step_holdings_alert(reports_dir, today, ctx):
     summary = artifact["summary"]
     print("[holdings-alert] 信号日 " + str(today) + "｜全池 "
           + str(artifact["pool"]["size"]) + " 只｜持仓 "
-          + str(artifact["population"]["n_holdings"]) + " 只"
+          + str(artifact["population"]["n_heldings"]) + " 只"
           + "｜建仓日 " + str(artifact["entry"]["entry_day"])
           + "｜REDUCE " + str(summary.get("REDUCE"))
           + " / WATCH " + str(summary.get("WATCH"))

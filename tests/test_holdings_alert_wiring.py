@@ -930,3 +930,92 @@ def test_the_page_renders_each_holding_action_and_its_criterion():
     src = INDEX.read_text(encoding="utf-8")
     assert "action_criterion" in src, "页面没有渲染 action_criterion"
     assert "UNDECIDED" in src, "页面没有渲染 UNDECIDED 这一态"
+
+
+# --------------------------------------------------------------------------
+# 5. 🚨 **消费者**（第三份副本）—— 2026-10-21 20:10 加
+# --------------------------------------------------------------------------
+#
+# ## 这个 bug 是怎么溜过去的
+#
+# `scripts/run_daily.py` 读 `artifact["population"]["n_holdings"]`，
+# 而两个**产出者**写的是 `n_heldings`（**差一个字母**：`o` vs `e`）。
+# ⇒ 2026-10-21 19:53 **日频那一步第一次运行就 KeyError**。
+#
+# 🚨 **而「产出者 ↔ 产出者」的那条守卫是绿的** ——
+# 因为它比的是**两个产出者**（它们本来就一致）⇒
+# ⇒ **差异在第三处（消费者），而守卫没看它**。
+#
+# ⇒ **通则：两份副本的对拍若不把「消费者」算进去，就会漏掉真正的差异。**
+# ⇒ 本节把**消费者**拉进对拍。
+
+def _reader_population_keys() -> list:
+    """日频**消费者**读的**那些**键（从源码 AST 取，不手打）。
+
+    ⚠️ **必须按精确的表达式形状取**（`X["population"]["<键>"]`）——
+    第一版写的是「任何以 `n_` 开头的下标」⇒ 匹配到了 `mkt["n_used"]`
+    ⇒ ⇒ **松的匹配器自己就犯了我在守的毛病**（第 13 层：断言串要锚在语法位置上）。
+    ⚠️ **不止一个键**：消费者读 `population["codes"]` 与 `population["n_heldings"]`
+    ⇒ ⇒ 判据形式是「**消费者读的每一个键**都必须在产出者的键集里」
+    （⇒ 正是这个形式能抓住 o/e 那个差异）。
+    """
+    tree = ast.parse((ROOT / "scripts" / "run_daily.py").read_text(encoding="utf-8"))
+    keys = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Subscript)
+                and isinstance(node.slice, ast.Constant)
+                and isinstance(node.slice.value, str)):
+            continue
+        inner = node.value
+        if not (isinstance(inner, ast.Subscript)
+                and isinstance(inner.slice, ast.Constant)
+                and inner.slice.value == "population"):
+            continue
+        keys.append(node.slice.value)
+    assert keys, (
+        "run_daily.py 里找不到 `…[\"population\"][…]` 形状的下标 ⇒ 守卫要重新评估")
+    return sorted(set(keys))
+
+
+def test_the_consumer_reads_only_keys_the_writers_actually_produce():
+    """🚨 **消费者读的每一个键都必须在产出者的键集里**（第三份副本的对拍）。
+
+    ⚠️ 这条是 2026-10-21 19:53 那个 KeyError 的**直接守卫**：
+    消费者读的键与产出者写的键**差一个字母**（`n_holdings` vs `n_heldings`）
+    ⇒ **肉眼分不出** ⇒ 而「产出者之间」的那条守卫**照样绿**
+    （它只比产出者，**没看消费者**）。
+    """
+    writer_keys = _dict_keys_for(
+        ast.parse((ROOT / "aplus" / "holdings_entry.py").read_text(encoding="utf-8")),
+        "population")
+    measure_keys = _dict_keys_for(
+        ast.parse(MEASURE_SCRIPT.read_text(encoding="utf-8")), "population")
+    reader_keys = _reader_population_keys()
+
+    missing_writer = [k for k in reader_keys if k not in writer_keys]
+    assert not missing_writer, (
+        f"消费者（run_daily.py）读 `population[{missing_writer}]`，"
+        f"而产出者写的是 {sorted(writer_keys)}\n"
+        f"  ⇒ **差一个字母** ⇒ 日频那一步会 KeyError ⇒ "
+        f"而「产出者之间」的守卫**看不出**（它没看消费者）")
+    missing_measure = [k for k in reader_keys if k not in measure_keys]
+    assert not missing_measure, (
+        f"消费者读的键 {missing_measure} 不在测量台的键集 {sorted(measure_keys)} 里")
+
+
+def test_the_produced_artifact_actually_answers_the_consumers_keys(tmp_path):
+    """★ **运行层**：真跑一遍产出者 ⇒ 它产出的字典**能被消费者那些键读到**。
+
+    ⚠️ 上面的 AST 守卫比的是**源码里的键集**；这一条比的是
+    **真产出的字典** ⇒ 两层都要有（第 96 层：源码层的守卫对产物零覆盖）。
+    """
+    reports = _make_reports(tmp_path)
+    art = _build(reports)
+    reader_keys = _reader_population_keys()
+    missing = [k for k in reader_keys if k not in art["population"]]
+    assert not missing, (
+        f"产出的 population 里没有消费者要读的 {missing}："
+        f"实际有 {sorted(art['population'])}")
+    for k in reader_keys:
+        assert isinstance(art["population"][k], (int, list, str)), (
+            f"消费者读到的 {k!r} 类型不对 ⇒ 页面会显示错的东西")
