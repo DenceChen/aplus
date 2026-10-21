@@ -1,19 +1,22 @@
 {
-  "code_sha": "96fe00bd95ad8811f191207e521bf1558df8fc34",
+  "code_sha": "6abe49766bb2516a9318cb00e3f56e78af05f3ed",
   "code_dirty": true,
   "code_file_sha256": "de091423f2e0cdc2d582b19aefe12bbe31dfdc19f85f250044dbce2998f9e33b",
   "data_fp": "5460:1792500432.032579",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_dividend_lowvol_longleg.py",
-  "stamped_at": "2026-10-20T19:13:43+00:00",
+  "stamped_at": "2026-10-21T02:11:00+00:00",
   "data_root": "/Users/airboom/opencode/aplus/data",
   "prereg": "docs/PREREG_DIVIDEND_LOWVOL_LONGLEG_2026-10-21.md",
-  "dividend_snapshot_root": "data/reports/dividend_pit",
+  "dividend_snapshot_root": "/Users/airboom/opencode/aplus/data/reports/dividend_pit",
   "dividend_snapshot_parquet_sha256": {
-    "announced/date=2026-10-21/financial.parquet": "982568c45576c064c33d7492d60cd637c077daab7c1b6188dff633958f769a87",
+    "announced/date=2026-10-21/financial.parquet": "7849832a5bb8ec8ee53150ceb48a1f55488bc8781b1ee873aedc28ab51d171c1",
     "daily/date=2026-10-21/financial.parquet": "b7ba20ae3a7e9331f46bc6343023ae9258bda69feb95204fcb53f7941b16343d",
-    "shard=1-of-5/date=2026-10-21/financial.parquet": "52962a288a7997282e479a4956e8482574a07538b8651f1110fe3a00759232b3"
+    "shard=1-of-5/date=2026-10-21/financial.parquet": "52962a288a7997282e479a4956e8482574a07538b8651f1110fe3a00759232b3",
+    "shard=2-of-5/date=2026-10-21/financial.parquet": "5d9e86a4cef28aa30da5b2f9ac289dc17bf7ee60d4a230923b0daccd0c427a75",
+    "shard=3-of-5/date=2026-10-21/financial.parquet": "f7e30e73bf03eac9500983478a082f93ca0b1c611b8da499cb80bc4369d093d1",
+    "shard=4-of-5/date=2026-10-21/financial.parquet": "9c94f4204722dacd32a0c103c4f5315fcc8424765cb84934fe8e1309aae88c06"
   },
   "n_pool_full": 5460,
-  "pool_scope": "covered"
+  "pool_scope": "full"
 }

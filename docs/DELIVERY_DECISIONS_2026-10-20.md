@@ -759,6 +759,12 @@ K 在下列脚本里是**判据的输入**（门槛 = 目标 + 该档成本 ⇒ 
 ⇒ 一个是「**能做到的上限**」，一个是「**真跑出来是多少**」⇒ 差 ~2.3pp 就是
 **整手 + 闲置现金的代价** ⇒ **两者都要给，但要标明是哪个**。
 
+⚠️ **2026-10-21 补记**：上面那句「差 ~2.3pp」是**四舍五入的散文值**
+（逐位是 `9.575538229643438 − 7.380045327257831 = 2.195492902385607` pp）⇒
+**引用必须带口径标签，不许把「~2.3pp」当测量结果**。
+🚨 **另：本行曾被我判为「跨臂拼接 ⇒ 不可引用」⇒ 该判定已被实测证伪并撤回**（§18.4 横幅 + §19.3 ①）
+⇒ **「数是对的，错的是字段名」** —— 那个字段装的是**实投比例**。
+
 ### 16.3 「还差 1.79×」是本轮最该记住的一个数（⚠️ 原写 2.35×，已按同口径改正）
 
 信号在榜宽 10 · ¥5 万下**须交出毛超额 11.28%**（**同口径**实测 **6.3034%** = `deployed_d2_verdict.json::k_grid.cells["LIVE_DEFAULT|ARM_A|K63|E100"]` 的 K=63 生产臂）⇒ **还差 1.79×**。
@@ -864,6 +870,14 @@ K 在下列脚本里是**判据的输入**（门槛 = 目标 + 该档成本 ⇒ 
 
 ### 18.4 🚨 §16.2 的「投入率 69.79%」是**跨臂**拼出来的
 
+> 🚨🚨 **本节的判定已于 2026-10-21 撤回（实测证伪）—— 按第 25 层：标注作废，不抹掉。**
+> **撤回理由与逐条实测见 §19.3 ①**：那个 69.79% **压根不在 ARM_D 臂里**
+> （ARM_D 的 `lot_investable_rate_overall` = **0.8275947826086957 = 82.76%**），
+> 它是 k_grid 那个 ARM_A cell **自己**的实投比例；且两个臂的 `n_rebalances` **都是 23**（相同），
+> 而「69」那个数属于 `signal_x_affordability::ARM_A_no_filter` 与 `account_legs::T3_no_filter`（**两个别的块**）。
+> ⇒ **「跨臂」判定不成立**；**真缺陷只剩「字段名与内容相反」**（§18.2 / §18.3）。
+> ⚠️ **下面这段原文保留是为了留痕**（它记录了我当时是怎么错的），**不是现行结论**。
+
 `69.79%` = `k_grid.cells["LIVE_DEFAULT|ARM_A|K63|E100"].arm_d_sibling.lot_investable_rate_overall`
 ⇒ **来自 ARM_D 臂**（`use_full_budget`，且它的 `n_rebalances` = **23** 而 ARM_A 是 **69**
 ⇒ **两个是不同的账户**）⇒ ⇒ **§16.2 那一行 = ARM_A 的账户读数 + ARM_D 的比例** ⇒ **不可引用。**
@@ -872,10 +886,10 @@ K 在下列脚本里是**判据的输入**（门槛 = 目标 + 该档成本 ⇒ 
 
 | # | 事项 | 状态 |
 |---|---|---|
-| ① | 台账**加一列同口径**实测（K=63、生产臂）+ 倍数，并给老的那组**标口径** | 派 agent（`scripts/d2_signal_requirement.py`） |
-| ② | 「2.35×」的散落引用改口径（`CLAUDE.md:1675`、本文件 §16.1/§16.3） | 待 ① 落地后做（第 143 层：先建行、再改散落引用） |
-| ③ | `idle_cash_ratio_mean` / `lot_investable_rate*` 的**改名或改值** | ⚠️ **要重跑 `measure_deployed_d2.py`（GB 级面板）** ⇒ 本轮只登记为债；守卫（两者必须一致）**会在重跑后变绿**，本轮先不挂红 |
-| ④ | §16.2 那一行的「投入率 69.79%」 | **撤回引用**（跨臂）⇒ 改成同臂同口径的值 |
+| ① | 台账**加一列同口径**实测（K=63、生产臂）+ 倍数，并给老的那组**标口径** | ✅ **已做**（`scripts/d2_signal_requirement.py` 落地 ⇒ `::multiple_needed_at_50k_deliverable_by_caliber::same_caliber.multiple_needed` = **1.7897×**，`cross_caliber` = **2.3450×** 且自报 `is_the_gap = false`） |
+| ② | 「2.35×」的散落引用改口径（`CLAUDE.md` 口径台账、本文件 §16.1/§16.3） | ✅ **已做**（§16.1/§16.3 已就地标注「跨口径 · 不是缺口」；`CLAUDE.md` 口径台账新增「达标倍数·同口径（K=63·生产臂）」一行，并给跨口径那行标 `is_the_gap = false`） |
+| ③ | `idle_cash_ratio_mean` / `lot_investable_rate*` 的**改名或改值** | ⬜ **仍是债**（⚠️ **要重跑 `measure_deployed_d2.py`（GB 级面板）** ⇒ 只登记为债；守卫（两者必须一致）**会在重跑后变绿**，先不挂红）⇒ 债文档 `docs/TODO_deployed_idle_cash_caliber_2026-10-21.md` |
+| ④ | §16.2 那一行的「投入率 69.79%」 | ✅ **已就地改正**（⚠️ 原判「跨臂 ⇒ 撤回」**已证伪并撤回**，见 §18.4 横幅与 §19.3 ①）⇒ 现在的表述是：**「数是对的，错的是字段名」**（它是**实投比例**，不是「买得起 1 手的票的比例」） |
 
 ⇒ **通则**（本轮又验一次）：
 **「一个字段的名字承诺一种量」是纪律，不是风格** ——
@@ -883,3 +897,147 @@ K 在下列脚本里是**判据的输入**（门槛 = 目标 + 该档成本 ⇒ 
 在没有任何报错的情况下把两个比例讲反了 ⇒ 而**每一个**引用它的地方
 （§16.2、两口径文档、屏）都读起来完全正常。
 ⇒ ⇒ **引用任何比例前，先用它的**分解块**交叉验一次**（两个独立算法 ⇒ 必须逐位相等）。
+
+---
+
+## §19 收尾段（2026-10-21）：本轮交付清单 · D2 的诚实结论 · 两处自我更正 · 今晚 18:30
+
+> **补记，不是预注册。** 本节**一个字未改**任何判据、门槛或产物数值。
+> 每条读数都直读产物并带 `产物路径 :: JSON 路径`；跨口径的数**并排、各带标签**。
+
+### 19.1 今天的交付清单（**能打开的东西**）
+
+| # | 交付物 | 打开方式 | 现状（读产物） |
+|---|---|---|---|
+| ① | **D2 缺口台账（K=63 口径）** | `data/reports/d2_signal_requirement.json` | 所需毛超额 **11.2813%**（`::headline.required_gross_at_50k_deliverable`）／缺口 **7.3800pp**（`::headline.account_annual_ceiling_pct.gap_to_target_at_deliverable_width_and_50k_pp`）／**同口径**倍数 **1.7897×**（`::headline.multiple_needed_at_50k_deliverable_by_caliber::same_caliber::multiple_needed`） |
+| ② | **实盘档判决** | `data/reports/deployed_d2_verdict.json::verdict` | `leg` = `LIVE_DEFAULT\|ARM_A\|K63\|E100`；c = **+10.4245%/年**、MDE = **11.9310%**、U = **+22.3554%**、缺口 **9.5755pp**、`measured_sign_determinable` = **false** |
+| ③ | **两口径对照表** | `data/reports/d2_gap_calibers_2026-10-17.json::d2_gap_by_caliber` | 三档并排：**实盘档 K=63** / **判决档 K=21** / **理想档 K=63 上界**（`::which_one_goes_on_the_screen` = 屏上给**实盘档**） |
+| ④ | **概览页「目标进度」tab** | 页面 →「目标进度」 | 每晚 22:05 cron（`5 22 * * *` → `scripts/measure_goal_progress.py`）写一份 `data/reports/goal_progress_<date>.json`；**今天是第一份**（`::change.line` = 「这是第一份快照，还没有可比的上一份」）⇒ 页面从明晚起每天自己长一格 |
+| ⑤ | **持仓降级预警** | `data/reports/holdings_alert_2026-10-20.json` + 概览页一屏 | 「我手上这 5 只哪只该减」；已接进日频（`scripts/run_daily.py`） |
+| ⑥ | **D1 跌腿闸门** | `data/reports/downleg_gate.json::verdict` | 三态，与涨腿臂**同名同义**；方向写在 `monotone_direction` |
+| ⑦ | **红利 PIT 采集（5/5 分片）** | `data/reports/dividend_pit_coverage_shard{1..5}of5.json` | 单元格覆盖 **43413 / 43680 = 99.3887%**（`goal_progress_2026-10-21.json::goals[2].metrics` 的 `dividend_pit_cells`）⇒ **红利/低波那条臂的数据前提到位** |
+| ⑧ | **采集链路抗断供** | `scripts/run_daily.py` 的探针 + 重试 | 探针**多票且分散**（5 只跨全池等距）＋失败重试 3 次 ＋ `AllSourcesFailed` 带结构化 `all_empty`（§17.2 的三处修法） |
+| ⑨ | **前瞻验证不撕裂读** | `scripts/run_daily.py` | 前瞻底稿**不许在主库被改写时建面板** ⇒ 撕裂读会静默污染前瞻证据（`f5d146f`） |
+| ⑩ | **K=63 重跑件** | `data/reports/wf_weights_backtest_k63.json` / `cap_weighted_benchmark_n{10,30,50}_k63.json` | 六格 K=63 产物 + sidecar 齐全（`c5e9e3a`） |
+| ⑪ | **门禁** | `.venv/bin/python scripts/run_gate.py` | 🚨 **本轮最后一次实测是红的**：`GATE: 摘要 → 4 failed, 4325 passed, 1 skipped` / `GATE: 判决 → ❌ 红（rc=1）`。**4 条红的归属（逐条取证，不是猜的）**：① `test_source_encoding.py` 的 2 处 `U+FFFD` 与 ② `test_progress_page_export.py` 的 2 条，**全在另一 agent 正在写的未跟踪文件**（`scripts/export_progress_page.py` / `scripts/deploy_progress_page.sh` / `deploy/`）里 ⇒ **不是本轮文档层的**；③ `test_the_artifact_is_not_older_than_the_script_that_writes_it` 报 `factor_width_mde.json` 比 `factor_width_mde.py` **旧 0.357 秒**，而**两者内容与 HEAD 逐位相同** ⇒ 那是**一次批量 restore 按路径序重排 mtime** 的**假过期**（`data/` 排在 `scripts/` 前 ⇒ 产物拿到更早 mtime），**不是**「改了脚本没重跑」⇒ ⚠️ **mtime 判据在批量 checkout/restore 下会假红**（第 112 层） |
+
+⚠️ **D1 的交付物形态没变、验收仍未过**：`data/reports/score_ranking_power.json::verdict` = **`NOT_PASSED_POWERLESS`**、
+`::publish_allowed` = **`false`** ⇒ **不许发布**；W（独立成交窗口）当前 **3**，门槛 **W ≥ 10**
+⇒ **不许报命中率、不许给 CI**。**今天交付的是 D1 的「形态在出 + 验收机制齐了」，不是 D1 达标。**
+
+### 19.2 D2 的诚实结论（**执行层已穷尽，剩下只能靠信号**）
+
+**一句话**：**执行层这一轮已经做完，D2 的缺口没有再变小一格 —— 剩下的全部难度在「信号本身」。**
+
+| 口径 | 读数 | 出处 |
+|---|---|---|
+| **实盘档**（屏上给用户的那个） | c = **+10.4245%/年**、MDE = **11.9310%**、U = **+22.3554%**、缺口 **9.5755pp** | `deployed_d2_verdict.json::verdict` |
+| **理想档**（满仓 100% 部署的**公式上界**） | 天花板 **12.6199%**、缺口 **7.3800pp** | `d2_signal_requirement.json::headline.account_annual_ceiling_pct` |
+| **达标所需毛超额** | **11.2813%** | `d2_signal_requirement.json::headline.required_gross_at_50k_deliverable` |
+| **同口径倍数**（要求 ÷ **K=63 生产臂**实测 6.3034%） | **1.7897×** | `…::multiple_needed_at_50k_deliverable_by_caliber::same_caliber::multiple_needed` |
+| 🚨 **跨口径倍数**（要求 ÷ **K=21 研究臂**实测 4.8108%） | **2.3450×** ⇒ **不是缺口**（台账自报 `is_the_gap = false`） | `…::multiple_needed_at_50k_deliverable_by_caliber::cross_caliber::multiple_needed` |
+
+**三个候选信号族的判决（各带口径）**：
+
+| 族 | 判决 | 出处 |
+|---|---|---|
+| **价量（生产臂）** | **同口径实测毛超额 6.3034%/年**（K=63 · `LIVE_DEFAULT` · `ARM_A` · 榜宽 10 · ¥5万 · 满仓 · 等权市场腿）⇒ 离 11.2813% 的要求**还差 1.7897×** | `deployed_d2_verdict.json::k_grid.cells["LIVE_DEFAULT\|ARM_A\|K63\|E100"].k_axis.gross_excess_annual_pct` |
+| **基本面 BM** | **关闭**。长腿年化毛超额 **−7.5894%/年**（`fundamental_mechanism_armR_2026-10-21.json::family_a_cells["bm@K21"].leg_ladder["10"].gross_annual_pct`）⇒ **负的**；且 `alpha_beta_7` = {alpha **−0.00488**、**beta 0.6997**、alpha_t −0.0060} ⇒ **α≈0 而 β≠1 ⇒ 收益是 beta 故事不是 alpha** ⇒ 这条臂**结构上不能**补缺口 | 同上 |
+| **红利 / 低波（长腿）** | 🚨 **最终判决在跑**（`scripts/measure_dividend_lowvol_longleg.py` 正在重跑，4/5 覆盖 80%）。**盘上那份 `dividend_lowvol_longleg.json` 是 1/5 覆盖（20%）的旧件**：12 个臂**全部** `NO_VERDICT`（`::arms.*.verdict.label`）、`::suite_verdict.label` = **`null`**、`::coverage.coverage_ratio` = **0.2** ⇒ **本轮覆盖不足，不可判**（不是「没有超额」） | `dividend_lowvol_longleg.json::coverage` / `::arms.*.verdict` / `::suite_verdict` |
+
+⚠️ **基本面族的族 A 判决与「全池臂」是两件事，不许合并**：
+`fundamental_mechanism_armR_2026-10-21.json`（臂 `armR500`）的族 A = **1 格过线但吃不到**
+（`bm@K21` = `FUNDAMENTAL_SIG_NOT_DELIVERABLE`，`::verdict.calibers.primary.cells_pass_family_a` = **1**）；
+而 `fundamental_mechanism_armR_fullpool_2026-10-21.json`（臂 `armR_full_pool_5460`）是 **10 格全 `FUNDAMENTAL_POWERLESS`**、
+`cells_pass_family_a` = **0**（`bm@K21` 的 `n_ic` = **0** ⇒ IC 序列退化/样本不足 ⇒ **测不到**）。
+⇒ **「基本面吃不到缺口」这一条在两臂上都成立，但理由不同**（一个「有 edge 吃不到」、一个「测不到」）⇒ **引用必须带臂名**。
+
+🚨🚨 **D2 现在的状态是「不可判定（测不出）」，不是「未达」**：
+实盘档 `measured_sign_determinable` = **`false`** ⇒ `|c| < M` ⇒ **连符号都定不了**；
+同时 `c < T ≤ U` ⇒ **「测不出」**（既不许说「达不到」，也不许说「接近」）。
+⇒ **不许写「已达成 20%」，也不许写「未达 20%」。**
+
+### 19.3 两处自我更正（**保留痕迹，不抹掉** — 第 25 层）
+
+**① 「跨臂」判定错（实测证伪）**
+我第一版写：「§16.2 的『投入率 69.79%』来自 ARM_D 臂 ⇒ 与 ARM_A 的账户读数**跨臂拼接** ⇒ 不可引用」。
+⇒ **实测证伪，而且证的比「同一个账户」更强**：那个 69.79% **压根不在 ARM_D 臂里**。
+逐条实测（`deployed_d2_verdict.json`）：
+
+| 读数 | 值 | 位置 |
+|---|---|---|
+| k_grid cell ARM_A 的 `n_rebalances` | **23** | `k_grid.cells["LIVE_DEFAULT\|ARM_A\|K63\|E100"]` |
+| k_grid cell ARM_A 的 **ARM_D 臂**的 `n_rebalances` | **23**（**与上面相同** ⇒ 「23 ≠ 69」这个论据不成立） | 同 cell 的 `arm_d_sibling` |
+| k_grid cell ARM_A 的 **ARM_D 臂**的 `lot_investable_rate_overall` | **0.8275947826086957（= 82.76%）** ⇒ **不是 69.79%** ⇒ 我引的路径本身就指错了 | 同上 |
+| k_grid cell ARM_A 的 `lot_investable_rate` | **0.6978721739130436** | 同 cell |
+| k_grid cell ARM_A 的 `lot_investable_rate_overall` | **0.6978721739130435**（与上一行**差 1 ulp**） | 同 cell |
+| 该 cell 自己的 `invested_mean / intended_equity_per_rebalance` | **0.6978721739130436** ⇒ 与 `lot_investable_rate` **逐位相等** | 同 cell 的 `idle_cash_decomposition` |
+| 「69」那个 `n_rebalances` | **69** ⇒ 属于 `signal_x_affordability::LIVE_DEFAULT::ARM_A_no_filter`（它的比例是 **0.6491**）与 `account_legs::T3_no_filter` —— **两个别的块** | — |
+
+⇒ **69.79% 确实是那个 k_grid cell 自己的实投比例** ⇒ **「跨臂」判定不成立，撤回**。
+⇒ 🚨 **我犯的其实是两个错**：① **先下结论再取证**（把「数对不上」当成「上游拼错了」）；
+② **引的字段路径根本不含那个数**（69.79% 不在 ARM_D 臂里，而在 ARM_A cell 自己身上）
+⇒ **「找到了 ≠ 找对了」**（第 140 层）在**我自己身上**又复发了一次。
+
+**② §16.2 的「投入率 69.79%」——数是对的，错的是字段名**
+那个数**本身是对的**（= 该 cell 自己的 `invested_mean / intended`，与 `lot_investable_rate` 逐位相等）；
+🚨 **但那个字段名叫 `lot_investable_rate`**，而它装的是「**实投比例**」，
+**不是**「买得起 1 手的票的比例」⇒ **名字与内容相反** ⇒ **引用必须写「实投比例」**。
+⚠️ **连两个近义字段也不是逐位相等**：`lot_investable_rate` = 0.6978721739130436
+vs `lot_investable_rate_overall` = 0.6978721739130435（**差 1 ulp**）⇒
+**引用时必须点名是哪一个键**（「逐位相等」的断言只对 `lot_investable_rate` 成立）。
+⇒ 配套：`idle_cash_ratio_mean` 量的是「**调仓时刻的累计现金 ÷ 原始本金**」（现金越攒越多 ⇒ 随时间漂移），
+**与同块 `idle_cash_decomposition::idle_total_before_fees_mean`（每次调仓的名义闲置）对不上**
+⇒ **不许引用**（§18.2 的三行对照实测）。
+⇒ **债文档**：`docs/TODO_deployed_idle_cash_caliber_2026-10-21.md`（带预注册判据 G1 与修法排期）。
+
+⇒ **通则（这一轮又验一次）**：**「一个字段的名字承诺一种量」是纪律，不是风格。**
+一对几乎对调的名字在**零报错、零告警**下把两个比例讲反了 ⇒ 而**每一个**引用它的地方都读起来完全正常。
+⇒ **引用任何比例前，先用它的分解块交叉验一次**（两个独立算法 ⇒ 必须逐位相等）。
+
+### 19.4 今晚 18:30 会发生什么（**第一份新配置的配置单**）
+
+- **18:30**：`launchd` 的 `com.aplus.daily` ⇒ `scripts/run_daily.py`（工作目录 = 仓根）。
+- **它会按**新配置**出第一份名单**：**满仓 10 只 × ¥5,000**（`aplus/alloc.py::build_allocation(max_positions=10, per_stock_cap=0.10)`
+  ⇒ 权益 **100%**）＋ **K=63**（`aplus/evolve.py::LIVE_REBALANCE_EVERY = 63`）＋
+  **配置层可买性过滤**（`aplus/alloc.py::_drop_unaffordable`）＋ **非调仓日不出订单**。
+- 🚨 **第一份新配置的配置单会带两个此前没有的东西**：
+  ① **「今天不是调仓日」时 `positions` = 沿用的持仓、`rebalance` = 空**（K=63 ⇒ **每 63 个交易日才换一次**），
+  ⇒ **「每天出单」与「每 K 日交易」是两件事**（K **不**降低推荐频率）；
+  ② **可买性过滤的剔除清单在屏上可见**（「平台每天在悄悄剔股票」不可见 ⇒ 现在可见了）。
+- ⚠️ **一份名单里两个口径不要混**：**D1 的榜单每天出 10 涨 / 10 跌**（全市场真正的前 10 / 后 10），
+  而**账户每 63 个交易日才换一次仓** ⇒ **K 越大，账户与每日榜单的脱节越大**。
+- **19:30**：守卫那一跑（`com.aplus.guard`）—— 它现在**先问「今天是否有一跑在飞」**，在飞就**等它跑完**，
+  不再并发（§17.2 的第 ② 处修法）。
+- **21:00**：前瞻注册（`com.aplus.forward`）｜**21:40**：夜间复盘（系统 crontab，产物 `data/reports/daily_review.json`）
+  ｜**22:05**：目标进度快照（系统 crontab，产物 `data/reports/goal_progress_<date>.json`）⇒ **今晚起「目标进度」页会有第二份快照，`change` 块会第一次有内容**。
+- **03:30**（次日起）：红利 PIT 分片续采（`com.aplus.dividendpit`）⇒ 红利/低波那条臂的最终判决在数据到齐后才有意义。
+
+---
+
+## 20. 三条候选信号族的**全部判决**（2026-10-21 收尾）
+
+| 族 | 长腿毛超额/年 | 判决 | 出处 |
+|---|---|---|---|
+| **价量**（8 因子逐年 IC 定权 · 判决臂） | **+4.8108%** | 测不出（\|c\|/MDE = 0.314 < 1） | `factor_width_mde.json::widths["10"]` |
+| **价量·生产臂**（4 因子 `DEFAULT_WEIGHTS` · K=63 · 交付口径） | **+6.3034%** | 测不出（\|c\|/MDE = 0.874 < 1） | `deployed_d2_verdict.json::k_grid.cells["LIVE_DEFAULT\|ARM_A\|K63\|E100"]` |
+| **基本面 BM** | **−7.5894%**（β = 0.700 ⇒ **收益是 beta 故事不是 alpha**） | `FUNDAMENTAL_SIG_NOT_DELIVERABLE`（唯一过 IC 线的一格**吃不到**） | `fundamental_mechanism_armR_2026-10-21.json::verdict.calibers.primary.by_cell["bm@K21"]` |
+| **红利/低波**（12 臂） | 各臂 **−1.70% ～ −3.56%**，\|t\| ∈ (0.13, 0.57) | **`suite_verdict.label = null` —— 负控「通过」⇒ 整套判决作废 ⇒ 不可判** | `dividend_lowvol_longleg.json::suite_verdict`（覆盖 4368/5460 = **80%**，过了 2/3 闸） |
+
+⇒ ⇒ **三条族的判决彼此独立，且都不是「有效」** ⇒ ⇒
+**「信号层还差多少」这个问题现在有答案了**：需要的毛超额是 **11.2813%**（同口径 K=63 交付档），
+而**三个族里能交出正数的那一个只交出 6.3034%** ⇒ ⇒ **差 1.79×**（同口径），
+另两个族一个交出负数、一个连方向都钉不住。
+
+⇒ ⇒ **所以「20% 达不到」这一结论，现在有三条独立测量支撑**（不是一条读数的推论）：
+
+1. **执行层已穷尽**（敞口阶梯 / 整手 / K 全实测；ARM_D 救不回整手粒度余数）
+2. **信号层的三条候选族全部不过线**（价量差 1.79×；基本面负；红利低波不可判）
+3. **测量下限高于效应**（MDE 11.93% > c 10.42%）⇒ **连符号都定不了**
+
+⇒ ⚠️ **这不等于「20% 不可能」** —— 它等于「**在已测过的三条族与已测过的执行层里，没有一条路能到**」。
+⇒ ⇒ **剩下的唯一入口是「新因子族」或「加前瞻时间」**（两条都已排好：前瞻第 6 批在跑，
+红利 PIT 5/5 片已采完 ⇒ 下一族可以直接上）。
+
+⇒ 🚨 **措辞纪律**：红利/低波那一族**不许**说「无效」也**不许**说「没有超额」⇒
+它是「**不可判**」（负控作废）⇒ 与基本面族的「不可交付」是**两个不同的状态**。
