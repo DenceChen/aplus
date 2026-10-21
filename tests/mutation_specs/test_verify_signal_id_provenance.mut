@@ -1,0 +1,24 @@
+M1 重判路径重新喂「当前信号 id」（把 R1 还原成缺陷形态）	scripts/run_daily.py
+results = verify_predictions(preds, bars, require_cost=True,
+                                 default_cost=STOCK_COST_DEFAULT)
+=== 变异体 ===
+results = verify_predictions(preds, bars, require_cost=True,
+                                 default_cost=STOCK_COST_DEFAULT,
+                                 signal_id=current_signal_id(reports_dir))
+
+M2 verify.py 无条件造一个标签（去掉「只在整批没有时才补」那一层）	aplus/verify.py
+out.loc[out["direction"] != "up", "cost"] = 0.0
+=== 变异体 ===
+out.loc[out["direction"] != "up", "cost"] = 0.0
+    out[SIGNAL_ID_COLUMN] = "MUTLABEL"
+
+M3 调用点自己盖标签（缺陷从另一扇门回来：不是入参，是事后落一行）	scripts/run_daily.py
+results["pred_date"] = pred_date
+=== 变异体 ===
+results["pred_date"] = pred_date
+    results["signal_id"] = current_signal_id(reports_dir)
+
+M4 scope_ledger 的四态塌掉一态（NO_MATCHING_SIGNAL 被改成 MISSING_SIGNAL_ID_COLUMN）	aplus/signal_scope.py
+            status=STATUS_NO_MATCHING_SIGNAL,
+=== 变异体 ===
+            status=STATUS_MISSING_SIGNAL_ID_COLUMN,

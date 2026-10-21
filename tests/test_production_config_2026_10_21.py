@@ -356,24 +356,39 @@ def test_config_layer_changes_do_not_change_the_signal_id():
     assert sig == _cur("data/reports")
 
 
-def test_the_verification_rows_carry_the_signal_id_but_old_rows_are_not_backfilled():
+def test_the_verification_rows_only_carry_the_signal_id_the_prediction_file_carries():
     """🚨 **新行带 `signal_id`；既有行不许回填**（追加式纪律）。
 
     既有 160 行**没有**该标签 ⇒ `aplus/signal_scope.py` 判「不可归属」
     ⇒ 不可判定。**不许**事后给它们贴标签（那是「事后编造」的形状）。
+
+    ★ **2026-10-21 修复**：标签的**唯一真相源**是**预测文件自带的那一列**
+    ⇒ 本函数**只透传** ⇒ `signal_id` **入参已被删除**
+    （预注册 `docs/PREREG_FIX_RESIGNAL_ID_2026-10-21.md` R1/R2）。
+    ⇒ 旧实现「整批没有该列 ⇒ 用入参（= 当前权重 id）补上」会把
+    **旧名单**盖上**重判当天**的 id ⇒ 独立成交窗口数被高估一倍。
     """
+    import inspect
+
     from aplus.verify import verify_predictions
 
     preds = pd.DataFrame({"code": ["600000.SH"], "name": ["甲"],
                           "direction": ["up"], "score": [1.0]})
     bars = pd.DataFrame({"code": ["600000.SH"], "close": [11.0], "prev_close": [10.0]})
-    out = verify_predictions(preds, bars, default_cost=0.003, signal_id="abc12345")
+
+    # 预测文件**自带**标签 ⇒ 验证行**原样透传**
+    tagged = preds.assign(**{SIGNAL_ID_COLUMN: "abc12345"})
+    out = verify_predictions(tagged, bars, default_cost=0.003)
     assert SIGNAL_ID_COLUMN in out.columns
     assert out[SIGNAL_ID_COLUMN].iloc[0] == "abc12345"
 
-    # 不传 ⇒ **没有**这一列（缺列就是缺列，不许回落成「属于当前信号」）
+    # 预测文件**没有**标签 ⇒ 验证行**没有**这一列
+    # （缺列就是缺列，不许回落成「属于当前信号」）
     out2 = verify_predictions(preds, bars, default_cost=0.003)
     assert SIGNAL_ID_COLUMN not in out2.columns
+
+    # 🚨 **入参必须不存在** ⇒ 调用方**没有**任何「声明一个标签」的通道
+    assert "signal_id" not in inspect.signature(verify_predictions).parameters
 
 
 def test_save_predictions_writes_the_signal_id_column(tmp_path):

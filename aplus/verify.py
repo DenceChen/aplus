@@ -185,16 +185,37 @@ def last_two_bars(store, code: str, factors_map: dict | None = None,
 
 def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
                        require_cost: bool = False,
-                       default_cost: float | None = None,
-                       signal_id: str | None = None) -> pd.DataFrame:
+                       default_cost: float | None = None) -> pd.DataFrame:
     """批量验证：next_day_bars 需含 code/close/prev_close（买价 / 卖价）。
 
-    ## `signal_id`：**带进**验证行（2026-10-21）
+    ## `signal_id`：**只透传，不造标签**（2026-10-21 修复）
 
     底稿 `verification.parquet` 是**追加式**的 ⇒ 可买性过滤落地后，
     同一本底稿里会**同时**装着两个信号产生的行
     ⇒ 「这个打分器有没有排序力」必须**只问当前信号的行**
     ⇒ 每一行必须记住**自己是用哪套信号产生的**。
+
+    ### 这一列的**唯一真相源**：该 `pred_date` 的**预测文件自带的 `signal_id` 列**
+
+    `aplus/reports.py::save_predictions` 在**出单当天**把它写进预测文件
+    ⇒ 本函数**只透传**：文件有 ⇒ 验证行有；文件没有 ⇒ 验证行没有。
+
+    🚨🚨 **本函数不许造标签**（2026-10-21 修掉的缺陷，根因报告见
+    `docs/TODO_VERIFY_RESIGNAL_ID_2026-10-21.md`）：
+
+    原实现有一个 `signal_id` **入参**，在「整批没有该列」时用它补上；
+    而调用点传的是 `current_signal_id(reports_dir)`（**当前**权重的 id）⇒
+    早于该列落地时写下的**旧名单**（文件里根本没有这一列）
+    被盖上了**重判当天**的 id
+    ⇒ 「这份名单由该信号产生」这个**证据**变成了**编造**
+    ⇒ D1 的独立成交窗口数（W）被高估一倍（2 而真值是 1）。
+
+    ⇒ **参数已删除**（不是改成「只校验不补」）：
+    留着它就留着一条「调用方声明一个标签」的通道
+    ⇒ 下一个调用点（或将来的人）还会传 ⇒ 缺陷**原样复发**
+    （两份副本之间没有守卫 ⇒ 改一处就静默分叉）。
+    ⇒ 「只校验不补」也不合格：那一支在「整批没有该列」时**恒真**
+    ⇒ 它在**恰恰出缺陷的那一格**没有判别力。
 
     ⚠️ **既有行不许回填**（追加式纪律）：历史行**没有** `signal_id`
     ⇒ 下游读到它们时**必须显式说「这些行不属于任何已知信号」**
@@ -203,9 +224,9 @@ def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
     老底稿没有该列时它退到 `weights_hash` **逐行**判归属
     ⇒ `ATTRIBUTED_BY_WEIGHTS_HASH`）。
 
-    🚨 **不传 `signal_id` ⇒ 这一批行**没有**该列**
-    ⇒ 与「传了但值是空的」**同形**（都不可归属）⇒
-    两者都**不许**被读成「属于当前信号」。
+    ⇒ **没有正确来源的行就该「不可归属」**（预注册
+    `docs/PREREG_FIX_RESIGNAL_ID_2026-10-21.md` R3）：
+    不许事后手工贴一个从 git 反推出来的 id（那是**编造标签**）。
 
     ## 输出契约：`actual_pct` 是**毛**收益，成本另立 `cost` 列
 
@@ -267,14 +288,14 @@ def verify_predictions(predictions: pd.DataFrame, next_day_bars: pd.DataFrame,
     # 「恰好平盘」判成 miss，等于用手续费凭空造出方向判断。
     out["actual_pct"] = out["gross_pct"]
     out["result"] = out.apply(lambda row: judge(row, row["gross_pct"]), axis=1)
-    # ── `signal_id`：带进验证行（2026-10-21）────────────────────────
-    # 🚨 **已有该列就保留**（那是**逐行**的真相：每行记着自己是用哪套信号
-    # 产生的）⇒ 只有**整批都没有**时才用入参补上。
-    # 🚨 **两者都没有 ⇒ 这一批行没有该列** ⇒ 追加到底稿后旧行是 NaN、
-    # 新行是 NaN ⇒ **一律不可归属**（不许回落成「属于当前信号」）。
-    if SIGNAL_ID_COLUMN not in out.columns:
-        if signal_id is not None and str(signal_id).strip():
-            out[SIGNAL_ID_COLUMN] = str(signal_id).strip()
+    # ── `signal_id`：**只透传，不造标签**（2026-10-21 修复）────────────
+    # 预测文件自带的 `signal_id` 列经上面的 merge **原样**带进验证行
+    # （merge 以 `predictions` 为左表 ⇒ 左表的列全部保留）。
+    # 🚨 **这里不再有任何「补列」的逻辑** ⇒ 调用方**无法**声明一个标签
+    # ⇒ 「这份名单由该信号产生」的证据**只可能**来自那份预测文件。
+    # ⚠️ `SIGNAL_ID_COLUMN` 这个常量**保留**：它是跨模块的**列名契约**
+    #   （`aplus/reports.py` 与本模块各写一遍 ⇒ 靠守卫钉住，
+    #   见 `tests/test_production_config_2026_10_21.py`）。
     return out
 
 

@@ -473,12 +473,18 @@ def _judge_one_day(store, reports_dir, pred_date, today):
     # 成本显式建模：pred 表没有 cost 列时用回测同一口径（0.003），
     # 并在报告里同时给毛值 `gross_pct`，不静默当 0。
     #
-    # ★ `signal_id`（2026-10-21）：**带进**验证行。
-    #   🚨 **既有 160 行不许回填**（追加式纪律）⇒ 只有**新行**带这个标签。
-    #   旧行没有标签 ⇒ `aplus/signal_scope.py` 判「不可归属」⇒ 不可判定。
+    # ★ `signal_id`（2026-10-21 修复）：**这里不许造标签**。
+    #   那一列的**唯一真相源**是**该 pred_date 的预测文件自带的那一列**
+    #   （`aplus/reports.py::save_predictions` 在**出单当天**写）
+    #   ⇒ `verify_predictions` **只透传**：文件有 ⇒ 验证行有；文件没有 ⇒ 没有。
+    #   🚨 **旧实现传的是 `current_signal_id(reports_dir)`（当前权重的 id）**
+    #   ⇒ 早于该列落地时写下的**旧名单**（文件里根本没有这一列）
+    #   被盖上了**重判当天**的 id ⇒ 「这份名单由该信号产生」变成**编造的证据**
+    #   ⇒ D1 的独立成交窗口数（W）被高估一倍（2 而真值是 1）。
+    #   ⇒ 修法：**不传**。没有正确来源的行**就该不可归属**
+    #   （预注册 `docs/PREREG_FIX_RESIGNAL_ID_2026-10-21.md` R1/R2/R3）。
     results = verify_predictions(preds, bars, require_cost=True,
-                                 default_cost=STOCK_COST_DEFAULT,
-                                 signal_id=current_signal_id(reports_dir))
+                                 default_cost=STOCK_COST_DEFAULT)
     results["pred_date"] = pred_date
     results["verified_on"] = today
     # ★ 基准的**测量窗口**一并落库（2026-10-14）。
