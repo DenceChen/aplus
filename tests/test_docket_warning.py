@@ -508,6 +508,12 @@ DOCKET_BINDINGS = (
     #   8.34%/11.66pp 没了」，读起来像「台账那一支失效了」，
     #   而真因在**接线**。不报错 ⇒ 没有任何东西会喊。
     ("d2gap", "d2gap"),
+    # ⚠️ **2026-10-21 新增第 7 位**（`scope` = 归属口径）：
+    #   用来在屏上解释「窗口数为什么是这个数」（只算当前信号的窗口 ⇒
+    #   换信号就从头攒 ⇒ 计数变小**不是**把证据弄丢了）。
+    #   ⇒ 实参是 `status.signal_scope`（`/api/status` 的同级字段）⇒
+    #   标识符 = `signal_scope`。
+    ("signal_scope", "scope"),
 )
 
 _DOCKET_DEF = re.compile(r"function\s+renderDocket\s*\(([^)]*)\)\s*\{")

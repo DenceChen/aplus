@@ -2019,7 +2019,7 @@ def assemble(results: dict, controls: dict, arms: list[Arm], args, dates,
             "wording": WORDING[LABEL_INVALID] if suite_invalid else None,
             # 🚨 说明串由**实际状态**算出来（见 `suite_note` 的 docstring：
             # 原写法是写死的常量 ⇒ 声称了一个没发生的原因 ⇒ 误导了读的人）。
-            "note": suite_note(n_passed, coverage_min),
+            "note": suite_note(n_passed, COVERAGE_MIN),
         },
         "what_this_cannot_prove": [
             "「测不到」**不等于**「没有超额」—— 只等于在这个样本量下测不到。",
