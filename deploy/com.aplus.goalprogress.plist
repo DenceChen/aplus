@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  每晚 22:05 写一份**目标进度快照**（用户 2026-10-21：
+  「web 页面加一个 tab 页面 记录目标达成页面。记录目标达成进度，
+    **不用每次我都问你**。」⇒ 页面自己长一格。）
+  产物：data/reports/goal_progress_<日期>.json（+ .provenance.json 侧车）
+
+  🚨 排在 21:40 夜间复盘之后 ⇒ 当天的提交归类统计已经落盘，
+     目标 4/5/6 那一块读得到数；也排在 22:25 静态页导出之前 ⇒
+     导出拿到的是当天的快照。
+
+  🚨 **二选一**：本单元与 crontab 里那条 `5 22 * * *` **是同一条调度**。
+     机器的 crontab 一旦能写 ⇒ 装 `deploy/aplus_crontab.txt` **之前**
+     必须先 `launchctl bootout gui/$(id -u)/com.aplus.goalprogress`
+     ⇒ 否则同一条调度跑两遍。
+
+  🚨 **依赖顺序靠时间错开，不靠 `After=`**（launchd 的 `After=` 只保证启动顺序）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aplus.goalprogress</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/airboom/opencode/aplus/.venv/bin/python</string>
+        <string>/Users/airboom/opencode/aplus/scripts/measure_goal_progress.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/airboom/opencode/aplus</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>22</integer>
+        <key>Minute</key>
+        <integer>5</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/airboom/opencode/aplus/data/goal_progress.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/airboom/opencode/aplus/data/goal_progress.err.log</string>
+</dict>
+</plist>

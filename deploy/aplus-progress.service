@@ -1,0 +1,28 @@
+[Unit]
+Description=aplus 目标进度静态页（自包含 HTML · 无后端 · 只读静态文件）
+Documentation=file:///Users/airboom/opencode/aplus/scripts/export_progress_page.py
+After=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/opt/aplus-progress
+# 🚨 **系统 python3.11**，不用另一个服务的那套 venv（那是别人的依赖）。
+#    ⚠️ 机器上的 `python3` 是 **3.6.8** ⇒ `http.server` **没有 `--directory`**
+#    （3.7 才加）⇒ 必须用 3.11。
+ExecStart=/usr/bin/python3.11 -m http.server 8080 --bind 0.0.0.0 --directory /opt/aplus-progress
+Restart=always
+RestartSec=5
+
+# 🚨 那台机器只有 **896MB 内存**（另一个服务也住在上面）⇒ 给这个单元一个硬上限，
+#    免得它哪天出问题把整台机器拖垮。
+MemoryLimit=128M
+
+# 🚨 静态文件服务器 ⇒ 不需要任何权限 ⇒ 收紧。
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

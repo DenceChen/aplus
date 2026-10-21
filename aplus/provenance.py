@@ -573,6 +573,13 @@ DEFAULT_GENERATORS: dict[str, str] = {
     "bm_ic_attribution.json": "scripts/bm_ic_attribution.py",
     # 每晚复盘产物（最新 + 每日归档）
     "daily_review.json": "scripts/daily_review.py",
+    # 🚨 2026-10-21 补登记：每周复盘的那一份（`--out data/reports/daily_review_weekly.json`）。
+    #   此前**没登记**不是因为不需要，是因为**那条调度从来没跑过**
+    #   （2026-10-21 实测：cron 守护进程 `forks = 0` ⇒ 本机 crontab 装上去之后
+    #   一条都没触发；后来那条调度改用 launchd，第一次真跑就带出了这份产物）
+    #   ⇒ **一份产物被真跑出来的那一刻，它的生成器就必须已登记**
+    #   （否则 sidecar 盖了章却解析不出生成器 ⇒ 按仓内规矩**不可引用**）。
+    "daily_review_weekly.json": "scripts/daily_review.py",
     "dividend_lowvol_longleg.json": "scripts/measure_dividend_lowvol_longleg.py",
 }
 

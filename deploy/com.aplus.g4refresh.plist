@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  G4 闸门刷新：每晚 21:30 跑 `scripts/score_ranking_power.py`。
+
+  🚨 **为什么必须定时跑**：
+     `score_ranking_power.json::verdict`（`publish_allowed` /
+     `n_independent_pred_dates`）是 **D1 的验收判据** ⇒ 目标进度页与首屏的
+     `publish_gate` 都读它 ⇒ 它冻结 = **判决冻结**。
+     2026-10-21 实测：全仓**没有任何定时任务**在跑它。
+     单跑 13.5 秒（只读 `verification.parquet`，**不建面板**）⇒ 完全该进每晚链。
+
+  🚨 排在 21:40 夜间复盘之前 ⇒ 复盘读到的是新的 G4；
+     22:05 目标进度快照、22:25 静态页推送也都读到新的。
+
+  ⚠️ 用 launchd 而不是 crontab：这台 Mac 的 `crontab` **写入**被系统沙箱挡住
+     （见 `deploy/com.aplus.progresspage.plist` 里的逐字内核日志）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aplus.g4refresh</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/airboom/opencode/aplus/.venv/bin/python</string>
+        <string>/Users/airboom/opencode/aplus/scripts/score_ranking_power.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/airboom/opencode/aplus</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>21</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/airboom/opencode/aplus/data/g4_refresh.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/airboom/opencode/aplus/data/g4_refresh.err.log</string>
+</dict>
+</plist>

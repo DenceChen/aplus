@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  目标进度静态页：每晚 22:25 导出 + 推到阿里云（47.95.13.9:8080）。
+
+  🚨 为什么用 **launchd** 而不是 crontab：
+     这台 Mac 上 `/usr/bin/crontab` 的**写入**被系统沙箱挡住了 ——
+     内核日志逐字：
+       (Sandbox) System Policy: crontab(NNNN) deny(1) file-write-create
+       /private/var/at/tmp/tmp.NNNN
+     ⇒ 读（`crontab -l`）正常，写（`crontab <file>` / `crontab -`）一律失败
+     ⇒ 任何从 crontab 出发的定时任务**都装不上去**。
+     ⇒ launchd 是本仓**已在用**的机制（`com.aplus.daily` 等 8 个）⇒ 用它。
+     ⚠️ 同一份调度的 **crontab 版本**留在 `deploy/aplus_crontab.txt`
+        （机器的 crontab 一旦能写，`crontab deploy/aplus_crontab.txt` 即可）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aplus.progresspage</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/airboom/opencode/aplus/scripts/export_and_deploy_progress_page.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/airboom/opencode/aplus</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>22</integer>
+        <key>Minute</key>
+        <integer>25</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/airboom/opencode/aplus/data/progress_page_deploy.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/airboom/opencode/aplus/data/progress_page_deploy.err.log</string>
+</dict>
+</plist>

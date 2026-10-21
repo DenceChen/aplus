@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  每周一 08:05：重算 7 天窗口的提交归类与跑偏率（DELIVERY_GATE §5「每 7 天」那一行）。
+  产物：data/reports/daily_review_weekly.json（+ review_weekly_<date>.json 归档）
+
+  🚨 **`Weekday` 的取值**：launchd 的 `Weekday` = **0=周日, 1=周一, 2=周二 …**
+     cron 的 `5 8 * * 1` = 每周一 ⇒ 这里必须写 **1**。
+     ⚠️ 写 **0** 会变成**每周日** —— 一个不会立刻发现的错（它照样会跑）。
+
+  🚨 **二选一**：本单元与 crontab 里那条 `5 8 * * 1` **是同一条调度**。
+     机器的 crontab 一旦能写 ⇒ 装 `deploy/aplus_crontab.txt` **之前**
+     必须先 `launchctl bootout gui/$(id -u)/com.aplus.dailyreviewweekly`
+     ⇒ 否则同一条调度跑两遍。
+
+  🚨 **依赖顺序靠时间错开，不靠 `After=`**（launchd 的 `After=` 只保证启动顺序）。
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aplus.dailyreviewweekly</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/airboom/opencode/aplus/scripts/daily_review_weekly.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/airboom/opencode/aplus</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>5</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/airboom/opencode/aplus/data/daily_review.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/airboom/opencode/aplus/data/daily_review.err.log</string>
+</dict>
+</plist>

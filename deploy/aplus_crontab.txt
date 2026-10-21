@@ -1,0 +1,75 @@
+# ══════════════════════════════════════════════════════════════════════
+# aplus 的**crontab 版**每晚链（2026-10-21）。
+#
+# 🚨🚨 **这台 Mac 现在装不上**：内核日志逐字 ——
+#     (Sandbox) System Policy: crontab(NNNN) deny(1) file-write-create
+#     /private/var/at/tmp/tmp.NNNN
+#   ⇒ `crontab -l`（读）正常；`crontab <file>` / `crontab -`（写）**一律失败**
+#   ⇒ 任何从 crontab 出发的定时任务都装不上去。
+#   ⇒ **实际调度在 launchd**（本仓已在用：`com.aplus.daily` 等 8 个）；
+#     本文件**仅作参考**。
+#
+# 🚨🚨 **本机 crontab 写入被系统策略挡住（内核日志逐字），故实际调度在 launchd；
+#    此文件仅作参考，装之前要先 unload 对应的 launchd 单元，否则同一条调度跑两遍。**
+#    ⇒ 对应关系（**二选一**，同一条调度）：
+#        crontab `40 21 * * *`  ⇄  launchd `com.aplus.dailyreview`        （21:40）
+#        crontab `5 8 * * 1`   ⇄  launchd `com.aplus.dailyreviewweekly`  （08:05 周一）
+#        crontab `5 22 * * *`  ⇄  launchd `com.aplus.goalprogress`       （22:05）
+#        crontab `30 21 * * *` ⇄  launchd `com.aplus.g4refresh`           （21:30）
+#        crontab `25 22 * * *` ⇄  launchd `com.aplus.progresspage`        （22:25）
+#
+# 装法（机器的 crontab 一旦能写）：
+#     crontab -l > /tmp/ct_old.txt          # 先留底 ⇒ 装坏了能还原
+#     launchctl bootout gui/$(id -u)/com.aplus.dailyreview
+#     launchctl bootout gui/$(id -u)/com.aplus.dailyreviewweekly
+#     launchctl bootout gui/$(id -u)/com.aplus.goalprogress
+#     launchctl bootout gui/$(id -u)/com.aplus.g4refresh
+#     launchctl bootout gui/$(id -u)/com.aplus.progresspage
+#     crontab deploy/aplus_crontab.txt
+# 🚨 **装 crontab 之前先把那五个 launchd 单元 unload 掉** ⇒ 否则同一条调度会跑两遍
+#    （导出+推送跑两遍 = 推两次；G4 刷新跑两遍 = 白跑 13.5 秒；
+#      复盘跑两遍 = 两份归档）。
+#    反过来：要用 launchd，就**别**装这份 crontab。
+#
+# 🚨 **已有那三条一个字都不许改**（21:40 夜间复盘 / 08:05 周复盘 /
+#    22:05 目标进度快照）⇒ 本文件是**完整**的 crontab，不是片段。
+# 🚨 **不许后台化**（不许 & / nohup）：后台化会制造「已完成」的假象。
+# ══════════════════════════════════════════════════════════════════════
+#
+# aplus 复盘（docs/DELIVERY_GATE.md §5 的复盘节律）────────────────────
+# ⚠️ 原来这条挂在一个 Claude 会话的调度上（cron 66c6887a，20:13）
+#    ⇒ 会话结束它就没了 ⇒ 实测 2026-10-21：crontab -l 无此条、
+#    ~/.claude/jobs/ 下也无 66c6887a ⇒ **复盘机制离线**。
+# ⇒ 改成**系统 crontab**，不依赖任何会话生命周期。
+#
+# 每晚 21:40（排在 run_daily 18:30/19:30 与 forward 21:00 之后 ⇒ 当天数据已落盘）
+# 产物：data/reports/daily_review.json（最新）+ data/reports/review_<date>.json（归档）
+40 21 * * * cd /Users/airboom/opencode/aplus && .venv/bin/python scripts/daily_review.py --out data/reports/daily_review.json >> data/daily_review.log 2>&1
+#
+# 每周一 08:05：重算 7 天窗口的提交归类与跑偏率（§5「每 7 天」那一行）
+5 8 * * 1 cd /Users/airboom/opencode/aplus && .venv/bin/python scripts/daily_review.py --since "$(date -v-7d '+%Y-%m-%d %H:%M:%S')" --out data/reports/daily_review_weekly.json --archive-prefix review_weekly >> data/daily_review.log 2>&1
+#
+# 目标达成进度：每晚 22:05 写一份快照（用户 2026-10-21：
+# 「web 页面加一个 tab 页面 记录目标达成页面。记录目标达成进度，
+#   **不用每次我都问你**。」⇒ 页面自己长一格。）
+#
+# 🚨 排在 daily_review（21:40）之后 ⇒ 当天的提交归类统计已经落盘，
+#    目标 4/5/6 那一块读得到数。
+# 产物：data/reports/goal_progress_<日期>.json（+ .provenance.json 侧车）
+5 22 * * * cd /Users/airboom/opencode/aplus && .venv/bin/python scripts/measure_goal_progress.py >> data/goal_progress.log 2>&1
+#
+# G4 闸门刷新（2026-10-21 新增）：`scripts/score_ranking_power.py` 是 D1 的验收判据
+# （`score_ranking_power.json::verdict` / `publish_allowed` / `n_independent_pred_dates`）
+# ⇒ 全仓没有任何定时任务在跑它 ⇒ 屏上的 W 计数与「允许发布」那个闸门会永远冻结在上一份产物上。
+# 单跑 13.5 秒（只读 verification.parquet，不建面板）⇒ 完全该进每晚链。
+# 🚨 排在 21:40 夜间复盘之前 ⇒ 复盘读到的 G4 是新的；22:05 目标进度快照也读得到新的。
+30 21 * * * cd /Users/airboom/opencode/aplus && .venv/bin/python scripts/score_ranking_power.py >> data/g4_refresh.log 2>&1
+#
+# 目标进度静态页：每晚 22:25 导出 + 推到阿里云（47.95.13.9:8080）
+# 🚨 排在 22:05 那条快照之后 ⇒ 快照先写出来，页面才有内容可导。
+# 🚨 导出失败就**不推**（&& 链）⇒ 宁可服务器上留着昨天的页面，
+#    也不推一个刚生成的空页面/半成品页面。
+# 🚨 **不许后台化**（不许 & / nohup）：后台化会制造「已完成」的假象。
+# 🚨 落点是**独立目录** /opt/aplus-progress/ 与**独立单元** aplus-progress.service
+#    ⇒ 不碰那台机器上的另一个服务。
+25 22 * * * cd /Users/airboom/opencode/aplus && { .venv/bin/python scripts/export_progress_page.py && bash scripts/deploy_progress_page.sh ; } >> data/progress_page_deploy.log 2>&1

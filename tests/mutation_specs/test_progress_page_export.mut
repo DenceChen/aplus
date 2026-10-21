@@ -1,0 +1,59 @@
+M1 倍数那一族改成取**跨口径**那一列（台账自己标了 is_the_gap = false）	scripts/export_progress_page.py
+if isinstance(c, dict) and c.get("is_the_gap") is True]
+=== 变异体 ===
+if isinstance(c, dict) and c.get("is_the_gap") is not True]
+
+M2 封禁字面串的机械替换被摘掉（页面于是带上那两个名字与内容相反的字段）	scripts/export_progress_page.py
+        out, n = redact(obj)
+=== 变异体 ===
+        out, n = (obj, 0)
+
+M3 没有出处的读数**不再拒收**（改为编一个假出处 ⇒ 页面上多一个指不到路径的数）	scripts/export_progress_page.py
+        raise SystemExit("读数**没有出处**（%s · %s）⇒ 拒绝渲染一个指不到产物路径的数" % (where, m.get("key")))
+=== 变异体 ===
+        return "出处：未知（%s · %s）" % (where, m.get("key"))
+
+M4 静态页不再借用 live 页的配色（自己写一份 :root ⇒ 两份配色副本开始漂）	scripts/export_progress_page.py
+    kept = filter_css(css)
+=== 变异体 ===
+    kept = ":root { --seal: #123456; --text: #FFFFFF; --bg: #000000; }\n" + filter_css(css)
+
+M5 页面不写快照时间（读者会以为那是现在的数）	scripts/export_progress_page.py
+        generated_at=esc(model.get("generated_at")),
+=== 变异体 ===
+        generated_at="",
+
+M6 页面自称「已达成 20%」（那是判决词，页面不许自己说）	scripts/export_progress_page.py
+            '<div class="panel-head"><h2>D2 · 年化 20%%</h2>'
+=== 变异体 ===
+            '<div class="panel-head"><h2>D2 · 已达成 20%%</h2>'
+
+M7 出处行不渲染（每个数都指不到产物路径了）	scripts/export_progress_page.py
+    html_parts.append('<span class="gm-src">%s</span>' % prose(m["source"]))
+=== 变异体 ===
+    html_parts.append('')
+
+M8 页面里多一次 fetch（静态服务器上读不到任何数 ⇒ 页面是空的）	scripts/export_progress_page.py
+<script type="application/json" id="aplus-progress-snapshot">{payload}</script>
+=== 变异体 ===
+<script>fetch('/api/goal-progress')</script><script type="application/json" id="aplus-progress-snapshot">{payload}</script>
+
+M9 缺口倍数那一列的「恰好一列」检查被摘掉（口径乱了也照样出页）	scripts/export_progress_page.py
+        if len(gap_cols) != 1:
+=== 变异体 ===
+        if False:
+
+M10 少导一条目标（8 条悄悄变 7 条）	scripts/export_progress_page.py
+    goals = [build_goal_view(g) for g in (snapshot.get("goals") or [])]
+=== 变异体 ===
+    goals = [build_goal_view(g) for g in (snapshot.get("goals") or [])][:7]
+
+D1 推送脚本的目标目录改成**另一个服务**那个目录	scripts/deploy_progress_page.sh
+REMOTE_DIR="/opt/aplus-progress"
+=== 变异体 ===
+REMOTE_DIR="/opt/wordson"
+
+U1 systemd 单元去占 8000（那是另一个服务的端口）	deploy/aplus-progress.service
+ExecStart=/usr/bin/python3.11 -m http.server 8080 --bind 0.0.0.0 --directory /opt/aplus-progress
+=== 变异体 ===
+ExecStart=/usr/bin/python3.11 -m http.server 8000 --bind 0.0.0.0 --directory /opt/aplus-progress
