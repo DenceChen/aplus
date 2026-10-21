@@ -14,6 +14,15 @@
 #    · 端口是 **8080**（不是 8000）
 #    ⇒ 本文件里**不许**出现别的服务的目录名（有守卫逐字钉着）。
 #
+# 🚨🚨 **2026-10-21 23:1x：加一个「对外」单元 `aplus-progress-public`（80 端口）**
+#    · **为什么加**：用户实测「http://47.95.13.9:8080/ 打不开」
+#      ⇒ 实测：**80 端口在安全组里是放行的**（8080 不通、80 通 ⇒ 拦在阿里云安全组）
+#      ⇒ 而 80 上**没有任何进程在听** ⇒ ⇒ 挂上去就通了 ⇒
+#      ⇒ **用户不必去控制台放行 8080**（他只要点开就能看）。
+#    · 80 是**特权端口** ⇒ 该单元以 root 跑；8080 那个仍以 admin 跑（两单元职责不同）。
+#    · ⚠️ **两个单元都只读同一个目录** ⇒ 部署时**都要**装、**都要**冒烟。
+#    ⇒ 本文件里**不许**出现别的服务的目录名（有守卫逐字钉着）。
+#
 # 🚨 **只传静态页**：那台机器只有 896MB 内存，aplus 的主库是 GB 级 ⇒
 #    只 rsync `data/reports/static/`（几十 KB 的 HTML），**不传任何数据**。
 #
@@ -28,6 +37,7 @@ set -euo pipefail
 ROOT="/Users/airboom/opencode/aplus"
 STATIC_DIR="${ROOT}/data/reports/static"
 UNIT_SRC="${ROOT}/deploy/aplus-progress.service"
+UNIT_SRC_PUBLIC="${ROOT}/deploy/aplus-progress-public.service"
 
 REMOTE_IP="47.95.13.9"
 REMOTE_HOST="admin@${REMOTE_IP}"
@@ -35,6 +45,10 @@ REMOTE_DIR="/opt/aplus-progress"
 REMOTE_UNIT="/etc/systemd/system/aplus-progress.service"
 UNIT_NAME="aplus-progress.service"
 PORT="8080"
+# 🚨 **对外的那个**（80）：安全组放行了 80、没放行 8080 ⇒ 用户能打开的是这个。
+REMOTE_UNIT_PUBLIC="/etc/systemd/system/aplus-progress-public.service"
+UNIT_NAME_PUBLIC="aplus-progress-public.service"
+PORT_PUBLIC="80"
 
 log() { printf '[deploy] %s\n' "$*"; }
 die() { printf '[deploy] ✗ %s\n' "$*" >&2; exit 1; }
@@ -43,6 +57,7 @@ die() { printf '[deploy] ✗ %s\n' "$*" >&2; exit 1; }
 [ -f "${STATIC_DIR}/index.html" ] || die \
   "本机没有 ${STATIC_DIR}/index.html ⇒ 先跑：.venv/bin/python scripts/export_progress_page.py"
 [ -f "${UNIT_SRC}" ] || die "本机没有 systemd 单元 ${UNIT_SRC}"
+[ -f "${UNIT_SRC_PUBLIC}" ] || die "本机没有 systemd 单元 ${UNIT_SRC_PUBLIC}"
 command -v rsync >/dev/null 2>&1 || die "本机没有 rsync"
 
 log "本机静态页：${STATIC_DIR}/index.html（$(wc -c < "${STATIC_DIR}/index.html" | tr -d ' ') 字节）"
@@ -57,12 +72,15 @@ log "rsync → ${REMOTE_HOST}:${REMOTE_DIR}/"
 # `--delete` 的目标是**我们自己这个独立目录**，删不到任何别人的东西。
 rsync -az --delete "${STATIC_DIR}/" "${REMOTE_HOST}:${REMOTE_DIR}/"
 
-# ── 3. systemd 单元（**新单元**，只监听 8080）──────────────────────
-log "安装 systemd 单元 ${UNIT_NAME}"
+# ── 3. systemd 单元（**新单元**）：8080 内部 + 80 对外 ─────────────
+log "安装 systemd 单元 ${UNIT_NAME}（${PORT}）"
 ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
   "sudo tee '${REMOTE_UNIT}' > /dev/null" < "${UNIT_SRC}"
+log "安装 systemd 单元 ${UNIT_NAME_PUBLIC}（${PORT_PUBLIC} · 对外）"
 ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
-  "sudo systemctl daemon-reload && sudo systemctl enable --now '${UNIT_NAME}'"
+  "sudo tee '${REMOTE_UNIT_PUBLIC}' > /dev/null" < "${UNIT_SRC_PUBLIC}"
+ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
+  "sudo systemctl daemon-reload && sudo systemctl enable --now '${UNIT_NAME}' '${UNIT_NAME_PUBLIC}'"
 
 # ── 4. 冒烟：先问「起来了吗」，再问「对不对」─────────────────────
 # ⚠️ **不把管道放在被观测的命令上**（本仓第 8/107 层：管道吞退出码 ⇒ 假绿）。
@@ -84,6 +102,17 @@ code="$(ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
 log "http://127.0.0.1:${PORT}/ → ${code}"
 [ "${code}" = "200" ] || die "冒烟失败：期望 200，实得 ${code}"
 
+log "冒烟：对外端口 ${PORT_PUBLIC}（用户真正能打开的那个）"
+# ⚠️ **两个端口都要冒烟**：8080 是内部/备用，**80 才是用户在外面访问的**。
+#    ⇒ 2026-10-21 之前只冒烟 8080 ⇒ 于是「部署成功」与「用户打不开」**同时成立**。
+pub_code="$(ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
+  "curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:${PORT_PUBLIC}/' || true")"
+log "http://127.0.0.1:${PORT_PUBLIC}/ → ${pub_code}"
+[ "${pub_code}" = "200" ] || die "冒烟失败（对外 ${PORT_PUBLIC}）：期望 200，实得 ${pub_code}"
+pub_active="$(ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
+  "systemctl is-active '${UNIT_NAME_PUBLIC}' 2>/dev/null || true")"
+[ "${pub_active}" = "active" ] || die "冒烟失败：${UNIT_NAME_PUBLIC} 不是 active（实得 ${pub_active}）"
+
 log "冒烟：页面内容（内联快照标记 + 快照时间）"
 # ⚠️ 远端用 `case` 判，**不接管道** ⇒ 判的是内容本身，不是某个管道的退出码
 marker="$(ssh -o BatchMode=yes -o ConnectTimeout=15 "${REMOTE_HOST}" \
@@ -101,5 +130,6 @@ log "内联快照标记=${marker:0:1} · 快照时间=${marker:1:1}"
 [ "${marker:0:1}" = "1" ] || die "冒烟失败：页面里没有内联快照标记"
 [ "${marker:1:1}" = "1" ] || die "冒烟失败：页面上没有快照时间"
 
-log "✓ 静态页已上线：http://${REMOTE_IP}:${PORT}/（外网可达与否取决于阿里云安全组）"
+log "✓ 静态页已上线：**http://${REMOTE_IP}/**（80 端口 · 对外 · 安全组已放行）"
+log "  （内部/备用：http://${REMOTE_IP}:${PORT}/ · 8080 **未**在安全组放行 ⇒ 外网打不开）"
 exit 0

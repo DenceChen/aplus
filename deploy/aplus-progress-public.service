@@ -1,0 +1,24 @@
+[Unit]
+Description=aplus 目标进度静态页（**对外**端口 80 · 自包含 HTML · 无后端 · 只读静态文件）
+Documentation=file:///Users/airboom/opencode/aplus/scripts/export_progress_page.py
+After=network.target
+
+[Service]
+Type=simple
+# 🚨 **80 是特权端口**（<1024）⇒ 必须 root。
+#    ⇒ 而 `aplus-progress.service`（8080）用 admin 跑 —— 两个单元职责不同：
+#    8080 = 内部/备用；80 = **用户在外面真正能打开的那个**。
+User=root
+WorkingDirectory=/opt/aplus-progress
+# 🚨 **系统 python3.11**，不用另一个服务的那套 venv（那是别人的依赖）。
+#    ⚠️ 机器上的 `python3` 是 **3.6.8** ⇒ `http.server` **没有 `--directory`**
+#    （3.7 才加）⇒ 必须用 3.11。
+ExecStart=/usr/bin/python3.11 -m http.server 80 --bind 0.0.0.0 --directory /opt/aplus-progress
+Restart=always
+RestartSec=3
+
+# 🚨 那台机器只有 **896MB 内存**（另一个服务也住在上面）⇒ 给这个单元一个硬上限。
+MemoryLimit=128M
+
+[Install]
+WantedBy=multi-user.target
