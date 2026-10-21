@@ -218,7 +218,16 @@
   .held-codes { margin-top: 7px; font-family: var(--mono); font-size: 11.5px;
     color: var(--faint); word-break: break-all; line-height: 1.75; }
   .held-codes b { color: var(--muted); font-weight: 600; font-family: inherit; }
-  .held-codes span { display: inline-block; margin-right: 11px; white-space: nowrap; }
+  .held-codes span { display: inline-block; margin-right: 11px; }
+  /* ⚠️ 2026-10-21：只有**代码芯片**（`.up` / `.down`，一个「名字 + 代码」是
+     **一个整体**，折成两行会让人以为那是两只票）不许折行；
+     **散文**（`.held-why`，一整句话）必须能折 ——
+     原来 `nowrap` 套在**所有** span 上 ⇒ 390px 手机上那一句被面板
+     `overflow:hidden` 裁掉、**又滚不到** ⇒ 用户永远读不到
+     （`tests/e2e/test_ui_readability_browser.py` 那条「被裁掉且滚不到」
+     的守卫实测抓到；本条不是那一轮的目标，是顺手把**已经红了**的守卫修绿）。 */
+  .held-codes .up, .held-codes .down { white-space: nowrap; }
+  .held-codes .held-why { display: block; white-space: normal; margin-right: 0; }
   /* 涨腿红 / 跌腿绿 —— 与本页面 A 股约定一致（--up=红涨、--down=绿跌）。
      上一条注释说的「颜色表危险等级」只适用于 .held-why，两处不要混。 */
   .held-codes .up { color: var(--up); }
@@ -924,11 +933,13 @@
      ⚠️ **8 条目标改成一行一条**（.goal-fold）⇒ 容器是**单列**。
      🚨 「一行一条」是**任务书的要求**，不是排版偏好：
         两列网格 ⇒ 一条目标的标题和它的读数被拆到两列 ⇒ 眼睛要在两列间来回跳。
-     ⚠️ `.goal-grid {` 这个选择器**不许改名** ——
+     ⚠️ 下面这个选择器**不许改名** ——
         `tests/test_goal_progress.py::_goal_progress_css_region` 按它**定位那段 CSS**
         （找不到 ⇒ 夹具前提错 ⇒ 那条守卫会当场喊，而不是静默地量空）。
-        它现在量的是「目标进度那段 CSS 里有没有把数烤进 content:」⇒
-        改名会让那条守卫在**量另一段**（或者量不到）⇒ 判据失焦。 */
+        它现在量的是「目标进度那段 CSS 里有没有把数烤进样式声明」⇒
+        改名会让那条守卫在**量另一段**（或者量不到）⇒ 判据失焦。
+        ⚠️ 这段注释里**不许**写出那个选择器的原文（带花括号的那个形态）⇒
+        它是按字面定位的，注释里多写一遍就会把定位点挪到注释里。 */
   .goal-grid { display: grid; grid-template-columns: 1fr; gap: 0; margin: 0 0 12px; }
   .goal-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px;
                min-width: 0; background: var(--panel-2); }
@@ -1018,7 +1029,12 @@
         抄走本身无害（导出页用同一套 token），但**布局规则不许漂过去**：
         导出页的 8 条目标是它自己那套结构，live 页多一套 ⇒ 两边会互相改版式。
         ⇒ **凡是新布局都挂在 #panel-goal 之下** ⇒ 导出页没有这个容器
-           ⇒ 抄过去的规则在那边**一条也不生效** ⇒ 导出页一个像素都不变。 */
+           ⇒ 抄过去的规则在那边**一条也不生效** ⇒ 导出页一个像素都不变。
+     ⚠️ 唯一一条**不**挂在这个容器下的新规则在最下面（判决板让位那条）：
+        它按 `body[data-tab]` 选，而导出页**没有**这个属性 ⇒ 那边也不生效。 */
+  #panel-goal #goal-progress-body { padding: 10px 20px 14px; }
+  #panel-goal .goal-tl-wrap { padding: 8px 20px 12px; }
+  /* 一句话结论 = 快照自己写的 `summary_line` ⇒ 逐字呈现，前端不许改写。 */
   #panel-goal .goal-summary { color: var(--text); font-size: 15px; line-height: 1.75;
                               letter-spacing: .01em; margin: 0 0 10px; }
   /* 一条目标 = 一个 <details>：**summary 是常驻可见的紧凑读数行**，
@@ -1031,9 +1047,9 @@
       display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 10px; padding: 5px 0; }
   #panel-goal .goal-fold > summary::-webkit-details-marker { display: none; }
   /* ⚠️ 折叠开关是**雪佛龙**（几何状态指示），不是 `→`（那是「去某处」的动词）。
-     ⚠️ 这里用**字面字符**而不是 `\25B8`：目标进度那段 CSS 有一条守卫
-        （`test_the_goal_progress_css_holds_no_baked_number`）不许 `content:`
-        里出现任何数字 ⇒ 转义写法会被它判红（而它判的正是「把测量值烤进样式」）。 */
+     ⚠️ 这里用**字面字符**而不是八进制转义：目标进度那段 CSS 有一条守卫
+        不许把数字写进那个「只放字面串」的属性 ⇒ 转义写法会被它判红
+        （而它判的正是「把测量值烤进样式」）。 */
   #panel-goal .goal-fold > summary::before { content: '▸'; font-size: 10px; line-height: 1.5; color: var(--faint); }
   #panel-goal .goal-fold[open] > summary::before { content: '▾'; }
   #panel-goal .goal-fold > summary:hover { background: rgba(255,255,255,.025); }
@@ -1057,16 +1073,38 @@
   #panel-goal .goal-detail code, #panel-goal .goal-line code { font-family: var(--mono); font-size: 1em;
       color: var(--seal); background: rgba(255,255,255,.05); padding: 0 3px; border-radius: 3px; }
   /* D2 那块（两个口径并排 + 「还差几倍」那一行）**复用概览判决板那套类名**
-     ⇒ 两页看起来是同一个产品；下面的两条是这一屏**独有**的排版修正。 */
+     ⇒ 两页看起来是同一个产品；下面几条是这一屏**独有**的排版修正。 */
   #panel-goal .goal-d2 { margin: 0 0 12px; }
   /* ⚠️ 概览那块的口径名**短** ⇒ 标签与主读数同一行；这里的口径名**长**
      （「实盘档（生产配置 · 满仓 10 只 · K=63 · 整手 · 逐笔成本 · 闲置现金 0 计息）」）
      ⇒ 同一行会让两格的**主读数不在同一行** ⇒ 「并排对照」这个视觉关系就断了。
-     ⇒ 主读数**单独一行**（两格对齐）。 */
+     ⇒ 标签与主读数**各占一行**（两格仍然上下对齐）。 */
+  #panel-goal .goal-d2 .d2c h5 { display: block; margin: 0 0 2px; line-height: 1.6; }
   #panel-goal .goal-d2 .d2c .d2c-num { display: block; }
   #panel-goal .goal-d2 .d2c .d2c-sub, #panel-goal .goal-d2 .d2c .d2c-src { overflow-wrap: anywhere; }
   #panel-goal .goal-d2 .d2c code { font-family: var(--mono); font-size: .94em; }
-  #panel-goal .goal-d2 .gm-flag { font-size: 11px; font-weight: 600; }
+  #panel-goal .goal-d2 .gm-flag { font-size: 11px; font-weight: 600; color: var(--down); margin-left: 6px; }
+  /* 文本型读数（整句话）另起一行，不许被压成竖排。 */
+  #panel-goal .gm-text-val { grid-column: 1 / -1; color: var(--text); font-size: 11.5px;
+                              line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #panel-goal .goal-bounds { margin-top: 0; border-top: 0; padding-top: 0; }
+  /* ⚠️ 折叠体里的长路径（登记出处 / 倍数那一族的出处）**必须能断行** ——
+     `.goal-tag` 与 `.goal-mult .gm-src` 原来都不可断 ⇒ 390px 手机上
+     「登记：docs/…§1」是 486px 宽、「出处：data/reports/…multiple_needed」
+     是 561px 宽 ⇒ 被面板裁掉、**又滚不到** ⇒ 用户永远读不到那条出处
+     （`tests/e2e/test_ui_readability_browser.py` 那条「被裁掉且滚不到」的守卫实测抓到）。
+     ⇒ 登记那一枚**单独**给一条规则：路径可以断，别的标签（目标 1 / 归档：D2）不许断。 */
+  #panel-goal .goal-tag-path { white-space: normal; overflow-wrap: anywhere; }
+  #panel-goal .goal-mult .gm-note,
+  #panel-goal .goal-mult .gm-cal { display: block; overflow-wrap: anywhere; }
+  #panel-goal .goal-mult .gm-src { display: block; word-break: break-all; }
+  /* 🚨 目标进度 tab 上**只出现一块 D2**：判决板那块（`#d2-gap-calibers`，来自
+     `/api/d2-gap` 的**活**台账）在这个 tab 上让位给目标进度面板里那块
+     **这份快照**的 D2 记录 ⇒ 同一屏里 12.62% / 10.4245% / 1.79× 不会各出现两次
+     （那正是「乱七八糟」）。
+     ⚠️ 其它 tab（概览）**一个字都不变** ⇒ 判据是 `body[data-tab]`，
+        而静态导出页**没有**这个属性 ⇒ 那边也不生效。 */
+  body[data-tab="goal"] #d2-gap-calibers { display: none; }
 </style>
 </head>
 <body>
@@ -1263,7 +1301,12 @@
     <div class="panel">
       <div class="panel-head"><h2>时间线 · 历日快照</h2>
         <span class="sub">这就是「记录」：每晚 cron 自己长一格</span></div>
-      <div id="goal-progress-timeline"><div class="skeleton">读取历史…</div></div>
+      <div class="goal-tl-wrap">
+        <details class="fold" id="goal-timeline-fold">
+          <summary id="goal-timeline-summary">展开历日快照</summary>
+          <div id="goal-progress-timeline"><div class="skeleton">读取历史…</div></div>
+        </details>
+      </div>
     </div>
   </section>
 
@@ -1491,6 +1534,13 @@ function nextTradingDayLabel(from = new Date()) {
 /* ── Tab 路由 ── */
 const loaded = {};
 function activate(tabName, push = true) {
+  /* ★ 2026-10-21：目标进度 tab 上**只出现一块 D2** ——
+     判决板那块（`#d2-gap-calibers`，来自 `/api/d2-gap` 的**活**台账）在这个 tab 上
+     让位给目标进度面板里那块**这份快照**的 D2 记录（带每条读数的出处路径）。
+     ⇒ 同一屏里 12.62% / 10.4245% / 1.79× 不会各出现两次（那正是「乱七八糟」）。
+     ⚠️ 判据是 `body[data-tab]` ⇒ **其它 tab 一个字都不变**，
+        静态导出页没有这个属性 ⇒ 那边也不生效。 */
+  document.body.setAttribute('data-tab', tabName);
   document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.panel === tabName ? 'true' : 'false'));
   document.querySelectorAll('[role="tabpanel"]').forEach(p => p.hidden = p.id !== `panel-${tabName}`);
   if (push) history.replaceState(null, '', '#/' + tabName);
@@ -1582,44 +1632,66 @@ function goalMetricRow(m) {
   const missing = (m.status === 'missing');
   const val = (m.display === undefined || m.display === null) ? '缺失' : m.display;
   const isText = GOAL_TEXT_UNITS.indexOf(m.unit) >= 0;
-  const cal = m.caliber ? `<span class="gm-cal">口径：${inlineMd(m.caliber)}</span>` : '';
-  const src = m.at ? `<span class="gm-src">出处：${esc(m.at)}</span>` : '';
-  const note = m.note ? `<span class="gm-note">${inlineMd(m.note)}</span>` : '';
-  const reason = m.reason ? `<span class="gm-note">缺档原因：${inlineMd(m.reason)}</span>` : '';
   return `<div class="goal-metric${isText ? ' is-text' : ''}">
     <span class="gm-label">${esc(m.label || m.key || '')}</span>
     <span class="gm-val${missing ? ' missing' : ''}">${inlineMd(val)}</span>
-    ${cal}${src}${note}${reason}
+    ${goalEvidenceHtml(m)}
   </div>`;
 }
 
-/* ★ 2026-10-21 目标进度那段的文案**带 Markdown**（`**加粗**` 与「行内代码」），
+/* 一条读数的**证据行**（口径 / 出处 / 来源文件 / 算式 / 核验 / 备注）。
+   ⚠️ 这里是**唯一**一份「证据行」的实现（目标那几条读数与 D2 那两张卡共用）
+      —— 同一个语义被处理 N 次 ⇒ 第 N+1 处会漏（第 17 种形状）。 */
+function goalEvidenceHtml(m) {
+  if (!m) return '';
+  const cal = m.caliber ? `<span class="gm-cal">口径：${inlineMd(m.caliber)}</span>` : '';
+  const src = m.at ? `<span class="gm-src">出处：${esc(m.at)}</span>` : '';
+  /* ⚠️ **派生读数的 「at」 是空的**，它的出处是 「sources」（那几个产物文件）
+     ⇒ 只印 「at」 的话，这一族读数在屏上**没有出处**（而这一页的副标题
+     恰恰写着「每个数都指到产物」）⇒ 两个都要印。 */
+  const srcs = (m.sources || []).length
+    ? `<span class="gm-src">来源：${m.sources.map(s => esc(s)).join('、')}</span>` : '';
+  /* ⚠️ 「算式」= 这个数**怎么算出来的**（快照自带的 「derivation」）。
+     它与「出处」（这个数在哪个文件里）是**两件事** ⇒ 两者都印。
+     少了它，读者只能去产物里自己找算法（那正是「查得到但看不到」）。 */
+  const der = m.derivation ? `<span class="gm-note">算式：${inlineMd(m.derivation)}</span>` : '';
+  const vf = m.verify || null;
+  const ver = vf
+    ? `<span class="gm-note">核验：${esc(vf.kind || '')}${vf.file ? ' · ' + esc(vf.file) : ''}`
+      + `${vf.column ? ' · 列 ' + esc(vf.column) : ''}`
+      + `${vf.value != null ? ' · 值 ' + esc(String(vf.value)) : ''}</span>` : '';
+  const note = m.note ? `<span class="gm-note">${inlineMd(m.note)}</span>` : '';
+  const reason = m.reason ? `<span class="gm-note">缺档原因：${inlineMd(m.reason)}</span>` : '';
+  return `${cal}${src}${srcs}${der}${ver}${note}${reason}`;
+}
+
+/* ★ 2026-10-21 目标进度那段的文案**带 Markdown**（「**加粗**」 与「行内代码」），
    而页面**原样打印** ⇒ 屏上到处是裸星号与裸引号符号
    （实测整份快照：**加粗标记 143 处**、行内代码 **118 处**）。
-   ⇒ 这里给一个**行内**渲染器：先 `esc`（注入安全）⇒ 再把
+   ⇒ 这里给一个**行内**渲染器：先 「esc」（注入安全）⇒ 再把
       「成对的星号」变粗、把「成对的引号符号」变等宽。
 
-   ⚠️ **为什么不用仓里那个 `boldify()` / `md()`**：
+   ⚠️ **为什么不用仓里那个 「boldify()」 / 「md()」**：
       它们定义在这段的**后面**，而守卫把
       「本函数 → 加载函数」这一整段单独抠出来交给 node 真跑
       ⇒ 引用外面的函数 ⇒ ReferenceError ⇒ **探针自己崩**，
       症状长得像「守卫坏了」而其实是我动了它。
-      ⇒ 这里的渲染器**必须自足**（只用 `esc`）。
-   ⚠️ **读数本身仍然只用 `esc`**：`display` / `value` 可能是 JSON、
+      ⇒ 这里的渲染器**必须自足**（只用 「esc」）。
+   ⚠️ **读数本身仍然只用 「esc」**：「display」 / 「value」 可能是 JSON、
       可能带换行（实测「各批登记日」是三行日期）⇒ 走行内渲染会把换行折掉
       ⇒ **内容变了**。分工：**散文**走行内渲染，**读数**走 esc。
    ⚠️ 源码里**不许出现裸引号符号**（含注释里）：
-      `tests/test_audit_frontend.py` 的模板提取器按字面扫源码，
+      「tests/test_audit_frontend.py」 的模板提取器按字面扫源码，
       注释里的一个裸符号会让它以为开了一个模板 ⇒ 守卫当场红。
-      ⇒ 一律用 `String.fromCharCode(96)` 取。 */
+      ⇒ 一律用 「String.fromCharCode(96)」 取。 */
 function inlineMd(s) {
   const T = String.fromCharCode(96);
   const t = esc(s);
   /* 行内代码段里再扫一遍：成对的反引号变等宽。
      ⚠️ 加粗**可以跨**代码段（实测快照里有
-        「**每个数都直读产物并带 `产物路径 :: JSON 路径`**」这种形态）
+        「**每个数都直读产物并带 「产物路径 :: JSON 路径」**」这种形态）
         ⇒ 顺序必须是「先定加粗区间、再在区间内部处理代码」。
-     ⚠️ 第一版用一条正则 `\*\*([^*<>]+)\*\*` 做加粗 ⇒ 区间里有 `<code>` 就**匹配不上**
+     ⚠️ 第一版用一条正则 「\*\*([^*<>]+)\*\*」 做加粗 ⇒ 区间里有 「<code>」 就**匹配不上**
         ⇒ 裸星号留在屏上（实测仍有 8 处）。这一版是逐字符扫，与仓里
         那支完整 markdown 渲染器**同一套判定**。 */
   const code = seg => {
@@ -1666,11 +1738,18 @@ function goalMultiplesHtml(m) {
     const cls = isGap ? 'is-gap' : 'not-gap';
     const flag = isGap ? '✅ 这一列是缺口' : '❌ 这一列不是缺口';
     const val = c.metric && c.metric.display != null ? c.metric.display : '缺失';
+    /* ⚠️ 每一列的**口径与出处**也要在（跨口径那一列的数同样在屏上 ⇒
+       它的出处也得在，否则读者看到一个数却查不到它从哪来）。 */
+    const mt = c.metric || {};
+    const lab = mt.label ? `<span class="gm-note">${inlineMd(mt.label)}</span>` : '';
+    const cal = mt.caliber ? `<span class="gm-cal">口径：${inlineMd(mt.caliber)}</span>` : '';
+    const src = mt.at ? `<span class="gm-src">出处：${esc(mt.at)}</span>` : '';
     return `<div class="goal-mult ${cls}">
       <span class="gm-label">${esc(c.name || '')}</span>
       <span class="gm-val">${inlineMd(val)}</span>
       <span class="gm-flag">${esc(flag)}</span>
       <span class="gm-cal">${inlineMd(c.note || '')}</span>
+      ${lab}${cal}${src}
     </div>`;
   }).join('');
   return `<div class="goal-mults">
@@ -1713,29 +1792,195 @@ function goalAutoHtml(a) {
   </div>`;
 }
 
-function goalCardHtml(g) {
+/* ── 目标进度 tab：紧凑读数行 + D2 那块（2026-10-21 改版）────────────
+   🚨 **呈现层只呈现**：下面每一个数、每一句标签、每一条出处路径，
+      都逐字来自 「/api/goal-progress」 的快照 ⇒ 前端一个数都不算。
+
+   ⚠️ **8 条目标 = 8 个 <details class="goal-fold">**：
+      summary（常驻可见）= 状态标签 + 标题 + 关键读数 + 判据 ⇒ **一行一条**；
+      折叠体 = 这条目标的**完整证据链**（理由 / 全部读数与出处 / 两个口径 /
+      倍数 / 验收 / 可自动化 / 人工判据 / 诚实边界）⇒ **展开后一个字不少**。
+   ⚠️ 类名与静态导出页**同名同义** ⇒ 两边看起来是同一个产品。 */
+
+/* 🚨 口径台账**封禁**的两个字段名（「docs/TODO_deployed_idle_cash_caliber_2026-10-21.md」）：
+   那两个字段**名字与内容相反** ⇒ 屏上不许出现它们的名字。
+   ⚠️ 快照的**诚实边界**里有一句正是在说「不许出现它们」⇒ 不封禁的话，
+      页面会一边写「屏上不出现这两个词」一边把这两个词写在屏上（自相矛盾）。
+   ⇒ 与静态导出页**同一套**封禁词与**同一套**占位符（两边是同一个产品）。 */
+const GOAL_BANNED_FIELDS = [
+  ['投入率', '⟨部署比例字段·口径台账封禁⟩'],
+  ['闲置比例', '⟨闲置现金字段·口径台账封禁⟩'],
+];
+
+function goalRedact(s) {
+  let out = String(s);
+  for (const p of GOAL_BANNED_FIELDS) out = out.split(p[0]).join(p[1]);
+  return out;
+}
+
+/* 🚨 封禁**一次性**做在**快照对象**上，不是每个渲染点各做一遍：
+   每个渲染点各做一遍 ⇒ 漏一个渲染点就漏一次封禁（第 17 种形状：
+   同一件事被处理 N 次 ⇒ 第 N+1 处会漏）。 */
+function goalRedactDeep(v) {
+  if (typeof v === 'string') return goalRedact(v);
+  if (Array.isArray(v)) return v.map(goalRedactDeep);
+  if (v && typeof v === 'object') {
+    const o = {};
+    Object.keys(v).forEach(k => { o[k] = goalRedactDeep(v[k]); });
+    return o;
+  }
+  return v;
+}
+
+/* 这个读数是不是**整句话**（判决名 / 理由 / 路径 / 状态计数）？
+   ⚠️ 判据是**后端给的 unit**，不是前端量长度（前端一个数都不算）。
+   ⚠️ 表放在函数体内：它必须跟着渲染函数一起被抽出跑
+   （守卫把这一段交给 node 真跑 ⇒ 模块级的常量会落在抽取区间之外）。 */
+function goalIsTextMetric(m) {
+  const GOAL_TEXT_UNITS = ['text', 'lines', 'json', 'list'];
+  return !!m && GOAL_TEXT_UNITS.indexOf(m.unit) >= 0;
+}
+
+/* 紧凑行显示哪几条读数（标签 + 值，都逐字来自快照）。
+   ① 有验收行 ⇒ 取验收的前几行（那是这条目标「能不能算达成」的读数）；
+   ② 否则取前几条**非文本**读数（文本型读数是整句话，压不进一行）；
+   ③ 一条都没有 ⇒ 取第一条。
+   ⚠️ 与静态导出页**同一套规则**（两边是同一个产品）。 */
+const GOAL_COMPACT_READING_MAX = 3;
+
+function goalCompactReadings(g) {
+  const acc = (g && g.acceptance && g.acceptance.rows) || [];
+  const metrics = (g && g.metrics) || [];
+  const pool = acc.length ? acc : metrics.filter(m => !goalIsTextMetric(m));
+  const use = pool.length ? pool : metrics;
+  return use.slice(0, GOAL_COMPACT_READING_MAX).map(r => ({
+    label: r.label == null ? '' : String(r.label),
+    display: r.display == null ? '缺失' : String(r.display),
+  }));
+}
+
+/* 一条目标的**紧凑读数行**（summary 的内容）：状态标签 + 标题 + 关键读数 + 判据。
+   ⚠️ **判据逐字来自快照**（它可以折行，但**不许被截断**）。 */
+function goalLineHtml(g) {
   const status = g.status || '';
+  const chip = `<span class="goal-status s-${esc(status)}">${esc(g.status_label || status)}</span>`;
+  const reads = goalCompactReadings(g).map(r =>
+    `<span class="gl-read"><span class="gl-lab">${esc(r.label)}</span>`
+    + `<span class="gl-val">${inlineMd(r.display)}</span></span>`).join('');
+  const crit = g.criterion ? `<span class="gl-crit">判据：${inlineMd(g.criterion)}</span>` : '';
+  return chip
+    + `<span class="gl-title">${esc(g.title || '')}</span>`
+    + `<span class="gl-reads">${reads}</span>${crit}`;
+}
+
+/* 一条读数的**证据行**（口径 + 出处 + 来源 + 算式 + 核验 + 备注）——
+   ⚠️ 标签与值**不在这里**（它们已经在卡片上）⇒ 同一个数只出现一次
+   （设计契约：一个数只有一个主角）；文本型读数的**值**在这里，
+   因为它是一整句话、压不进卡片那一行。 */
+function goalReadingEvidenceHtml(m) {
+  const txt = goalIsTextMetric(m)
+    ? `<div class="gm-text-val">${inlineMd(m.display == null ? '缺失' : String(m.display))}</div>` : '';
+  return `<div class="goal-metric${txt ? ' is-text' : ''}">${txt}${goalEvidenceHtml(m)}</div>`;
+}
+
+/* 一个口径 = 一张卡：**文字标签** + 主读数 + 其余读数 + **出处路径**，
+   逐项证据（口径 / 出处 / 算式）折起来 ⇒ 卡上回答「现在是多少」，
+   折起来回答「每个数指到哪个产物」。 */
+function goalD2CaliberHtml(c) {
+  const ms = c.metrics || [];
+  const head = ms.find(m => String(m.label || '').indexOf('账户年化') >= 0)
+            || ms.find(m => m.unit === 'fraction' || m.unit === 'pct')
+            || ms[0];
+  const gap = ms.find(m => String(m.label || '').indexOf('距 20%') >= 0)
+            || ms.find(m => m.unit === 'pp');
+  const rest = ms.filter(m => m !== head && m !== gap && !goalIsTextMetric(m));
+  const more = [gap].concat(rest).filter(Boolean);
+  const num = head ? (head.display == null ? '缺失' : String(head.display)) : '缺失';
+  const headLab = head ? String(head.label || '') : '';
+  const moreHtml = more.length
+    ? `<div class="d2c-sub">${more.map(m =>
+        `${esc(m.label || '')} ${esc(m.display == null ? '缺失' : String(m.display))}`).join(' · ')}</div>`
+    : '';
+  const evid = `<details class="fold"><summary>逐项读数与出处（${ms.length} 项）</summary>`
+    + `<div class="fold-body">${ms.map(goalReadingEvidenceHtml).join('')}</div></details>`;
+  const hb = c.honest_boundary ? `<div class="d2c-sub">${inlineMd(c.honest_boundary)}</div>` : '';
+  return `<div class="d2c">
+    <h5>${inlineMd(c.name || '')}</h5>
+    <span class="d2c-num">${inlineMd(num)}</span>
+    <div class="d2c-sub">${esc(headLab)}${c.role ? ' · ' + inlineMd(c.role) : ''}</div>
+    ${moreHtml}
+    <div class="d2c-src">出处：${esc(c.source || '')}</div>
+    ${evid}
+    ${hb}
+  </div>`;
+}
+
+/* D2 那块：两个口径并排 + 「还差几倍」那一行（**在两档下面**）。
+   🚨 **只取 「is_the_gap === true」 那一列**（同口径）——
+      跨口径那一列台账自己标 「is_the_gap = false」 ⇒ 它**不是缺口**。
+      跨口径那一列在这个块里**不出现**；它在目标 1 的折叠体里带着
+      「这一列不是缺口」的标签出现 ⇒ 一个字都没少，但它不在首屏冒充缺口。 */
+function goalD2BlockHtml(g) {
+  const cals = g.calibers || [];
+  if (!cals.length) return '';
+  const cards = cals.map(goalD2CaliberHtml).join('');
+  const mults = g.multiples || {};
+  const gapCol = (mults.columns || []).filter(c => c.is_the_gap === true)[0];
+  let wide = '';
+  if (gapCol) {
+    const m = gapCol.metric || {};
+    wide = `<div class="d2c d2c-wide">
+      <h5>${esc(m.label || '还差几倍')}</h5>
+      <span class="d2c-num">${inlineMd(m.display == null ? '缺失' : String(m.display))}</span>
+      <div class="d2c-sub">${inlineMd(gapCol.note || '')}<span class="gm-flag">✅ 这一列是缺口</span></div>
+      <div class="d2c-sub">${inlineMd(m.caliber || '')}</div>
+      <div class="d2c-src">出处：${esc(m.at || '')}</div>
+      <details class="fold"><summary>为什么只有这一列</summary>
+        <div class="fold-body">
+          <div class="d2c-sub">${inlineMd(mults.role || '')}</div>
+          <div class="d2c-sub">${inlineMd(gapCol.name || '')}</div>
+        </div>
+      </details>
+    </div>`;
+  }
+  return `<div class="d2-gap-calibers goal-d2">${cards}${wide}</div>`;
+}
+
+function goalCardHtml(g) {
   const metrics = (g.metrics || []).map(goalMetricRow).join('');
+  const criteria = (g.criteria || []).length
+    ? `<div class="goal-metrics">${g.criteria.map(goalMetricRow).join('')}</div>` : '';
   const calibers = (g.calibers || []).length
     ? `<div class="goal-calibers">${g.calibers.map(goalCaliberHtml).join('')}</div>` : '';
   const mults = goalMultiplesHtml(g.multiples);
   const acc = goalAcceptanceHtml(g.acceptance);
   const auto = goalAutoHtml(g.automatable);
   const manual = goalManualHtml(g.manual);
-  const crit = g.criterion ? `<div class="goal-criterion">判据：${inlineMd(g.criterion)}</div>` : '';
   const hb = g.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${inlineMd(g.honest_boundary)}</div>` : '';
-  return `<div class="goal-card">
-    <div class="goal-top">
-      <span class="goal-status s-${esc(status)}">${esc(g.status_label || status)}</span>
-      <span class="goal-tag">目标 ${esc(g.id)}</span>
+  /* 目标编号 / 归档 / 用户原话 / 登记出处 —— **次级信息**，放折叠体里
+     （紧凑行只回答「怎么样了」）。⚠️ 但**一个字不许少** ⇒ 全都还在。 */
+  const tags = `<div class="goal-top">
+      <span class="goal-tag">目标 ${esc(g.id == null ? '' : String(g.id))}</span>
       <span class="goal-tag">归档：${esc(g.registry_class || '')}</span>
+      ${g.registry_at ? `<span class="goal-tag goal-tag-path">登记：${esc(g.registry_at)}</span>` : ''}
+    </div>`;
+  const text = g.goal_text ? `<div class="goal-note">原话：${inlineMd(g.goal_text)}</div>` : '';
+  /* 声明（用户目标第 7/8 条那种）⇒ **声明不是测量值** ⇒ 单独标出来。 */
+  const dcl = g.declaration;
+  const decl = dcl
+    ? `<div class="goal-note">声明：${inlineMd(dcl.label || '')} · ${inlineMd(dcl.display == null ? '' : String(dcl.display))}`
+      + `${dcl.at ? ' · 出处：' + esc(dcl.at) : ''}`
+      + `${dcl.note ? ' · ' + inlineMd(dcl.note) : ''}</div>` : '';
+  return `<details class="goal-fold">
+    <summary class="goal-line">${goalLineHtml(g)}</summary>
+    <div class="goal-detail">
+      ${tags}
+      <div class="goal-reason">${inlineMd(g.reason || '')}</div>
+      ${text}
+      <div class="goal-metrics">${metrics}</div>
+      ${criteria}${calibers}${mults}${acc}${auto}${manual}${decl}${hb}
     </div>
-    <h4>${esc(g.title || '')}</h4>
-    <div class="goal-reason">${inlineMd(g.reason || '')}</div>
-    ${crit}
-    <div class="goal-metrics">${metrics}</div>
-    ${calibers}${mults}${acc}${auto}${manual}${hb}
-  </div>`;
+  </details>`;
 }
 
 async function loadGoalProgress() {
@@ -1753,18 +1998,26 @@ async function loadGoalProgress() {
     $('goal-progress-updated').textContent = '';
     return;
   }
-  const snap = data.latest || {};
+  const snap = goalRedactDeep(data.latest || {});
   const goals = snap.goals || [];
   const bounds = (snap.honest_boundaries || []).map(b => `<li>${inlineMd(b)}</li>`).join('');
-  const note = data.latest_note ? `<div class="goal-reason">${inlineMd(data.latest_note)}</div>` : '';
-  const summary = snap.summary_line ? `<div class="goal-reason">${inlineMd(snap.summary_line)}</div>` : '';
+  const note = data.latest_note ? `<div class="goal-reason">${inlineMd(goalRedact(data.latest_note))}</div>` : '';
+  /* ★ 一句话结论 = 快照自己写的 「summary_line」（逐字呈现，前端不重写）。 */
+  const summary = snap.summary_line ? `<div class="goal-summary">${inlineMd(snap.summary_line)}</div>` : '';
+  /* ★ D2 那块：从**这条目标自己的**口径与倍数里读（D2 那条 = 归档类 D2），
+     不是另算一遍 ⇒ 屏上与折叠体里是**同一份**读数。 */
+  const d2goal = goals.filter(g => (g.registry_class || '') === 'D2')[0] || null;
+  const d2 = d2goal ? goalD2BlockHtml(d2goal) : '';
   $('goal-progress-updated').textContent = snap.generated_at ? ('快照 ' + snap.generated_at) : '';
   $('goal-progress-body').innerHTML = `
-    ${note}${summary}
+    ${summary}${note}
+    ${d2}
     <div class="goal-grid">${goals.map(goalCardHtml).join('')}</div>
-    <div class="goal-bounds"><b>诚实边界</b><ul>${bounds}</ul></div>`;
+    <details class="fold"><summary>诚实边界（${(snap.honest_boundaries || []).length} 条 · 要查才看）</summary>
+      <div class="goal-bounds"><ul>${bounds}</ul></div>
+    </details>`;
 
-  const hist = data.history || [];
+  const hist = goalRedactDeep(data.history || []);
   const gapNote = (data.gaps || []).length
     ? `<div class="tl-gap">⚠️ 这几天的快照<b>缺失</b>（cron 漏跑或那天没跑成）：${esc((data.gaps || []).join('、'))}</div>`
     : '';
@@ -1779,6 +2032,10 @@ async function loadGoalProgress() {
   }).join('');
   $('goal-progress-timeline').innerHTML =
     `<ul class="goal-tl">${items}</ul>${gapNote}`;
+  /* 时间线是**次级信息**（「要查才看」，不是「藏起来」）⇒ 默认折叠，
+     但折叠行上写着**有几份** ⇒ 读者知道那里有东西、也知道有多少。 */
+  const tlSum = $('goal-timeline-summary');
+  if (tlSum) tlSum.textContent = `展开历日快照（${hist.length} 份 · 要查才看）`;
 }
 
 /* ── 转债纸面账户（路线 A 第四阶段） ── */

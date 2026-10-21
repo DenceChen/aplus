@@ -30,6 +30,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 _VIEWPORTS = [
@@ -149,18 +151,320 @@ def test_the_goal_progress_tab_shows_no_raw_markdown(browser, live_server):
     ⚠️ 这是静态级（node 真跑渲染器）那条的**浏览器版复核**：
        静态那条跑的是渲染函数，这里验的是**真页面上的真文本**
        （含时间线与诚实边界那几处）。
+    ⚠️ **两处都查**：`inner_text` 只给**看得见的**文字 ⇒ 折叠区里的内容它看不到；
+       ⇒ 折叠区必须用 `textContent` 查（那才是「展开后」的那些字）。
+       ⚠️ 2026-10-21 改版后目标那 8 条是**折叠**的 ⇒ 只查 inner_text 会把
+       **折叠体整块漏出判据**（症状与「守卫通过」一模一样）。
     """
     ctx, page = _open(browser, live_server, 1440, 900)
     try:
         page.click("#tab-goal")
         page.wait_for_function(
             "() => { const e = document.getElementById('goal-progress-body');"
-            "        return e && e.querySelectorAll('.goal-card').length > 0; }",
+            "        return e && e.querySelectorAll('.goal-fold').length > 0; }",
             timeout=30_000,
         )
         text = page.inner_text("#panel-goal")
         assert "**" not in text, "目标进度页上还有裸的加粗标记"
         assert "`" not in text, "目标进度页上还有裸的行内代码标记"
+        whole = page.evaluate(
+            "() => document.getElementById('panel-goal').textContent")
+        assert "**" not in whole, "目标进度页的**折叠区**里还有裸的加粗标记"
+        assert "`" not in whole, "目标进度页的**折叠区**里还有裸的行内代码标记"
+    finally:
+        ctx.close()
+
+
+# ── 目标进度 tab：一眼能看完（2026-10-21 改版）────────────────────────
+#
+#   用户原话「不要乱七八糟」⇒ 改版前那个 tab 高 5807px（桌面 6.5 屏）、
+#   手机 12949px（15.3 屏）。改版后：桌面 1566px（1.7 屏）、手机 3335px（4.0 屏）。
+#
+#   ⚠️ 这一节量的是**真页面上的真盒子**（`getBoundingClientRect`、
+#      `checkVisibility`、元素真的在不在 DOM 里），不是「源码里有没有某句话」。
+# ────────────────────────────────────────────────────────────────────
+
+_GOAL_WAIT = (
+    "() => { const e = document.getElementById('goal-progress-body');"
+    " return e && e.querySelectorAll('.goal-fold').length > 0; }"
+)
+
+
+def _open_goal(browser, live_server, width, height):
+    ctx, page = _open(browser, live_server, width, height)
+    page.click("#tab-goal")
+    page.wait_for_function(_GOAL_WAIT, timeout=30_000)
+    page.wait_for_timeout(250)
+    return ctx, page
+
+
+def test_the_goal_tab_answers_the_three_questions_inside_the_first_screen(browser, live_server):
+    """★ 首屏（≤1200px）内含：**一句话结论** + **D2 两档**（不许都在折叠区里）。
+
+    🚨 2026-10-21 实测（改版前）：目标进度 tab 是一堵墙（5807px），
+       而「D1 进行中 / D2 不可判定」这句话在快照里是现成的 ⇒
+       屏上**第一句**就该是它。
+    ⚠️ 判据落在**真盒子**上：结论与两个口径卡的**下沿**都在 1200px 内，
+       而且**看得见**（`checkVisibility`）——
+       「在 DOM 里但折着」不算（那正是「藏起来」）。
+    """
+    ctx, page = _open_goal(browser, live_server, 1440, 900)
+    try:
+        got = page.evaluate("""() => {
+            const bottom = (el) => el ? Math.round(el.getBoundingClientRect().bottom) : null;
+            const vis = (el) => el ? (el.checkVisibility ? el.checkVisibility() : true) : false;
+            const s = document.querySelector('#panel-goal .goal-summary');
+            const cards = Array.from(document.querySelectorAll('#panel-goal .goal-d2 .d2c:not(.d2c-wide)'));
+            const inClosedFold = (el) => {
+                let d = el.closest('details');
+                return !!(d && !d.open);
+            };
+            return {
+                summary: {bottom: bottom(s), visible: vis(s), inFold: inClosedFold(s),
+                          text: s ? s.innerText.trim() : ''},
+                cards: cards.map(c => ({bottom: bottom(c), visible: vis(c), inFold: inClosedFold(c),
+                                        label: (c.querySelector('h5')||{}).innerText || ''})),
+            };
+        }""")
+        assert got["summary"]["text"], "目标进度 tab 上没有一句话结论"
+        assert got["summary"]["visible"], "一句话结论看不见"
+        assert not got["summary"]["inFold"], "一句话结论被折起来了 ⇒ 首屏答不了第一问"
+        assert got["summary"]["bottom"] <= 1200, (
+            f"一句话结论在 y = {got['summary']['bottom']} ⇒ 不在首屏（≤1200px）里")
+        assert len(got["cards"]) == 2, (
+            f"D2 两档并排变成了 {len(got['cards'])} 档：{got['cards']}")
+        for c in got["cards"]:
+            assert c["visible"], f"D2 那一档 {c['label']!r} 看不见"
+            assert not c["inFold"], (
+                f"D2 那一档 {c['label']!r} 被折起来了 ⇒ 首屏答不了「离 20% 多远」")
+            assert c["bottom"] <= 1200, (
+                f"D2 那一档 {c['label']!r} 在 y = {c['bottom']} ⇒ 不在首屏里")
+            assert c["label"].strip(), "D2 那一档没有**文字标签**（只剩一个数）"
+    finally:
+        ctx.close()
+
+
+def test_every_goal_row_carries_its_own_status_label(browser, live_server):
+    """★ 8 条目标**每条**都有状态标签（不许退化成散文段落）。
+
+    🚨 「不可判定（测不出）」是这一页最要紧的一个词 ⇒
+       它必须**每条目标各有一个**自己的标签，而不是整页一句总述。
+    ⚠️ 判据：标签的**数量** = 目标条数，且每个都**看得见**。
+    """
+    ctx, page = _open_goal(browser, live_server, 1440, 900)
+    try:
+        got = page.evaluate("""() => {
+            const rows = Array.from(document.querySelectorAll('#panel-goal .goal-fold'));
+            return {
+                nRows: rows.length,
+                rows: rows.map(r => {
+                    const chip = r.querySelector('summary .goal-status');
+                    const reads = r.querySelectorAll('summary .gl-read');
+                    return {
+                        chip: chip ? chip.innerText.trim() : null,
+                        chipVisible: chip ? (chip.checkVisibility ? chip.checkVisibility() : true) : false,
+                        nReads: reads.length,
+                        title: (r.querySelector('summary .gl-title') || {}).innerText || '',
+                        crit: !!r.querySelector('summary .gl-crit'),
+                        inFold: !!r.closest('details[open]') === false,
+                    };
+                }),
+            };
+        }""")
+        assert got["nRows"] == 8, f"目标条数不是 8：{got['nRows']}"
+        for i, r in enumerate(got["rows"], 1):
+            assert r["chip"], f"第 {i} 条目标没有状态标签"
+            assert r["chipVisible"], f"第 {i} 条目标的状态标签看不见：{r['chip']!r}"
+            assert r["nReads"] >= 1, f"第 {i} 条目标一个读数都没有 ⇒ 那不是读数行"
+            assert r["title"].strip(), f"第 {i} 条目标没有标题"
+            assert r["crit"], f"第 {i} 条目标没有判据"
+            for bad in ("未达", "接近", "差一点", "未达成"):
+                assert bad not in r["chip"], (
+                    f"第 {i} 条目标的状态标签里出现了 {bad!r} ⇒ 把「测不出」说成了别的")
+    finally:
+        ctx.close()
+
+
+def test_the_goal_tab_shows_the_same_caliber_multiple_with_its_source_path(browser, live_server):
+    """★ 「还差几倍」只取**同口径**那一列，带**口径名**与**出处路径**。
+
+    🚨 协调方实测（2026-10-21）：改版前 `#goal-progress-body` 里那个数**零命中**
+       ⇒ 用户最想问的「离 20% 还差几倍」，这一页没有答案。
+    ⚠️ **子串坑**：页面上本来就有 `22.3554%`（95% 单侧上界 U）⇒
+       裸搜「2.35」会命中它 ⇒ 判据必须是**数值相等**，
+       不是「文本里有没有某几个字符」。
+    ⚠️ 跨口径那一列（台账判 `is_the_gap = false`）**不许在 D2 那块里冒充缺口**；
+       它在目标 1 的折叠体里出现时，**必须带「不是缺口」的标签**。
+    """
+    ctx, page = _open_goal(browser, live_server, 1440, 900)
+    try:
+        snap = page.evaluate("async () => (await (await fetch('/api/goal-progress')).json()).latest")
+        cols = (snap["goals"][0].get("multiples") or {}).get("columns") or []
+        gap_col = [c for c in cols if c.get("is_the_gap") is True]
+        cross_col = [c for c in cols if c.get("is_the_gap") is not True]
+        assert gap_col, "快照里没有那一列「是缺口」的倍数列 ⇒ 夹具前提错了"
+        same = gap_col[0]["metric"]
+        got = page.evaluate("""() => {
+            const wide = document.querySelector('#panel-goal .goal-d2 .d2c-wide');
+            const d2 = document.querySelector('#panel-goal .goal-d2');
+            const num = (el) => el ? el.innerText.replace(/\\s+/g,' ').trim() : '';
+            const allNums = (root) => {
+                const t = root ? root.innerText : '';
+                const out = [];
+                const re = /-?\\d+(?:\\.\\d+)?/g;
+                let m;
+                while ((m = re.exec(t)) !== null) out.push(parseFloat(m[0]));
+                return out;
+            };
+            return {
+                wideNum: num(wide ? wide.querySelector('.d2c-num') : null),
+                wideText: num(wide),
+                d2Nums: allNums(d2),
+                panelNums: allNums(document.getElementById('panel-goal')),
+                crossTexts: Array.from(document.querySelectorAll('#panel-goal *'))
+                    .filter(e => e.children.length === 0 &&
+                                 /2\\.3450/.test(e.textContent || ''))
+                    .map(e => e.closest('div') ? e.closest('div').textContent : e.textContent),
+            };
+        }""")
+        assert got["wideNum"] == same["display"], (
+            f"「还差几倍」那一行显示的是 {got['wideNum']!r}，应当是同口径那一列的 "
+            f"{same['display']!r}")
+        assert same["at"] in got["wideText"], (
+            f"「还差几倍」那一行**没有出处路径** ⇒ 用户查不到它从哪来：{got['wideText'][:200]}")
+        assert same.get("caliber") and same["caliber"] in got["wideText"], (
+            f"「还差几倍」那一行**没有口径** ⇒ 两个数会被混读：{got['wideText'][:200]}")
+        # 🚨 数值相等（不是子串）：D2 那块里不许出现跨口径那个数
+        for c in cross_col:
+            v = c["metric"].get("value")
+            if v is None:
+                continue
+            assert v not in got["d2Nums"], (
+                f"跨口径那一列的数（{v}）出现在 D2 那块里 ⇒ 它在屏上冒充缺口"
+                "（台账已判它 `is_the_gap = false`）")
+        # 跨口径那个数若在目标那几行里出现 ⇒ 必须带「不是缺口」的标签
+        for c in cross_col:
+            v = c["metric"].get("value")
+            if v is None:
+                continue
+            if v in got["panelNums"]:
+                assert any("不是缺口" in t for t in got["crossTexts"]), (
+                    f"跨口径那一列的数（{v}）在屏上却没有「不是缺口」的标签")
+    finally:
+        ctx.close()
+
+
+def test_the_goal_tab_never_scrolls_sideways_and_never_uses_a_wall_of_height(browser, live_server):
+    """★ 目标进度 tab：**横向溢出 = 0**，且**总高有上限**。
+
+    ⚠️ **横向溢出**：整页那条守卫（`test_the_whole_page_never_scrolls_sideways`）
+       已经覆盖所有页签 ⇒ 这里补的是**目标进度面板自己**那一层
+       （面板内不许有撑破自己的东西）。
+    ⚠️ **高度上限**：阈值写在守卫里，**理由也写在守卫里** ——
+       改版前桌面 5807px（6.5 屏）/ 手机 12949px（15.3 屏）。
+       现在：桌面 1566px（1.7 屏）/ 手机 3335px（4.0 屏）。
+       ⇒ 阈值取 **宽屏 2.5 屏 / 窄屏 4.5 屏**：
+       **窄屏那一档更高**是因为**两个口径在 ≤860px 上折成一列**
+       （与判决板同一套 `@media` 规则）⇒ 用**一个**阈值在两个宽度轴上
+       必然误报一条（第 112 层：过严的守卫和恒真的一样有害）。
+       留 40% 余量：文案会变长，不许因此就红 ⇒ 它的作用是**抓回归**，
+       不是**抓文案**。
+    """
+    for (name, w, h) in [("desktop", 1440, 900), ("ipad-portrait", 820, 1180),
+                         ("ipad-mini", 768, 1024), ("phone", 390, 844)]:
+        ctx, page = _open_goal(browser, live_server, w, h)
+        try:
+            got = page.evaluate("""() => {
+                const d = document.documentElement;
+                const panel = document.getElementById('panel-goal');
+                return {
+                    overflowX: d.scrollWidth - d.clientWidth,
+                    panelOverflowX: panel.scrollWidth - panel.clientWidth,
+                    docH: d.scrollHeight,
+                    vh: window.innerHeight,
+                };
+            }""")
+            assert got["overflowX"] <= 2, (
+                f"{name}（{w}×{h}）目标进度 tab 整页横向溢出 {got['overflowX']}px")
+            assert got["panelOverflowX"] <= 2, (
+                f"{name}（{w}×{h}）目标进度面板自己横向溢出 {got['panelOverflowX']}px")
+            limit = 2.5 if w >= 1024 else 4.5
+            assert got["docH"] <= limit * got["vh"], (
+                f"{name}（{w}×{h}）目标进度 tab 高 {got['docH']}px "
+                f"= {got['docH'] / got['vh']:.1f} 屏，超过上限 {limit} 屏"
+                " ⇒ 又变回一堵墙了（改版前是 6.5 屏 / 15.3 屏）")
+        finally:
+            ctx.close()
+
+
+def test_opening_the_folds_loses_no_word_of_the_snapshot(browser, live_server):
+    """★ 折叠区**展开后一个字不少**（这是「不许靠删信息实现」的那一半）。
+
+    🚨 「压成一页」有两条路：**折叠**（不丢）与**删掉**（丢）。
+       ⇒ 判据：把快照里**面向人的**每一句话拿到展开后的页面文本里逐条找 ——
+       找不到 ⇒ 那一句话被删了。
+    ⚠️ **机器字段除外**（`key` / `unit` / `kind` / `status` / `verdict_branch`）：
+       它们是键名与枚举，页面用**版式与标签**表达同一件事
+       （文本型读数另起一行、`missing` 显示成「缺失」、状态标签用 `status_label`）。
+       ⚠️ 判据落在**真页面文本**上（node 跑出来的字符串会骗人），
+       并且**先剥 markdown 标记再找**（页面把它渲染成 `<strong>`/`<code>`）。
+    """
+    ctx, page = _open_goal(browser, live_server, 1440, 900)
+    try:
+        snap = page.evaluate("async () => (await (await fetch('/api/goal-progress')).json()).latest")
+        page.evaluate("() => document.querySelectorAll('#panel-goal details').forEach(d => { d.open = true; })")
+        page.wait_for_timeout(300)
+        panel_text = page.evaluate(
+            "() => document.getElementById('panel-goal').textContent")
+        page.evaluate("() => document.querySelectorAll('#panel-goal details').forEach(d => { d.open = false; })")
+        page.wait_for_timeout(200)
+        closed_text = page.evaluate(
+            "() => document.getElementById('panel-goal').textContent")
+
+        machine = {"key", "unit", "kind", "status", "verdict_branch", "is_the_gap",
+                   "schema", "generator"}
+
+        def walk(o, path=""):
+            if isinstance(o, str):
+                yield path, o
+            elif isinstance(o, list):
+                for i, v in enumerate(o):
+                    yield from walk(v, f"{path}[{i}]")
+            elif isinstance(o, dict):
+                for k, v in o.items():
+                    if k in machine:
+                        continue
+                    yield from walk(v, f"{path}.{k}")
+
+        def plain(s):
+            t = re.sub(r"<[^>]+>", "", s)
+            t = t.replace("**", "").replace("`", "")
+            return re.sub(r"\s+", " ", t).strip()
+
+        # ⚠️ 屏上**封禁**的两个字段名（口径台账）⇒ 页面上的文字是**占位符**，
+        #    不是原词 ⇒ 判据要比**封禁之后**的那一份（与页面同一套封禁）。
+        banned = [("投入率", "⟨部署比例字段·口径台账封禁⟩"),
+                  ("闲置比例", "⟨闲置现金字段·口径台账封禁⟩")]
+
+        def redact(s):
+            for a, b in banned:
+                s = s.replace(a, b)
+            return s
+
+        page_text = plain(panel_text)
+        missing = []
+        for path, s in walk(snap):
+            probe = plain(redact(s))
+            if len(probe) < 2:
+                continue
+            if probe not in page_text:
+                missing.append((path, probe[:60]))
+        assert not missing, (
+            f"展开后有 {len(missing)} 句话不在页面上 ⇒ 「压成一页」是靠**删信息**做到的："
+            f"{missing[:8]}")
+        # 折叠状态下**不该**丢东西：折叠的是**位置**，不是**内容**
+        # （`textContent` 看得见折叠体的字 ⇒ 两边只差「看不看得见」）
+        assert len(closed_text) > 0 and len(panel_text) > 0
     finally:
         ctx.close()
 

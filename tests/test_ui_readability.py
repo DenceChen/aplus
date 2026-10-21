@@ -33,6 +33,7 @@
 from __future__ import annotations
 
 import contextlib
+import html
 import json
 import re
 import shutil
@@ -521,6 +522,298 @@ def test_the_first_screen_picks_are_one_line_not_a_second_copy_of_row_one(tmp_pa
         "首选卡里又出现了第 01 行的消息面副本"
         f" ⇒ 首屏被重复内容吃掉：{out[:300]}")
     assert "甲" in out and "000001.SZ" in out, "首选卡连名字和代码都没了"
+
+
+# ────────────────────────────────────────────────────────────────────
+# §C · 目标进度 tab：一眼能看完（2026-10-21 改版）
+#
+#   用户原话：「不要乱七八糟」⇒ 改版前那个 tab 高 5807px（桌面 6.5 屏）、
+#   手机 12949px（15.3 屏）⇒ 8 条目标各是一张**全展开的大卡片**。
+#
+#   ⚠️ 这一节**一个数字都不许改**：它守的是**结构**
+#      （谁在首屏、谁在折叠区、每个数带不带出处），
+#      数值全部来自 API / 产物。
+# ────────────────────────────────────────────────────────────────────
+
+
+def _plain(frag: str) -> str:
+    """**比内容用**的归一化：去标签、去实体、去 Markdown 记号、去所有空白。
+
+    🚨 为什么**连空白一起去**：
+       产物里的 `**粗体**` 在页面上变成 `<strong>粗体</strong>` ⇒ 两边逐字比
+       **必然不等**（标签两边不同、空白两边也不同）⇒ 那样的比较会**恒红**，
+       等于一条恒红的守卫（它会把人推向「改本来正确的渲染」）。
+    ⇒ 比较的量是「**这句话在不在**」，不是「这两个字节串一不一样」。
+
+    ⚠️ **照抄** `tests/test_progress_page_export.py::_plain`（本仓既定做法）——
+       两份归一化会漂，而守卫会各自盯不同的东西。
+    """
+    t = re.sub(r"<[^>]+>", "", str(frag))
+    t = html.unescape(t)
+    t = t.replace("**", "").replace("`", "")
+    return re.sub(r"\s+", "", t)
+
+
+def _goal_fixture() -> dict:
+    """一条 D2 目标（带两个口径 + 倍数那一族）+ 一条普通目标。
+
+    ⚠️ 夹具**手写**是刻意的：这一节守的是**结构**，
+       「读快照的守卫对当前代码零覆盖」（第 96 层）⇒ 结构要用可控输入钉。
+       数值本身另有 `tests/test_goal_progress.py` 那 13 条逐位对账。
+    """
+    return {
+        "id": 1, "title": "5 万本金投 A 股，目标年化 20%", "status": "UNDECIDABLE",
+        "status_label": "不可判定（测不出）", "registry_class": "D2",
+        "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+        "reason": "🚨 **不可判定**：|c| < M ⇒ **连符号都定不了**",
+        "criterion": "判据 `measure_basket_nav_01.py::judge`",
+        "goal_text": "理解我的意图，我有 5 万块钱投资 A 股",
+        "honest_boundary": "🚨 两个口径**不是同一个量**",
+        "metrics": [
+            {"key": "c", "label": "账户年化 c", "display": "10.4245%", "unit": "fraction",
+             "at": "data/reports/deployed_d2_verdict.json :: verdict.cagr",
+             "caliber": "实盘档", "derivation": "几何年化", "status": "ok"},
+        ],
+        "calibers": [
+            {"key": "deployed", "name": "实盘档（生产配置）", "role": "🚨 **屏上给用户的那一档**",
+             "source": "data/reports/deployed_d2_verdict.json :: verdict",
+             "metrics": [
+                 {"key": "c", "label": "账户年化 c", "display": "10.4245%", "unit": "fraction",
+                  "at": "data/reports/deployed_d2_verdict.json :: verdict.cagr",
+                  "caliber": "实盘档", "status": "ok"},
+                 {"key": "gap", "label": "点估计距 20%", "display": "9.5755 pp", "unit": "pp",
+                  "at": "data/reports/deployed_d2_verdict.json :: verdict.gap_to_target_pp",
+                  "caliber": "实盘档", "status": "ok"},
+             ],
+             "honest_boundary": "🚨 **连符号都定不了**"},
+            {"key": "ideal", "name": "理想档（**公式上界**）", "role": "⚠️ 必须标明它是上界",
+             "source": "data/reports/d2_signal_requirement.json :: headline",
+             "metrics": [
+                 {"key": "ceil", "label": "账户年化天花板（榜宽 10 · 5 万）", "display": "12.6200%",
+                  "unit": "pct", "at": "data/reports/d2_signal_requirement.json :: headline.x",
+                  "caliber": "理想档", "status": "ok"},
+             ],
+             "honest_boundary": "🚨 这一族是**公式上界**"},
+        ],
+        "multiples": {
+            "role": "🚨 **这不是第三个口径** —— 它是「**倍数**」那一族。",
+            "columns": [
+                {"key": "same_caliber", "name": "同口径 · K=63 · 生产臂", "is_the_gap": True,
+                 "note": "✅ **同口径那一列才是「还差几倍」**",
+                 "metric": {"key": "m1", "label": "还差几倍（同口径）", "display": "1.7897×",
+                            "unit": "multiple", "at": "data/reports/d2_signal_requirement.json :: headline.same",
+                            "caliber": "同口径 · 分子 = K=63 的要求", "status": "ok"}},
+                {"key": "cross_caliber", "name": "跨口径 · K=21 研究臂", "is_the_gap": False,
+                 "note": "❌ **不是缺口** —— 台账显式判它 `is_the_gap = false`",
+                 "metric": {"key": "m2", "label": "还差几倍（跨口径 · 不是缺口）", "display": "2.3450×",
+                            "unit": "multiple", "at": "data/reports/d2_signal_requirement.json :: headline.cross",
+                            "caliber": "跨口径 · 分母 = K=21 研究臂的实测", "status": "ok"}},
+            ],
+        },
+    }
+
+
+def _run_goal_js(tmp_path: Path, body: str, payload: dict) -> str:
+    """把目标进度那段的渲染器交给 node 真跑一遍 ⇒ 拿渲染后的 HTML。"""
+    src = _html()
+    region = _code_block(_goal_region(src))
+    driver = (
+        _esc_line(src) + "\n" + region + "\n"
+        + "const payload = JSON.parse(process.argv[2]);\n" + body + "\n"
+    )
+    return _run_js(tmp_path, driver, json.dumps(payload, ensure_ascii=False)).strip()
+
+
+def test_the_goal_rows_are_one_reading_line_each_and_carry_their_own_status(tmp_path):
+    """★ 8 条目标**一行一条**：状态标签 + 标题 + 关键读数 + 判据。
+
+    🚨 2026-10-21 改版前：8 张**全展开的大卡片**（目标 1 一张就 1836px）⇒
+       桌面 6.5 屏、手机 15.3 屏 ⇒ 用户原话「不要乱七八糟」。
+    ⇒ 现在每条目标 = 一个 <details>：**summary 是常驻可见的读数行**，
+       折叠体才是完整证据链。
+    ⚠️ 判据落在**渲染出来的 HTML** 上（node 真跑一遍），
+       不是「源码里有没有某个类名」（第 13 种形状）。
+    """
+    goals = [_goal_fixture(),
+             {"id": 2, "title": "每天推荐会涨 10 只、会跌 10 只", "status": "IN_PROGRESS",
+              "status_label": "进行中", "registry_class": "D1",
+              "reason": "形态在出，验收未过", "criterion": "① 形态：up=10 / down=10",
+              "metrics": [{"key": "up", "label": "会涨的只数", "display": "10", "unit": "count"}],
+              "acceptance": {"rows": [{"label": "名单形态", "display": "达标"}]}}]
+    out = _run_goal_js(
+        tmp_path,
+        "console.log(payload.goals.map(goalCardHtml).join('\\n'));",
+        {"goals": goals})
+    rows = re.findall(r'<summary class="goal-line">(.*?)</summary>', out, re.S)
+    assert len(rows) == 2, f"紧凑读数行数不对（应为 2）：{out[:400]}"
+    for g, row in zip(goals, rows):
+        labels = re.findall(r'<span class="goal-status[^"]*">(.*?)</span>', row, re.S)
+        assert labels == [g["status_label"]], (
+            f"目标 {g['id']} 的状态标签是 {labels}，应当是 [{g['status_label']!r}]")
+        assert g["title"] in row, f"目标 {g['id']} 的紧凑行里没有标题"
+        reads = re.findall(
+            r'<span class="gl-read"><span class="gl-lab">(.*?)</span>'
+            r'<span class="gl-val">(.*?)</span></span>', row, re.S)
+        assert reads, f"目标 {g['id']} 的紧凑行里一个读数都没有（那就不是读数行）"
+        for lab, val in reads:
+            assert lab.strip() and val.strip(), f"目标 {g['id']} 有读数缺标签或缺值"
+        assert "gl-crit" in row, f"目标 {g['id']} 的紧凑行里没有判据"
+        # 散文段落（理由）**不许**进紧凑行 —— 它是折叠体的内容
+        assert "goal-reason" not in row, (
+            f"目标 {g['id']} 的紧凑行里混进了散文段落 ⇒ 它不是「一行一条」的读数行")
+    # 状态不许被改写成「未达 / 接近」这类**词**（第 16 层）
+    for bad in ("未达", "接近", "差一点", "未达成"):
+        assert bad not in "".join(re.findall(r'<span class="goal-status[^"]*">(.*?)</span>',
+                                             out, re.S)), f"状态标签里出现了 {bad!r}"
+
+
+def test_the_d2_block_puts_the_two_calibers_first_and_the_gap_multiple_below_them(tmp_path):
+    """★ D2 那块：**两个口径并排**，「还差几倍」在它们**下面**。
+
+    🚨 协调方实测（2026-10-21）：改版前 `#goal-progress-body` 里
+       「1.79」**零命中** ⇒ 用户最想问的那句「离 20% 还差几倍」，
+       这一页**没有答案**（它只在概览 tab 的判决板上）。
+    ⇒ 现在它从快照的 `multiples.columns[]` 里读出来，带口径名与出处路径。
+
+    ⚠️ **不许自己算这个数** ⇒ 断言的是**快照给的 display 原样出现**。
+    ⚠️ **跨口径那一列（2.3450×）不许进这个块** —— 它不是缺口
+       （台账自己判 `is_the_gap = false`）⇒ 屏上不许冒充缺口。
+    """
+    g = _goal_fixture()
+    out = _run_goal_js(tmp_path, "console.log(goalD2BlockHtml(payload));", g)
+    cards = re.findall(r'<div class="d2c">', out)
+    wide = re.findall(r'<div class="d2c d2c-wide">', out)
+    assert len(cards) == 2, f"D2 那块的口径卡数不对（应为 2）：{out[:400]}"
+    assert len(wide) == 1, f"D2 那块的「还差几倍」行数不对（应为 1）：{out[:400]}"
+    # 「还差几倍」那一行在**两个口径之后**（它是「达标还需要什么」那一层）
+    assert out.index('d2c d2c-wide') > out.rindex('<div class="d2c">'), (
+        "「还差几倍」那一行没有排在两个口径之后")
+    same = g["multiples"]["columns"][0]["metric"]
+    cross = g["multiples"]["columns"][1]["metric"]
+    assert same["display"] in out, f"同口径那一列的数没渲染出来：{out[:400]}"
+    assert _plain(same["at"]) in _plain(out), "同口径那一列**没有出处路径** ⇒ 用户查不到它从哪来"
+    assert _plain(same["caliber"]) in _plain(out), "同口径那一列**没有口径** ⇒ 两个数会被混读"
+    assert cross["display"] not in out, (
+        f"跨口径那一列（{cross['display']}）出现在 D2 那块里 ⇒ "
+        "它在屏上冒充缺口（台账已判它 `is_the_gap = false`）")
+    # 两个口径各自带**文字标签**与**出处路径**（不许只显示其中一档）
+    plain = _plain(out)
+    for c in g["calibers"]:
+        assert _plain(c["name"]) in plain, f"口径 {c['key']} 的文字标签没渲染出来"
+        assert _plain(c["source"]) in plain, f"口径 {c['key']} 没有出处路径"
+
+
+def test_the_folded_half_keeps_every_reading_with_its_own_source_path(tmp_path):
+    """★ 折叠体 = 这条目标的**完整证据链** ⇒ 展开后**一个字不少**。
+
+    ⚠️ 「一个字不许少」不是口号：这里对**一条**读数逐项钉 ——
+       口径 / 出处 / 算式 / 来源文件 / 核验方式 / 备注，
+       哪一项从折叠体里消失，哪一项就查不到了。
+    ⚠️ 判据落在**渲染输出**上（node 真跑），不是源码里有没有某个串。
+    """
+    g = _goal_fixture()
+    g["metrics"][0].update({
+        "sources": ["data/reports/predictions/pred_2026-10-20.parquet"],
+        "verify": {"kind": "count_by_column", "file": "data/reports/pred_2026-10-20.parquet",
+                   "column": "direction", "value": "up"},
+        "note": "⚠️ **不是当天的交付**",
+    })
+    out = _run_goal_js(tmp_path, "console.log(goalCardHtml(payload));", g)
+    body = out.split("</summary>", 1)[1]          # 折叠体（summary 之后）
+    for needle in ("实盘档",                                    # 口径
+                   "data/reports/deployed_d2_verdict.json :: verdict.cagr",  # 出处
+                   "几何年化",                                  # 算式
+                   "data/reports/predictions/pred_2026-10-20.parquet",  # 来源文件
+                   "count_by_column",                           # 核验方式
+                   "不是当天的交付"):                            # 备注
+        assert needle in body, f"折叠体里少了 {needle!r} ⇒ 展开后少了一句话"
+    # ⚠️ 紧凑行（summary）**不许**吞掉折叠体的内容 ——
+    #    那是两件事：行回答「怎么样了」，折叠体回答「凭什么」。
+    head = out.split("</summary>", 1)[0]
+    assert "几何年化" not in head, "算式被提到紧凑行里 ⇒ 行不再是一行"
+
+
+def test_the_two_banned_field_names_are_redacted_before_they_reach_the_screen(tmp_path):
+    """★ 屏上**不出现**「投入率」「闲置比例」。
+
+    🚨 快照的**诚实边界**里有一句正是在说「屏上不出现它们」
+       ⇒ 不封禁的话，页面会一边写这句话一边把这两个词写在屏上（自相矛盾）。
+    ⇒ 与静态导出页**同一套**占位符（两边是同一个产品）。
+    ⚠️ 判据落在**渲染输出**上：源码里那两个词**必须**出现
+       （那是封禁表），所以这里只判**输出**。
+    """
+    payload = {"text": "🚨 屏上不出现「投入率」「闲置比例」 —— 名字与内容相反",
+               "nested": {"deep": ["投入率", "闲置比例"]}}
+    out = _run_goal_js(tmp_path, "console.log(JSON.stringify(goalRedactDeep(payload)));", payload)
+    got = json.loads(out)
+    blob = json.dumps(got, ensure_ascii=False)
+    assert "投入率" not in blob, f"「投入率」漏到屏上了：{blob}"
+    assert "闲置比例" not in blob, f"「闲置比例」漏到屏上了：{blob}"
+    assert "⟨部署比例字段·口径台账封禁⟩" in blob, f"占位符不对：{blob}"
+    assert "⟨闲置现金字段·口径台账封禁⟩" in blob, f"占位符不对：{blob}"
+
+
+def test_the_goal_panel_puts_the_conclusion_then_the_two_calibers_then_the_eight_rows(tmp_path):
+    """★ 目标进度面板的**块顺序** = 结论 → 两档 + 倍数 → 8 条目标 → 诚实边界。
+
+    🚨 「首屏答三问」是**顺序**给的：结论在最前、两档紧随其后、
+       8 条目标才排到后面 ⇒ 顺序一乱，首屏就答不完。
+    ⚠️ **两档不许都在折叠区里** ⇒ 判据是「那两张口径卡**不是**任何
+       `<details>` 的后代」——「在 DOM 里但折着」不算数。
+    ⚠️ 判据落在**渲染出来的整块 HTML** 上（node 真跑 `loadGoalProgress`），
+       不是「源码里有没有某个类名」（第 13 种形状）。
+    """
+    g = _goal_fixture()
+    api = {"status": "ok", "latest": {"goals": [g], "honest_boundaries": ["边界一"],
+                                       "summary_line": "D1 进行中；D2 不可判定（测不出）。",
+                                       "generated_at": "2026-10-21T10:00:00"},
+           "latest_note": None, "history": [], "gaps": [], "n_snapshots": 1}
+    driver = (
+        "const $ = id => global.document.getElementById(id);\n"
+        "function jget() { return Promise.resolve(payload); }\n"
+        "function isApiMissing(e) { return false; }\n"
+        + _esc_line(_html()) + "\n" + _code_block(_goal_region(_html())) + "\n"
+        + "const payload = JSON.parse(process.argv[2]);\n"
+        + "loadGoalProgress().then(() => console.log(global.__html('goal-progress-body')));\n"
+    )
+    out = _run_js(tmp_path, driver, json.dumps(api, ensure_ascii=False)).strip()
+    i_sum = out.find('class="goal-summary"')
+    i_d2 = out.find('class="d2-gap-calibers goal-d2"')
+    i_rows = out.find('class="goal-grid"')
+    i_bounds = out.find("诚实边界")
+    assert -1 not in (i_sum, i_d2, i_rows, i_bounds), f"四块没都在：{out[:400]}"
+    assert i_sum < i_d2 < i_rows < i_bounds, (
+        f"块顺序不对（结论 {i_sum} / 两档 {i_d2} / 8 条 {i_rows} / 边界 {i_bounds}）")
+    # 两个口径卡**不是**任何 <details> 的后代 ⇒ 它们**没有**被折起来
+    d2 = out[i_d2:]
+    opens = [m.start() for m in re.finditer(r"<details", d2)]
+    closes = [m.start() for m in re.finditer(r"</details>", d2)]
+    card_pos = [m.start() for m in re.finditer(r'<div class="d2c">', d2)]
+    assert len(card_pos) == 2, f"D2 那块的口径卡数不对：{len(card_pos)}"
+    for pos in card_pos:
+        depth = sum(1 for o in opens if o < pos) - sum(1 for c in closes if c < pos)
+        assert depth == 0, "D2 那一档落在某个 <details> 里 ⇒ 它被折起来了"
+    # 诚实边界是**折叠**的（次级信息）⇒ 它落在某个 <details> 里面
+    open_before = out.rfind("<details", 0, i_bounds)
+    close_after = out.find("</details>", i_bounds)
+    assert open_before >= 0 and close_after > i_bounds, (
+        "诚实边界不在任何 <details> 里 ⇒ 它没有被折叠（次级信息该折起来）")
+
+
+def test_the_goal_tab_never_writes_the_target_as_achieved(tmp_path):
+    """★ 屏上**不许**出现「已达成 20%」。
+
+    🚨 现状是**不可判定**（|c| < M ⇒ 连符号都定不了）⇒
+       「不可判定」不许被写成「未达」，也不许被写成「接近」（第 16 层）。
+    ⚠️ 判据落在**渲染输出**上（快照里那句禁令本身含「已达成」三个字，
+       所以禁的是「已达成 + 目标」这个**组合**，不是那三个字）。
+    """
+    g = _goal_fixture()
+    g["reason"] = "🚨 既不许说「未达」，也不许说「接近」，更不许说「已达成」。"
+    out = _run_goal_js(tmp_path, "console.log(goalCardHtml(payload));", g)
+    for bad in ("已达成 20", "已达成20", "已达标 20", "已达成 20%"):
+        assert bad not in out, f"屏上出现了 {bad!r} ⇒ 把「测不出」说成「做到了」"
+    assert "不可判定" in out, "「不可判定」这个状态标签不见了"
 
 
 # ────────────────────────────────────────────────────────────────────
