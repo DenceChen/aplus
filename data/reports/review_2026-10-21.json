@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-21T10:39:22",
+  "generated_at": "2026-10-21T21:40:01",
   "review_date": "2026-10-21",
   "questions": {
     "q1_what_can_the_user_open_today": "data/reports/predictions/（今日名单 up 10 / down 10） + data/reports/deployed_d2_verdict.json::verdict.cagr = 0.10424461770356563（**实盘档**：生产今天真的在跑的那一档）",
@@ -7,20 +7,18 @@
   },
   "d1": {
     "delivered": true,
-    "notes": [
-      "当天（2026-10-21）没有 pred_*.parquet ⇒ 回落到 pred_2026-10-20.parquet"
-    ],
+    "notes": [],
     "run_status": {
-      "date": "2026-10-20",
+      "date": "2026-10-21",
       "status": "ok",
       "outcome": "ok",
       "outcome_reason": "全部步骤跑完，名单已发布。",
       "at": "data/reports/run_status.json::date/status/outcome/outcome_reason"
     },
     "list": {
-      "file": "data/reports/predictions/pred_2026-10-20.parquet",
-      "is_the_review_date": false,
-      "fallback_note": "⚠️ **当天没有名单文件**，这里用的是最新的一份 ⇒ **不是当天的交付**（不同时刻的观测不是同一个事实）",
+      "file": "data/reports/predictions/pred_2026-10-21.parquet",
+      "is_the_review_date": true,
+      "fallback_note": null,
       "rows": 20,
       "up": 10,
       "down": 10,
@@ -28,15 +26,15 @@
     },
     "sample": {
       "n_independent_windows": {
-        "value": 6,
+        "value": 2,
         "at": "n_independent_windows"
       },
       "overall_hit_rate": {
-        "value": 0.5612903225806452,
+        "value": 0.3076923076923077,
         "at": "overall_hit_rate"
       },
       "n_predictions": {
-        "value": 160,
+        "value": 40,
         "at": "n_predictions"
       },
       "note": "W（独立成交窗口）是 D1 的验收分母；W < 10 ⇒ 不许报命中率结论（DELIVERY_DECISIONS §4）"
@@ -51,7 +49,7 @@
         "at": "publish_allowed"
       },
       "power_floor_up": {
-        "value": 0.28285270904389365,
+        "value": 0.35609088885153223,
         "at": "by_score_col::score::arms::up::_stats::null_abs_rho_q95_power_floor"
       },
       "note": "判决臂是 up（GATE_ARM）；down 是并列报告，非闸门。POWERLESS = 测不出，**不是**「打分没有排序力」"
@@ -134,17 +132,237 @@
   },
   "commits": {
     "counts": {
-      "交付": 29,
-      "手段": 6,
-      "收尾": 19,
+      "交付": 46,
+      "手段": 23,
+      "收尾": 29,
       "未归类": 0
     },
-    "total": 54,
-    "drift_rate": 0.35185185185185186,
+    "total": 98,
+    "drift_rate": 0.29591836734693877,
     "drift_rate_note": "跑偏率 = 收尾档 / 当天总提交数（DELIVERY_GATE §6 的字面公式）；目标 < 40%",
-    "drift_rate_over_classified": 0.35185185185185186,
+    "drift_rate_over_classified": 0.29591836734693877,
     "drift_rate_over_classified_note": "跑偏率 = 收尾档 / **已归类**提交数。与上面的字面公式并列 ⇒ 归不出档的老提交不再稀释读数。",
     "items": [
+      {
+        "sha": "7ba90510",
+        "class": "手段",
+        "subject": "手段: 目标进度 tab 的 5 份变异规格（子 agent 补的最后一轮）"
+      },
+      {
+        "sha": "168f03be",
+        "class": "交付",
+        "subject": "交付: 让交易日分类**真的走传进来的 data_root**（守卫不再取决于生产仓里有什么）"
+      },
+      {
+        "sha": "fa73be45",
+        "class": "手段",
+        "subject": "手段: 登记晚间的四条决策 + 今晚的实际读数与下一条预注册"
+      },
+      {
+        "sha": "8b2009cc",
+        "class": "交付",
+        "subject": "交付: 目标进度 tab 改成「一行一条 + 折叠」——面板高度 5098px → 1074px（4.7×）"
+      },
+      {
+        "sha": "1cb6ff5f",
+        "class": "交付",
+        "subject": "交付: 成长族 + 现金流族测完 ⇒ **D2 的第三条路**走完（两族都是「测不到」）"
+      },
+      {
+        "sha": "d615199a",
+        "class": "交付",
+        "subject": "交付: 修一个让「持仓降级预警」**第一次运行就炸**的键名不一致"
+      },
+      {
+        "sha": "eec29ad5",
+        "class": "交付",
+        "subject": "交付: 修一个把安全网弄断的 bug——守卫的「等在飞的那跑」其实一秒都没等"
+      },
+      {
+        "sha": "fb55c29b",
+        "class": "交付",
+        "subject": "交付: 给变异台加一道前置闸——生产跑在飞时**拒绝**跑变异台"
+      },
+      {
+        "sha": "e0a833c2",
+        "class": "手段",
+        "subject": "手段: 更正「部署率」的两处错——用错了列，且「后果未测」是错的"
+      },
+      {
+        "sha": "f2734dce",
+        "class": "手段",
+        "subject": "手段: 给新守卫补变异规格（exposure_arms 4/4、前端持仓框 2/2 全杀）"
+      },
+      {
+        "sha": "fe4e5e67",
+        "class": "手段",
+        "subject": "手段: 缓冲区失效必须可见（复核点的债⑤）+ 修一条过期注释（债④）"
+      },
+      {
+        "sha": "9e68b53e",
+        "class": "手段",
+        "subject": "手段: 把 API 的 held_codes_known 收成与 portfolio_codes 同一个判据（复核点的债①）"
+      },
+      {
+        "sha": "ff6dcc9a",
+        "class": "手段",
+        "subject": "手段: 登记对抗性复核的发现（洞 A/B 的处置 + 五条债）"
+      },
+      {
+        "sha": "7bc61974",
+        "class": "交付",
+        "subject": "交付: 前端那一半——持仓框改显「钱包」，并把「读不出来」与「空仓」分开"
+      },
+      {
+        "sha": "6fabb836",
+        "class": "交付",
+        "subject": "交付: 关掉一个会让「62 个交易日都说你该 100% 现金」的新可达状态"
+      },
+      {
+        "sha": "6d3a18f6",
+        "class": "手段",
+        "subject": "手段: 重跑 deployed_account_nav 后同步它的 sidecar（字节章必须与产物同批）"
+      },
+      {
+        "sha": "85bdd67e",
+        "class": "手段",
+        "subject": "手段: 把「半仓档」与「生产敞口」拆成两个量 —— 一个只错在没人发现，直到生产改了配置"
+      },
+      {
+        "sha": "af7fcd51",
+        "class": "手段",
+        "subject": "手段: 还掉一条已登记的债 —— deployed_account_nav 的「半仓」叙事与 caller 行号"
+      },
+      {
+        "sha": "af0fcf69",
+        "class": "手段",
+        "subject": "手段: 更正 alloc.py 里一处注释化石（「持仓取自 state[\"up\"]」⇒ 那是候选池，不是钱包）"
+      },
+      {
+        "sha": "6f004f3d",
+        "class": "手段",
+        "subject": "手段: 记下「state[\"up\"] 名字不透明」这条命名债（改名的代价与为何本轮不改）"
+      },
+      {
+        "sha": "ffc57327",
+        "class": "手段",
+        "subject": "手段: 再修 4 处「系统 crontab」化石 + 把成长/现金流族的预注册入库"
+      },
+      {
+        "sha": "d322a5f5",
+        "class": "手段",
+        "subject": "手段: 进展文档 §3 的三处 crontab 化石改成 launchd，并补上 22:25 静态页推送"
+      },
+      {
+        "sha": "ed3efff5",
+        "class": "手段",
+        "subject": "手段: 变异规格的说明文件（5/5 全杀的逐条依据 + 锚点格式的两个坑）"
+      },
+      {
+        "sha": "4d5f58b7",
+        "class": "手段",
+        "subject": "手段: 收窄进展文档 §0 里「执行层已穷尽」那句（部署率的后果未测）"
+      },
+      {
+        "sha": "ef6f0180",
+        "class": "手段",
+        "subject": "手段: 把「候选池 ≠ 钱包」这个 P0 写进登记，并把部署率预注册成下一条"
+      },
+      {
+        "sha": "2678ce0c",
+        "class": "交付",
+        "subject": "交付: 持仓层改读「钱包」——持仓指令与配置方案终于说同一句话"
+      },
+      {
+        "sha": "b25f1279",
+        "class": "交付",
+        "subject": "交付: 静态页加上「今天的 10 涨 / 10 跌」—— 你在外面也能看该看什么"
+      },
+      {
+        "sha": "db493ec1",
+        "class": "收尾",
+        "subject": "收尾: 修两处红 —— 一处是我把 7 位的接线表漏了，一处是我写错了未定义名"
+      },
+      {
+        "sha": "62bd2575",
+        "class": "交付",
+        "subject": "交付: 钉住「配置变了 ⇒ 必须调仓」—— 它是配置变更生效的唯一通路"
+      },
+      {
+        "sha": "b361adab",
+        "class": "收尾",
+        "subject": "收尾: 修我上一笔引入的 11 条红，并把探针**加固**（加参数不再连带崩一片）"
+      },
+      {
+        "sha": "a4abbe0b",
+        "class": "交付",
+        "subject": "交付: 屏上说清「窗口数为什么是这个数」—— 今晚的 3→1 不会再被误读成「证据丢了」"
+      },
+      {
+        "sha": "6f5bb412",
+        "class": "收尾",
+        "subject": "收尾: 产物那半守卫改 xfail(strict) —— 缺陷变成「响亮的已知失败」"
+      },
+      {
+        "sha": "0d4abe23",
+        "class": "收尾",
+        "subject": "收尾: 给「多头减市场 6.78%/年」补上口径标记"
+      },
+      {
+        "sha": "1d2aff57",
+        "class": "收尾",
+        "subject": "收尾: 清掉「写死在注释里的旧数」这批化石 + 修「说明串声称了没发生的原因」"
+      },
+      {
+        "sha": "b8bddee2",
+        "class": "交付",
+        "subject": "交付: 静态进度页从「一堵墙」改成「一个能一眼看完的页」"
+      },
+      {
+        "sha": "6e47add5",
+        "class": "交付",
+        "subject": "交付: UI 守卫的浏览器级那份拆进 tests/e2e/ + 两处 CSS 修复"
+      },
+      {
+        "sha": "c97afc97",
+        "class": "收尾",
+        "subject": "收尾: 记录「一行底稿曾能判绿 D1 验收」这个缺陷与它的修法"
+      },
+      {
+        "sha": "7f706e69",
+        "class": "交付",
+        "subject": "交付: 补执行一条**早已预注册**却被漏掉的 D1 验收门槛（W ≥ 10）—— 一行底稿曾能判绿"
+      },
+      {
+        "sha": "dd4a96db",
+        "class": "收尾",
+        "subject": "收尾: 阶段台账补晚间段（静态页上云 / 晚间链其实一直是断的 / 三族判决 / GitHub）"
+      },
+      {
+        "sha": "86d5a45e",
+        "class": "收尾",
+        "subject": "收尾: 修掉我自己写进去的一个 U+FFFD（乱码守卫抓到的）"
+      },
+      {
+        "sha": "a340ef0b",
+        "class": "交付",
+        "subject": "交付: 概览页的可读性与 UI 质量优化（含新增的 UI 守卫）"
+      },
+      {
+        "sha": "f7b8656b",
+        "class": "收尾",
+        "subject": "收尾: 修两条真红 —— mtime 假红改字节判据 + 红利覆盖守卫改条件化断言"
+      },
+      {
+        "sha": "6505b1f1",
+        "class": "收尾",
+        "subject": "收尾: MD 文档按今天的真实状态修一遍 + 新增阶段进展台账"
+      },
+      {
+        "sha": "5344f653",
+        "class": "交付",
+        "subject": "交付: 目标进度静态页 + 定期推送阿里云 + 晚间链改用 launchd（cron 写不进去）"
+      },
       {
         "sha": "d1226271",
         "class": "交付",

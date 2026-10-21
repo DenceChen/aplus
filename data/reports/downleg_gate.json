@@ -4,7 +4,7 @@
   "arm": "down",
   "score_col": "score",
   "verdict": "NOT_PASSED_POWERLESS",
-  "verdict_reason": "跌腿：命中率未随 score 升高而下降；点二列 ρ=-0.0521（跌腿期望符号为负），置换 p=0.7812，零分布 95 分位（检出力下限）=0.3647 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许当回避清单发布，先攒前瞻期",
+  "verdict_reason": "跌腿：命中率未随 score 升高而下降；点二列 ρ=-0.3797（跌腿期望符号为负），置换 p=0.7201，零分布 95 分位（检出力下限）=0.6377 ⇒ **这份样本连这个量级的关联都分不出来** ⇒ 不许当回避清单发布，先攒前瞻期",
   "avoidance_list_publish_allowed": false,
   "publish_allowed_field_note": "⚠️ 本产物的 `avoidance_list_publish_allowed` **不是**涨腿臂的 `publish_allowed`：前者是「允许作为『**该回避/该减仓**』清单发布」，后者是「允许作为『**该买**』清单发布」⇒ 两者语义不同，**不许混用、也不许互相引用**。",
   "monotone_direction": "decreasing",
@@ -29,27 +29,24 @@
   "measurement": {
     "arm": "down",
     "score_col": "score",
-    "n_rows_total": 30,
-    "n_rows_judgeable": 30,
+    "n_rows_total": 20,
+    "n_rows_judgeable": 20,
     "n_rows_dropped_undecidable": 0,
     "dropped_breakdown": {},
     "n_rows_score_missing": 0,
-    "n_rows_scored": 30,
-    "n_independent_pred_dates": 3,
+    "n_rows_scored": 20,
+    "n_independent_pred_dates": 2,
     "independence_caliber": {
       "verdict_arm_unit": "pred_date（判决臂，预注册 G4 口径，一个字未改）",
       "control_arm_unit": "entry_date（**对照臂，不是判决臂**：更接近「独立成交窗口」的真身）",
-      "n_pred_dates": 3,
-      "n_entry_dates": 3,
+      "n_pred_dates": 2,
+      "n_entry_dates": 2,
       "pred_to_entry_dates": {
-        "2026-10-14": [
-          "2026-10-15"
+        "2026-10-10": [
+          "2026-10-12"
         ],
-        "2026-10-15": [
-          "2026-10-16"
-        ],
-        "2026-10-16": [
-          "2026-10-19"
+        "2026-10-19": [
+          "2026-10-20"
         ]
       },
       "n_entry_dates_claimed_by_several_pred_dates": 0,
@@ -61,50 +58,50 @@
     "monotone_test": "按 score 升序的命中率序列**非递增**（decreasing：score ↑ ⇒ 命中率 ↓）；在 Q 标签上（Q1=最高分）等价于 hit_rate(Q1) <= hit_rate(Q2) <= hit_rate(Q3) <= hit_rate(Q4)",
     "quartiles": {
       "Q1": {
-        "n": 9,
-        "hit_rate": 0.6666666666666666
+        "n": 6,
+        "hit_rate": 0.3333333333333333
       },
       "Q2": {
-        "n": 6,
-        "hit_rate": 0.6666666666666666
+        "n": 4,
+        "hit_rate": 0.25
       },
       "Q3": {
-        "n": 9,
-        "hit_rate": 0.4444444444444444
+        "n": 6,
+        "hit_rate": 0.16666666666666666
       },
       "Q4": {
-        "n": 6,
-        "hit_rate": 0.8333333333333334
+        "n": 4,
+        "hit_rate": 0.0
       },
       "_stats": {
         "hit_rate_sequence_q1_to_q4": [
-          0.6666666666666666,
-          0.6666666666666666,
-          0.4444444444444444,
-          0.8333333333333334
+          0.3333333333333333,
+          0.25,
+          0.16666666666666666,
+          0.0
         ],
         "hit_rate_sequence_by_score_ascending": [
-          0.8333333333333334,
-          0.4444444444444444,
-          0.6666666666666666,
-          0.6666666666666666
+          0.0,
+          0.16666666666666666,
+          0.25,
+          0.3333333333333333
         ],
         "monotone_decreasing_in_score": false,
         "monotone_direction": "decreasing",
         "monotone_test": "按 score 升序的命中率序列**非递增**（decreasing：score ↑ ⇒ 命中率 ↓）；在 Q 标签上（Q1=最高分）等价于 hit_rate(Q1) <= hit_rate(Q2) <= hit_rate(Q3) <= hit_rate(Q4)",
-        "point_biserial_rho": -0.05212137189031523,
+        "point_biserial_rho": -0.3796799342153178,
         "expected_rho_sign": "negative",
-        "permutation_p_two_sided": 0.7811609419529023,
-        "null_abs_rho_q95_power_floor": 0.36473816591151825,
+        "permutation_p_two_sided": 0.72006399680016,
+        "null_abs_rho_q95_power_floor": 0.6377183252689247,
         "detectable_at_alpha05": false,
         "control_arm_entry_date": {
           "role": "control_only_not_the_verdict_arm",
           "available": true,
           "group_by": "entry_date（独立**成交窗口**；判决臂按 pred_date）",
-          "n_groups": 3,
+          "n_groups": 2,
           "n_rows_unassigned": 0,
-          "permutation_p_two_sided": 0.7811609419529023,
-          "null_abs_rho_q95_power_floor": 0.36473816591151825,
+          "permutation_p_two_sided": 0.72006399680016,
+          "null_abs_rho_q95_power_floor": 0.6377183252689247,
           "detectable_at_alpha05": false,
           "q95_over_verdict_arm_q95": 1.0,
           "note": "分组变粗 ⇒ 组内置换自由度**大体**更大 ⇒ `q95` 更高 ⇒ 更容易判 `POWERLESS`。⚠️ **但这不是定律**：方向由组大小分布决定，不是组数的单调函数（涨腿臂实测两臂比值方向相反）⇒ 读这一个数要看同臂的 `q95_over_verdict_arm_q95`，不许当成单向保证。"
@@ -119,23 +116,23 @@
     "quartile_hit_rates_q1_to_q4": [
       {
         "quartile": "Q1",
-        "n": 9,
-        "hit_rate": 0.7777777777777778
-      },
-      {
-        "quartile": "Q2",
         "n": 6,
         "hit_rate": 0.3333333333333333
       },
       {
+        "quartile": "Q2",
+        "n": 4,
+        "hit_rate": 0.5
+      },
+      {
         "quartile": "Q3",
-        "n": 8,
-        "hit_rate": 0.625
+        "n": 5,
+        "hit_rate": 0.2
       },
       {
         "quartile": "Q4",
-        "n": 6,
-        "hit_rate": 0.6666666666666666
+        "n": 4,
+        "hit_rate": 0.75
       }
     ],
     "monotone_increasing_in_score": false,
@@ -154,51 +151,51 @@
     "this_gate_does_not_measure_it": "⚠️ 本闸门测的是**整体**四分位单调性，**不测**「逆大盘时」那个条件 ⇒ **即使 PASS 也不解除 S2**。"
   },
   "what_this_cannot_prove": [
-    "**不能**把 `NOT_PASSED_POWERLESS` 读成「跌腿没有预测力」——判据臂只有 3 个**出单日**，而真实独立成交窗口 **3** 个（出单日≠成交日，见 `independence_caliber`）；「测不到」与「被证伪」是两件事",
-    "**不能**用条目数 30 当独立观测数 —— 它是 3 个出单日× 每臂 10 只，而那 3 个出单日只对应 **3** 个成交窗口",
+    "**不能**把 `NOT_PASSED_POWERLESS` 读成「跌腿没有预测力」——判据臂只有 2 个**出单日**，而真实独立成交窗口 **2** 个（出单日≠成交日，见 `independence_caliber`）；「测不到」与「被证伪」是两件事",
+    "**不能**用条目数 20 当独立观测数 —— 它是 2 个出单日× 每臂 10 只，而那 2 个出单日只对应 **2** 个成交窗口",
     "**不能**把跌腿当成可做空的收益来源 —— 石川《因子投资方法与实践》`data/books/cn_factor_lines.txt:768` 逐字「不合理考虑做空限制，也会高估因子的收益。」⇒ 跌腿的价值必须由**信息价值**证明，而不由可执行性假设（见 `executable` 块）",
     "**本产物不是涨腿的判据臂** —— 涨腿的上线闸门是 `scripts/score_ranking_power.py`（`GATE_ARM=\"up\"`），它的产物是 `data/reports/score_ranking_power.json`；本文件判的是 D1 交付物的**另一半**（每天 10 只跌股）"
   ],
   "signal_scope": {
-    "status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+    "status": "OK",
     "current_signal_id": "0df5828c",
     "current_weights_fingerprint": "c2178335be6d",
-    "attribution_basis": "weights_hash",
+    "attribution_basis": "signal_id",
     "signal_ids_in_ledger": [
-      "c2178335be6d"
+      "0df5828c"
     ],
-    "reason": "当前值 'c2178335be6d' 在这份底稿里有 60 行 / 3 个出单日 / 3 个独立成交窗口（整本底稿 160 行 / 8 出单日 / 6 成交窗口；另有 100 行不可归属、0 行不匹配）。 本底稿**没有 `signal_id` 列**（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` **逐行**判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。",
+    "reason": "当前值 '0df5828c' 在这份底稿里有 40 行 / 2 个出单日 / 2 个独立成交窗口（整本底稿 180 行 / 9 出单日 / 7 成交窗口；另有 140 行不可归属、0 行不匹配）。 归属用 `signal_id` **逐行**判定。",
     "verdict_if_not_attributable": "NOT_DECIDABLE_NO_SIGNAL_SCOPE",
     "note": "🚨 **归属不对 ⇒ 判据根本没资格跑。** `status` 不是 `OK` / `ATTRIBUTED_BY_WEIGHTS_HASH` 时，本产物**不给**任何关于当前信号的判决，只报告「这份底稿是什么」与「它为什么不可用」。（判定「测不出」不许写成「没有」。）",
-    "ledger_rows_total": 160,
-    "ledger_pred_dates": 8,
-    "ledger_entry_dates": 6,
+    "ledger_rows_total": 180,
+    "ledger_pred_dates": 9,
+    "ledger_entry_dates": 7,
     "ledger_date_range": {
       "pred_date_min": "2026-10-09",
-      "pred_date_max": "2026-10-16",
+      "pred_date_max": "2026-10-19",
       "entry_date_min": "2026-10-12",
-      "entry_date_max": "2026-10-19"
+      "entry_date_max": "2026-10-20"
     },
-    "rows_in_scope": 60,
-    "pred_dates_in_scope": 3,
-    "entry_dates_in_scope": 3,
+    "rows_in_scope": 40,
+    "pred_dates_in_scope": 2,
+    "entry_dates_in_scope": 2,
     "date_range_in_scope": {
-      "pred_date_min": "2026-10-14",
-      "pred_date_max": "2026-10-16",
-      "entry_date_min": "2026-10-15",
-      "entry_date_max": "2026-10-19"
+      "pred_date_min": "2026-10-10",
+      "pred_date_max": "2026-10-19",
+      "entry_date_min": "2026-10-12",
+      "entry_date_max": "2026-10-20"
     },
-    "rows_unattributed": 100,
+    "rows_unattributed": 140,
     "rows_other_signals": 0,
     "independent_unit": "entry_date（独立成交窗口）——出单日 ≠ 成交日"
   },
   "attribution": {
-    "basis": "weights_hash",
+    "basis": "signal_id",
     "current_weights_fingerprint": "c2178335be6d",
     "current_signal_id": "0df5828c",
-    "rows_matched": 60,
+    "rows_matched": 40,
     "rows_unmatched": 0,
-    "rows_unattributable": 100,
-    "note": "本底稿没有 `signal_id` 列（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` 逐行判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。"
+    "rows_unattributable": 140,
+    "note": "归属用 `signal_id` 逐行判定（**最强的证据**）。"
   }
 }

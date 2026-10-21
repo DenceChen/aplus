@@ -1,11 +1,11 @@
 {
-  "code_sha": "5d3463ab48212e0ba556b3131809ed2b86058f5a",
+  "code_sha": "7ba90510708956aca9884afe0c309ed40638cb89",
   "code_dirty": true,
-  "code_file_sha256": "ee9306f8096ff9b9e6694be54ce5d0710ba7416f2fa39a4b0d98f96e9329f0eb",
-  "data_fp": "18:1792501973.838340",
+  "code_file_sha256": "9f7cbd43aabaf422c19f837b523fc18c4b7acfa3fb4692a63e17ea56e8ca4c5b",
+  "data_fp": "18:1792585331.154768",
   "data_dir": "data/reports",
   "generator": "scripts/forward_d2_horizon.py",
-  "stamped_at": "2026-10-20T18:43:51+00:00",
+  "stamped_at": "2026-10-21T13:49:58+00:00",
   "upstream": "forward_d2_verdict.json",
-  "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a"
+  "source_parquet_sha256": "e6e106dfb54929c78c13da7c1978dd66ea9883c73c061fb18861de0e41ebe6f5"
 }

@@ -1,15 +1,15 @@
 {
-  "code_sha": "dd4a96db32d510dbdf8d43cf0120bc3ca6eda832",
+  "code_sha": "7ba90510708956aca9884afe0c309ed40638cb89",
   "code_dirty": true,
   "code_file_sha256": "3d729b00d12e3840e6609cdd25f09ca7aa5ed3f9ec7af41f481ad8e3acd671b5",
-  "data_fp": "5460:1792500432.032579",
+  "data_fp": "5460:1792583252.826563",
   "data_dir": "data/master/daily",
   "generator": "scripts/score_ranking_power.py",
-  "stamped_at": "2026-10-21T04:18:16+00:00",
+  "stamped_at": "2026-10-21T13:30:08+00:00",
   "verdict": "NOT_PASSED_POWERLESS",
   "publish_allowed": false,
-  "signal_scope_status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+  "signal_scope_status": "OK",
   "signal_id": "0df5828c",
   "source_parquet": "data/reports/verification.parquet",
-  "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a"
+  "source_parquet_sha256": "e6e106dfb54929c78c13da7c1978dd66ea9883c73c061fb18861de0e41ebe6f5"
 }

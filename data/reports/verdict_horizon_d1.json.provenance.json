@@ -1,12 +1,12 @@
 {
-  "code_sha": "5d3463ab48212e0ba556b3131809ed2b86058f5a",
+  "code_sha": "7ba90510708956aca9884afe0c309ed40638cb89",
   "code_dirty": true,
-  "code_file_sha256": "4d59a8a0801c950109e10246f850a5f7c9e9b4fdce98d6231334cb1bb7d72169",
-  "data_fp": "5460:1792500432.032579",
+  "code_file_sha256": "5f6bb11c081e3b7a241c4f2aabeeacf8134c24ce44bbae515035f0bd61b23f68",
+  "data_fp": "5460:1792583252.826563",
   "data_dir": "data/master/daily",
   "generator": "scripts/verdict_horizon_d1.py",
-  "stamped_at": "2026-10-20T18:43:53+00:00",
+  "stamped_at": "2026-10-21T13:49:59+00:00",
   "data_fp_applicability": "data_fp 不适用：verdict_horizon_d1.py 只读 data/reports/hit_rate_diagnosis.json，不读 master/daily 下的任何 parquet。真实输入指纹见 source_src_sha256。",
   "source_src": "data/reports/hit_rate_diagnosis.json",
-  "source_src_sha256": "3604b397a9c7dd96f012d4a3fe747736aedd116232773bb68f2067f6b711be10"
+  "source_src_sha256": "e5721432f9cbafdbd1bc005a6b9c9206efb179a887265d0dbe787994426426c1"
 }

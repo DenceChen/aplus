@@ -1,22 +1,22 @@
 {
   "verdict": "POWERLESS",
-  "n_blocks": 3,
-  "n_pred_dates": 3,
-  "mean_excess_pct_per_block": 0.0013803235660787316,
-  "sd_pct": 0.009482050808167105,
-  "se_pct": 0.005474464586564987,
-  "t_stat": 0.2521385505837806,
-  "mde_pct": 0.010729950589667374,
-  "abs_mean_over_mde": 0.12864211764478603,
-  "ci95_low_pct": -0.009349627023588642,
-  "ci95_high_pct": 0.012110274155746106,
+  "n_blocks": 2,
+  "n_pred_dates": 2,
+  "mean_excess_pct_per_block": 0.004961812062363765,
+  "sd_pct": 0.001025088447237629,
+  "se_pct": 0.0007248469923577159,
+  "t_stat": 6.845323378144175,
+  "mde_pct": 0.001420700105021123,
+  "abs_mean_over_mde": 3.4925119276245793,
+  "ci95_low_pct": 0.0035411119573426414,
+  "ci95_high_pct": 0.006382512167384888,
   "ci_method": "normal_approx_z=1.96",
   "sensitivity_student_t": {
     "role": "sensitivity",
     "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；判决仍用 1.96",
-    "t_crit_95": 4.303,
-    "ci95_low_pct": -0.022176297549910406,
-    "ci95_high_pct": 0.02493694468206787
+    "t_crit_95": 12.706,
+    "ci95_low_pct": -0.004248093822533373,
+    "ci95_high_pct": 0.014171717947260902
   },
   "sensitivity_observation_unit": {
     "role": "sensitivity",
@@ -24,41 +24,35 @@
     "observation_unit": "pred_date",
     "observation_unit_vs_main": "entry_date 给更少的块但块间 sd 更小；pred_date 给更多的块但块间 sd 更大⇒ 「哪个更宽松」不能一句话回答，判决只用 R1",
     "verdict": "POWERLESS",
-    "n_blocks": 3,
-    "n_pred_dates": 3,
-    "n_entry_dates": 3,
-    "mean_excess_pct_per_block": 0.0013803235660787316,
-    "sd_pct": 0.009482050808167105,
-    "se_pct": 0.005474464586564987,
-    "t_stat": 0.2521385505837806,
-    "mde_pct": 0.010729950589667374,
-    "abs_mean_over_mde": 0.12864211764478603,
-    "ci95_low_pct": -0.009349627023588642,
-    "ci95_high_pct": 0.012110274155746106,
+    "n_blocks": 2,
+    "n_pred_dates": 2,
+    "n_entry_dates": 2,
+    "mean_excess_pct_per_block": 0.004961812062363765,
+    "sd_pct": 0.001025088447237629,
+    "se_pct": 0.0007248469923577159,
+    "t_stat": 6.845323378144175,
+    "mde_pct": 0.001420700105021123,
+    "abs_mean_over_mde": 3.4925119276245793,
+    "ci95_low_pct": 0.0035411119573426414,
+    "ci95_high_pct": 0.006382512167384888,
     "ci_method": "normal_approx_z=1.96",
     "sensitivity_student_t": {
       "role": "sensitivity",
       "role_note": "n 小时 1.96 低估真实临界值 ⇒ CI 偏窄；本臂同样不用它判决",
-      "t_crit_95": 4.303,
-      "ci95_low_pct": -0.022176297549910406,
-      "ci95_high_pct": 0.02493694468206787
+      "t_crit_95": 12.706,
+      "ci95_low_pct": -0.004248093822533373,
+      "ci95_high_pct": 0.014171717947260902
     },
     "blocks": [
       {
-        "pred_date": "2026-10-14",
-        "excess_mean_pct": -0.009219179888668614,
-        "n_legs": 10,
+        "pred_date": "2026-10-10",
+        "excess_mean_pct": 0.004236965070006049,
+        "n_legs": 9,
         "n_pred_dates": 1
       },
       {
-        "pred_date": "2026-10-15",
-        "excess_mean_pct": 0.004303695186385824,
-        "n_legs": 10,
-        "n_pred_dates": 1
-      },
-      {
-        "pred_date": "2026-10-16",
-        "excess_mean_pct": 0.009056455400518984,
+        "pred_date": "2026-10-19",
+        "excess_mean_pct": 0.005686659054721481,
         "n_legs": 10,
         "n_pred_dates": 1
       }
@@ -66,65 +60,59 @@
   },
   "blocks": [
     {
-      "entry_date": "2026-10-15",
-      "excess_mean_pct": -0.009219179888668614,
-      "n_legs": 10,
+      "entry_date": "2026-10-12",
+      "excess_mean_pct": 0.004236965070006049,
+      "n_legs": 9,
       "n_pred_dates": 1
     },
     {
-      "entry_date": "2026-10-16",
-      "excess_mean_pct": 0.004303695186385824,
-      "n_legs": 10,
-      "n_pred_dates": 1
-    },
-    {
-      "entry_date": "2026-10-19",
-      "excess_mean_pct": 0.009056455400518984,
+      "entry_date": "2026-10-20",
+      "excess_mean_pct": 0.005686659054721481,
       "n_legs": 10,
       "n_pred_dates": 1
     }
   ],
   "signal_scope": {
-    "status": "ATTRIBUTED_BY_WEIGHTS_HASH",
+    "status": "OK",
     "current_signal_id": "0df5828c",
     "current_weights_fingerprint": "c2178335be6d",
-    "attribution_basis": "weights_hash",
+    "attribution_basis": "signal_id",
     "signal_ids_in_ledger": [
-      "c2178335be6d"
+      "0df5828c"
     ],
-    "reason": "当前值 'c2178335be6d' 在这份底稿里有 60 行 / 3 个出单日 / 3 个独立成交窗口（整本底稿 160 行 / 8 出单日 / 6 成交窗口；另有 100 行不可归属、0 行不匹配）。 本底稿**没有 `signal_id` 列**（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` **逐行**判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。",
+    "reason": "当前值 '0df5828c' 在这份底稿里有 40 行 / 2 个出单日 / 2 个独立成交窗口（整本底稿 180 行 / 9 出单日 / 7 成交窗口；另有 140 行不可归属、0 行不匹配）。 归属用 `signal_id` **逐行**判定。",
     "verdict_if_not_attributable": "NOT_DECIDABLE_NO_SIGNAL_SCOPE",
     "note": "🚨 **归属不对 ⇒ 判据根本没资格跑。** `status` 不是 `OK` / `ATTRIBUTED_BY_WEIGHTS_HASH` 时，本产物**不给**任何关于当前信号的判决，只报告「这份底稿是什么」与「它为什么不可用」。（判定「测不出」不许写成「没有」。）",
-    "ledger_rows_total": 160,
-    "ledger_pred_dates": 8,
-    "ledger_entry_dates": 6,
+    "ledger_rows_total": 180,
+    "ledger_pred_dates": 9,
+    "ledger_entry_dates": 7,
     "ledger_date_range": {
       "pred_date_min": "2026-10-09",
-      "pred_date_max": "2026-10-16",
+      "pred_date_max": "2026-10-19",
       "entry_date_min": "2026-10-12",
-      "entry_date_max": "2026-10-19"
+      "entry_date_max": "2026-10-20"
     },
-    "rows_in_scope": 60,
-    "pred_dates_in_scope": 3,
-    "entry_dates_in_scope": 3,
+    "rows_in_scope": 40,
+    "pred_dates_in_scope": 2,
+    "entry_dates_in_scope": 2,
     "date_range_in_scope": {
-      "pred_date_min": "2026-10-14",
-      "pred_date_max": "2026-10-16",
-      "entry_date_min": "2026-10-15",
-      "entry_date_max": "2026-10-19"
+      "pred_date_min": "2026-10-10",
+      "pred_date_max": "2026-10-19",
+      "entry_date_min": "2026-10-12",
+      "entry_date_max": "2026-10-20"
     },
-    "rows_unattributed": 100,
+    "rows_unattributed": 140,
     "rows_other_signals": 0,
     "independent_unit": "entry_date（独立成交窗口）——出单日 ≠ 成交日"
   },
   "attribution": {
-    "basis": "weights_hash",
+    "basis": "signal_id",
     "current_weights_fingerprint": "c2178335be6d",
     "current_signal_id": "0df5828c",
-    "rows_matched": 60,
+    "rows_matched": 40,
     "rows_unmatched": 0,
-    "rows_unattributable": 100,
-    "note": "本底稿没有 `signal_id` 列（它写在信号分桶机制落地之前）⇒ 归属用 `weights_hash` 逐行判定。 ⚠️ `weights_hash` 只记**权重** ⇒ 它证明「**同一组权重**」，**不**证明「**同一个信号**」（`top_n`/`bottom_n` 变了它**不变**）。"
+    "rows_unattributable": 140,
+    "note": "归属用 `signal_id` 逐行判定（**最强的证据**）。"
   },
   "caliber": {
     "observation_unit": "entry_date（R1：持有哪些 bar，而不是哪天下单）",
@@ -151,5 +139,5 @@
     "this_does_not_answer": "「年化够不够 20%」——本样本量下任何外推年化都是无源之水；产物里刻意没有任何外推年化字段（R5）"
   },
   "source_parquet": "/Users/airboom/opencode/aplus/data/reports/verification.parquet",
-  "source_parquet_sha256": "c2d57fa5a9f14b5b8ef8434217ce39f8e94e67bc9ac4422b665bca6f422c5c5a"
+  "source_parquet_sha256": "e6e106dfb54929c78c13da7c1978dd66ea9883c73c061fb18861de0e41ebe6f5"
 }
