@@ -98,7 +98,12 @@ class AllocationPlan:
     #   （**不许拿 `as_of` 顶替** —— `as_of` 是**最后出单日**，
     #   非调仓日两者必然不同）。
     held_since: str | None = None
-    # 持仓沿用**哪份名单**（codes + names，取自 `state["up"]`）。
+    # 持仓沿用**哪份名单**（codes + names）。
+    # ⚠️ **2026-10-21 更正**：这里原来写「取自 `state["up"]`」——**那是候选池**
+    # （那份 10 只涨腿名单），**不是钱包**。非调仓日的 `positions` 取自
+    # **`current_positions` 入参** ⇒ 调用方（`scripts/run_daily.py`）现在传的是
+    # `state["held_codes"]`（**钱包**，缺它 ⇒ 传 `None` ⇒ 差异不可信）。
+    # ⇒ 留 `state["up"]` 当候选池是**故意的**（`holdings_entry.py` 靠它匹配建仓日）。
     held: list = field(default_factory=list)
     # 可买性过滤的**报告**（计数 + 名单）。`None` ⇒ 没做过滤。
     affordability: dict | None = None
