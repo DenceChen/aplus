@@ -485,3 +485,52 @@ def test_the_ledger_narrows_its_header_notes_instead_of_being_cut():
         if ".ledger-col" in sel and "overflow-x" in body:
             raise AssertionError(
                 f"`.ledger-col` 上出现了 overflow-x（{sel}）⇒ 吸顶列头会失效")
+
+
+def test_the_first_screen_picks_are_one_line_not_a_second_copy_of_row_one(tmp_path):
+    """★ 首屏那两张「首选卡」必须是**一行对照**，不许又抄一遍第 01 行。
+
+    🚨 2026-10-21 实测：原来每张 ~230px，而它们的每一项都在下面的表里出现过
+       （名称 / 代码 / 20 日涨跌 / 综合分 / 消息面 = 第 01 行）⇒
+       首屏被它吃掉 ~180px，而首屏要回答的是「今天看哪 10 只」。
+    ⇒ 压成一行，只留「并排比较」这件事本身。
+    ⚠️ 判据落在**渲染出来的 HTML** 上（node 真跑一遍 `renderHeroes`），
+       不是「源码里有没有某个类名」—— 那是子串断言（第 13 种形状）。
+    ⚠️ 浏览器级那条在 `tests/e2e/test_ui_readability_browser.py`；
+       这一条是**不依赖浏览器**的那一层（进每一次门禁）。
+    """
+    src = _html()
+    fn = _code_block(_fn(_body(src, "function renderHeroes(")))
+    driver = (
+        "const $ = id => global.document.getElementById(id);\n"
+        + _esc_line(src) + "\n"
+        + "const fmtPct = (v, d = 1) => v == null ? '—'"
+        + " : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%';\n"
+        + fn + "\n"
+        "renderHeroes({name:'甲', code:'000001.SZ', mom20:0.01, score:1.0,"
+        " news_reason:'理由', news_sentiment:0.5},"
+        " {name:'乙', code:'000002.SZ', mom20:-0.02, score:-1.0,"
+        " news_reason:'理由', news_sentiment:-0.5});\n"
+        "console.log(global.__html('heroes'));\n"
+    )
+    out = _run_js(tmp_path, driver)
+    assert 'class="why"' not in out, (
+        "首选卡里又出现了第 01 行的副本（近 20 日涨跌 · 综合分）"
+        f" ⇒ 首屏被重复内容吃掉：{out[:300]}")
+    assert 'class="news"' not in out, (
+        "首选卡里又出现了第 01 行的消息面副本"
+        f" ⇒ 首屏被重复内容吃掉：{out[:300]}")
+    assert "甲" in out and "000001.SZ" in out, "首选卡连名字和代码都没了"
+
+
+# ────────────────────────────────────────────────────────────────────
+# §B · 浏览器级（真 Chromium · 真视口矩阵）
+#   ⇒ 在 `tests/e2e/test_ui_readability_browser.py`：
+#      本仓 e2e 那套 harness 已经有一个 session 级 playwright 会话，
+#      它用完之后**主线程上会留下一个正在运行的 asyncio 循环**
+#      （playwright 的同步 API 用 greenlet 驱动事件循环，
+#        `run_until_complete` 在 greenlet 切换点被中断 ⇒ 那个循环一直 running）
+#      ⇒ 同一进程里再开第二个 `sync_playwright()` 会被 playwright 自己拒绝
+#        （`Error: It looks like you are using Playwright Sync API inside the asyncio loop`）
+#      ⇒ 浏览器级守卫必须**复用** `tests/e2e/conftest.py` 的夹具。
+# ────────────────────────────────────────────────────────────────────

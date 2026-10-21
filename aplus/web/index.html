@@ -155,9 +155,22 @@
   .d2-gap-calibers .d2c h5 { display: inline; margin: 0 8px 0 0; font-size: 12.5px; font-weight: 600;
                               color: var(--seal); }
   .d2-gap-calibers .d2c .d2c-num { display: inline; font-size: 18px; font-weight: 600; line-height: 1.3;
-                                    font-variant-numeric: tabular-nums; }
+                                    font-variant-numeric: tabular-nums;
+                                    /* ⚠️ **不许折行**：窄屏上「缺口 9.5755pp」被拆成
+                                       「缺」/「口 9.5755pp」两行 ⇒ 中文在**词中间**断了
+                                       （读者会当成两件事）。
+                                       ⇒ 整块读数不许折；放不下就整块挪到下一行。 */
+                                    white-space: nowrap; }
   .d2-gap-calibers .d2c .d2c-sub { color: var(--muted); font-size: 11.5px;
                                     line-height: 1.7; margin-top: 2px; letter-spacing: .01em; }
+  /* 行内代码：等宽，但**不许**把整块撑高。
+     ⚠️ 等宽比无衬线**宽** ⇒ 同一行能装的字变少 ⇒ 段落多折一行
+     （实测首屏的判决板因此高了 ~20px）。
+     ⇒ 用 0.94em 抵消一部分宽度；颜色**继承**，不另发明语义。 */
+  .d2c-sub code, .held-why code, .cfg-note code, .lot-note code,
+  .ha-crit code, .goal-reason code {
+    font-family: var(--mono); font-size: .94em;
+  }
   .d2-gap-calibers .d2c .d2c-src { color: var(--faint); font-size: 11px;
                                     line-height: 1.5; margin-top: 3px;
                                     word-break: break-all; }

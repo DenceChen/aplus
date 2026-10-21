@@ -171,6 +171,7 @@
 | 目标进度 tab 里的裸 Markdown | 143 处加粗 + 118 处行内代码 | **0** |
 | 被裁掉且滚不到的内容（390px，概览） | 3 处 | **0** |
 | 被裁掉且滚不到的内容（1440/820/768/390，**全部 8 个页签**） | 44 处（改进台账一条就要 1427px） | **0** |
+| 窄屏上「缺口 9.5755pp」被拆成「缺」/「口 9.5755pp」 | 有 | **0**（整块读数不许折行） |
 
 ## 第 4 步 · 拒绝做的事
 
@@ -210,3 +211,30 @@
    折叠它们能砍掉 ~2000px，但**那一页存在的全部理由就是「每个数都指到产物」** ⇒
    本轮只把裸 Markdown 渲染掉，**没有折叠任何一条证据**。
 
+
+
+## 第 6 步 · 守卫与验证
+
+| 层 | 文件 | 条数 | 跑法 |
+|---|---|---|---|
+| 静态级 / node 级 | `tests/test_ui_readability.py` | **8** | `.venv/bin/python -m pytest tests/test_ui_readability.py -q`（0.4 秒） |
+| 浏览器级 | `tests/e2e/test_ui_readability_browser.py` | **14** | `.venv/bin/python -m pytest tests/e2e/test_ui_readability_browser.py -q`（真 Chromium） |
+| 变异台 | `tests/mutation_specs/test_ui_readability.mut` + `README_test_ui_readability.md` | **11 条** | 见 README；**11/11 全杀（rc=1）** |
+
+### ★ 浏览器级那份为什么在 `tests/e2e/`
+
+本仓 e2e harness 的 **session 级** playwright 会话用完之后，
+**主线程上会留下一个「正在运行」的 asyncio 循环**
+（playwright 的同步 API 用 greenlet 驱动事件循环，
+`run_until_complete` 在 greenlet 切换点被中断 ⇒ 那个循环一直处于 running 状态）。
+
+⇒ 后果：**同一进程里再开第二个 `sync_playwright()` 会被 playwright 自己拒绝**
+（`Error: It looks like you using Playwright Sync API inside the asyncio loop`）。
+
+⇒ 所以浏览器级守卫必须**复用** `tests/e2e/conftest.py` 的 `browser` / `live_server`
+夹具（**同一份 session 级实例**），而不是自己再开一个。
+放在 `tests/` 下的文件**看不到** `tests/e2e/conftest.py` 的夹具 ⇒ 自己开 ⇒ 撞上残留循环
+⇒ 实测整批 14 条 **ERROR**（不是 FAILED）。
+
+⇒ 这条是**实测出来的**，不是推理：一个探针插件在每个 e2e 用例之后检查
+`asyncio.get_running_loop()`，第一处命中就是 `tests/e2e/test_chart_touch.py`。
