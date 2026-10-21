@@ -45,6 +45,55 @@ REQUIRED_KEYS = ("as_of", "days_since_rebalance", "every", "up", "down")
 #: ⇒ 缺它必须**可读**，只是「建仓日未知」。
 HELD_SINCE_KEY = "held_since"
 
+#: 「**钱包里实际有哪几只**」这个键（2026-10-21 加）。
+#:
+#: 🚨 **为什么需要它**：`state["up"]` 是**候选池**（那份 10 只涨腿名单），
+#: **不是持仓**。仓里早就知道这件事（`aplus/holdings_entry.py` 的模块 docstring
+#: 逐字写着「不是 `holdings.json::up`（那是候选池）」），
+#: 可**持仓层**（给用户的买卖指令、调仓差异、缓冲区判据）一直在拿候选池当钱包。
+#:
+#: 实测代价（2026-10-20 的 top10）：**6/10 只**因「1 手 > 每份金额 ¥5,000」
+#: 被配置层剔除 ⇒ 指令说「买入这 10 只」，配置方案只配得起 4 只；
+#: 而调仓差异会算出「卖 6 只」——**卖的是从未持有过的票**。
+#:
+#: ⇒ 这两列**语义不同**，必须并存：`up` 继续当候选池（`holdings_entry.py`
+#: 靠它做「集合唯一匹配」找建仓日），`held_codes` 才是钱包。
+#:
+#: ⚠️ **刻意不在 `REQUIRED_KEYS` 里**（同 `HELD_SINCE_KEY` 的理由）：
+#: 加进必需键 ⇒ 旧 state 文件被判成坏状态 ⇒ 整份持仓被当成「读不出来」
+#: ⇒ 明天按**首次建仓**重新买一遍。
+#: ⇒ 缺它必须**可读**，只是「手上那批**读不出来**」——
+#: **宁可说不知道，也不能把候选池说成钱包**（那会把 6 只没买过的票报成「在持有」）。
+HELD_CODES_KEY = "held_codes"
+
+
+def portfolio_codes(state) -> list | None:
+    """**钱包里实际有哪几只**（不是候选池）。
+
+    ## 三种返回
+
+    | 情形 | 返回 | 含义 |
+    |---|---|---|
+    | 状态里有 `held_codes` | `[...]` | 钱包（**可靠**） |
+    | 状态在，但没有 `held_codes`（旧文件） | `None` | **读不出来** |
+    | 状态读不出来 | `None` | **读不出来** |
+
+    ## 为什么缺它必须返回 `None` 而不是回落到候选池
+
+    回落到 `state["up"]` 看着「总有值」，但那是**候选池**：
+    实测 10/10 里 6 只从未拿到钱 ⇒ 回落后会告诉用户
+    「你持有 001285/688610/… 这 10 只」——**其中 6 只他没买过**。
+    ⇒ 「不知道」比「错的具体」安全（第 10 层：失败形态与「测不出」同形，
+    但这里错的方向是**报持有**）。
+    """
+    if not state:
+        return None
+    codes = state.get(HELD_CODES_KEY)
+    if not isinstance(codes, list):
+        return None
+    out = [str(c) for c in codes]
+    return out
+
 
 def state_path(reports_dir) -> Path:
     return Path(reports_dir) / STATE_NAME
@@ -164,6 +213,16 @@ def save_state(reports_dir, state: dict) -> None:
         "down_names": list(state.get("down_names") or []),
         "held_since": held_since,
     }
+    # 🚨 **「钱包」这一列（2026-10-21）**：`out` 是**白名单** ⇒ 不显式写进去
+    # 它就**永远落不了盘**（整个修复变成空操作，而测试全绿）。
+    #
+    # ⚠️ **缺它必须保持「缺」**：写 `[]` 会被 `portfolio_codes` 读成
+    # 「**空仓**」⇒ 持仓指令会说「（空仓）」⇒ **叫用户清仓**。
+    # 「读不出来」与「空仓」是两件事（实测：旧状态文件没有这一列）。
+    # ⇒ 只在**真的有值**时写；`None` ⇒ 键不存在 ⇒ 读出来是「不知道」。
+    _wallet = state.get(HELD_CODES_KEY)
+    if _wallet is not None:
+        out[HELD_CODES_KEY] = [str(c) for c in _wallet]
     p = state_path(reports_dir)
     p.parent.mkdir(parents=True, exist_ok=True)
     # 先写临时文件再改名：状态是跨日文件，半截内容会让下一天算错换手。
@@ -227,16 +286,29 @@ def instruction(due: bool, up: list, down: list, every: int = 1,
         n_up, n_dn = len(up or []), len(down or [])
         buf = f"，{buffer_multiple} 倍缓冲区" if buffer_multiple else ""
         lines.append(f"【持仓】今天是**调仓日**（每 {every} 个交易日一次{buf}）。")
-        lines.append(f"  买入这 {n_up} 只：{' '.join(up or [])}")
+        if n_up:
+            lines.append(f"  买入这 {n_up} 只：{' '.join(up or [])}")
+        else:
+            # 🚨 「0 只」与「读不出来」是两件事（2026-10-21）。
+            # 「0 只」= 可买性过滤把候选全剔了 ⇒ **今天不下单**，
+            # 报成「读不出来」会把「配置问题」说成「状态问题」⇒ 方向相反。
+            lines.append("  **今天配不起任何一只**（候选全被可买性过滤剔掉）⇒ 不下单。")
         lines.append(f"  卖出/回避这 {n_dn} 只：{' '.join(down or [])}")
         lines.append(f"  名单里的**推荐**是按「下个交易日涨跌」排的，"
                      f"与调仓无关——非调仓日照样每天给你一份。")
     else:
-        held_up = list(held_up or [])
         held_dn = list(held_down or [])
         lines.append(f"【持仓】今天**不是调仓日**（每 {every} 个交易日一次），"
                      f"**不动**。")
-        lines.append(f"  继续持有：{' '.join(held_up) or '（空）'}")
+        if held_up is None:
+            # 🚨 **「读不出来」≠「空仓」**（2026-10-21）。
+            # 旧状态文件没有「钱包」这一列 ⇒ 手上到底有哪几只**不知道**。
+            # 报成「（空）」会让用户以为该清仓 ⇒ **错的方向是让人卖光**。
+            lines.append("  **当前持仓读不出来**（状态里没有记录「哪几只真的拿到了钱」"
+                         "这一列）⇒ 请以**券商账户**为准，本平台不猜。")
+        else:
+            held_up = list(held_up)
+            lines.append(f"  继续持有：{' '.join(held_up) or '（空仓）'}")
         lines.append(f"  继续回避：{' '.join(held_dn) or '（空）'}")
         lines.append(f"  今天这份名单仍可参考——但按本配置不该据此换手，"
                      f"非调仓日换手只是在多交成本。")

@@ -220,18 +220,51 @@ def test_the_helper_refuses_to_invent_names_when_the_two_lists_disagree():
     """`up` 与 `up_names` 长度不符时**不配对**。
 
     错配的名字比没有名字更糟：它会让用户以为自己在看另一只票。
+
+    🚨 **2026-10-21：夹具必须带 `held_codes`**，否则本守卫测的是一个
+    **已经修掉的缺陷**（把候选池当钱包）。
+    旧夹具只有 `up`/`up_names` ⇒ 在新语义下 `current_positions_from_state`
+    返回 `None`（**读不出来**）⇒ 这条守卫会**因为钉住缺陷而变红**。
+    ⇒ 守卫的**意图**（别配错名字）原封不动，**夹具**补上钱包那一列。
+    ⇒ 并**新增**一条：没有 `held_codes` ⇒ 必须 `None`（不回落到候选池）。
     """
     from scripts.run_daily import current_positions_from_state
 
     assert current_positions_from_state(None) is None, "状态读不出来 ⇒ 必须返回 None"
     good = current_positions_from_state({"up": ["001309.SZ", "688110.SH"],
-                                          "up_names": ["德明利", "东芯股份"]})
+                                          "up_names": ["德明利", "东芯股份"],
+                                          "held_codes": ["001309.SZ", "688110.SH"]})
     assert good == [{"code": "001309.SZ", "name": "德明利"},
                      {"code": "688110.SH", "name": "东芯股份"}]
     bad = current_positions_from_state({"up": ["001309.SZ", "688110.SH"],
-                                         "up_names": ["德明利"]})
+                                         "up_names": ["德明利"],
+                                         "held_codes": ["001309.SZ", "688110.SH"]})
     assert [p["code"] for p in bad] == ["001309.SZ", "688110.SH"]
     assert all(p["name"] == "" for p in bad), "长度不符还配了名字 ⇒ 名字可能是错的"
+
+
+def test_the_helper_refuses_to_invent_a_portfolio_out_of_the_candidate_pool():
+    """🚨 **没有「钱包」这一列 ⇒ 必须说「读不出来」**，不许拿候选池顶上。
+
+    ## 为什么这条必须存在
+
+    `state["up"]` 是**候选池**（那份 10 只涨腿名单），**不是持仓**。
+    实测 2026-10-20 的 top10：**6 只**因「1 手 > 每份金额 ¥5,000」
+    被配置层剔除 ⇒ 回落到候选池会让调仓差异算出「**卖 6 只**」——
+    卖的是**从未持有过**的票。
+
+    ⇒ 「读不出来」（`None` ⇒ `rebalance_source="none"` ⇒ 差异不可信）
+    比「具体的错答案」安全：后者会让人**卖掉没买过的票**。
+    """
+    from scripts.run_daily import current_positions_from_state
+
+    pool_only = {"up": ["001309.SZ", "688110.SH", "300227.SZ"],
+                 "up_names": ["德明利", "东芯股份", "光韵达"]}
+    assert current_positions_from_state(pool_only) is None, (
+        "只有候选池却给出了持仓 ⇒ 报告会叫用户卖掉从未持有过的票")
+    assert current_positions_from_state({**pool_only, "held_codes": []}) == [], (
+        "钱包是**空**（真空仓）⇒ 必须与「读不出来」区分开："
+        "空仓 ⇒ 全 add（真的答案）；读不出来 ⇒ 差异不可信")
 
 
 # ── ④ API 层：`/api/allocation/latest` ──────────────────────────────

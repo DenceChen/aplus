@@ -618,30 +618,84 @@ def signal_day_closes(store, codes, as_of: str) -> dict:
 def current_positions_from_state(prev) -> list | None:
     """从持仓状态取「**今天之前**手上那一份」，供调仓差异去比。
 
-    ## 为什么必须是 `prev` 而不是今天刚写进去的那份
+    ## 🚨 它读的是**钱包**，不是候选池（2026-10-21 改）
 
-    `state["up"]` 在**调仓日**已经被写成今天的名单了。拿它去比 ⇒
-    目标名单 ⊆ 今天名单 ⇒ 差异恒为「全 keep + 全 add」，
-    **remove 结构上不可能出现**。⇒ 只能取**进函数时**读到的 `prev`。
+    `state["up"]` 是**候选池**（那份 10 只涨腿名单）——
+    `aplus/holdings_entry.py` 的模块 docstring 逐字写着这一点，
+    它靠 `up` 做「集合唯一匹配」找建仓日 ⇒ **`up` 的语义不能改**。
+    ⇒ 钱包另有一列：`state["held_codes"]`（`aplus/live_rebalance.py::portfolio_codes`）。
 
-    ## 返回 `None` 的含义
+    **旧实现拿候选池当钱包，实测代价**：2026-10-20 的 top10 里
+    **6 只**因「1 手 > 每份金额 ¥5,000」被配置层剔除 ⇒
+    调仓差异会算出「**卖 6 只**」——卖的是**从未持有过**的票。
 
-    状态读不出来（`load_state` 返回 None）⇒ **没有当前持仓** ⇒
-    调仓差异不可信 ⇒ 传 `None` 给 `build_allocation` ⇒
-    产物里 `rebalance_source = "none"`（区别于「手上空仓」＝`[]`，
-    那种情况下全 add 是**真的**答案）。
+    ## 返回 `None` 的含义（两件事必须分开）
 
-    ## 名字与代码必须**逐位**对齐才配对
+    | 情形 | 返回 | 后果 |
+    |---|---|---|
+    | 状态读不出来 | `None` | 没有当前持仓 ⇒ 差异不可信 |
+    | 状态在但**没有** `held_codes`（旧文件） | `None` | **同样不可信** |
+
+    ⚠️ 旧文件那一格**不许回落到候选池**：回落看着「总有值」，
+    但那是 10 只候选 ⇒ 报告会叫用户卖掉没买过的票。
+    ⇒ **宁可说不知道**（`rebalance_source="none"`），
+    也不能给一个**具体的错答案**。
+
+    ## 名字从候选池借，但**只借名字**
 
     `up` 与 `up_names` 是两个平行列表。长度不符时**不配对**（只给代码）——
     错配的名字比没有名字更糟：它会让用户以为自己在看另一只票。
     """
-    if not prev:
+    from aplus.live_rebalance import portfolio_codes
+
+    codes = portfolio_codes(prev)
+    if codes is None:
         return None
-    codes = list(prev.get("up") or [])
-    names = list(prev.get("up_names") or [])
-    name_of = dict(zip(codes, names)) if len(codes) == len(names) else {}
+    pool = list((prev or {}).get("up") or [])
+    names = list((prev or {}).get("up_names") or [])
+    name_of = dict(zip(pool, names)) if len(pool) == len(names) else {}
     return [{"code": c, "name": name_of.get(c, "")} for c in codes]
+
+
+def holdings_layer_view(due: bool, positions, held_codes) -> dict:
+    """持仓层要的**钱包**（不是候选池）。
+
+    ## 为什么提出来成模块级函数
+
+    判决逻辑藏在 `step_predict_and_allocate` 里 ⇒ **没有任何东西能挡它**
+    （第 43 层：import 不到的代码等于零守卫）。
+    ⇒ 提成模块级 ⇒ 可 import、可测、可变异。
+
+    ## 入参
+
+    | 参数 | 含义 |
+    |---|---|
+    | `due` | 今天是不是调仓日 |
+    | `positions` | **配置方案真正拿到钱**的那些（`plan.positions`） |
+    | `held_codes` | 手上那批（钱包）；`None` = **读不出来** |
+
+    ## 返回什么
+
+    | 键 | 含义 |
+    |---|---|
+    | `buy` | 调仓日 = 今天**真正拿到钱**的那些（非调仓日为空） |
+    | `held_codes` | 要落进 `state` 的那一份（`None` = 读不出来 ⇒ **不写**） |
+    | `reliable` | 手上那批是否可读 |
+
+    ## 🚨 `buy` 为什么不是「今天那 10 只」
+
+    实测 2026-10-20 的 top10：**6 只**因「1 手 > 每份金额 ¥5,000」
+    被配置层剔除 ⇒ 指令说「买入这 10 只」而配置方案只配得起 4 只
+    ⇒ 用户照指令买，钱包就和平台测量的那个账户**完全不是一回事**。
+    ⇒ `buy` 必须取自**配置方案真正拿到钱的那些**（`positions`），
+    也就是**先算配置、再出指令**。
+    """
+    funded = [str(p.get("code")) for p in (positions or [])
+              if isinstance(p, dict) and p.get("code")]
+    if due:
+        return {"buy": funded, "held_codes": funded, "reliable": True}
+    return {"buy": [], "held_codes": held_codes,
+            "reliable": held_codes is not None}
 
 
 def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
@@ -662,7 +716,8 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
 
     from aplus.evolve import live_execution_status, load_weights
     from aplus.factor import composite_score
-    from aplus.live_rebalance import advance, instruction, is_due, load_state, save_state
+    from aplus.live_rebalance import (HELD_CODES_KEY, advance, instruction, is_due,
+                                      load_state, portfolio_codes, save_state)
 
     cfg = load_weights(reports_dir)
     weights = cfg["weights"]                      # 自进化晋级结果自动生效
@@ -820,7 +875,12 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
     #
     # 缓冲区只在权重文件**显式声明**时才生效。默认不开启：
     # 缓冲把日频年成本从 16.91% 压到 0.57%，默认开启会静默改写所有历史结论。
-    held_up = list((prev or {}).get("up") or [])
+    # 🚨 **钱包，不是候选池**（2026-10-21）：`prev["up"]` 是那份 10 只涨腿名单，
+    # 而**真正拿到钱的**只有配置层留下来的那些（实测 10 只里 6 只被可买性剔掉）。
+    # ⇒ 缓冲区判据与持仓指令都必须对着**钱包**算，否则「留着旧持仓」留的是候选池。
+    # ⚠️ `None` = **读不出来**（与「空仓」是两件事，见 `instruction()`），
+    #    **不许**回落到候选池（那等于凭空发明一批持仓）。
+    held_up = portfolio_codes(prev)
     held_down = list((prev or {}).get("down") or [])
     trade_up, trade_down = list(up["code"]), list(down["code"])
     if due and buf and held_up:
@@ -837,10 +897,11 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         print(f"[predict] 缓冲区 {buf}×：{len(held_up)} 只旧持仓留下 {kept} 只，"
               f"换手从 {len(held_up) - kept} 只降下来")
 
-    instr = instruction(due, trade_up, trade_down, every, buf,
-                        held_up=held_up, held_down=held_down)
-    if instr:
-        print(instr)
+    # 🚨 **持仓指令改到配置方案之后出**（2026-10-21）。
+    # 以前指令在这里出，用的是 `trade_up`（今天那 10 只）⇒
+    # 而配置层会把「1 手 > 每份金额 ¥5,000」的票剔掉（实测 6/10）⇒
+    # 指令叫用户「买入这 10 只」，配置方案只配得起 4 只
+    # ⇒ 钱包 ≠ 平台测量的账户。⇒ 顺序必须是「先算配置、再出指令」。
 
     # 计数只在状态机里算一份。`due` 为真时归零（含首次建仓与配置变更），
     # 否则由 `advance` 跨一个交易日 +1。
@@ -872,6 +933,11 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         state["up_names"] = [str(n) for n in by_code.reindex(trade_up)["name"].fillna("")]
         state["down_names"] = [str(n) for n in by_code.reindex(trade_down)["name"].fillna("")]
         state["held_since"] = today          # ★ 持仓是哪天定的 —— 审计与缓冲区校验都要它
+        # ⚠️ **旧的钱包必须先作废**（2026-10-21）：换仓日结束后手上那批就换了，
+        # 而「钱包」要等 `plan` 算完才有 ⇒ 这中间若崩在磁盘上，
+        # 留着**旧**钱包比留「读不出来」更坏（后者会明说不知道）。
+        # ⇒ 先置 `None`（`save_state` 遇 `None` **不写这一列** ⇒ 读出来是「不知道」）。
+        state[HELD_CODES_KEY] = None
         # ⚠️ 这里**曾经**还有一段 `up_scores`，现已删除（2026-10-15）。
         # 它调 `composite_score(universe, weights)`，而 `universe` 是否带因子列
         # 取决于 `filter_universe` —— 测试里那个最小夹具只有 `code`/`name`，
@@ -890,14 +956,22 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         #    仍打 `?` ⇒ 说明这个状态是**旧格式**（没有这个键）⇒
         #    「建仓日未知」这件事必须打出来，不能用一个问号糊过去。
         held_since = state.get("held_since") or "未知"
+        # 🚨 打的是**钱包**的只数，不是候选池的只数（2026-10-21）。
+        # 候选池恒是 10 只 ⇒ 打它等于什么都没说；钱包才是「你手上几只」。
+        _wallet = portfolio_codes(prev)
+        _wallet_txt = (f"{len(_wallet)} 只" if _wallet is not None
+                       else "**读不出来**（状态里没有「哪几只真的拿到了钱」这一列）")
         print(f"[predict] 距上次换仓 {state.get('days_since_rebalance', '?')}/"
               f"{every} 个交易日 —— 持仓沿用 {held_since} 的名单"
-              f"（{len(state.get('up') or [])} 只），今日名单只作参考")
+              f"（{_wallet_txt}），今日名单只作参考")
 
     if due:
         state["days_since_rebalance"] = 0
     else:
         state = advance(state, today)
+    # ⚠️ 这里**先**落一次盘：配置方案万一崩了，持仓状态也**已经推进**
+    #    （明天不会因为「今天没跑成」而重复调仓）。
+    #    「钱包」那一列要等 `plan` 才有 ⇒ 算完后再落第二次（内容只多那一列）。
     save_state(reports_dir, state)
 
     print(f"[predict] 池子 {len(universe)} 只 → 涨 {len(up)} / 跌 {len(down)}")
@@ -937,6 +1011,33 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         days_since_rebalance=state.get("days_since_rebalance"),
         rebalance_every=every,
     )
+    # ── 持仓层：**钱包**（2026-10-21）────────────────────────────────
+    # `plan.positions` = 今天**真正拿到钱**的那些（可买性过滤之后）。
+    # ⇒ ① 指令里的「买入这 N 只」= `plan.positions`（不是今天那 10 只候选）；
+    #    ② `state["held_codes"]` = 钱包（**候选池另存一列**，`state["up"]` 不动）；
+    #    ③ 调仓差异的「当前持仓」= 钱包（读不出来就明说不可信）。
+    view = holdings_layer_view(due, plan.positions, held_up)
+    if view["held_codes"] is not None:
+        state[HELD_CODES_KEY] = view["held_codes"]
+    save_state(reports_dir, state)
+
+    instr = instruction(due, view["buy"], trade_down, every, buf,
+                        held_up=held_up, held_down=held_down)
+    if instr:
+        print(instr)
+    # 🚨 **闲置现金必须让用户看见**（2026-10-21）。
+    # 当天有多少是现金，取决于当天候选里有几只配得起每份 ¥5,000 ——
+    # **历史平均部署率 ~78.7%**（`deployed_d2_verdict.json` 的
+    # `GRID['(n_positions x per_slot_budget)']`），
+    # 但**单日可以低到 40%**（2026-10-20 那天 10 只里 6 只是科创板高价股）。
+    # ⇒ 下面打的是**当天**的数，不打任何固定比例。
+    # ⇒ 为什么必须打：指令只说「买入这 N 只」⇒ 用户可能以为满仓了，
+    # 而闲置现金按 **0% 计息** ⇒ 它直接扣在账户年化上。
+    if due and plan.cash_weight > 0:
+        print(f"[alloc] ⚠️ **{plan.cash_weight:.0%} 的本金是现金**（配得起的只有 "
+              f"{len(plan.positions)} 只）⇒ 闲置现金按 **0% 计息**，"
+              f"它直接扣在账户年化上。")
+
     save_allocation(reports_dir, today, plan.to_dict())
     equity = sum(p["weight"] for p in plan.positions)
     print(f"[alloc] 配置：{len(plan.positions)} 只 × 10% = 权益 {equity:.0%}，现金 {plan.cash_weight:.0%}")

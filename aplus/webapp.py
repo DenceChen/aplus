@@ -285,6 +285,15 @@ def _live_holdings_payload(reports_dir) -> dict:
         "down": (state or {}).get("down") or [],
         "up_names": (state or {}).get("up_names") or [],
         "down_names": (state or {}).get("down_names") or [],
+        # ★ **钱包**（2026-10-21）：`up` 是**候选池**（那份 10 只涨腿名单），
+        # **不是持仓**。前端若把 `up` 渲染成「你持有的票」，
+        # 就会把**从未买过**的票报成在持有（实测 10 只里 6 只从未拿到钱）。
+        # ⇒ 这两列都要递：钱包（可靠）与候选池（推荐），**各司其职**。
+        # ⚠️ `held_codes` 缺失（旧状态文件）⇒ **空数组** = 「钱包读不出来」，
+        #    前端必须显示「读不出来」而不是「空仓」——
+        #    **空仓**与**读不出来**是两件事（错的方向是让人卖光）。
+        "held_codes": (state or {}).get("held_codes") or [],
+        "held_codes_known": "held_codes" in (state or {}),
         "every": (state or {}).get("every"),
         "days_since_rebalance": (state or {}).get("days_since_rebalance"),
         # `honored=False` 时 `reason` 逐字带着「回落默认权重未经赛马验证 /

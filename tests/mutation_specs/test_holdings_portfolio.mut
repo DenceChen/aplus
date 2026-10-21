@@ -1,0 +1,37 @@
+M1 钱包读不出来时回落到候选池（缺陷原样）	aplus/live_rebalance.py
+codes = state.get(HELD_CODES_KEY)
+    if not isinstance(codes, list):
+        return None
+=== 变异体 ===
+codes = state.get(HELD_CODES_KEY)
+    if not isinstance(codes, list):
+        return [str(c) for c in (state.get("up") or [])]
+
+M2 调仓差异的当前持仓回落到候选池（缺陷原样）	scripts/run_daily.py
+codes = portfolio_codes(prev)
+    if codes is None:
+        return None
+=== 变异体 ===
+codes = portfolio_codes(prev)
+    if codes is None:
+        return [{"code": c, "name": ""} for c in (prev.get("up") or [])]
+
+M3 持仓指令的买入清单改回候选池（缺陷原样）	scripts/run_daily.py
+instr = instruction(due, view["buy"], trade_down, every, buf,
+=== 变异体 ===
+instr = instruction(due, trade_up, trade_down, every, buf,
+
+M4 落盘白名单不写钱包这一列（整个修复变成空操作）	aplus/live_rebalance.py
+_wallet = state.get(HELD_CODES_KEY)
+    if _wallet is not None:
+        out[HELD_CODES_KEY] = [str(c) for c in _wallet]
+=== 变异体 ===
+_wallet = state.get(HELD_CODES_KEY)
+    if False:
+        out[HELD_CODES_KEY] = [str(c) for c in _wallet]
+
+M5 「读不出来」被写成「（空）」（错的方向是让人卖光）	aplus/live_rebalance.py
+lines.append("  **当前持仓读不出来**（状态里没有记录「哪几只真的拿到了钱」"
+                         "这一列）⇒ 请以**券商账户**为准，本平台不猜。")
+=== 变异体 ===
+lines.append("  继续持有：（空）")
