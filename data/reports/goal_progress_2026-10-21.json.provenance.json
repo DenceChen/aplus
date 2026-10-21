@@ -1,0 +1,21 @@
+{
+  "code_sha": "73fcb9b0906b8b8299a1aa31790a75c81711cf0b",
+  "code_dirty": true,
+  "code_file_sha256": "93628c5cf570efb3ffcdb4e48861b3944d911d8115e7300365ffb004b4288dc9",
+  "data_fp": "5460:1792500432.032579",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/measure_goal_progress.py",
+  "stamped_at": "2026-10-21T00:36:54+00:00",
+  "snapshot_date": "2026-10-21",
+  "n_goals": 8,
+  "statuses": {
+    "1": "UNDECIDABLE",
+    "2": "IN_PROGRESS",
+    "3": "IN_PROGRESS",
+    "4": "IN_PROGRESS",
+    "5": "IN_PROGRESS",
+    "6": "IN_PROGRESS",
+    "7": "ACHIEVED",
+    "8": "ACHIEVED"
+  }
+}

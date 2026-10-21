@@ -1,0 +1,1175 @@
+{
+  "schema": "aplus.goal_progress/1",
+  "generator": "scripts/measure_goal_progress.py",
+  "snapshot_date": "2026-10-21",
+  "generated_at": "2026-10-21T08:36:54",
+  "goal_registry": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+  "goals": [
+    {
+      "id": 1,
+      "title": "5 万本金投 A 股，目标年化 20%",
+      "goal_text": "理解我的意图，我有 5 万块钱投资 A 股实现目标年化收益 20%",
+      "registry_class": "D2",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "UNDECIDABLE",
+      "status_label": "不可判定（测不出）",
+      "verdict_branch": "SIGN_NOT_DETERMINABLE",
+      "reason": "🚨 **不可判定**：|c| < M ⇒ **连符号都定不了** ⇒ 既不许说「未达」，也不许说「接近」，更不许说「已达成」。 产物逐字：['`|c| < M` ⇒ 🚨 **连符号都定不了**（第 160 层：不可测的点估计只支持形状陈述）', '`c < T ≤ U` ⇒ 🚨 **「测不出」**：点估计 +10.42% 低于目标，但 95% 上界 +22.36% 跨过 20% ⇒ **既不许说「达不到」，也不许说「接近」**']",
+      "criterion": "产物自带的四条穷举（`measure_basket_nav_01.py::judge`）：`|c| < M` ⇒ 连符号都定不了；`c < T ≤ U` ⇒ 测不出；`c ≥ T` ⇒ 达成；`U < T` ⇒ 未达。🚨 **判据一个字不改**，本脚本只把它机械执行。",
+      "metrics": [
+        {
+          "key": "account_cagr_annual",
+          "label": "账户年化 c",
+          "value": 0.10424461770356563,
+          "display": "10.4245%",
+          "unit": "fraction",
+          "at": "data/reports/deployed_d2_verdict.json :: verdict.cagr",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "实盘档 · LIVE_DEFAULT|ARM_A|K63|E100（生产配置那一格）",
+          "note": null
+        },
+        {
+          "key": "gap_to_target_pp",
+          "label": "点估计距 20%",
+          "value": 9.575538229643438,
+          "display": "9.5755 pp",
+          "unit": "pp",
+          "at": "data/reports/deployed_d2_verdict.json :: verdict.gap_to_target_pp",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "实盘档",
+          "note": null
+        },
+        {
+          "key": "mde_annual",
+          "label": "年化 MDE",
+          "value": 0.1193097827749865,
+          "display": "11.9310%",
+          "unit": "fraction",
+          "at": "data/reports/deployed_d2_verdict.json :: verdict.mde_annual",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "实盘档",
+          "note": null
+        },
+        {
+          "key": "measured_sign_determinable",
+          "label": "符号可定",
+          "value": false,
+          "display": "否",
+          "unit": "bool",
+          "at": "data/reports/deployed_d2_verdict.json :: verdict.measured_sign_determinable",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "实盘档",
+          "note": "🚨 `false` ⇒ **连符号都定不了** ⇒ 只支持形状陈述"
+        },
+        {
+          "key": "upper_one_sided_95",
+          "label": "95% 单侧上界 U",
+          "value": 0.22355440047855213,
+          "display": "22.3554%",
+          "unit": "fraction",
+          "at": "data/reports/deployed_d2_verdict.json :: verdict.upper_one_sided_95",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "实盘档",
+          "note": null
+        },
+        {
+          "key": "target",
+          "label": "目标 T",
+          "value": 0.2,
+          "display": "20.0000%",
+          "unit": "fraction",
+          "at": "data/reports/deployed_d2_verdict.json :: verdict.target",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "实盘档",
+          "note": null
+        }
+      ],
+      "calibers": [
+        {
+          "key": "deployed_live_k63",
+          "name": "实盘档（生产配置 · 满仓 10 只 · K=63 · 整手 · 逐笔成本 · 闲置现金 0 计息）",
+          "role": "🚨 **屏上给用户的那一档** —— 平台真正会执行的那个账户的模拟净值",
+          "source": "data/reports/deployed_d2_verdict.json :: verdict",
+          "metrics": [
+            {
+              "key": "account_cagr_annual",
+              "label": "账户年化 c",
+              "value": 0.10424461770356563,
+              "display": "10.4245%",
+              "unit": "fraction",
+              "at": "data/reports/deployed_d2_verdict.json :: verdict.cagr",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "实盘档 · LIVE_DEFAULT|ARM_A|K63|E100（生产配置那一格）",
+              "note": null
+            },
+            {
+              "key": "gap_to_target_pp",
+              "label": "点估计距 20%",
+              "value": 9.575538229643438,
+              "display": "9.5755 pp",
+              "unit": "pp",
+              "at": "data/reports/deployed_d2_verdict.json :: verdict.gap_to_target_pp",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "实盘档",
+              "note": null
+            },
+            {
+              "key": "mde_annual",
+              "label": "年化 MDE",
+              "value": 0.1193097827749865,
+              "display": "11.9310%",
+              "unit": "fraction",
+              "at": "data/reports/deployed_d2_verdict.json :: verdict.mde_annual",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "实盘档",
+              "note": null
+            },
+            {
+              "key": "measured_sign_determinable",
+              "label": "符号可定",
+              "value": false,
+              "display": "否",
+              "unit": "bool",
+              "at": "data/reports/deployed_d2_verdict.json :: verdict.measured_sign_determinable",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "实盘档",
+              "note": "🚨 `false` ⇒ **连符号都定不了** ⇒ 只支持形状陈述"
+            },
+            {
+              "key": "upper_one_sided_95",
+              "label": "95% 单侧上界 U",
+              "value": 0.22355440047855213,
+              "display": "22.3554%",
+              "unit": "fraction",
+              "at": "data/reports/deployed_d2_verdict.json :: verdict.upper_one_sided_95",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "实盘档",
+              "note": null
+            },
+            {
+              "key": "target",
+              "label": "目标 T",
+              "value": 0.2,
+              "display": "20.0000%",
+              "unit": "fraction",
+              "at": "data/reports/deployed_d2_verdict.json :: verdict.target",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "实盘档",
+              "note": null
+            }
+          ],
+          "honest_boundary": "🚨 `measured_sign_determinable = false` ⇒ **连符号都定不了** ⇒ **既不许说「达不到」，也不许说「接近」**（只支持形状陈述）。"
+        },
+        {
+          "key": "ideal_ceiling_k63",
+          "name": "理想档（满仓 100% 部署假设下的**公式上界**）",
+          "role": "⚠️ 可并排给出，但**必须标明它是上界**（不含整手与闲置现金的代价）",
+          "source": "data/reports/d2_signal_requirement.json :: headline",
+          "metrics": [
+            {
+              "key": "required_gross_at_50k_deliverable",
+              "label": "所需毛超额（5 万交付档）",
+              "value": 11.281298415805717,
+              "display": "11.2813%",
+              "unit": "pct",
+              "at": "data/reports/d2_signal_requirement.json :: headline.required_gross_at_50k_deliverable",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "理想档 · 满仓 100% 部署假设下的公式上界",
+              "note": null
+            },
+            {
+              "key": "account_annual_at_50k_pct",
+              "label": "账户年化天花板（榜宽 10 · 5 万）",
+              "value": 12.61995467274217,
+              "display": "12.6200%",
+              "unit": "pct",
+              "at": "data/reports/d2_signal_requirement.json :: headline.account_annual_ceiling_pct.at_deliverable_width_and_50k",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "理想档",
+              "note": null
+            },
+            {
+              "key": "gap_to_target_at_deliverable_width_and_50k_pp",
+              "label": "天花板距 20%",
+              "value": 7.380045327257831,
+              "display": "7.3800 pp",
+              "unit": "pp",
+              "at": "data/reports/d2_signal_requirement.json :: headline.account_annual_ceiling_pct.gap_to_target_at_deliverable_width_and_50k_pp",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "理想档",
+              "note": null
+            },
+            {
+              "key": "that_width_is_undeliverable_at_50k",
+              "label": "哪一档才可交付",
+              "value": "宽度 546 在 ¥5万 下年摩擦 43.6566%、净超额 -36.0881%（交付档是 2.1379% / 2.6729%）⇒ 与 20% 对比：**5 万本金**要用 `at_deliverable_width_and_50k`（12.6200%，差 7.3800pp）；`at_deliverable_width` 是**本金 → ∞**，不能当「5 万真能交付的那个」",
+              "display": "宽度 546 在 ¥5万 下年摩擦 43.6566%、净超额 -36.0881%（交付档是 2.1379% / 2.6729%）⇒ 与 20% 对比：**5 万本金**要用 `at_deliverable_width_and_50k`（12.6200%，差 7.3800pp）；`at_deliverable_width` 是**本金 → ∞**，不能当「5 万真能交付的那个」",
+              "unit": "text",
+              "at": "data/reports/d2_signal_requirement.json :: headline.account_annual_ceiling_pct.that_width_is_undeliverable_at_50k",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "理想档",
+              "note": null
+            }
+          ],
+          "honest_boundary": "🚨 这一族是**公式上界**，而**不是**平台真会执行的账户；只给这一档 ⇒ 用户看到的缺口少了整手 + 闲置现金那一截。"
+        }
+      ],
+      "multiples": {
+        "role": "🚨 **这不是第三个口径** —— 它是「**倍数**」那一族。⇒ 屏上那个「还差几倍」**必须**取 `same_caliber` 那一列（第 7 层：两个各自都对的数放一起比）。",
+        "columns": [
+          {
+            "key": "same_caliber",
+            "name": "同口径 · K=63 · 生产臂 LIVE_DEFAULT · 配置层 ARM_A · 榜宽 10 · 5 万 · 满仓 · 等权市场腿",
+            "is_the_gap": true,
+            "metric": {
+              "key": "multiple_needed_same_caliber",
+              "label": "还差几倍（同口径）",
+              "value": 1.7897265643606735,
+              "display": "1.7897×",
+              "unit": "multiple",
+              "at": "data/reports/d2_signal_requirement.json :: headline.multiple_needed_at_50k_deliverable_by_caliber.same_caliber.multiple_needed",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "同口径 · 分子 = K=63 的要求、分母 = K=63 生产臂的实测毛超额",
+              "note": null
+            },
+            "note": "✅ **同口径那一列才是「还差几倍」**"
+          },
+          {
+            "key": "cross_caliber",
+            "name": "跨口径 · K=21 研究臂",
+            "is_the_gap": false,
+            "metric": {
+              "key": "multiple_needed_cross_caliber",
+              "label": "还差几倍（跨口径 · 不是缺口）",
+              "value": 2.3450157528864404,
+              "display": "2.3450×",
+              "unit": "multiple",
+              "at": "data/reports/d2_signal_requirement.json :: headline.multiple_needed_at_50k_deliverable_by_caliber.cross_caliber.multiple_needed",
+              "kind": "artifact",
+              "status": "ok",
+              "caliber": "跨口径 · 分子 = K=63 的要求、分母 = K=21 研究臂的实测",
+              "note": null
+            },
+            "note": "❌ **不是缺口** —— 台账显式判它 `is_the_gap = false`（K 与信号两处口径都不同）⇒ **不许**显示成缺口"
+          }
+        ]
+      },
+      "honest_boundary": "🚨 两个口径**不是同一个量**：K 相同，但理想档不含整手与闲置现金。⇒ **并排、各带标签**，不许合并、不许取极值（第 143 层）。"
+    },
+    {
+      "id": 2,
+      "title": "每天推荐下个交易日会涨 10 只、会跌 10 只",
+      "goal_text": "每天推荐下个交易日会涨 10 只、会跌 10 只股票，细节你自己完善好",
+      "registry_class": "D1",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "IN_PROGRESS",
+      "status_label": "进行中",
+      "reason": "🚨 **形态在出，验收未过**：名单形态达标（10 涨 / 10 跌），但闸门判决 `NOT_PASSED_POWERLESS`、`publish_allowed = False`、W = 3 < 10 ⇒ **不许发布**，先攒前瞻期。",
+      "criterion": "① 形态：名单逐行数出 up=10 / down=10；② 验收：`score_ranking_power.json::verdict` 放行且 W ≥ 10 独立成交窗口（决策四）。🚨 两道闸**分别**成立才算达成。",
+      "metrics": [
+        {
+          "key": "prediction_date",
+          "label": "名单日期",
+          "value": "2026-10-20",
+          "display": "2026-10-20",
+          "unit": "text",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/predictions/pred_2026-10-20.parquet"
+          ],
+          "derivation": "最新一份 `pred_*.parquet` 的文件名日期分量",
+          "verify": {
+            "kind": "pred_filename_date",
+            "file": "data/reports/predictions/pred_2026-10-20.parquet"
+          },
+          "caliber": null,
+          "note": "⚠️ **不是当天的交付** —— 最新一份是 2026-10-20，今天（2026-10-21）没有名单文件（不同时刻的观测不是同一个事实）"
+        },
+        {
+          "key": "up_count",
+          "label": "会涨的只数",
+          "value": 10,
+          "display": "10",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/predictions/pred_2026-10-20.parquet"
+          ],
+          "derivation": "按 `direction` 列数 `== 'up'` 的行数",
+          "verify": {
+            "kind": "count_by_column",
+            "file": "data/reports/predictions/pred_2026-10-20.parquet",
+            "column": "direction",
+            "value": "up"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "down_count",
+          "label": "会跌的只数",
+          "value": 10,
+          "display": "10",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/predictions/pred_2026-10-20.parquet"
+          ],
+          "derivation": "按 `direction` 列数 `== 'down'` 的行数",
+          "verify": {
+            "kind": "count_by_column",
+            "file": "data/reports/predictions/pred_2026-10-20.parquet",
+            "column": "direction",
+            "value": "down"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "rows_total",
+          "label": "名单总行数",
+          "value": 20,
+          "display": "20",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/predictions/pred_2026-10-20.parquet"
+          ],
+          "derivation": "parquet 行数",
+          "verify": {
+            "kind": "row_count",
+            "file": "data/reports/predictions/pred_2026-10-20.parquet"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "gate_verdict",
+          "label": "D1 上线闸门判决",
+          "value": "NOT_PASSED_POWERLESS",
+          "display": "NOT_PASSED_POWERLESS",
+          "unit": "text",
+          "at": "data/reports/score_ranking_power.json :: verdict",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "G4 / S3（与收益高低无关）",
+          "note": "🚨 `POWERLESS` = **测不出**，**不是**「打分没有排序力」"
+        },
+        {
+          "key": "publish_allowed",
+          "label": "是否许发布",
+          "value": false,
+          "display": "否",
+          "unit": "bool",
+          "at": "data/reports/score_ranking_power.json :: publish_allowed",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "G4 / S3",
+          "note": null
+        },
+        {
+          "key": "n_independent_pred_dates",
+          "label": "独立出单日",
+          "value": 3,
+          "display": "3",
+          "unit": "count",
+          "at": "data/reports/score_ranking_power.json :: by_score_col.score.n_independent_pred_dates",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "判决臂按 `pred_date` 分组（出单日 ≠ 成交日）",
+          "note": null
+        },
+        {
+          "key": "n_independent_windows",
+          "label": "W · 独立成交窗口",
+          "value": 3,
+          "display": "3",
+          "unit": "count",
+          "at": "data/reports/score_ranking_power.json :: by_score_col.score.independence_caliber.n_entry_dates",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "✅ **验收分母**（按当前信号分桶后）",
+          "note": "🚨 判据出处：`docs/DELIVERY_DECISIONS_2026-10-20.md §14`（更正文：验收分母是这一档，**不是**全底稿那一档）"
+        },
+        {
+          "key": "n_independent_windows_unscoped",
+          "label": "独立成交窗口（全底稿 · 未按当前信号分桶）",
+          "value": 6,
+          "display": "6",
+          "unit": "count",
+          "at": "data/reports/stats.json :: n_independent_windows",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "⚠️ **不是验收分母**（§14 已更正）",
+          "note": "🚨 与上面那一个**不是同一个量** ⇒ 两个数不许混引（第 7 层）"
+        }
+      ],
+      "criteria": [
+        {
+          "key": "min_independent_windows",
+          "label": "验收门槛 W ≥ 10 独立成交窗口",
+          "value": 10,
+          "display": "10",
+          "unit": "count",
+          "at": "docs/DELIVERY_DECISIONS_2026-10-18.md §4（决策四） · aplus/webapp.py::MIN_INDEPENDENT_WINDOWS",
+          "kind": "criterion",
+          "status": "ok",
+          "note": "🚨 **W < 10 时不许报命中率、不许给 CI**；该门槛**不许换算成日历 ETA**"
+        }
+      ],
+      "acceptance": {
+        "shape_10_10": true,
+        "shape_note": "✅ 名单形态是 10 涨 / 10 跌（**逐行数出来的**，不是手打的）",
+        "gate_verdict": "NOT_PASSED_POWERLESS",
+        "publish_allowed": false,
+        "w": 3,
+        "w_min": 10,
+        "w_met": false,
+        "w_note": "⚠️ **W = 3 < 10** ⇒ 按决策四，**命中率族一个都不许报**（不许报命中率、不许给 CI）。🚨 **不许**把这个门槛换算成日历 ETA（同一处禁令）。",
+        "rows": [
+          {
+            "label": "名单形态（10 涨 / 10 跌）",
+            "value": true,
+            "display": "达标"
+          },
+          {
+            "label": "闸门判决（G4 / S3）",
+            "value": "NOT_PASSED_POWERLESS",
+            "display": "NOT_PASSED_POWERLESS"
+          },
+          {
+            "label": "是否许发布",
+            "value": false,
+            "display": "否"
+          },
+          {
+            "label": "W · 独立成交窗口",
+            "value": 3,
+            "display": "3"
+          },
+          {
+            "label": "验收门槛 W ≥ 10 独立成交窗口",
+            "value": 10,
+            "display": "10"
+          }
+        ]
+      },
+      "honest_boundary": "🚨 形态达标 ≠ 验收达标 ⇒ 屏上**两个都写**，不许只写前者。"
+    },
+    {
+      "id": 3,
+      "title": "用未来+历史数据回测、deep-research 调研、金融数据迭代自进化",
+      "goal_text": "利用未来和历史数据回测、deep-research 调研、金融数据完成迭代自进化，不达目的誓不罢休",
+      "registry_class": "手段",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "IN_PROGRESS",
+      "status_label": "进行中",
+      "reason": "🚨 **自进化在跑**：前瞻注册表已冻结若干批候选、进化日志在长、红利 PIT 在分片采集、基本面族已出判决。⇒ 状态是「**进行中**」，**不是**「达成」。⚠️ 截至今日**没有一族过线**：基本面族各格全是「测不出」，红利/低波那一族**未出判决** ⇒ 只支持形状陈述，不支持水平陈述。",
+      "criterion": "🚨 归档表把这一条归为**手段**，**不产生分数** ⇒ 本页**不给**它算「达成百分比」，只报**可核对的进度读数**。",
+      "metrics": [
+        {
+          "key": "forward_batches",
+          "label": "前瞻注册批次数",
+          "value": 6,
+          "display": "6",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/forward_registry.json"
+          ],
+          "derivation": "`forward_registry.json` 的批次条数",
+          "verify": {
+            "kind": "list_len",
+            "file": "data/reports/forward_registry.json"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "forward_candidates",
+          "label": "前瞻注册候选总数",
+          "value": 32,
+          "display": "32",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/forward_registry.json"
+          ],
+          "derivation": "各批次 `candidates` 长度之和",
+          "verify": {
+            "kind": "sum_candidates",
+            "file": "data/reports/forward_registry.json"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "forward_registered_on",
+          "label": "各批登记日",
+          "value": [
+            "2026-10-12",
+            "2026-10-12",
+            "2026-10-14",
+            "2026-10-20",
+            "2026-10-20",
+            "2026-10-21"
+          ],
+          "display": "2026-10-12\n2026-10-12\n2026-10-14\n2026-10-20\n2026-10-20\n2026-10-21",
+          "unit": "lines",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/forward_registry.json"
+          ],
+          "derivation": "各批次 `registered_on` 字段",
+          "verify": {
+            "kind": "registered_on",
+            "file": "data/reports/forward_registry.json"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "evolution_entries",
+          "label": "进化日志条目数",
+          "value": 5,
+          "display": "5",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/evolution_log.json"
+          ],
+          "derivation": "`evolution_log.json` 的条目数",
+          "verify": {
+            "kind": "list_len",
+            "file": "data/reports/evolution_log.json"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "dividend_pit_shards",
+          "label": "红利 PIT 分片数",
+          "value": 5,
+          "display": "5",
+          "unit": "count",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/dividend_pit_coverage_shard1of5.json",
+            "data/reports/dividend_pit_coverage_shard2of5.json",
+            "data/reports/dividend_pit_coverage_shard3of5.json",
+            "data/reports/dividend_pit_coverage_shard4of5.json",
+            "data/reports/dividend_pit_coverage_shard5of5.json"
+          ],
+          "derivation": "`dividend_pit_coverage_shard*of*.json` 的份数",
+          "verify": {
+            "kind": "glob_len",
+            "pattern": "dividend_pit_coverage_shard*of*.json"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "dividend_pit_cells",
+          "label": "红利 PIT 单元格覆盖（ok / 总）",
+          "value": "43413 / 43680",
+          "display": "43413 / 43680",
+          "unit": "text",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/dividend_pit_coverage_shard1of5.json",
+            "data/reports/dividend_pit_coverage_shard2of5.json",
+            "data/reports/dividend_pit_coverage_shard3of5.json",
+            "data/reports/dividend_pit_coverage_shard4of5.json",
+            "data/reports/dividend_pit_coverage_shard5of5.json"
+          ],
+          "derivation": "各分片 `coverage.cells_ok` 之和 / `coverage.cells_total` 之和",
+          "verify": {
+            "kind": "shard_cells_sum"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "dividend_pit_cell_coverage_pct",
+          "label": "红利 PIT 单元格覆盖率",
+          "value": 99.38873626373626,
+          "display": "99.3887%",
+          "unit": "pct",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "data/reports/dividend_pit_coverage_shard1of5.json",
+            "data/reports/dividend_pit_coverage_shard2of5.json",
+            "data/reports/dividend_pit_coverage_shard3of5.json",
+            "data/reports/dividend_pit_coverage_shard4of5.json",
+            "data/reports/dividend_pit_coverage_shard5of5.json"
+          ],
+          "derivation": "Σcells_ok ÷ Σcells_total（**比率**，不是百分数字段）",
+          "verify": {
+            "kind": "shard_cells_ratio"
+          },
+          "caliber": null,
+          "note": null
+        },
+        {
+          "key": "fundamental_cells_passed",
+          "label": "基本面族过线格数",
+          "value": 0,
+          "display": "0",
+          "unit": "count",
+          "at": "data/reports/fundamental_mechanism_armR_fullpool_2026-10-21.json :: verdict.calibers.primary.cells_pass_family_a",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "族 A（臂 R · 全池）",
+          "note": "🚨 0 = 一格都没过线"
+        },
+        {
+          "key": "fundamental_state_counts",
+          "label": "基本面族各状态计数",
+          "value": {
+            "FUNDAMENTAL_POWERLESS": 10
+          },
+          "display": "{\"FUNDAMENTAL_POWERLESS\": 10}",
+          "unit": "json",
+          "at": "data/reports/fundamental_mechanism_armR_fullpool_2026-10-21.json :: verdict.calibers.primary.state_counts",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "族 A（臂 R · 全池）",
+          "note": "🚨 `FUNDAMENTAL_POWERLESS` = **测不到**，不是「没有效应」"
+        },
+        {
+          "key": "fundamental_n_a",
+          "label": "族 A 的候选数 n_A",
+          "value": 10,
+          "display": "10",
+          "unit": "count",
+          "at": "data/reports/fundamental_mechanism_armR_fullpool_2026-10-21.json :: n_A.primary.n_A",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "族 A（臂 R · 全池）",
+          "note": null
+        },
+        {
+          "key": "dividend_lowvol_verdict",
+          "label": "红利/低波整套判决",
+          "value": null,
+          "display": "未出判决",
+          "unit": "text",
+          "at": "data/reports/dividend_lowvol_longleg.json :: suite_verdict.label",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "红利 + 低波族",
+          "note": "🚨 `null` = **未出判决**，不是「判决为否」"
+        },
+        {
+          "key": "dividend_lowvol_invalidated_by",
+          "label": "整套判决被谁作废",
+          "value": [],
+          "display": "无",
+          "unit": "list",
+          "at": "data/reports/dividend_lowvol_longleg.json :: suite_verdict.invalidated_by",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "红利 + 低波族",
+          "note": null
+        }
+      ],
+      "honest_boundary": "🚨 「跑了多少」**不等于**「有效果」：注册表条数、分片覆盖率、日志条目数都只量**过程**；**效果**看各族的判决字段。"
+    },
+    {
+      "id": 4,
+      "title": "充分利用技能、测试驱动开发、完善日志系统",
+      "goal_text": "充分利用我给你安装的技能，测试驱动开发，完善日志系统好排查问题",
+      "registry_class": "手段",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "IN_PROGRESS",
+      "status_label": "进行中",
+      "reason": "🚨 这一条**分两半**：① **可自动化的部分** = 提交归类统计（交付/手段/收尾/跑偏率）—— 它量的是**注意力去了哪儿**，**不是**目标达没达成；② **不可自动化的部分** = 明写「**由人判断**」，并给判据。⇒ 状态给「**进行中**」：**没有一个自动读数能判它达成**。",
+      "criterion": "🚨 归档表把这一条归为**手段**，**不产生分数** ⇒ 本页**不给**它算「达成百分比」。",
+      "metrics": [
+        {
+          "key": "commits_交付",
+          "label": "提交归类 · 交付",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.交付",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_手段",
+          "label": "提交归类 · 手段",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.手段",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_收尾",
+          "label": "提交归类 · 收尾",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.收尾",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_未归类",
+          "label": "提交归类 · 未归类",
+          "value": 0,
+          "display": "0",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.未归类",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_total",
+          "label": "当天提交总数",
+          "value": 3,
+          "display": "3",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.total",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "collect_commits 口径",
+          "note": null
+        },
+        {
+          "key": "drift_rate",
+          "label": "跑偏率（收尾档 / 当天总提交）",
+          "value": 0.3333333333333333,
+          "display": "33.3333%",
+          "unit": "fraction",
+          "at": "data/reports/daily_review.json :: commits.drift_rate",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "DELIVERY_GATE §6 的字面公式",
+          "note": "🚨 这是**防跑偏**的读数，**不是**成就"
+        }
+      ],
+      "automatable": {
+        "what": "提交归类统计（交付 / 手段 / 收尾 / 未归类 + 跑偏率）",
+        "why": "它是仓里**唯一**能自动读出来的「注意力去了哪儿」的量；口径 = `scripts/daily_review.py::collect_commits`（只读标题首词）。",
+        "caveat": "🚨 **跑偏率是防跑偏的读数，不是成就**；「收尾档占比低」**不**等于「目标更近了」。 最近一次复盘日期：2026-10-21。"
+      },
+      "manual": [
+        {
+          "key": "manual_judgement",
+          "label": "充分利用技能、测试驱动开发、完善日志系统 · 效果",
+          "value": null,
+          "display": "由人判断",
+          "unit": "text",
+          "at": null,
+          "kind": "manual",
+          "status": "manual",
+          "judgement": "由人判断",
+          "criteria": [
+            "判据（由人判断）：① 新功能是否先有**会失败的**测试再写实现；② 改动是否让**日志更好排查**（能定位到失败那一步）；③ 是否用了已安装的技能（而不是手搓一遍）。🚨 这三条**没有自动度量**：仓里没有任何产物记录「本轮是否先写了测试」。"
+          ]
+        }
+      ],
+      "honest_boundary": "🚨 本条**没有**效果度量 ⇒ 页面上「由人判断」**不许**被渲染成一个分数、一个百分比或一个勾（第 7 层：「不知道」不许塌成 0）。"
+    },
+    {
+      "id": 5,
+      "title": "不要迷失目标，长时间没进展要及时复盘",
+      "goal_text": "迭代过程中不要迷失目标，长时间没有进展要及时学会复盘，聚焦目标",
+      "registry_class": "手段",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "IN_PROGRESS",
+      "status_label": "进行中",
+      "reason": "🚨 这一条**分两半**：① **可自动化的部分** = 提交归类统计（交付/手段/收尾/跑偏率）—— 它量的是**注意力去了哪儿**，**不是**目标达没达成；② **不可自动化的部分** = 明写「**由人判断**」，并给判据。⇒ 状态给「**进行中**」：**没有一个自动读数能判它达成**。",
+      "criterion": "🚨 归档表把这一条归为**手段**，**不产生分数** ⇒ 本页**不给**它算「达成百分比」。",
+      "metrics": [
+        {
+          "key": "commits_交付",
+          "label": "提交归类 · 交付",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.交付",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_手段",
+          "label": "提交归类 · 手段",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.手段",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_收尾",
+          "label": "提交归类 · 收尾",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.收尾",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_未归类",
+          "label": "提交归类 · 未归类",
+          "value": 0,
+          "display": "0",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.未归类",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_total",
+          "label": "当天提交总数",
+          "value": 3,
+          "display": "3",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.total",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "collect_commits 口径",
+          "note": null
+        },
+        {
+          "key": "drift_rate",
+          "label": "跑偏率（收尾档 / 当天总提交）",
+          "value": 0.3333333333333333,
+          "display": "33.3333%",
+          "unit": "fraction",
+          "at": "data/reports/daily_review.json :: commits.drift_rate",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "DELIVERY_GATE §6 的字面公式",
+          "note": "🚨 这是**防跑偏**的读数，**不是**成就"
+        },
+        {
+          "key": "review_date",
+          "label": "最近一次复盘的日期",
+          "value": "2026-10-21",
+          "display": "2026-10-21",
+          "unit": "text",
+          "at": "data/reports/daily_review.json :: review_date",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "每晚 cron 的产物",
+          "note": null
+        },
+        {
+          "key": "review_has_previous",
+          "label": "是否已有上一份可比的复盘",
+          "value": false,
+          "display": "否",
+          "unit": "bool",
+          "at": "data/reports/daily_review.json :: vs_previous.has_previous",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "每晚 cron 的产物",
+          "note": "🚨 「复盘机制在跑」**不等于**「复盘做得好」"
+        }
+      ],
+      "automatable": {
+        "what": "提交归类统计（交付 / 手段 / 收尾 / 未归类 + 跑偏率）",
+        "why": "它是仓里**唯一**能自动读出来的「注意力去了哪儿」的量；口径 = `scripts/daily_review.py::collect_commits`（只读标题首词）。",
+        "caveat": "🚨 **跑偏率是防跑偏的读数，不是成就**；「收尾档占比低」**不**等于「目标更近了」。 最近一次复盘日期：2026-10-21。"
+      },
+      "manual": [
+        {
+          "key": "manual_judgement",
+          "label": "不要迷失目标，长时间没进展要及时复盘 · 效果",
+          "value": null,
+          "display": "由人判断",
+          "unit": "text",
+          "at": null,
+          "kind": "manual",
+          "status": "manual",
+          "judgement": "由人判断",
+          "criteria": [
+            "判据（由人判断）：① 连续无进展时是否**主动复盘**并留下记录；② 复盘是否回答了「今天用户能打开什么」「离 D2 的缺口变了没有」。🚨 「是否主动」**没有自动度量**：能自动查到的只有「复盘机制在不在跑」。"
+          ]
+        }
+      ],
+      "honest_boundary": "🚨 本条**没有**效果度量 ⇒ 页面上「由人判断」**不许**被渲染成一个分数、一个百分比或一个勾（第 7 层：「不知道」不许塌成 0）。"
+    },
+    {
+      "id": 6,
+      "title": "简洁高效正确可读且方便维护的代码，定期梳理清晰项目架构",
+      "goal_text": "编写简洁高效正确可读且方便维护的代码，定期梳理清晰项目架构",
+      "registry_class": "手段",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "IN_PROGRESS",
+      "status_label": "进行中",
+      "reason": "🚨 这一条**分两半**：① **可自动化的部分** = 提交归类统计（交付/手段/收尾/跑偏率）—— 它量的是**注意力去了哪儿**，**不是**目标达没达成；② **不可自动化的部分** = 明写「**由人判断**」，并给判据。⇒ 状态给「**进行中**」：**没有一个自动读数能判它达成**。",
+      "criterion": "🚨 归档表把这一条归为**手段**，**不产生分数** ⇒ 本页**不给**它算「达成百分比」。",
+      "metrics": [
+        {
+          "key": "commits_交付",
+          "label": "提交归类 · 交付",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.交付",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_手段",
+          "label": "提交归类 · 手段",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.手段",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_收尾",
+          "label": "提交归类 · 收尾",
+          "value": 1,
+          "display": "1",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.收尾",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_未归类",
+          "label": "提交归类 · 未归类",
+          "value": 0,
+          "display": "0",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.counts.未归类",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "`scripts/daily_review.py::collect_commits` 的口径（只读提交标题首词）",
+          "note": null
+        },
+        {
+          "key": "commits_total",
+          "label": "当天提交总数",
+          "value": 3,
+          "display": "3",
+          "unit": "count",
+          "at": "data/reports/daily_review.json :: commits.total",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "collect_commits 口径",
+          "note": null
+        },
+        {
+          "key": "drift_rate",
+          "label": "跑偏率（收尾档 / 当天总提交）",
+          "value": 0.3333333333333333,
+          "display": "33.3333%",
+          "unit": "fraction",
+          "at": "data/reports/daily_review.json :: commits.drift_rate",
+          "kind": "artifact",
+          "status": "ok",
+          "caliber": "DELIVERY_GATE §6 的字面公式",
+          "note": "🚨 这是**防跑偏**的读数，**不是**成就"
+        }
+      ],
+      "automatable": {
+        "what": "提交归类统计（交付 / 手段 / 收尾 / 未归类 + 跑偏率）",
+        "why": "它是仓里**唯一**能自动读出来的「注意力去了哪儿」的量；口径 = `scripts/daily_review.py::collect_commits`（只读标题首词）。",
+        "caveat": "🚨 **跑偏率是防跑偏的读数，不是成就**；「收尾档占比低」**不**等于「目标更近了」。 最近一次复盘日期：2026-10-21。"
+      },
+      "manual": [
+        {
+          "key": "manual_judgement",
+          "label": "简洁高效正确可读且方便维护的代码，定期梳理清晰项目架构 · 效果",
+          "value": null,
+          "display": "由人判断",
+          "unit": "text",
+          "at": null,
+          "kind": "manual",
+          "status": "manual",
+          "judgement": "由人判断",
+          "criteria": [
+            "判据（由人判断）：① 新代码是否与既有风格一致、可读；② 架构是否仍然说得清（模块职责不重叠、口径不散落）；③ 定期梳理是否真的做了（而不是写在待办里）。🚨 「可读」「清晰」**没有自动度量**：仓里没有任何产物给代码质量打分。"
+          ]
+        }
+      ],
+      "honest_boundary": "🚨 本条**没有**效果度量 ⇒ 页面上「由人判断」**不许**被渲染成一个分数、一个百分比或一个勾（第 7 层：「不知道」不许塌成 0）。"
+    },
+    {
+      "id": 7,
+      "title": "项目唯一代码位置 /Users/airboom/opencode/aplus",
+      "goal_text": "项目唯一代码位置 /Users/airboom/opencode/aplus",
+      "registry_class": "铁律",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+      "status": "ACHIEVED",
+      "status_label": "达成",
+      "reason": "✅ **本次运行的仓库顶层 == 声明位置** ⇒ 唯一真相源成立。",
+      "criterion": "判据（可自动问）：`git rev-parse --show-toplevel` == `/Users/airboom/opencode/aplus`。🚨 这条量的是「**本仓自己跑在哪**」，不是「别处没有副本」——后者没有可自动化读数。",
+      "metrics": [
+        {
+          "key": "repo_root",
+          "label": "本次运行的仓库顶层",
+          "value": "/Users/airboom/opencode/aplus",
+          "display": "/Users/airboom/opencode/aplus",
+          "unit": "text",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "git rev-parse --show-toplevel"
+          ],
+          "derivation": "在仓内执行 `git rev-parse --show-toplevel`",
+          "verify": {
+            "kind": "git_toplevel"
+          },
+          "caliber": null,
+          "note": null
+        }
+      ],
+      "declaration": {
+        "key": "declared_repo_root",
+        "label": "声明的唯一代码位置",
+        "value": "/Users/airboom/opencode/aplus",
+        "display": "/Users/airboom/opencode/aplus",
+        "kind": "declaration",
+        "at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
+        "note": "这是**声明**（用户目标第 7 条），不是测量值"
+      },
+      "honest_boundary": "🚨 本条量的是「**本仓自己跑在哪**」；「别处没有第二份副本」**没有可自动化读数** ⇒ 由人判断。"
+    },
+    {
+      "id": 8,
+      "title": "全部细节由我决定，不再向用户确认",
+      "goal_text": "高效准确尽快产出，全部你来决定，我给你目标了你自己决定所有大小细节，不要再我确认任何东西",
+      "registry_class": "授权",
+      "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1（8 条目标表的第 8 行 · 归档 = 授权）",
+      "status": "ACHIEVED",
+      "status_label": "达成",
+      "reason": "✅ 授权**已登记**在决策登记里 ⇒ 「不再向用户确认」是一条**常设决策**，不是每轮重新问一遍。",
+      "criterion": "判据（可自动问）：决策登记文件在不在 + 授权条目在不在其中。🚨 「实际执行时确实没有再回头问」**没有可自动化读数** ⇒ 由人判断。",
+      "metrics": [
+        {
+          "key": "decision_registry",
+          "label": "决策登记文件",
+          "value": "docs/DELIVERY_DECISIONS_2026-10-18.md",
+          "display": "docs/DELIVERY_DECISIONS_2026-10-18.md",
+          "unit": "text",
+          "at": null,
+          "kind": "derived",
+          "status": "ok",
+          "sources": [
+            "docs/DELIVERY_DECISIONS_2026-10-18.md"
+          ],
+          "derivation": "用户目标第 8 条的登记出处",
+          "verify": {
+            "kind": "file_exists",
+            "file": "docs/DELIVERY_DECISIONS_2026-10-18.md"
+          },
+          "caliber": null,
+          "note": null
+        }
+      ],
+      "manual": [
+        {
+          "key": "manual_judgement",
+          "label": "是否真的没有再回头向用户确认",
+          "value": null,
+          "display": "由人判断",
+          "unit": "text",
+          "at": null,
+          "kind": "manual",
+          "status": "manual",
+          "judgement": "由人判断",
+          "criteria": [
+            "🚨 「实际执行时有没有回头确认」**没有可自动化读数** ⇒ 由人判断。",
+            "判据（由人判断）：最近一轮迭代里是否**一次都没**回头问过「要不要这么做」；大小细节是否都由我直接定下来。"
+          ]
+        }
+      ],
+      "honest_boundary": "🚨 本条量的是「**授权已落纸**」；执行层面的遵守**由人判断**。"
+    }
+  ],
+  "honest_boundaries": [
+    "🚨 **本页不给「8 条目标的达成百分比」** —— 归档表把分母定死 = D1 + D2 两项，手段类不产生分数（`docs/DELIVERY_DECISIONS_2026-10-18.md §1`）。",
+    "🚨 **每个数都直读产物并带 `产物路径 :: JSON 路径`** —— 页面上没有一个数是手抄的，也没有一个是前端算的。",
+    "🚨 **缺档 = 明说缺**，绝不回落成 0 —— 「没有台账」与「缺口是 0」是相反的结论。",
+    "🚨 **`|c| < M` ⇒ 连符号都定不了** ⇒ 目标 1 的状态是「**不可判定**」，既不许说「未达」，也不许说「接近」，更不许说「已达成」。",
+    "🚨 **两个 D2 口径不是同一个量** ⇒ 并排、各带标签，不许合并、不许取极值。",
+    "🚨 **「还差几倍」只取同口径那一列** —— 跨口径那一列台账自己标 `is_the_gap = false`，显示成缺口就是错的。",
+    "🚨 **D1 的 W < 10 时不许报命中率、不许给 CI**（决策四）；**也不许**把门槛换算成日历 ETA。",
+    "🚨 **屏上不出现「投入率」「闲置比例」** —— 那两个字段名字与内容相反（`docs/TODO_deployed_idle_cash_caliber_2026-10-21.md`）。",
+    "🚨 **目标 4/5/6 的效果没有自动度量** ⇒ 明写「由人判断」，不许塌成 0、不许假装有。"
+  ],
+  "summary_line": "D1 进行中；D2 不可判定（测不出）；自进化 进行中；其余目标按归档表归为手段 / 铁律 / 授权，本页只报可核对的读数与判据。",
+  "change": {
+    "vs_previous_date": null,
+    "vs_previous_at": null,
+    "line": "这是第一份快照，还没有可比的上一份。",
+    "changed": [],
+    "unchanged_keys": []
+  }
+}

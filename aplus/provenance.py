@@ -616,6 +616,13 @@ PATTERN_GENERATORS: list[tuple[re.Pattern, str]] = [
     # ⚠️ 逐名登记的那一行已删（同一生成器 ⇒ 行为逐位相同 ⇒ 删了不变任何读数）。
     (re.compile(r"^dividend_pit_coverage_shard\d+of\d+\.json$"),
      "scripts/collect_dividend_pit.py"),
+    # 2026-10-21 登记：目标达成进度的**每日快照**（`goal_progress_<日期>.json`）。
+    # 🚨 **走模式表而不是逐名登记**：文件名带日期（每天一份）⇒ 逐名写法下
+    # **新增一天就又漏登记**（CLAUDE.md 形状 17）。
+    # ⇒ 而漏登记的后果是 `resolve_generator()` 返 `None` ⇒ `freshness()` 判
+    #   `unknown`（= 不许引用），而「不可引用」与「数据坏了」长得一模一样。
+    (re.compile(r"^goal_progress_\d{4}-\d{2}-\d{2}\.json$"),
+     "scripts/measure_goal_progress.py"),
 ]
 
 

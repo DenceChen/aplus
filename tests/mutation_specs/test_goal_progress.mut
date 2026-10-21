@@ -1,0 +1,84 @@
+M1 目标1的「符号不可定」判据被翻面（不可判定 ⇒ 落进另一条分支）	scripts/measure_goal_progress.py
+if sign_ok is False:
+=== 变异体 ===
+if sign_ok is not False:
+
+M2 缺档回落成 0（「没有台账」被读成「缺口是 0」）	scripts/measure_goal_progress.py
+"key": key, "label": label, "value": None, "display": "缺失",
+=== 变异体 ===
+"key": key, "label": label, "value": 0, "display": "缺失",
+
+M3 「还差几倍」取成跨口径那一列（台账标它不是缺口）	scripts/measure_goal_progress.py
+"same_caliber", "multiple_needed"],
+=== 变异体 ===
+"cross_caliber", "multiple_needed"],
+
+M4 理想档被改名（屏上只剩一个口径）	scripts/measure_goal_progress.py
+"key": "ideal_ceiling_k63",
+=== 变异体 ===
+"key": "ideal_ceiling_k63_renamed",
+
+M5 达成判据被放松一半（20% 目标被偷换成 10%）	scripts/measure_goal_progress.py
+if float(cagr) >= float(target):
+=== 变异体 ===
+if float(cagr) >= float(target) * 0.5:
+
+M6 「由人判断」被改成一条普通读数（「不知道」塌成一个数）	scripts/measure_goal_progress.py
+"kind": "manual", "status": "manual",
+=== 变异体 ===
+"kind": "artifact", "status": "ok",
+
+M7 两个 W 的读数撞了同一个 key（屏上第二行盖掉第一行）	scripts/measure_goal_progress.py
+key="n_independent_windows_unscoped",
+=== 变异体 ===
+key="n_independent_windows",
+
+M8 摘要被换成一句手打的话（散文里的数会静默过期）	scripts/measure_goal_progress.py
+payload["summary_line"] = render_summary(goals)
+=== 变异体 ===
+payload["summary_line"] = "每日更新"
+
+M9 MDE 的出处被换成一个别的字段（数看起来还是数）	scripts/measure_goal_progress.py
+cited(rel_v, ["verdict", "mde_annual"], key="mde_annual",
+=== 变异体 ===
+cited(rel_v, ["verdict", "cagr"], key="mde_annual",
+
+M10 名单行数被 +1（推导数与真产物对不上）	scripts/measure_goal_progress.py
+rows = int(len(df))
+=== 变异体 ===
+rows = int(len(df)) + 1
+
+M11 会涨只数被 +1（形态达标被写成了 11 只）	scripts/measure_goal_progress.py
+up = int((df["direction"] == "up").sum())
+=== 变异体 ===
+up = int((df["direction"] == "up").sum()) + 1
+
+M12 台账那一族的出处被换成一个没有该字段的产物	scripts/measure_goal_progress.py
+rel_l = "data/reports/d2_signal_requirement.json"
+=== 变异体 ===
+rel_l = "data/reports/deployed_d2_verdict.json"
+
+M13 读不出来的那份被标成可读（时间轴会假装那天没变化）	aplus/webapp.py
+entry = {"date": day, "file": path.name, "readable": False,
+=== 变异体 ===
+entry = {"date": day, "file": path.name, "readable": True,
+
+M14 漏掉的日历日被清空（时间轴看起来连续）	aplus/webapp.py
+"gaps": _goal_progress_gaps([d for d, _ in files]),
+=== 变异体 ===
+"gaps": [],
+
+M15 屏上「是缺口」的标记被翻面（跨口径那列被当成缺口）	aplus/web/index.html
+const isGap = (c.is_the_gap === true);
+=== 变异体 ===
+const isGap = (c.is_the_gap !== true);
+
+M16 倍数被手打进前端（数字离开脚本没有通道把它拉回来）	aplus/web/index.html
+const val = c.metric && c.metric.display != null ? c.metric.display : '缺失';
+=== 变异体 ===
+const val = '1.79';
+
+M17 深链白名单漏了新 tab（页面正常、console 无报错，只有深链坏了）	aplus/web/index.html
+const TABS = ['overview', 'goal', 'history', 'backtest', 'evolution', 'bond', 'chat', 'logs'];
+=== 变异体 ===
+const TABS = ['overview', 'history', 'backtest', 'evolution', 'bond', 'chat', 'logs'];

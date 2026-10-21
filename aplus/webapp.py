@@ -5,6 +5,7 @@
 - 生产 LLM 走本机 glm-failover 代理（aplus.llm.GlmProxyClient）
 """
 import json
+import re
 import sqlite3
 import time
 from datetime import date
@@ -1439,6 +1440,124 @@ def _holdings_alert_payload(reports_dir) -> dict:
     }
 
 
+#: 目标进度快照的文件名模式（与 `scripts/measure_goal_progress.py` 的输出同名）。
+#: 🚨 走**模式**而不是逐个列名 —— 每天一份 ⇒ 逐名登记就是形状 17。
+GOAL_PROGRESS_FILE_RE = re.compile(r"^goal_progress_(\d{4}-\d{2}-\d{2})\.json$")
+
+
+def _goal_progress_payload(reports_dir) -> dict:
+    """**目标达成进度**：最新快照 + 历日历史 + **缺档披露**。
+
+    ## 🚨 本函数**一个数都不算**
+
+    所有读数**逐字**来自快照产物（`scripts/measure_goal_progress.py` 写的
+    `goal_progress_<日期>.json`）。本函数只做**搬运 + 排序 + 缺档披露**。
+    ⇒ 「还差几倍」取哪一列、两个 D2 口径怎么并排，**全部在快照里已经定好**，
+    前端不许自己决定（第 143 层）。
+
+    ## 🚨 缺档的三种形态**分开说**
+
+    | 形态 | 处置 |
+    |---|---|
+    | **一份都没有** | **404 + 一句原因**（空数组与「读不出来」长得一样 ⇒ 形状 23） |
+    | **某一份读不出来** | 它**仍然出现在 `history` 里**，带 `readable: false` 与错误原文 ⇒ **不许静默跳过**（跳过 = 把「没跑到」读成「那天没变化」） |
+    | **中间漏了几天** | 那些天进 `gaps` ⇒ 不许让时间轴看起来连续 |
+
+    ## 🚨 `latest` 是**最新可读**的那一份
+
+    若最新那一份读不出来 ⇒ `latest` 退到上一份可读的，
+    并在 `latest_note` 里**明说退到了哪一天、为什么**
+    ⇒ 不许让用户以为看到的是今天的进度。
+    """
+    files = []
+    for p in sorted(Path(reports_dir).glob("goal_progress_*.json")):
+        m = GOAL_PROGRESS_FILE_RE.match(p.name)
+        if m:
+            files.append((m.group(1), p))
+    if not files:
+        raise HTTPException(
+            404,
+            f"目标进度快照一份都没有（{Path(reports_dir).name}/goal_progress_<日期>.json）"
+            "—— 跑 scripts/measure_goal_progress.py 生成（每晚 cron 会自动跑）")
+    files.sort()
+
+    history = []
+    readable = []          # (date, doc)
+    for day, path in files:
+        entry = {"date": day, "file": path.name, "readable": False,
+                 "error": None, "generated_at": None, "summary_line": None,
+                 "change_line": None, "statuses": {}}
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+            history.append(entry)
+            continue
+        if not isinstance(doc, dict):
+            entry["error"] = "内容不是一个对象（异常）"
+            history.append(entry)
+            continue
+        change = doc.get("change") or {}
+        entry.update({
+            "readable": True,
+            "generated_at": doc.get("generated_at"),
+            "summary_line": doc.get("summary_line"),
+            "change_line": change.get("line"),
+            "statuses": {str(g.get("id")): g.get("status")
+                         for g in (doc.get("goals") or []) if isinstance(g, dict)},
+        })
+        history.append(entry)
+        readable.append((day, doc))
+
+    if not readable:
+        raise HTTPException(
+            404,
+            "目标进度快照有 "
+            f"{len(files)} 份，但**一份都读不出来** ⇒ "
+            + "；".join(f"{e['date']}: {e['error']}" for e in history))
+    latest_date, latest_doc = readable[-1]
+    newest_date = files[-1][0]
+    latest_note = None
+    if newest_date != latest_date:
+        latest_note = (
+            f"⚠️ 最新一份（{newest_date}）读不出来 ⇒ 这里显示的是 "
+            f"{latest_date} 那一份（**不是最新**）。")
+
+    return {
+        "status": "ok",
+        "latest": latest_doc,
+        "latest_date": latest_date,
+        "latest_note": latest_note,
+        "history": history,
+        "gaps": _goal_progress_gaps([d for d, _ in files]),
+        "n_snapshots": len(files),
+    }
+
+
+def _goal_progress_gaps(days: list) -> list:
+    """历日快照之间**缺的日历日** —— 明写出来，不许让时间轴看起来连续。
+
+    ⚠️ 缺一天可能是 cron 没跑、也可能是那天真的没跑成
+    ⇒ 这里**只报缺哪几天**，不猜原因（原因在快照的 `status` 里）。
+    """
+    if len(days) < 2:
+        return []
+    from datetime import date as _date
+    out = []
+    for a, b in zip(days, days[1:]):
+        try:
+            d0 = _date.fromisoformat(a)
+            d1 = _date.fromisoformat(b)
+        except ValueError:
+            continue
+        cur = d0
+        while cur < d1:
+            cur = cur.fromordinal(cur.toordinal() + 1)
+            if cur < d1:
+                out.append(cur.isoformat())
+    return out
+
+
 def create_app(data_root, llm=None) -> FastAPI:
     data_root = Path(data_root)
     reports_dir = data_root / "reports"
@@ -2093,6 +2212,40 @@ def create_app(data_root, llm=None) -> FastAPI:
         from .reports import read_d2_gap
 
         return {"ledger": read_d2_gap(reports_dir)}
+
+    @app.get("/api/goal-progress")
+    def goal_progress():
+        """**目标达成进度** —— 最新快照 + 历日历史。
+
+        用户 2026-10-21 的原话：「web 页面加一个 tab 页面 记录目标达成页面。
+        记录目标达成进度，**不用每次我都问你**。」
+        ⇒ 本端点是那个 tab 的**唯一**数据源，页面每天自己长一格。
+
+        ## 返回面
+
+        | 键 | 是什么 |
+        |---|---|
+        | `latest` | **最新一份**快照的全文（8 条目标逐条：状态 / 数 / 出处 / 判据） |
+        | `history` | 历日快照列表（日期 + 生成时间 + 摘要 + 变化行 + 各目标状态） |
+        | `gaps` | **历日之间缺的日历日**（cron 漏跑的那几天，明写出来） |
+        | `n_snapshots` | 一共几份 |
+
+        ## 🚨 缺档不许回落成空数组当正常
+
+        * **一份快照都没有** ⇒ **404 + 一句原因**
+          （空数组在界面上与「读不出来」长得分毫不差 ⇒ 形状 23 的方向）。
+        * **某一份读不出来** ⇒ 它**仍然出现在 `history` 里**，
+          带 `readable: false` 与错误原文 ⇒ **不许静默跳过**
+          （跳过 = 把「没跑到」读成「那天没变化」）。
+        * **中间漏了几天** ⇒ 那些天进 `gaps` ⇒ 不许让时间轴看起来连续。
+
+        ## 🚨 端点里一个数都不算
+
+        所有读数**逐字**来自快照产物；本端点只做**搬运 + 排序 + 缺档披露**。
+        ⇒ 「还差几倍」取哪一列、两个 D2 口径怎么并排，**全部在快照里已经定好**，
+        前端不许自己决定（第 143 层）。
+        """
+        return _goal_progress_payload(reports_dir)
 
     @app.get("/api/lot-affordability")
     def lot_affordability():

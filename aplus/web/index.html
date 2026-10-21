@@ -761,6 +761,82 @@
     [role="tabpanel"] { animation: fadeIn .18s ease-out; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   }
+
+  /* ── 目标进度（2026-10-21）──────────────────────────────────────
+     一屏要放下 8 条目标 + 两个 D2 口径 + 时间线 ⇒ 两列网格，
+     窄屏（iPad 竖屏）折成一列（与 .d2-gap-calibers 同款做法）。
+     ⚠️ 这里的颜色只承担**状态**（达成 / 未达 / 进行中 / 不可判定），
+     与本页 A 股约定的涨跌红绿**无关** —— 与 .held 的注释同一条纪律。
+     🚨 「不可判定」用中性灰（--void）：它既不是好也不是坏，
+     把它渲染成红色 = 把「测不出」说成「做不到」（第 16 层）。 */
+  .goal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 12px; }
+  @media (max-width: 860px) { .goal-grid { grid-template-columns: 1fr; } }
+  .goal-card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px;
+               min-width: 0; background: var(--panel-2); }
+  .goal-card h4 { margin: 0 0 6px; font-size: 13px; font-weight: 600; line-height: 1.5; }
+  .goal-card .goal-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .goal-tag { font-size: 10.5px; color: var(--faint); border: 1px solid var(--line);
+              border-radius: 5px; padding: 0 6px; white-space: nowrap; }
+  .goal-status { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 5px; white-space: nowrap; }
+  .goal-status.s-ACHIEVED { background: var(--down-soft); color: var(--down); }
+  .goal-status.s-NOT_ACHIEVED { background: var(--up-soft); color: var(--up); }
+  .goal-status.s-IN_PROGRESS { background: var(--seal-soft); color: var(--seal); }
+  .goal-status.s-UNDECIDABLE { background: rgba(160,180,205,.12); color: var(--void); }
+  .goal-reason { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin: 0 0 8px;
+                 white-space: pre-line; }
+  .goal-criterion { color: var(--faint); font-size: 11px; line-height: 1.7; margin: 0 0 6px;
+                    border-left: 2px solid var(--line-strong); padding-left: 8px; }
+  .goal-metrics { display: grid; grid-template-columns: 1fr; gap: 3px; }
+  .goal-metric { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px;
+                 align-items: baseline; font-size: 12px;
+                 border-top: 1px solid var(--panel-edge); padding-top: 4px; }
+  .goal-metric .gm-label { color: var(--muted); }
+  .goal-metric .gm-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .goal-metric .gm-val.missing { color: var(--void); font-weight: 400; }
+  /* 🚨 **文本型读数**（判决名、判决理由、路径、状态计数）另起一行。
+     症状：那一列是 `white-space: nowrap` ⇒ 一句长文本被压成**逐字竖排**
+     （实测「哪一档才可交付」那一格竖成了一列字）⇒ 读不出来。
+     ⚠️ 判据是**后端给的 unit**，不是前端量长度（前端一个数都不算）。 */
+  .goal-metric.is-text .gm-val { grid-column: 1 / -1; text-align: left;
+                                  white-space: pre-wrap; overflow-wrap: anywhere;
+                                  font-weight: 400; color: var(--text); }
+  .goal-metric.is-text .gm-val.missing { color: var(--void); }
+  .goal-metric .gm-src { grid-column: 1 / -1; color: var(--faint); font-size: 10.5px;
+                         font-family: var(--mono); word-break: break-all; }
+  .goal-metric .gm-cal { grid-column: 1 / -1; color: var(--faint); font-size: 10.5px; line-height: 1.6; }
+  .goal-note { grid-column: 1 / -1; color: var(--faint); font-size: 10.5px; line-height: 1.6; }
+  .goal-calibers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0 0; }
+  @media (max-width: 860px) { .goal-calibers { grid-template-columns: 1fr; } }
+  .goal-cal { border: 1px solid var(--line); border-left: 3px solid var(--seal);
+              border-radius: 6px; padding: 8px 11px; min-width: 0; }
+  .goal-cal h5 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--seal); line-height: 1.6; }
+  .goal-cal .gc-role { color: var(--muted); font-size: 11px; line-height: 1.6; margin-bottom: 6px; }
+  .goal-mults { margin: 8px 0 0; border: 1px dashed var(--line-strong); border-radius: 6px; padding: 8px 11px; }
+  .goal-mults h5 { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .goal-rows { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 4px; }
+  .goal-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px;
+              align-items: baseline; font-size: 12px; border-top: 1px solid var(--panel-edge); padding-top: 4px; }
+  .goal-row .gr-label { color: var(--muted); }
+  .goal-row .gr-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .goal-mult .gm-flag { font-size: 10.5px; font-weight: 600; }
+  .goal-mult.is-gap .gm-flag { color: var(--down); }
+  .goal-mult.not-gap .gm-flag { color: var(--void); }
+  .goal-mult .gm-cal { color: var(--faint); font-size: 10.5px; line-height: 1.6; }
+  .goal-manual { margin-top: 8px; border-left: 3px solid var(--void);
+                 background: rgba(160,180,205,.06); padding: 8px 11px; border-radius: 6px; }
+  .goal-manual h5 { margin: 0 0 3px; font-size: 12px; font-weight: 600; color: var(--void); }
+  .goal-manual ul { margin: 4px 0 0 16px; color: var(--muted); font-size: 11.5px; line-height: 1.7; }
+  .goal-bounds { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px;
+                 color: var(--muted); font-size: 11.5px; line-height: 1.8; }
+  .goal-bounds ul { margin: 4px 0 0 16px; }
+  .goal-bounds li { margin-bottom: 3px; }
+  .goal-tl { list-style: none; }
+  .goal-tl li { border-top: 1px solid var(--panel-edge); padding: 8px 0; }
+  .goal-tl .tl-date { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .goal-tl .tl-sum { color: var(--muted); font-size: 11.5px; line-height: 1.7; margin-top: 3px; }
+  .goal-tl .tl-chg { color: var(--faint); font-size: 11px; line-height: 1.7; margin-top: 2px; }
+  .goal-tl .tl-bad { color: var(--up); }
+  .goal-tl .tl-gap { color: var(--seal); font-size: 11.5px; margin-top: 4px; line-height: 1.7; }
 </style>
 </head>
 <body>
@@ -820,6 +896,7 @@
 
 <nav class="tabs" role="tablist" aria-label="主导航">
   <button class="tab" role="tab" id="tab-overview" aria-selected="true" tabindex="0" data-panel="overview">概览</button>
+  <button class="tab" role="tab" id="tab-goal" aria-selected="false" tabindex="-1" data-panel="goal">目标进度</button>
   <button class="tab" role="tab" id="tab-history" aria-selected="false" tabindex="-1" data-panel="history">历史 · 对比</button>
   <button class="tab" role="tab" id="tab-backtest" aria-selected="false" tabindex="-1" data-panel="backtest">回测</button>
   <button class="tab" role="tab" id="tab-evolution" aria-selected="false" tabindex="-1" data-panel="evolution">进化</button>
@@ -922,6 +999,28 @@
         <span class="sub">屏幕上那个年化，属于哪一档</span>
         <span class="right" id="deployedcfg-source"></span></div>
       <div id="deployedcfg-body"><div class="skeleton">读取配置口径…</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ 目标进度（2026-10-21 新增） ═══
+       用户原话：「web 页面加一个 tab 页面 记录目标达成页面。
+       记录目标达成进度，**不用每次我都问你**。」
+       ⇒ 这一页**每天自己长一格**（每晚 cron 写一份快照）。
+       🚨 **每个数都指到 `产物路径 :: JSON 路径`**，屏上一个数都不算。
+       🚨 **不许说「已达成 20%」** —— 现状是**不可判定**（测不出），
+          页面必须照实写（第 16 层：「测不出」≠「没有」≠「做不到」）。 -->
+  <section role="tabpanel" id="panel-goal" aria-labelledby="tab-goal" hidden>
+    <div class="panel">
+      <div class="panel-head"><h2>目标达成进度</h2>
+        <span class="sub">每日快照 · 自己会更新 · 每个数都指到产物</span>
+        <span class="right" id="goal-progress-updated"></span></div>
+      <div id="goal-progress-body"><div class="skeleton">读取目标进度…</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>时间线 · 历日快照</h2>
+        <span class="sub">这就是「记录」：每晚 cron 自己长一格</span></div>
+      <div id="goal-progress-timeline"><div class="skeleton">读取历史…</div></div>
     </div>
   </section>
 
@@ -1207,12 +1306,179 @@ if (window.ResizeObserver) {
 const state = { predictions: null, history: null, backtest: null, filter: 'all' };
 const loaders = {
   overview: loadOverview,
+  goal: loadGoalProgress,
   history: loadHistory,
   backtest: loadBacktest,
   evolution: loadEvolution,
   bond: loadBondPaper,
   logs: loadLogs,
 };
+
+/* ── 目标进度（2026-10-21）──────────────────────────────────────────
+   数据来自 `/api/goal-progress`（每日快照产物）⇒ **前端一个数都不算**：
+   每个读数的数字都是后端给的 `display` 字符串，这里只负责排版。
+
+   🚨 **「还差几倍」显示哪一列、两个 D2 口径怎么并排，全部由后端定好**
+   （快照里每一列都带 `is_the_gap` 与标签）⇒ 前端**不许**自己决定
+   （第 143 层：跨口径取极值会把「它从哪一行来」抹掉）。
+
+   🚨 **不许说「已达成 20%」** —— 现状是**不可判定**（|c| < M ⇒ 连符号都定不了）
+   ⇒ 页面照实写（第 16 层）。
+   🚨 **「由人判断」不许被渲染成一个分数 / 百分比 / 勾**（第 7 层）。 */
+/* 🚨 文本型 unit（判决名 / 理由 / 路径 / 状态计数）**另起一行**渲染。
+   判据是**后端给的 unit**，不是前端量长度（前端一个数都不算）。
+   ⇒ 这一列是 `white-space: nowrap` ⇒ 长文本被压成逐字竖排（读不出来）。 */
+function goalMetricRow(m) {
+  if (!m) return '';
+  /* ⚠️ 这张表**放在函数体内**：它必须跟着渲染函数一起被抽出跑
+     （守卫把这一段交给 node 真跑 ⇒ 模块级的常量会落在抽取区间之外）。 */
+  const GOAL_TEXT_UNITS = ['text', 'lines', 'json', 'list'];
+  const missing = (m.status === 'missing');
+  const val = (m.display === undefined || m.display === null) ? '缺失' : m.display;
+  const isText = GOAL_TEXT_UNITS.indexOf(m.unit) >= 0;
+  const cal = m.caliber ? `<span class="gm-cal">口径：${esc(m.caliber)}</span>` : '';
+  const src = m.at ? `<span class="gm-src">出处：${esc(m.at)}</span>` : '';
+  const note = m.note ? `<span class="gm-note">${esc(m.note)}</span>` : '';
+  const reason = m.reason ? `<span class="gm-note">缺档原因：${esc(m.reason)}</span>` : '';
+  return `<div class="goal-metric${isText ? ' is-text' : ''}">
+    <span class="gm-label">${esc(m.label || m.key || '')}</span>
+    <span class="gm-val${missing ? ' missing' : ''}">${esc(val)}</span>
+    ${cal}${src}${note}${reason}
+  </div>`;
+}
+
+function goalCaliberHtml(c) {
+  const rows = (c.metrics || []).map(goalMetricRow).join('');
+  const b = c.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${esc(c.honest_boundary)}</div>` : '';
+  return `<div class="goal-cal">
+    <h5>${esc(c.name || '')}</h5>
+    <div class="gc-role">${esc(c.role || '')}</div>
+    <div class="goal-metrics">${rows}</div>
+    ${b}
+  </div>`;
+}
+
+function goalMultiplesHtml(m) {
+  if (!m) return '';
+  const cols = (m.columns || []).map(c => {
+    const isGap = (c.is_the_gap === true);
+    const cls = isGap ? 'is-gap' : 'not-gap';
+    const flag = isGap ? '✅ 这一列是缺口' : '❌ 这一列不是缺口';
+    const val = c.metric && c.metric.display != null ? c.metric.display : '缺失';
+    return `<div class="goal-mult ${cls}">
+      <span class="gm-label">${esc(c.name || '')}</span>
+      <span class="gm-val">${esc(val)}</span>
+      <span class="gm-flag">${esc(flag)}</span>
+      <span class="gm-cal">${esc(c.note || '')}</span>
+    </div>`;
+  }).join('');
+  return `<div class="goal-mults">
+    <h5>还差几倍（倍数那一族）</h5>
+    <div class="gc-role">${esc(m.role || '')}</div>
+    ${cols}
+  </div>`;
+}
+
+function goalAcceptanceHtml(a) {
+  if (!a) return '';
+  const rows = (a.rows || []).map(r => `<div class="goal-row">
+      <span class="gr-label">${esc(r.label || '')}</span>
+      <span class="gr-val">${esc(r.display == null ? '缺失' : r.display)}</span>
+    </div>`).join('');
+  return `<div class="goal-mults">
+    <h5>验收（两道闸分别成立才算达成）</h5>
+    <div class="gc-role">${esc(a.shape_note || '')}</div>
+    <div class="goal-rows">${rows}</div>
+    <div class="goal-note" style="margin-top:6px">${esc(a.w_note || '')}</div>
+  </div>`;
+}
+
+function goalManualHtml(list) {
+  if (!list || !list.length) return '';
+  const blocks = list.map(m => `<div class="goal-manual">
+      <h5>${esc(m.label || '')} · ${esc(m.judgement || '由人判断')}</h5>
+      <ul>${(m.criteria || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+    </div>`).join('');
+  return blocks;
+}
+
+function goalAutoHtml(a) {
+  if (!a) return '';
+  return `<div class="goal-mults">
+    <h5>可自动化的部分</h5>
+    <div class="gc-role">${esc(a.what || '')}</div>
+    <div class="goal-note">${esc(a.why || '')}</div>
+    <div class="goal-note">${esc(a.caveat || '')}</div>
+  </div>`;
+}
+
+function goalCardHtml(g) {
+  const status = g.status || '';
+  const metrics = (g.metrics || []).map(goalMetricRow).join('');
+  const calibers = (g.calibers || []).length
+    ? `<div class="goal-calibers">${g.calibers.map(goalCaliberHtml).join('')}</div>` : '';
+  const mults = goalMultiplesHtml(g.multiples);
+  const acc = goalAcceptanceHtml(g.acceptance);
+  const auto = goalAutoHtml(g.automatable);
+  const manual = goalManualHtml(g.manual);
+  const crit = g.criterion ? `<div class="goal-criterion">判据：${esc(g.criterion)}</div>` : '';
+  const hb = g.honest_boundary ? `<div class="goal-note" style="margin-top:6px">${esc(g.honest_boundary)}</div>` : '';
+  return `<div class="goal-card">
+    <div class="goal-top">
+      <span class="goal-status s-${esc(status)}">${esc(g.status_label || status)}</span>
+      <span class="goal-tag">目标 ${esc(g.id)}</span>
+      <span class="goal-tag">归档：${esc(g.registry_class || '')}</span>
+    </div>
+    <h4>${esc(g.title || '')}</h4>
+    <div class="goal-reason">${esc(g.reason || '')}</div>
+    ${crit}
+    <div class="goal-metrics">${metrics}</div>
+    ${calibers}${mults}${acc}${auto}${manual}${hb}
+  </div>`;
+}
+
+async function loadGoalProgress() {
+  let data;
+  try {
+    data = await jget('/api/goal-progress');
+  } catch (e) {
+    /* 读不出来就说读不出来 —— **不许**渲染成「没有进度」（第 89 层：
+       拒绝出判决 ≠ 判决为空）。 */
+    const msg = isApiMissing(e)
+      ? '目标进度快照还没有生成（每晚 cron 会自动写一份）'
+      : '目标进度读不出来：' + (e && e.message ? e.message : '未知错误');
+    $('goal-progress-body').innerHTML = `<div class="empty">${esc(msg)}</div>`;
+    $('goal-progress-timeline').innerHTML = `<div class="empty">${esc(msg)}</div>`;
+    $('goal-progress-updated').textContent = '';
+    return;
+  }
+  const snap = data.latest || {};
+  const goals = snap.goals || [];
+  const bounds = (snap.honest_boundaries || []).map(b => `<li>${esc(b)}</li>`).join('');
+  const note = data.latest_note ? `<div class="goal-reason">${esc(data.latest_note)}</div>` : '';
+  const summary = snap.summary_line ? `<div class="goal-reason">${esc(snap.summary_line)}</div>` : '';
+  $('goal-progress-updated').textContent = snap.generated_at ? ('快照 ' + snap.generated_at) : '';
+  $('goal-progress-body').innerHTML = `
+    ${note}${summary}
+    <div class="goal-grid">${goals.map(goalCardHtml).join('')}</div>
+    <div class="goal-bounds"><b>诚实边界</b><ul>${bounds}</ul></div>`;
+
+  const hist = data.history || [];
+  const gapNote = (data.gaps || []).length
+    ? `<div class="tl-gap">⚠️ 这几天的快照**缺失**（cron 漏跑或那天没跑成）：${esc((data.gaps || []).join('、'))}</div>`
+    : '';
+  const items = hist.slice().reverse().map(h => {
+    if (h.readable === false) {
+      return `<li><div class="tl-date">${esc(h.date)}</div>
+        <div class="tl-bad">🚨 这一份读不出来：${esc(h.error || '原因未知')}</div></li>`;
+    }
+    return `<li><div class="tl-date">${esc(h.date)}</div>
+      <div class="tl-sum">${esc(h.summary_line || '')}</div>
+      <div class="tl-chg">${esc(h.change_line || '')}</div></li>`;
+  }).join('');
+  $('goal-progress-timeline').innerHTML =
+    `<ul class="goal-tl">${items}</ul>${gapNote}`;
+}
 
 /* ── 转债纸面账户（路线 A 第四阶段） ── */
 async function loadBondPaper() {
@@ -3636,7 +3902,12 @@ loadConversation();
 loadLlmInfo();
 
 /* ── 启动 ── */
-const TABS = ['overview', 'history', 'backtest', 'evolution', 'bond', 'chat', 'logs'];
+/* 🚨 这张名单必须与页面上的 tab 按钮**逐项一致**（每个按钮都带 data-panel 属性）。
+   原来它是手维护的 ⇒ 加了 tab 忘了改它 ⇒ 深链 `#/goal` 静默回落概览
+   （页面完全正常，只是深链不work —— 没有任何东西会红）。
+   ⇒ `tests/test_goal_progress.py::test_the_deep_link_allowlist_matches_the_tab_buttons`
+   把这两者钉在一起（名单靠人记得改 = 形状 17）。 */
+const TABS = ['overview', 'goal', 'history', 'backtest', 'evolution', 'bond', 'chat', 'logs'];
 const initial = (location.hash.match(/#\/(\w+)/) || [])[1];
 activate(TABS.includes(initial) ? initial : 'overview', false);
 loadChrome();   // 外壳与 tab 无关，进任何一页都要有
