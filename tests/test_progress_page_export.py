@@ -539,3 +539,383 @@ def test_the_crontab_file_says_the_two_schedules_are_mutually_exclusive():
     # 🚨 五个 launchd 单元名都要在文件里点到（装之前要 unload 的清单）
     for label in sorted(LAUNCHD_AGENTS):
         assert label in text, "crontab 文件头没提 %s ⇒ 装之前会漏 unload" % label
+
+
+# ══════════════════════════════════════════════════════════════════
+# 17~26 · 可读性守卫（2026-10-21 第二轮：把「一堵墙」改成「一眼看完的进度页」）
+# ══════════════════════════════════════════════════════════════════
+#
+# 🚨 **这一段守的是「屏上长什么样」，不是「数对不对」**。
+#    「数对不对」是上面 1~16 那些条的事。
+#
+# ## 背景（实测）
+#    改前：1440×900 下整页 **7317px**（≈ 8 屏）⇒ 用户打开看到的是一堵墙。
+#    改后：**1552px**（≈ 1.7 屏），**信息一个字没少**（折叠区展开后逐字相同）。
+#
+# ## 为什么「首屏必含」在**结构层**判而不在像素层判
+#    像素（y < 1200）随字体/视口变 ⇒ 那是**第二层**（浏览器级，见
+#    `tests/e2e/test_progress_page_browser.py`）。
+#    这一层判的是**结构**：两个口径**不在任何 `<details>` 里** ⇒
+#    它们在**任何**视口、任何字体下都在首屏。
+#
+# ## 阈值从哪来（不许拍脑袋）
+#    - 「首屏 1200px」：需求给的数（「例如前 1200px」）。
+#    - 「总高 ≤ 4 屏」：3 屏给**主结论**（需求给的理由：「用户在手机上
+#      3 次滑动内看完主要结论」）＋ 1 屏给 8 条目标的读数行
+#      （每行**必须**带判据 ⇒ 8 行在 390px 宽的手机上实测要 1.9 屏
+#      ⇒ 「≤3 屏」在手机上**结构上不可达**，差 379px）。
+#      这两个数是**两个量**（第 7 层：不许拿一个冒充另一个）⇒ 分开判。
+
+
+def _details_regions(page: str) -> list[str]:
+    """页面里每个 `<details>` 的**内部文本**（按开闭配对，不是贪婪正则）。
+
+    ⚠️ 用配对而不是 `re.findall(r"<details.*?</details>")` ——
+    将来若出现**嵌套** details，贪婪/非贪婪正则都会数错块数。
+    """
+    out = []
+    stack = []
+    i = 0
+    n = len(page)
+    while i < n:
+        j = page.find("<details", i)
+        k = page.find("</details>", i)
+        if j == -1 and k == -1:
+            break
+        if j != -1 and (k == -1 or j < k):
+            stack.append(j)
+            i = j + len("<details")
+        else:
+            start = stack.pop() if stack else 0
+            out.append(page[start:k])
+            i = k + len("</details>")
+    return out
+
+
+def _text_of(frag: str) -> str:
+    """把一段 HTML 变成它的**纯文本**（去标签、解实体、压空白）。"""
+    t = re.sub(r"<[^>]+>", " ", frag)
+    t = html.unescape(t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _strip_md(frag: str) -> str:
+    """比**读数的值**时的归一化：去标签、去 Markdown 记号。
+
+    🚨 为什么：渲染层把 `**加粗**` 变成 `<b>加粗</b>`、把 `` `code` `` 变成
+    `<code>code</code>` ⇒ 屏上那个字符串与快照里的原文**逐位不同**
+    ⇒ 但它们**是同一个读数**（第 97 层：名字/字面量不承诺语义，但**值**承诺）。
+    ⇒ 这一条比的是「这个值是不是快照里那个值」，不是「这两个串一不一样」。
+    """
+    t = re.sub(r"<[^>]+>", "", str(frag))
+    return t.replace("**", "").replace("`", "").strip()
+
+
+def _plain(frag: str) -> str:
+    """**比内容用**的归一化：去标签、去实体、去 Markdown 记号、去所有空白。
+
+    🚨 为什么**连空白一起去**：
+       产物里的 `**粗体**` 在页面上变成 `<b>粗体</b>` ⇒ 两边逐字比**必然不等**
+       （标签两边不同、空白两边也不同）⇒ 那样的比较会**恒红**，
+       等于一条恒红的守卫（它会把人推向「改本来正确的渲染」）。
+    ⇒ 比较的量是「**这句话在不在**」，不是「这两个字节串一不一样」。
+    """
+    t = re.sub(r"<[^>]+>", "", str(frag))
+    t = html.unescape(t)
+    t = t.replace("**", "").replace("`", "")
+    return re.sub(r"\s+", "", t)
+
+
+# ── 17. 首屏：两个口径**不在任何折叠区里** ────────────────────────
+
+def test_the_two_d2_calibers_are_not_inside_any_collapsed_region(exported):
+    """两个口径必须**常驻可见**（不许被折进去）。
+
+    🚨 判的是**结构**（不在 `<details>` 里），不是像素 ⇒ 与视口/字体无关。
+    """
+    page = exported["page"]
+    d2 = exported["model"]["goals"][0]
+    assert len(d2["calibers"]) == 2
+    # 每一档都必须**落在某个 details 之外**：逐个 details 的区间取补集。
+    regions = _details_regions(page)
+    card_starts = [m.start() for m in re.finditer(
+        r'<div class="d2c(?![-\w])', page)]
+    assert len(card_starts) >= 2, "页面上找不到两个口径卡片"
+    # 每个口径卡片的**起点**必须不在任何 details 区间内。
+    for start in card_starts[:2]:
+        for region in regions:
+            r_start = page.find(region)
+            assert not (r_start <= start < r_start + len(region)), \
+                "有一个口径卡片落在折叠区里 ⇒ 首屏看不到它"
+
+
+def test_the_d2_block_is_the_first_thing_in_main(exported):
+    """D2 那块必须是 `<main>` 的**第一块**（首屏的第一件东西）。"""
+    page = exported["page"]
+    main_i = page.find("<main>")
+    assert main_i >= 0
+    first_section = page.find("<section", main_i)
+    head = page[first_section:first_section + 400]
+    assert "D2" in head, "main 的第一块不是 D2 那块"
+
+
+# ── 18. 8 条目标每条都有状态标签 ──────────────────────────────────
+
+def test_every_goal_has_its_own_status_label_in_the_compact_row(exported):
+    """每条目标的紧凑行**必须**带自己的状态标签（不许变成散文段落）。"""
+    page = exported["page"]
+    model = exported["model"]
+    labels = re.findall(
+        r'<details class="goal-fold"><summary class="goal-line">(.*?)</summary>',
+        page, re.S)
+    assert len(labels) == 8, "紧凑读数行不是 8 条：%d" % len(labels)
+    for g, frag in zip(model["goals"], labels):
+        want = g.get("status_label") or g.get("status")
+        got = re.findall(r'<span class="goal-status[^"]*">(.*?)</span>', frag, re.S)
+        assert got == [want], \
+            "目标 %s 的状态标签不对：页面上 %r，快照里 %r" % (g["id"], got, want)
+        # 🚨 状态不许被改写成「未达 / 接近」这类**词**（第 16 层）
+        for bad in ("未达", "接近", "差一点", "未达成"):
+            assert bad not in "".join(got), \
+                "目标 %s 的状态标签里出现了 %r" % (g["id"], bad)
+
+
+def test_every_compact_row_carries_readings_and_not_just_prose(exported):
+    """紧凑行里必须有**读数对**（标签 + 值）⇒ 它是读数行，不是散文。"""
+    page = exported["page"]
+    rows = re.findall(
+        r'<details class="goal-fold"><summary class="goal-line">(.*?)</summary>',
+        page, re.S)
+    for i, frag in enumerate(rows, 1):
+        reads = re.findall(
+            r'<span class="gl-read"><span class="gl-lab">(.*?)</span>'
+            r'<span class="gl-val">(.*?)</span></span>', frag, re.S)
+        assert reads, "第 %d 条目标的紧凑行里一个读数都没有" % i
+        for lab, val in reads:
+            assert lab.strip(), "第 %d 条目标有个读数没有标签" % i
+            assert val.strip(), "第 %d 条目标有个读数没有值" % i
+        # 🚨 散文段落（`goal-reason`）**不许**进紧凑行
+        assert "goal-reason" not in frag, \
+            "第 %d 条目标的紧凑行里混进了散文段落" % i
+
+
+def test_the_readings_in_the_compact_rows_are_snapshot_values_verbatim(exported):
+    """紧凑行里的**每一个值**都必须是快照里的读数 ⇒ 导出器不许手打数。
+
+    🚨 这是「⛔ 不许改任何数字」那条禁令在**渲染层**的守卫。
+    """
+    page = exported["page"]
+    model = exported["model"]
+    allowed = set()
+    for m in _all_metrics(model):
+        if m.get("display") is not None:
+            allowed.add(_strip_md(str(m["display"])))
+    for g in model["goals"]:
+        for r in ((g.get("acceptance") or {}).get("rows") or []):
+            if r.get("display") is not None:
+                allowed.add(_strip_md(str(r["display"])))
+    allowed.add("缺失")
+    shown = re.findall(r'<span class="gl-val">(.*?)</span>', page, re.S)
+    assert shown, "页面上一个紧凑读数都没有 ⇒ 守卫坏了"
+    bad = [v for v in shown if _strip_md(html.unescape(v)) not in allowed]
+    assert not bad, "紧凑行里出现了不是快照读数的值：%r" % bad
+
+
+def test_the_d2_headline_numbers_are_snapshot_values_verbatim(exported):
+    """首屏两个口径的**主读数**也必须是快照里的值（不许手打）。"""
+    page = exported["page"]
+    model = exported["model"]
+    allowed = {_strip_md(str(m["display"])) for m in _all_metrics(model)
+               if m.get("display") is not None}
+    allowed.add("缺失")
+    nums = re.findall(r'<span class="d2c-num">(.*?)</span>', page, re.S)
+    assert len(nums) >= 2, "首屏两个口径的主读数不在"
+    bad = [v for v in nums if _strip_md(html.unescape(v)) not in allowed]
+    assert not bad, "首屏出现了不是快照读数的主读数：%r" % bad
+
+
+# ── 19. 每个口径各带自己的文字标签与出处路径 ──────────────────────
+
+def test_each_d2_caliber_carries_its_own_label_and_its_own_source(exported):
+    """两档**各自**带标签与出处路径（不许只显示一档，或两档共用一个来源）。"""
+    page = exported["page"]
+    d2 = exported["model"]["goals"][0]
+    cards = re.findall(r'<div class="d2c(?![-\w])(.*?)</div></div>', page, re.S)
+    assert len(cards) >= 2
+    for c in d2["calibers"]:
+        assert c["name"] in _text_of(page), "口径 %r 的标签不在页面上" % c["name"]
+        assert c["source"] in page, "口径 %r 的出处路径不在页面上" % c["name"]
+    # 两档的出处路径**必须不同**（不同产物 ⇒ 不同路径）
+    srcs = [c["source"] for c in d2["calibers"]]
+    assert len(set(srcs)) == len(srcs), "两个口径的出处路径相同 ⇒ 可能拿错了档"
+
+
+# ── 20. 出处行是「次级」的（折叠区里），但**一个都没少** ──────────
+
+def test_every_reading_keeps_its_source_line_inside_a_fold(exported):
+    """每个读数的出处行都在**折叠区**里（次级），但**一个都没少**。
+
+    🚨 需求：「每个读数的出处行 ⇒ 折叠/次级，但一个字不许少」。
+    """
+    page = exported["page"]
+    model = exported["model"]
+    fold_texts = [_text_of(r) for r in _details_regions(page)]
+    assert fold_texts, "页面上一个折叠区都没有 ⇒ 守卫坏了"
+    missing = []
+    for m in _all_metrics(model):
+        src = (m.get("source") or "").strip()
+        if not src:
+            missing.append("<%s 没有 source>" % m.get("key"))
+            continue
+        if not any(src in t for t in fold_texts):
+            missing.append("%s → %s" % (m.get("key"), src))
+    assert not missing, "这些读数的出处行不在任何折叠区里：%s" % missing
+
+
+# ── 21. 折叠区里的内容**一个字不少** ──────────────────────────────
+
+def test_the_collapsed_sections_keep_every_word_of_the_snapshot(exported):
+    """时间线 / 9 条诚实边界 / 每条读数与出处 ⇒ 折叠区里**逐字**都在。
+
+    🚨 这一条是「不许靠删信息来实现」的守卫：把页面**缩短**而不丢信息，
+    唯一合法的做法是**折叠**，不是**删除**。
+    """
+    page = exported["page"]
+    model = exported["model"]
+    page_text = _plain(page)
+    missing = []
+    for i, b in enumerate(model["honest_boundaries"], 1):
+        if _plain(str(b)) not in page_text:
+            missing.append("诚实边界 #%d" % i)
+    for h in model["timeline"]:
+        for field in ("summary_line", "change_line"):
+            v = h.get(field)
+            if v and _plain(str(v)) not in page_text:
+                missing.append("时间线 %s 的 %s" % (h["date"], field))
+    for m in _all_metrics(model):
+        for field in ("label", "display", "caliber", "note"):
+            v = m.get(field)
+            if v and _plain(str(v)) not in page_text:
+                missing.append("读数 %s 的 %s" % (m.get("key"), field))
+    for g in model["goals"]:
+        for field in ("title", "reason", "criterion", "honest_boundary"):
+            v = g.get(field)
+            if v and _plain(str(v)) not in page_text:
+                missing.append("目标 %s 的 %s" % (g["id"], field))
+    assert not missing, "页面上少了这些内容：%s" % missing
+
+
+# ── 22. 不许用截断把内容藏起来 ────────────────────────────────────
+
+def test_the_page_never_truncates_content_with_ellipsis(exported):
+    """⛔ 不许 `text-overflow: ellipsis` / `-webkit-line-clamp`。
+
+    理由（活页那条纪律）：被截掉的正是**结论本身** ⇒ 放得下或可横滚。
+    """
+    page = exported["page"]
+    style = page[page.find("<style"):page.find("</style>")]
+    assert "ellipsis" not in style, "页面的 CSS 里出现了 ellipsis 截断"
+    assert "-webkit-line-clamp" not in style, "页面的 CSS 里出现了行数截断"
+
+
+# ── 23. 静态页不含 API ⇒ 数据冻结在导出时刻（这条**必须**写明）──
+
+def test_the_visible_page_says_the_data_is_frozen_at_the_snapshot_time(exported):
+    """数据冻结这件事**必须**写在**看得见的**地方（不许只写在折叠区里）。
+
+    🚨 静态页**没有 API** ⇒ 刷新不会得到新数 ⇒ 读者若不知道这一点，
+    就会把昨天的数当成今天的（现有第 6 条只查「快照时间」在不在，
+    这里查的是「**冻结**这件事有没有被说清楚」）。
+    """
+    visible = _visible(exported["page"])
+    assert "静态快照" in visible
+    assert "冻结" in visible, "看得见的地方没写「冻结」⇒ 读者会把旧数当成新数"
+    assert exported["model"]["generated_at"] in visible
+
+
+# ── 24. 紧凑读数行的条数是**写死的**（不许悄悄变） ───────────────
+
+def test_the_compact_row_reading_budget_is_a_named_constant(exported):
+    """紧凑行最多显示几个读数 ⇒ 必须是**模块级常量**，不许散在 CSS 里。
+
+    🚨 「3」是**排版常数**（不是判决门槛），但它必须**只有一份**：
+    两处各改一次 ⇒ 一处改了另一处没改 ⇒ 页面自己跟自己的规则打架。
+    """
+    mod = _load_exporter()
+    assert hasattr(mod, "COMPACT_READINGS_MAX")
+    n = mod.COMPACT_READINGS_MAX
+    assert isinstance(n, int) and n >= 1, "紧凑读数上限不是正整数：%r" % n
+    # 正文里不许再出现第二个「取前 N 个」的魔数
+    src = EXPORTER.read_text(encoding="utf-8")
+    code = "\n".join(l for l in src.splitlines() if not l.strip().startswith("#"))
+    assert code.count("COMPACT_READINGS_MAX") >= 2, \
+        "紧凑读数上限只在一处被用 ⇒ 那个「一处」就是它自己的定义"
+
+
+# ── 25. 「测不出」不许被写成「未达 / 接近」 ────────────────────────
+
+def test_the_conclusion_and_the_status_labels_never_say_not_reached_or_close(
+        exported):
+    """「不可判定（测不出）」不许被写成「未达 / 接近 / 差一点」。
+
+    ⚠️ **只查状态标签与结论行**，不查全文 ——
+    产物自己的**判据原文**里逐字写着「c ≥ T ⇒ 达成；U < T ⇒ 未达」
+    （那是四条穷举里的一条，**不是**对当前状态的结论）
+    ⇒ 全文查「未达」会把一条**正确的**渲染判死
+    （第 112 层：过严的守卫和恒真的守卫一样有害）。
+    """
+    page = exported["page"]
+    concl = re.search(r'<div class="static-conclusion">(.*?)</div>', page, re.S)
+    assert concl, "页面上没有一句话结论"
+    texts = [html.unescape(concl.group(1))]
+    texts += [html.unescape(t) for t in
+              re.findall(r'<span class="goal-status[^"]*">(.*?)</span>', page, re.S)]
+    assert texts, "一个状态/结论都没抓到 ⇒ 守卫坏了"
+    for t in texts:
+        for bad in ("未达", "未达成", "接近", "差一点", "已达成"):
+            assert bad not in t, "屏上出现了 %r：%r" % (bad, t)
+
+
+# ── 26. 首屏那块**必须**在页面最前面（不许被推到下面） ────────────
+
+def test_the_d2_block_is_rendered_before_every_other_section(exported):
+    """D2 那一块在 `<main>` 里的位置**必须**在其它 `<section>` 之前。
+
+    ⚠️ 这是「不许把首屏那块挪到页面底部」那条禁令的守卫 ——
+    结构性的（不依赖像素）。
+    """
+    page = exported["page"]
+    main_i = page.find("<main>")
+    assert main_i >= 0
+    first = page.find("<section", main_i)
+    assert first >= 0
+    head = page[first:first + 300]
+    assert "D2" in head, "main 的第一块不是 D2 那块"
+    # 目标那 8 行必须**在** D2 块之后（读者先看结论，再看明细）
+    # ⚠️ 锚的是 **`<h2>8 条目标</h2>`**（标题标签），不是裸字符串 ——
+    #    裸字符串会命中 CSS 注释（实测 STATIC_CSS 里就有一处）⇒ 第 143 层。
+    goals_i = page.find("<h2>8 条目标</h2>")
+    assert goals_i > 0, "页面上找不到「8 条目标」那个标题"
+    assert goals_i > first, "「8 条目标」那一块跑到 D2 前面去了"
+
+
+# ── 27. 屏上不许出现**裸的 Markdown 记号**（活页 B8 的教训） ────────
+
+def test_the_visible_page_never_shows_raw_markdown_markers(exported):
+    """看得见的部分里，`**加粗**` 与 `` `行内代码` `` 都不许**原样**出现。
+
+    🚨 活页 B8：目标进度那段**原样打印 Markdown** ⇒ 屏上实测 143 处裸星号
+    与 118 处裸引号符号 ⇒ 读者看到的是**记号**而不是内容。
+    ⇒ 导出页必须把它们渲染成 `<b>` / `<code>`。
+
+    ⚠️ 判的是**看得见的部分**（切掉 JSON 岛）：JSON 岛是**数据**，
+    它的原始字符串就该带 Markdown 记号（那是快照原文）。
+    """
+    visible = _visible(exported["page"])
+    assert "**" not in visible, \
+        "看得见的部分还有 %d 处裸 `**` ⇒ 屏幕在打印 Markdown 记号" % visible.count("**")
+    assert "`" not in visible, \
+        "看得见的部分还有 %d 处裸反引号 ⇒ 屏幕在打印 Markdown 记号" % visible.count("`")
+    # 正控：确实渲染了（不是「一条都没渲染」也判绿）
+    assert "<b>" in visible, "页面里一个加粗都没渲染 ⇒ 判据可能坏了"
+    assert "<code>" in visible, "页面里一个行内代码都没渲染 ⇒ 判据可能坏了"

@@ -1,0 +1,19 @@
+B1 8 条目标的折叠体**默认展开**（页面从「一屏」变回「一堵墙」）	scripts/export_progress_page.py
+'<details class="goal-fold"><summary class="goal-line">%s</summary>'
+=== 变异体 ===
+'<details class="goal-fold" open><summary class="goal-line">%s</summary>'
+
+B2 CSS 里加一条固定宽度（窄屏上整页被撑出横向滚动条）	scripts/export_progress_page.py
+  .static-meta { color: var(--faint); font-size: 11.5px; line-height: 1.8;
+=== 变异体 ===
+  .static-meta { width: 1600px; color: var(--faint); font-size: 11.5px; line-height: 1.8;
+
+B3 折叠体被加上 `hidden`（**展开后**什么都看不见 ⇒ 展开那条守卫是恒真的）	scripts/export_progress_page.py
+'<div class="fold-body">%s</div></details>'
+=== 变异体 ===
+'<div class="fold-body" hidden>%s</div></details>'
+
+B4 两个口径被折进 <details>（首屏就看不见那一块了）	scripts/export_progress_page.py
+            '<div class="d2-gap-calibers">%s%s</div>'
+=== 变异体 ===
+            '<details class="fold"><summary>两个口径</summary><div class="d2-gap-calibers">%s%s</div></details>'

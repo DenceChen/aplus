@@ -57,3 +57,48 @@ U1 systemd 单元去占 8000（那是另一个服务的端口）	deploy/aplus-pr
 ExecStart=/usr/bin/python3.11 -m http.server 8080 --bind 0.0.0.0 --directory /opt/aplus-progress
 === 变异体 ===
 ExecStart=/usr/bin/python3.11 -m http.server 8000 --bind 0.0.0.0 --directory /opt/aplus-progress
+
+M11 两个口径被折进 <details>（首屏就看不见那一块了）	scripts/export_progress_page.py
+            '<div class="d2-gap-calibers">%s%s</div>'
+=== 变异体 ===
+            '<details class="fold"><summary>两个口径</summary><div class="d2-gap-calibers">%s%s</div></details>'
+
+M12 紧凑读数行**不渲染状态标签**（目标变成没有状态的一段文字）	scripts/export_progress_page.py
+'<span class="goal-status s-%s">%s</span>'
+=== 变异体 ===
+'<span class="goal-tag s-%s">%s</span>'
+
+M13 紧凑读数行**不渲染读数**（行里只剩标题与判据 ⇒ 退回散文）	scripts/export_progress_page.py
+    if reads:
+=== 变异体 ===
+    if False:
+
+M14 首屏的读数被换成**手打的数**（不再是快照里的那个值）	scripts/export_progress_page.py
+% (esc("缺失" if met.get("display") is None else met.get("display")),
+=== 变异体 ===
+% (esc("0.0000"),
+
+M15 一句话结论被写成「未达」（把「测不出」说死）	scripts/export_progress_page.py
+        summary=prose(model.get("summary_line")),
+=== 变异体 ===
+        summary=prose("D2 未达 20%"),
+
+M16 9 条诚实边界**只渲染前 2 条**（靠删信息把页面缩短）	scripts/export_progress_page.py
+                      for b in model["honest_boundaries"])
+=== 变异体 ===
+                      for b in model["honest_boundaries"][:2])
+
+M17 目标行里的**读数一块**被摘掉（读数只剩散文）	scripts/export_progress_page.py
+    if g.get("metrics"):
+=== 变异体 ===
+    if False:
+
+M18 CSS 里加一条 `text-overflow: ellipsis`（把宽内容截掉）	scripts/export_progress_page.py
+  .static-meta { color: var(--faint); font-size: 11.5px; line-height: 1.8;
+=== 变异体 ===
+  .static-meta { text-overflow: ellipsis; color: var(--faint); font-size: 11.5px; line-height: 1.8;
+
+M19 文本型读数的值**不再渲染 Markdown**（屏上又出现裸的 ** 与 ` 记号）	scripts/export_progress_page.py
+    val_html = prose(val) if m["is_text"] else esc(val)
+=== 变异体 ===
+    val_html = esc(val)
