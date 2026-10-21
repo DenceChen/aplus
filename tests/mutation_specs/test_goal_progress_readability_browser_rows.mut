@@ -1,0 +1,4 @@
+V2 紧凑行不显示读数（8 条目标退化成散文段落）	aplus/web/index.html
+  const use = pool.length ? pool : metrics;
+=== 变异体 ===
+  const use = [];

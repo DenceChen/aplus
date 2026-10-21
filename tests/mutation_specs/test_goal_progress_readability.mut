@@ -1,0 +1,29 @@
+U1 「还差几倍」取了跨口径那一列（台账判它不是缺口）	aplus/web/index.html
+  const gapCol = (mults.columns || []).filter(c => c.is_the_gap === true)[0];
+=== 变异体 ===
+  const gapCol = (mults.columns || []).filter(c => c.is_the_gap !== true)[0];
+
+U2 读数的出处行被摘掉（用户查不到这个数从哪来）	aplus/web/index.html
+  const src = m.at ? `<span class="gm-src">出处：${esc(m.at)}</span>` : '';
+=== 变异体 ===
+  const src = '';
+
+U3 封禁词失效（那两个字段名漏到屏上）	aplus/web/index.html
+  ['投入率', '⟨部署比例字段·口径台账封禁⟩'],
+=== 变异体 ===
+  ['投入率', '投入率'],
+
+U4 紧凑行的状态标签被摘掉（8 条目标退化成没有状态的散文行）	aplus/web/index.html
+  const chip = `<span class="goal-status s-${esc(status)}">${esc(g.status_label || status)}</span>`;
+=== 变异体 ===
+  const chip = '';
+
+U5 紧凑行的判据被摘掉（这一行不再回答「凭什么」）	aplus/web/index.html
+  const crit = g.criterion ? `<span class="gl-crit">判据：${inlineMd(g.criterion)}</span>` : '';
+=== 变异体 ===
+  const crit = '';
+
+U6 「还差几倍」那一行的口径被摘掉（两个数会被混读）	aplus/web/index.html
+      <div class="d2c-sub">${inlineMd(m.caliber || '')}</div>
+=== 变异体 ===
+      <div class="d2c-sub"></div>

@@ -1,0 +1,4 @@
+V5 读数的值不渲染（每个数都没了，展开后一个字都不剩）	aplus/web/index.html
+  const val = (m.display === undefined || m.display === null) ? '缺失' : m.display;
+=== 变异体 ===
+  const val = '缺失';

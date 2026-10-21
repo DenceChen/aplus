@@ -1,0 +1,4 @@
+V4 8 条目标默认展开（页面又变回一堵墙）	aplus/web/index.html
+  return `<details class="goal-fold">
+=== 变异体 ===
+  return `<details class="goal-fold" open>

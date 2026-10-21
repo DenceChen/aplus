@@ -1,0 +1,9 @@
+V1 一句话结论不渲染（首屏答不了第一问）	aplus/web/index.html
+  const summary = snap.summary_line ? `<div class="goal-summary">${inlineMd(snap.summary_line)}</div>` : '';
+=== 变异体 ===
+  const summary = '';
+
+V3 D2 那块整块不渲染（首屏没有两档，也没有「还差几倍」）	aplus/web/index.html
+  const d2 = d2goal ? goalD2BlockHtml(d2goal) : '';
+=== 变异体 ===
+  const d2 = '';
