@@ -2,7 +2,7 @@
   "schema": "aplus.goal_progress/1",
   "generator": "scripts/measure_goal_progress.py",
   "snapshot_date": "2026-10-21",
-  "generated_at": "2026-10-21T20:43:00",
+  "generated_at": "2026-10-21T22:05:01",
   "goal_registry": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
   "goals": [
     {
@@ -281,7 +281,7 @@
       "registry_at": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
       "status": "IN_PROGRESS",
       "status_label": "进行中",
-      "reason": "🚨 **形态在出，验收未过**：名单形态达标（10 涨 / 10 跌），但闸门判决 `NOT_PASSED_POWERLESS`、`publish_allowed = False`、W = 3 < 10 ⇒ **不许发布**，先攒前瞻期。",
+      "reason": "🚨 **形态在出，验收未过**：名单形态达标（10 涨 / 10 跌），但闸门判决 `NOT_PASSED_POWERLESS`、`publish_allowed = False`、W = 2 < 10 ⇒ **不许发布**，先攒前瞻期。",
       "criterion": "① 形态：名单逐行数出 up=10 / down=10；② 验收：`score_ranking_power.json::verdict` 放行且 W ≥ 10 独立成交窗口（决策四）。🚨 两道闸**分别**成立才算达成。",
       "metrics": [
         {
@@ -395,8 +395,8 @@
         {
           "key": "n_independent_pred_dates",
           "label": "独立出单日",
-          "value": 3,
-          "display": "3",
+          "value": 2,
+          "display": "2",
           "unit": "count",
           "at": "data/reports/score_ranking_power.json :: by_score_col.score.n_independent_pred_dates",
           "kind": "artifact",
@@ -407,8 +407,8 @@
         {
           "key": "n_independent_windows",
           "label": "W · 独立成交窗口",
-          "value": 3,
-          "display": "3",
+          "value": 2,
+          "display": "2",
           "unit": "count",
           "at": "data/reports/score_ranking_power.json :: by_score_col.score.independence_caliber.n_entry_dates",
           "kind": "artifact",
@@ -447,10 +447,10 @@
         "shape_note": "✅ 名单形态是 10 涨 / 10 跌（**逐行数出来的**，不是手打的）",
         "gate_verdict": "NOT_PASSED_POWERLESS",
         "publish_allowed": false,
-        "w": 3,
+        "w": 2,
         "w_min": 10,
         "w_met": false,
-        "w_note": "⚠️ **W = 3 < 10** ⇒ 按决策四，**命中率族一个都不许报**（不许报命中率、不许给 CI）。🚨 **不许**把这个门槛换算成日历 ETA（同一处禁令）。",
+        "w_note": "⚠️ **W = 2 < 10** ⇒ 按决策四，**命中率族一个都不许报**（不许报命中率、不许给 CI）。🚨 **不许**把这个门槛换算成日历 ETA（同一处禁令）。",
         "rows": [
           {
             "label": "名单形态（10 涨 / 10 跌）",
@@ -469,8 +469,8 @@
           },
           {
             "label": "W · 独立成交窗口",
-            "value": 3,
-            "display": "3"
+            "value": 2,
+            "display": "2"
           },
           {
             "label": "验收门槛 W ≥ 10 独立成交窗口",
@@ -728,8 +728,8 @@
         {
           "key": "commits_交付",
           "label": "提交归类 · 交付",
-          "value": 29,
-          "display": "29",
+          "value": 46,
+          "display": "46",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.交付",
           "kind": "artifact",
@@ -740,8 +740,8 @@
         {
           "key": "commits_手段",
           "label": "提交归类 · 手段",
-          "value": 6,
-          "display": "6",
+          "value": 23,
+          "display": "23",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.手段",
           "kind": "artifact",
@@ -752,8 +752,8 @@
         {
           "key": "commits_收尾",
           "label": "提交归类 · 收尾",
-          "value": 19,
-          "display": "19",
+          "value": 29,
+          "display": "29",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.收尾",
           "kind": "artifact",
@@ -776,8 +776,8 @@
         {
           "key": "commits_total",
           "label": "当天提交总数",
-          "value": 54,
-          "display": "54",
+          "value": 98,
+          "display": "98",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.total",
           "kind": "artifact",
@@ -788,8 +788,8 @@
         {
           "key": "drift_rate",
           "label": "跑偏率（收尾档 / 当天总提交）",
-          "value": 0.35185185185185186,
-          "display": "35.1852%",
+          "value": 0.29591836734693877,
+          "display": "29.5918%",
           "unit": "fraction",
           "at": "data/reports/daily_review.json :: commits.drift_rate",
           "kind": "artifact",
@@ -835,8 +835,8 @@
         {
           "key": "commits_交付",
           "label": "提交归类 · 交付",
-          "value": 29,
-          "display": "29",
+          "value": 46,
+          "display": "46",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.交付",
           "kind": "artifact",
@@ -847,8 +847,8 @@
         {
           "key": "commits_手段",
           "label": "提交归类 · 手段",
-          "value": 6,
-          "display": "6",
+          "value": 23,
+          "display": "23",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.手段",
           "kind": "artifact",
@@ -859,8 +859,8 @@
         {
           "key": "commits_收尾",
           "label": "提交归类 · 收尾",
-          "value": 19,
-          "display": "19",
+          "value": 29,
+          "display": "29",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.收尾",
           "kind": "artifact",
@@ -883,8 +883,8 @@
         {
           "key": "commits_total",
           "label": "当天提交总数",
-          "value": 54,
-          "display": "54",
+          "value": 98,
+          "display": "98",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.total",
           "kind": "artifact",
@@ -895,8 +895,8 @@
         {
           "key": "drift_rate",
           "label": "跑偏率（收尾档 / 当天总提交）",
-          "value": 0.35185185185185186,
-          "display": "35.1852%",
+          "value": 0.29591836734693877,
+          "display": "29.5918%",
           "unit": "fraction",
           "at": "data/reports/daily_review.json :: commits.drift_rate",
           "kind": "artifact",
@@ -966,8 +966,8 @@
         {
           "key": "commits_交付",
           "label": "提交归类 · 交付",
-          "value": 29,
-          "display": "29",
+          "value": 46,
+          "display": "46",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.交付",
           "kind": "artifact",
@@ -978,8 +978,8 @@
         {
           "key": "commits_手段",
           "label": "提交归类 · 手段",
-          "value": 6,
-          "display": "6",
+          "value": 23,
+          "display": "23",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.手段",
           "kind": "artifact",
@@ -990,8 +990,8 @@
         {
           "key": "commits_收尾",
           "label": "提交归类 · 收尾",
-          "value": 19,
-          "display": "19",
+          "value": 29,
+          "display": "29",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.counts.收尾",
           "kind": "artifact",
@@ -1014,8 +1014,8 @@
         {
           "key": "commits_total",
           "label": "当天提交总数",
-          "value": 54,
-          "display": "54",
+          "value": 98,
+          "display": "98",
           "unit": "count",
           "at": "data/reports/daily_review.json :: commits.total",
           "kind": "artifact",
@@ -1026,8 +1026,8 @@
         {
           "key": "drift_rate",
           "label": "跑偏率（收尾档 / 当天总提交）",
-          "value": 0.35185185185185186,
-          "display": "35.1852%",
+          "value": 0.29591836734693877,
+          "display": "29.5918%",
           "unit": "fraction",
           "at": "data/reports/daily_review.json :: commits.drift_rate",
           "kind": "artifact",

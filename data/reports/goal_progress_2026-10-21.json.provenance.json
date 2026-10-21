@@ -1,11 +1,11 @@
 {
-  "code_sha": "fa73be45cbc032373f87d660d6c02b202f602188",
+  "code_sha": "b0d9e8a813db6eccfe1d69221672a9d9711bcaa9",
   "code_dirty": true,
   "code_file_sha256": "93628c5cf570efb3ffcdb4e48861b3944d911d8115e7300365ffb004b4288dc9",
   "data_fp": "5460:1792583252.826563",
   "data_dir": "data/master/daily",
   "generator": "scripts/measure_goal_progress.py",
-  "stamped_at": "2026-10-21T12:43:00+00:00",
+  "stamped_at": "2026-10-21T14:05:01+00:00",
   "snapshot_date": "2026-10-21",
   "n_goals": 8,
   "statuses": {
