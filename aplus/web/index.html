@@ -1905,7 +1905,8 @@ async function loadChrome() {
          不抛、也不假装有台账。 */
       jget('/api/d2-gap').catch(() => null),
     ]);
-    renderDocket(status.stats, evo, weights, pred, status.publish_gate, d2gap);
+    renderDocket(status.stats, evo, weights, pred, status.publish_gate, d2gap,
+      status.signal_scope);
   } catch {
     $('docket-word').textContent = '平台状态未知';
     $('docket-why').textContent = '读不到 /api/status，可能是服务没起来。';
@@ -1950,7 +1951,8 @@ async function loadOverview() {
     /* `publish_gate` 与 `evo` 同理**必须传**：本函数无条件重写闸门横幅，
        漏传 ⇒ `gate` 为 undefined ⇒ 横幅被渲染成「上线闸门未接入」，
        而现象是「深链进概览时告示变成未接入、回到其它 tab 又恢复正常」。 */
-    renderDocket(status.stats, evo, weights, pred, status.publish_gate, d2gap);
+    renderDocket(status.stats, evo, weights, pred, status.publish_gate, d2gap,
+      status.signal_scope);
   } catch (e) {
     /* 🚨 这行 console.error 是 2026-10-18 实测补的，不是「顺手加的日志」。
        ★ 背景：把 MIN_WINDOWS 变异成未定义的名字后，生产页面真的抛了
@@ -2557,7 +2559,22 @@ function figureTips(stats) {
   return { has, windows, minWin, tipHit, tipUp, tipDown, tipBreadth };
 }
 
-function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
+/**
+ * 「这个窗口数**为什么**是这个数」—— 一句话，来源是产物自报的归属口径。
+ *
+ * ⚠️ **为什么必须说它**（2026-10-21 实测）：归属基准在 2026-10-21 从
+ * `weights_hash` 切到 `signal_id` ⇒ ⇒ 底稿里**只算当前信号的窗口**
+ * ⇒ ⇒ 计数**从 3 掉到 1** ⇒ ⇒ 屏上若只写「现在 1 个」，
+ * **用户会以为平台把证据弄丢了** ⇒ ⇒ 实际是「换了一套信号，重新攒」。
+ */
+function scopeNote(scope) {
+  if (!scope || !scope.status) return '';
+  const sid = scope.current_signal_id ? `（当前信号 <code>${esc(scope.current_signal_id)}</code>）` : '';
+  return `<br>⚠️ 这个数**只算当前信号的窗口**${sid} ⇒ 换了信号（权重或榜宽变了）
+    就**从头攒** ⇒ 所以它变小**不是**把证据弄丢了，是换了一套信号重新开始。`;
+}
+
+function renderDocket(stats, evo, weights, predictions, gate, d2gap, scope) {
   /* ★ 闸门横幅**先渲染**，放在本函数第一句。
      理由是它是首屏唯一说「这份名单不许发布」的地方 ⇒ 后面任何一段
      （命中率分档 / 警示条 / 数字块）抛异常时，它**已经**在屏幕上，
@@ -2587,7 +2604,8 @@ function renderDocket(stats, evo, weights, predictions, gate, d2gap) {
          <code>n_independent_windows</code> —— 这是「判据不可问」，不是「样本为零」。`
       : `命中率要攒够 <b>${minWin}</b> 个<b>独立成交窗口</b>才给结论，现在 <b>${windows}</b> 个。
          窗口 = 一次真实的进出场；同一笔成交被几个信号日共享只算 <b>1</b> 个。
-         判定条数（<b>${judged}</b> 条）不参与这道门槛 —— 数条数会把一次交易数三遍。`;
+         判定条数（<b>${judged}</b> 条）不参与这道门槛 —— 数条数会把一次交易数三遍。
+         ${scopeNote(scope)}`;
   } else if (rate >= 0.55) {
     word.textContent = '初步有效';
     why.innerHTML = `已判定 <b>${judged}</b> 条，命中率 <b>${(rate * 100).toFixed(1)}%</b>。

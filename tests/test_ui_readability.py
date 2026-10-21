@@ -534,3 +534,42 @@ def test_the_first_screen_picks_are_one_line_not_a_second_copy_of_row_one(tmp_pa
 #        （`Error: It looks like you are using Playwright Sync API inside the asyncio loop`）
 #      ⇒ 浏览器级守卫必须**复用** `tests/e2e/conftest.py` 的夹具。
 # ────────────────────────────────────────────────────────────────────
+
+
+def test_the_window_count_must_explain_why_it_is_this_number(tmp_path):
+    """⚠️ 「这个窗口数**为什么**是这个数」必须说在屏上。
+
+    ## 为什么（2026-10-21 实测）
+
+    归属基准在 2026-10-21 从 `weights_hash` 切到 `signal_id`
+    ⇒ ⇒ 底稿里**只算当前信号的窗口** ⇒ ⇒ 计数**从 3 掉到 1**
+    ⇒ ⇒ 屏上若只写「现在 1 个」，**用户会以为平台把证据弄丢了**
+    ⇒ ⇒ 实际是「换了一套信号，重新攒」。
+
+    ⇒ 判据是**行为级**：在 node 里真调 `scopeNote()`，
+    **不许**用「全文有没有那句话」的子串断言（第 13 层：
+    子串会被注释与契约说明满足）。
+
+    ⚠️ 并且**没有归属信息时必须什么都不说** ——
+    凭空造一句解释比不解释更坏。
+    """
+    src = _html()
+    m = re.search(r"^function scopeNote\(scope\) \{.*?^\}", src, re.M | re.S)
+    assert m, "index.html 里找不到 `scopeNote` ⇒ 夹具前提变了（先读代码再改这里）"
+    fn = m.group(0)
+    esc = _esc_line(src)
+
+    scope = {"status": "ATTRIBUTED_BY_SIGNAL_ID", "current_signal_id": "0df5828c"}
+    out = _run_js(tmp_path, esc + "\n" + fn + "\n"
+                  + "console.log(JSON.stringify(scopeNote("
+                  + json.dumps(scope, ensure_ascii=False) + ")));")
+    text = json.loads(out)
+    assert "只算当前信号的窗口" in text, text
+    assert "0df5828c" in text, f"必须点名当前信号：{text}"
+    assert "不是" in text and "弄丢" in text, (
+        f"必须说清「变小不是把证据弄丢了」：{text}")
+
+    # 没有归属信息 ⇒ **一个字都不许说**（凭空造解释比不解释更坏）
+    out2 = _run_js(tmp_path, esc + "\n" + fn + "\n"
+                   + "console.log(JSON.stringify(scopeNote(null)));")
+    assert json.loads(out2) == "", "没有归属信息时不该给出解释"
