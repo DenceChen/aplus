@@ -35,3 +35,19 @@ lines.append("  **当前持仓读不出来**（状态里没有记录「哪几只
                          "这一列）⇒ 请以**券商账户**为准，本平台不猜。")
 === 变异体 ===
 lines.append("  继续持有：（空）")
+
+M6 非调仓日分支把「钱包读不出来」塌成「已知」（第三态被摘掉）	aplus/alloc.py
+holdings_known=has_current,
+=== 变异体 ===
+holdings_known=True,
+
+M7 风控注记从空列表硬算敞口（说「0 只 · 100% 现金」那句假话）	aplus/alloc.py
+if not holdings_known:
+=== 变异体 ===
+if False:
+
+M8 状态在配置方案之前落盘（半成品窗口：已换仓但钱包未知）	scripts/run_daily.py
+plan = build_allocation(
+=== 变异体 ===
+save_state(reports_dir, state)
+    plan = build_allocation(

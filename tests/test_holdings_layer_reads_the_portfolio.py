@@ -373,3 +373,75 @@ def test_the_status_endpoint_marks_a_known_empty_wallet_as_known(tmp_path):
     assert live["held_codes"] == []
     assert live["held_codes_known"] is True, (
         "真空仓被标成「读不出来」⇒ 上面那条守卫会退化成恒真")
+
+
+# ── ⑨ 洞 A（2026-10-21 晚，复核 agent 抓到）：非调仓日 + 钱包读不出来 ──
+#
+# 「读不出来」在**两个面**上表现不同（同一个语义、两种塌法）：
+#   ① `portfolio_codes` ⇒ `None`（**对**：不知道就说不知道）
+#   ② `build_allocation` 的非调仓日分支 ⇒ `positions=[] / cash=1.0`
+#      ⇒ 界面与日志读成「**0 只 · 100% 现金**」⇒ **让人卖光**
+# ⇒ ② 必须有**第三态**。
+
+def test_an_unreadable_wallet_never_collapses_into_an_empty_book():
+    """🚨 非调仓日 + 钱包读不出来 ⇒ 产物**不许**说「空仓」。
+
+    「0 只 · 100% 现金」是一句**假话**（它说的是「你该 100% 现金」）
+    ⇒ 错的方向是**让人卖光**（第 112 层：错的方向比错的值更贵）。
+    """
+    plan = build_allocation(
+        _candidates(), capital=50_000.0, max_positions=10, per_stock_cap=0.10,
+        current_positions=None, is_rebalance_day=False, closes=_closes())
+    assert plan.holdings_known is False, "钱包读不出来却没有第三态标志"
+    assert plan.positions == []
+    assert any("读不出来" in n for n in plan.risk_notes), (
+        f"风控注记没说「读不出来」：{plan.risk_notes[:1]}")
+    assert not any("敞口 = 0 只" in n for n in plan.risk_notes), (
+        "风控注记从**空列表**算出了敞口 ⇒ 那是一句假话")
+    assert plan.to_dict()["holdings_known"] is False, (
+        "产物里没有这个标志 ⇒ 界面无从区分「空仓」与「读不出来」")
+
+
+def test_a_known_empty_wallet_is_not_the_same_as_an_unreadable_one():
+    """反向正控：**真空仓**就该照常算敞口（0 只 / 100% 现金 是**真的**）。"""
+    plan = build_allocation(
+        _candidates(), capital=50_000.0, max_positions=10, per_stock_cap=0.10,
+        current_positions=[], is_rebalance_day=False, closes=_closes())
+    assert plan.holdings_known is True, "真空仓被说成「读不出来」"
+    assert any("敞口 = 0 只" in n for n in plan.risk_notes), (
+        "真空仓连敞口都不报了 ⇒ 上面那条守卫会退化成恒真")
+
+
+def test_the_state_is_written_only_after_the_allocation_is_computed():
+    """🚨 **落盘顺序**：状态**不许**在配置方案之前落盘。
+
+    ## 为什么这条是承重的
+
+    「先落一次、算完再落第二次」会留下一个**窗口**：盘上的状态是
+    「已换仓（every/days/held_since 都更新了）**但钱包那一列还没有**」。
+    ⇒ 次日 `is_due` 为假 ⇒ **非调仓日** ⇒ 而非调仓日分支把
+    「钱包读不出来」塌成「**空仓**」⇒ 产物写「**0 只 · 100% 现金**」
+    ⇒ **持续 62 个交易日**（到下一个调仓日才恢复）。
+
+    ⇒ **单次落盘（在配置方案算完之后）**：崩了就崩在「盘上什么都没变」上
+    ⇒ 次日 `is_due` 仍为真 ⇒ **自愈重算**。
+    ⇒ 「可能重复调仓一次」远比「62 天说你该清仓」便宜。
+    """
+    body = _step_body()
+    tree = ast.parse(body)
+    calls = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        name = fn.id if isinstance(fn, ast.Name) else (
+            fn.attr if isinstance(fn, ast.Attribute) else "")
+        if name in ("save_state", "build_allocation"):
+            calls.append((node.lineno, name))
+    assert calls, "找不到 save_state / build_allocation 调用 —— 守卫需要重新评估"
+    alloc_lines = [ln for ln, name in calls if name == "build_allocation"]
+    save_lines = [ln for ln, name in calls if name == "save_state"]
+    assert alloc_lines and save_lines, f"调用点不全：{calls}"
+    assert min(save_lines) > min(alloc_lines), (
+        f"状态在配置方案之前落盘（save@{min(save_lines)} < alloc@{min(alloc_lines)}）"
+        "⇒ 崩了会留下「已换仓但钱包未知」的半成品 ⇒ 次日非调仓日会说「0 只 / 100% 现金」")

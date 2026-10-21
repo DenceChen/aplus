@@ -969,10 +969,22 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
         state["days_since_rebalance"] = 0
     else:
         state = advance(state, today)
-    # ⚠️ 这里**先**落一次盘：配置方案万一崩了，持仓状态也**已经推进**
-    #    （明天不会因为「今天没跑成」而重复调仓）。
-    #    「钱包」那一列要等 `plan` 才有 ⇒ 算完后再落第二次（内容只多那一列）。
-    save_state(reports_dir, state)
+    # ⚠️🚨 **这里不落盘**（2026-10-21 晚，改自「先落一次、算完再落第二次」）。
+    #
+    # **为什么改**：两次落盘之间有一个**窗口**——那窗口里盘上的状态是
+    # 「已换仓（every/days/held_since 都更新了）**但钱包那一列还没有**」。
+    # ⇒ 那个状态在**非调仓日**会让 `build_allocation` 的非调仓日分支
+    #    把「钱包读不出来」塌成「**空仓**」⇒ 产物写「**0 只 · 100% 现金**」
+    #    ⇒ **正是这条修复自己在注释里判为「错的方向是让人卖光」的那一侧**
+    #    （而它会持续 62 个交易日 —— 下一次调仓日才恢复）。
+    #
+    # ⇒ **单次落盘（在配置方案算完之后）**：崩了就崩在「盘上什么都没变」上
+    #    ⇒ 盘上仍是**昨天的钱包 + 昨天的计数** ⇒ 次日 `is_due` 仍为真
+    #    ⇒ **自愈重算**（可能重复调仓一次，代价远小于「62 天说你该清仓」）。
+    #
+    # ⚠️ 守卫：`tests/test_holdings_layer_reads_the_portfolio.py`
+    #    ＋ `tests/test_alloc_rebalance_diff.py`（非调仓日 + 钱包未知 ⇒
+    #    **不许**塌成「0 只 / 100% 现金」）。
 
     print(f"[predict] 池子 {len(universe)} 只 → 涨 {len(up)} / 跌 {len(down)}")
     print("  预测涨 Top10:")
@@ -1040,7 +1052,14 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
 
     save_allocation(reports_dir, today, plan.to_dict())
     equity = sum(p["weight"] for p in plan.positions)
-    print(f"[alloc] 配置：{len(plan.positions)} 只 × 10% = 权益 {equity:.0%}，现金 {plan.cash_weight:.0%}")
+    # ⚠️🚨 **手上那批读不出来 ⇒ 不许打「0 只 · 100% 现金」**（2026-10-21 晚）。
+    #   「读不出来」与「空仓」是两件事 ⇒ 打「0 只」会**叫人卖光**。
+    if plan.holdings_known:
+        print(f"[alloc] 配置：{len(plan.positions)} 只 × 10% = 权益 {equity:.0%}，现金 {plan.cash_weight:.0%}")
+    else:
+        print("[alloc] 配置：**手上那批读不出来**（状态里没有「哪几只真的拿到了钱」"
+              "这一列）⇒ 本方案**不描述**你的持仓。"
+              "⚠️ **不许**读成「空仓 / 该 100% 现金」⇒ 请以**券商账户**为准。")
     for p in plan.positions:
         print(f"    {p['code']} {p['name']} {p['amount']:.0f} 元")
     # 🚨 **剔除必须可见**（2026-10-21）：「平台每天在悄悄剔股票」不可见。
@@ -1056,10 +1075,13 @@ def step_predict_and_allocate(store, reports_dir, today, capital, names_map):
                 print(f"    剔除 {_lab}：{' '.join(_aff[_k][:8])}"
                       f"{' …' if len(_aff[_k]) > 8 else ''}")
     if not due:
+        # ⚠️ 同样分三态：钱包读不出来时**不许**说「沿用 X 的名单，0 只」
+        _held_desc = (f"沿用 {plan.held_since or '建仓日未知'} 的名单，{len(plan.held)} 只"
+                      if plan.holdings_known else
+                      "**手上那批读不出来**（不是「0 只」⇒ 请以**券商账户**为准）")
         print(f"[alloc] ⚠️ **今天不是调仓日**（距上次换仓 "
               f"{plan.days_since_rebalance}/{every} 个交易日）⇒ "
-              "本方案**没有订单**，描述的是**当前持仓**（沿用 "
-              f"{plan.held_since or '建仓日未知'} 的名单，{len(plan.held)} 只）")
+              f"本方案**没有订单**，描述的是**当前持仓**（{_held_desc}）")
     _counts = {"keep": 0, "add": 0, "remove": 0}
     for _r in plan.rebalance:
         _counts[_r["action"]] = _counts.get(_r["action"], 0) + 1

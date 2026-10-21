@@ -107,6 +107,12 @@ class AllocationPlan:
     held: list = field(default_factory=list)
     # 可买性过滤的**报告**（计数 + 名单）。`None` ⇒ 没做过滤。
     affordability: dict | None = None
+    # ⚠️🚨 **「手上那批」读不读得出来**（2026-10-21 晚）。
+    # `False` = **读不出来**（状态里没有「哪几只真的拿到了钱」这一列）
+    # ⇒ **不是「空仓」** ⇒ 产物**不许**把它渲染成「0 只 · 100% 现金」
+    #    （那是**让人卖光**的方向 —— 第 112 层的通则：错的方向比错的值更贵）。
+    # ⇒ 只在**非调仓日**可能为 `False`（调仓日那批是当天算出来的，必有）。
+    holdings_known: bool = True
 
     def to_dict(self) -> dict:
         return {
@@ -122,6 +128,7 @@ class AllocationPlan:
             "held_since": self.held_since,
             "held": self.held,
             "affordability": self.affordability,
+            "holdings_known": self.holdings_known,
         }
 
 
@@ -243,8 +250,12 @@ def build_allocation(
             cash_weight=cash_weight,
             rebalance=[],                       # 🚨 非调仓日**没有订单**
             rebalance_source=("current_positions" if has_current else "none"),
+            # ⚠️🚨 钱包读不出来时，**不许**把「空的位置列表」当成「空仓」
+            #    ⇒ 显式标成第三态，让消费方（界面/日志）说「读不出来」。
+            holdings_known=has_current,
             risk_notes=_risk_notes(capital, per_stock_cap, equity_weight,
-                                   cash_weight, positions),
+                                   cash_weight, positions,
+                                   holdings_known=has_current),
             is_rebalance_day=False,
             days_since_rebalance=days_since_rebalance,
             rebalance_every=rebalance_every,
@@ -316,8 +327,29 @@ def build_allocation(
 
 
 def _risk_notes(capital: float, per_stock_cap: float, equity_weight: float,
-                cash_weight: float, positions: list) -> list:
-    """风控注记（**真话**：兑现得了的约束写出来，兑现不了的**不许承诺**）。"""
+                cash_weight: float, positions: list,
+                holdings_known: bool = True) -> list:
+    """风控注记（**真话**：兑现得了的约束写出来，兑现不了的**不许承诺**）。
+
+    ## 🚨 `holdings_known=False` 时**不许**算敞口
+
+    手上那批读不出来 ⇒ `positions` 是**空列表**（不是「空仓」）⇒
+    若照常按 `len(positions)` 算，就会写出
+    「**敞口 = 0 只 × 10% = 0%（现金 100%）**」
+    ⇒ **那是一句假话**（它说的是「你该 100% 现金」⇒ **让人卖光**）。
+    ⇒ 这一档必须**明说读不出来**，不许给一个具体的数字。
+    """
+    if not holdings_known:
+        return [
+            "🚨🚨 **手上那批读不出来**（状态里没有「哪几只真的拿到了钱」这一列）"
+            "⇒ 本方案**不描述**你的持仓。"
+            "⚠️ **不许**把它读成「空仓」或「该 100% 现金」——"
+            "**「读不出来」与「空仓」是两件事**（错的方向是让人卖光）。"
+            "请以**券商账户**为准。",
+            f"**整手约束**：每份 ¥{capital * per_stock_cap:,.0f} 按**整手**取整"
+            "（科创板 688/689 起买 **200 股**，其余 100 股）⇒ "
+            "**买不起 1 手的不下单**，该份资金留在现金里（按 0 计息）。",
+        ]
     return [
         # 🚨 2026-10-20：这两条**曾经**在这里承诺「单票硬止损 -8%」与
         # 「组合回撤 -10% 强制权益减仓」——而**全仓 grep 只在这两行字符串命中**
