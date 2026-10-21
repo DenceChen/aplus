@@ -419,6 +419,24 @@ def measure(df: pd.DataFrame, score_col: str, n_perm: int = N_PERM,
 GATE_ARM = "up"
 
 
+#: 🚨 **D1 的验收门槛：独立成交窗口 W ≥ 10**。
+#:
+#: 出处（**预注册**，不是本脚本自定）：`docs/DELIVERY_DECISIONS_2026-10-18.md`
+#: **§4 决策四**「D1 设验收门槛 —— 独立成交窗口 W ≥ 10」
+#: ⇒ 「W < 10 时**不许报命中率**、不许给 CI」。
+#:
+#: ⚠️ **这个门槛此前从未被执行过**（2026-10-21 实测）：
+#: `verdict()` 只判「四分位单调递增」⇒ ⇒ **一行底稿天然单调**
+#: ⇒ ⇒ 判决 **PASS**、`publish_allowed = True`
+#: ⇒ ⇒ **一行就能把 D1 验收判绿**。
+#: ⇒ ⇒ 而 2026-10-21 晚间归属基准从 `weights_hash` 切到 `signal_id`
+#: ⇒ ⇒ **底稿里就只剩今晚那一份匹配** ⇒ ⇒ ⇒ ⇒
+#: **明晚 21:30 那个 PASS 会真的出现在屏上。**
+#:
+#: ⇒ 守卫：`tests/test_score_ranking_power.py`（数字不许手改 + 行为：1 行不许 PASS）。
+MIN_INDEPENDENT_WINDOWS = 10
+
+
 def verdict(res: dict) -> tuple[str, str]:
     """三态判决。**NOT_PASSED 两支都意味着不许发布**，区别只在下一步做什么。
 
@@ -441,6 +459,21 @@ def verdict(res: dict) -> tuple[str, str]:
             f"{arm} 臂（**并列报告，非闸门**：S2 已因逆大盘 27.3% 停用）"
             f"单调={s['monotone_nondecreasing']} ρ={s['point_biserial_rho']:+.4f} "
             f"检出力下限={s['null_abs_rho_q95_power_floor']:.4f}")
+    # 🚨 **最少独立窗口数**（2026-10-21 补执行一条**早已预注册**的判据）。
+    #   预注册：`docs/DELIVERY_DECISIONS_2026-10-18.md §4 决策四`
+    #   「D1 设验收门槛 —— 独立成交窗口 W ≥ 10」⇒ W<10 时不许报命中率、不许给 CI。
+    #   ⚠️ **此前没执行 ⇒ 一行底稿就 PASS**（四分位在 1 行上天然单调）
+    #   ⇒ 「一行判绿 D1 验收」。
+    #   ⇒ 且 2026-10-21 晚间归属基准切换后底稿**只剩一行匹配** ⇒ 正好会踩上。
+    w = int((res.get("independence_caliber") or {}).get("n_entry_dates") or 0)
+    if w < MIN_INDEPENDENT_WINDOWS:
+        return "NOT_PASSED_POWERLESS", (
+            f"独立成交窗口只有 **{w}** 个，少于验收门槛 **{MIN_INDEPENDENT_WINDOWS}** 个"
+            f"（预注册：docs/DELIVERY_DECISIONS_2026-10-18.md §4 决策四）"
+            f" ⇒ **样本不足 ⇒ 不可判定** ⇒ 不许发布、不许报命中率、不许给 CI。"
+            f"⚠️ **这不是「打分没有排序力」** —— 是「还没攒够样本能判」。"
+            f"（四分位在 {w} 个窗口上「单调」是**平凡真**，不能当证据。）"
+            + ("；" + "；".join(others) if others else ""))
     if st["monotone_nondecreasing"]:
         return "PASS", ("闸门臂四分位单调递增；仍须过 G1/G2/G3/G5/G6 才谈发布"
                         + ("；" + "；".join(others) if others else ""))

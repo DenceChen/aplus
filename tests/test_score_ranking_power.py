@@ -24,6 +24,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -39,8 +40,8 @@ if str(_ROOT) not in sys.path:
 
 from aplus import provenance as provenance_mod  # noqa: E402
 from scripts.score_ranking_power import (  # noqa: E402
-    ART_NAME, GATE_ARM, JUDGEABLE, _point_biserial, _within_group_quartile,
-    verdict,
+    ART_NAME, GATE_ARM, JUDGEABLE, MIN_INDEPENDENT_WINDOWS, _point_biserial,
+    _within_group_quartile, verdict,
 )
 
 _SCRIPT = _ROOT / "scripts" / "score_ranking_power.py"
@@ -57,11 +58,23 @@ def _stats(monotone: bool, rho: float, p: float, floor: float) -> dict:
             "detectable_at_alpha05": abs(rho) >= floor}
 
 
-def _res(up: dict, down: dict | None = None) -> dict:
+def _res(up: dict, down: dict | None = None,
+         n_entry_dates: int = MIN_INDEPENDENT_WINDOWS) -> dict:
+    """构造 `verdict()` 的入参。
+
+    ⚠️ **默认给足 10 个独立成交窗口**（2026-10-21 改）：
+    `verdict()` 现在**执行**了预注册的验收门槛 W ≥ 10
+    （`docs/DELIVERY_DECISIONS_2026-10-18.md §4 决策四`）⇒
+    窗口不足的样本**一律不许 PASS** ⇒ ⇒
+    所以**测「单调性那一支」的夹具必须本身是合格样本**，
+    否则它们会在窗口闸上就返回、根本走不到被测的那一支。
+    ⇒ 窗口闸本身由下面几条**专门**的守卫覆盖。
+    """
     arms = {GATE_ARM: {"_stats": up}}
     if down is not None:
         arms["down"] = {"_stats": down}
-    return {"arms": arms}
+    return {"arms": arms,
+            "independence_caliber": {"n_entry_dates": n_entry_dates}}
 
 
 def test_passes_only_when_the_gate_arm_is_monotone():
@@ -460,3 +473,55 @@ def test_the_artifact_states_its_own_direction_instead_of_making_the_reader_infe
     assert st["monotone_direction"] == "increasing_with_score", st
     assert "hit_rate(Q1) >= hit_rate(Q2)" in st["monotone_test_formula"], st
     assert st["expected_rho_sign"] == "positive", st
+
+
+def test_too_few_independent_windows_can_never_pass():
+    """🚨 **窗口不够 ⇒ 永远不许 PASS**（2026-10-21 补执行预注册判据）。
+
+    ## 缺陷的实测形态
+
+    `verdict()` 原本只判「四分位单调递增」⇒ ⇒ **一行底稿天然单调**
+    ⇒ 判决 **PASS**、`publish_allowed = True`
+    ⇒ ⇒ **一行就能把 D1 验收判绿**。
+
+    而 2026-10-21 晚间归属基准从 `weights_hash` 切到 `signal_id`
+    ⇒ ⇒ 底稿里**只剩今晚那一份匹配** ⇒ ⇒ ⇒ ⇒ 正好踩上这个洞。
+
+    ⇒ 预注册：`docs/DELIVERY_DECISIONS_2026-10-18.md §4 决策四`
+    「独立成交窗口 W ≥ 10」⇒ W<10 时不许报命中率、不许给 CI。
+    """
+    for w in (0, 1, 9):
+        kind, why = verdict(_res(_stats(True, 0.5, 0.001, 0.3), n_entry_dates=w))
+        assert kind != "PASS", (
+            f"只有 {w} 个独立成交窗口却判 PASS ⇒ 一行底稿就能把 D1 验收判绿")
+        assert "样本不足" in why or "独立成交窗口" in why, why
+
+
+def test_enough_independent_windows_reaches_the_monotonicity_branch():
+    """反向正控：窗口**够** ⇒ 判决回到被测的那一支（单调 ⇒ PASS）。
+
+    ⇒ 没有这一条，上面那条可能退化成「永远不 PASS」的装饰
+    （第 112 层：过严的筛选会把 `all()` 退化成装饰）。
+    """
+    kind, why = verdict(_res(_stats(True, 0.5, 0.001, 0.3),
+                             n_entry_dates=MIN_INDEPENDENT_WINDOWS))
+    assert kind == "PASS", (kind, why)
+
+
+def test_the_window_threshold_is_read_from_the_preregistration_not_typed():
+    """🚨 门槛**不许手打**：预注册里那个数必须与代码里的常量一致。
+
+    ⇒ 出处：`docs/DELIVERY_DECISIONS_2026-10-18.md §4 决策四`
+    「D1 设验收门槛 —— 独立成交窗口 W ≥ 10」。
+    ⇒ 手打的话，预注册改了门槛而代码不变 ⇒ **两边会悄悄分叉**。
+    """
+    prereg = (_ROOT / "docs" / "DELIVERY_DECISIONS_2026-10-18.md").read_text(
+        encoding="utf-8")
+    assert "独立成交窗口 W ≥ 10" in prereg, (
+        "预注册里找不到「独立成交窗口 W ≥ 10」⇒ 本测试的前提变了 ⇒ "
+        "请先读预注册再改这里")
+    m = re.search(r"独立成交窗口\s*W\s*≥\s*(\d+)", prereg)
+    assert m, "预注册里的门槛数读不出来"
+    assert int(m.group(1)) == MIN_INDEPENDENT_WINDOWS, (
+        f"预注册写的是 W ≥ {m.group(1)}，代码里是 {MIN_INDEPENDENT_WINDOWS} ⇒ "
+        f"**两边分叉了**（判据必须预注册 ⇒ 以预注册为准）")
