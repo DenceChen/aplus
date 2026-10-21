@@ -1722,7 +1722,7 @@ def main():
         _pipeline(args, run)
 
 
-def _classify_with_coverage(today: str):
+def _classify_with_coverage(today: str, daily_dir=None):
     """交易日判定 —— **必须带覆盖率**。
 
     ## 为什么不接覆盖率，第四态就是死的
@@ -1745,7 +1745,19 @@ def _classify_with_coverage(today: str):
     「0.5」是「1/2 只」还是「95/200 只」。
     """
     day = date.fromisoformat(today)
-    cov = coverage_detail(day)
+    # 🚨 2026-10-21 修：`daily_dir` **必须**传进来。
+    #   旧写法不传 ⇒ 读的是**仓库里那一份**（`aplus/trading_calendar.py::DAILY_DIR`）
+    #   ⇒ ⇒ `run_day_gate(today, data_root, …)` 的 `data_root` 对**分类**是**假的**
+    #   ⇒ ⇒ 守卫的判定**取决于测试跑的那一刻生产仓里有什么**
+    #   ⇒ ⇒ 2026-10-21 20:16 采进 10-21 之后，
+    #   「仓里只到 10-20 ⇒ 必然 WORKDAY_NOT_IN_STORE」这条**前提自动失效**
+    #   ⇒ ⇒ 守卫红了，而**代码没坏**（第 147 层：守卫前提过期）
+    #   ⇒ ⇒ 修法不是改夹具应付今天，而是让分类**真的走那个 data_root**
+    #   ⇒ ⇒ 守卫从此**与运行时无关**。
+    if daily_dir is not None:
+        cov = coverage_detail(day, daily_dir=Path(daily_dir))
+    else:
+        cov = coverage_detail(day)
     verdict = classify_run_day(day, trading_days(), coverage=cov.coverage)
     return verdict, cov
 
@@ -1773,7 +1785,8 @@ def run_day_gate(today, data_root, run):
     """
     from aplus.reports import write_run_status
 
-    verdict, cov = _classify_with_coverage(today)
+    verdict, cov = _classify_with_coverage(
+        today, daily_dir=Path(data_root) / "master" / "daily")
     cov_pct = f"{cov.coverage * 100:.1f}%（{cov.hit}/{cov.total} 只已到当天）"
     if verdict == RUN_DAY_TRADING:
         print(f"[gate] {today} 是交易日，正常发布（覆盖率 {cov_pct}）")

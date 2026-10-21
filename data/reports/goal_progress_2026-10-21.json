@@ -2,7 +2,7 @@
   "schema": "aplus.goal_progress/1",
   "generator": "scripts/measure_goal_progress.py",
   "snapshot_date": "2026-10-21",
-  "generated_at": "2026-10-21T10:39:24",
+  "generated_at": "2026-10-21T20:43:00",
   "goal_registry": "docs/DELIVERY_DECISIONS_2026-10-18.md §1",
   "goals": [
     {
@@ -287,22 +287,22 @@
         {
           "key": "prediction_date",
           "label": "名单日期",
-          "value": "2026-10-20",
-          "display": "2026-10-20",
+          "value": "2026-10-21",
+          "display": "2026-10-21",
           "unit": "text",
           "at": null,
           "kind": "derived",
           "status": "ok",
           "sources": [
-            "data/reports/predictions/pred_2026-10-20.parquet"
+            "data/reports/predictions/pred_2026-10-21.parquet"
           ],
           "derivation": "最新一份 `pred_*.parquet` 的文件名日期分量",
           "verify": {
             "kind": "pred_filename_date",
-            "file": "data/reports/predictions/pred_2026-10-20.parquet"
+            "file": "data/reports/predictions/pred_2026-10-21.parquet"
           },
           "caliber": null,
-          "note": "⚠️ **不是当天的交付** —— 最新一份是 2026-10-20，今天（2026-10-21）没有名单文件（不同时刻的观测不是同一个事实）"
+          "note": null
         },
         {
           "key": "up_count",
@@ -314,12 +314,12 @@
           "kind": "derived",
           "status": "ok",
           "sources": [
-            "data/reports/predictions/pred_2026-10-20.parquet"
+            "data/reports/predictions/pred_2026-10-21.parquet"
           ],
           "derivation": "按 `direction` 列数 `== 'up'` 的行数",
           "verify": {
             "kind": "count_by_column",
-            "file": "data/reports/predictions/pred_2026-10-20.parquet",
+            "file": "data/reports/predictions/pred_2026-10-21.parquet",
             "column": "direction",
             "value": "up"
           },
@@ -336,12 +336,12 @@
           "kind": "derived",
           "status": "ok",
           "sources": [
-            "data/reports/predictions/pred_2026-10-20.parquet"
+            "data/reports/predictions/pred_2026-10-21.parquet"
           ],
           "derivation": "按 `direction` 列数 `== 'down'` 的行数",
           "verify": {
             "kind": "count_by_column",
-            "file": "data/reports/predictions/pred_2026-10-20.parquet",
+            "file": "data/reports/predictions/pred_2026-10-21.parquet",
             "column": "direction",
             "value": "down"
           },
@@ -358,12 +358,12 @@
           "kind": "derived",
           "status": "ok",
           "sources": [
-            "data/reports/predictions/pred_2026-10-20.parquet"
+            "data/reports/predictions/pred_2026-10-21.parquet"
           ],
           "derivation": "parquet 行数",
           "verify": {
             "kind": "row_count",
-            "file": "data/reports/predictions/pred_2026-10-20.parquet"
+            "file": "data/reports/predictions/pred_2026-10-21.parquet"
           },
           "caliber": null,
           "note": null
@@ -419,8 +419,8 @@
         {
           "key": "n_independent_windows_unscoped",
           "label": "独立成交窗口（全底稿 · 未按当前信号分桶）",
-          "value": 6,
-          "display": "6",
+          "value": 2,
+          "display": "2",
           "unit": "count",
           "at": "data/reports/stats.json :: n_independent_windows",
           "kind": "artifact",

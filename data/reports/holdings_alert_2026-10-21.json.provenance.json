@@ -1,0 +1,26 @@
+{
+  "code_sha": "1cb6ff5f6ede3f74cb9238d86f9bd1c240969e88",
+  "code_dirty": true,
+  "code_file_sha256": "2df9741ed5d1ea2333ab93dddae86eddd449a252e05555225761bc4b9e55e0f7",
+  "data_fp": "5460:1792583252.826563",
+  "data_dir": "data/master/daily",
+  "generator": "scripts/run_daily.py",
+  "stamped_at": "2026-10-21T12:22:04+00:00",
+  "as_of": "2026-10-21",
+  "weights_hash": "c2178335be6d",
+  "pool_size": 4935,
+  "entry_day": "2026-10-21",
+  "held_codes": [
+    "001285.SZ",
+    "002897.SZ"
+  ],
+  "summary": {
+    "REDUCE": 0,
+    "WATCH": 0,
+    "HOLD": 2,
+    "UNDECIDED": 0
+  },
+  "production_parity_verdict": "MATCHES_PRODUCTION",
+  "code_file_sha256_holdings_entry": "f9267857382335ab5b4375efda75c35f3be1a3c914f5c77659b9a68c562e1ea4",
+  "code_file_sha256_holdings_alert": "4ff15a1d5dae8d1a7a636774c47510f5a22d861d04d00d1244049610e04edf94"
+}

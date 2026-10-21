@@ -1,16 +1,18 @@
 {
-  "date": "2026-10-20",
+  "date": "2026-10-21",
   "status": "ok",
   "steps": {
+    "update": "ok",
     "bond_update": "ok",
     "verify": "ok",
     "factor_audit": "ok",
     "predict": "ok",
+    "holdings_alert": "ok",
     "bond_paper": "ok",
     "stats": "ok"
   },
-  "updated_at": "2026-10-20 21:12:53",
-  "attempted_date": "2026-10-20",
+  "updated_at": "2026-10-21 20:22:11",
+  "attempted_date": "2026-10-21",
   "outcome": "ok",
   "outcome_reason": "全部步骤跑完，名单已发布。"
 }

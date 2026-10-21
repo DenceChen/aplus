@@ -1,0 +1,333 @@
+{
+  "as_of": "2026-10-21",
+  "generated_by": "scripts/run_daily.py",
+  "question": "我手上这几只里，哪几只已经掉到最差那一档？",
+  "population": {
+    "basis": "data/reports/allocation/alloc_2026-10-21.json::positions",
+    "codes": [
+      "001285.SZ",
+      "002897.SZ"
+    ],
+    "n_heldings": 2,
+    "why": "持仓 = **建仓日那份配置里真正拿到钱的那些**（alloc_<建仓日>::positions）；非调仓日那份 alloc 是当天建议、没被执行 ⇒ 不能当持仓。state.up（10 只）是**候选池**，不是持仓。",
+    "basket_from_state": [
+      "688300.SH",
+      "001285.SZ",
+      "688610.SH",
+      "688629.SH",
+      "301345.SZ",
+      "002897.SZ",
+      "300951.SZ",
+      "603115.SH",
+      "688020.SH",
+      "300868.SZ"
+    ],
+    "basket_is_candidates_not_holdings": true,
+    "note": null
+  },
+  "entry": {
+    "entry_day": "2026-10-21",
+    "entry_day_source": "holdings.json::held_since",
+    "entry_day_verdict": "RESOLVED_FROM_STATE",
+    "state_held_since": "2026-10-21",
+    "candidate_days_with_same_up_leg": null,
+    "entry_scores": {
+      "688610.SH": 2.3363462767390613,
+      "001285.SZ": 1.9745285175698413,
+      "688629.SH": 1.551075882974706,
+      "688300.SH": 2.1190283512825654,
+      "301345.SZ": 1.5767410202956784,
+      "002897.SZ": 1.7751533858867605,
+      "300951.SZ": 1.8472327888061941,
+      "603115.SH": 1.7055788464094455,
+      "688020.SH": 1.7286870638592693,
+      "300868.SZ": 1.6929256590683281
+    },
+    "entry_scores_source": "data/reports/predictions/pred_2026-10-21.parquet::score",
+    "entry_scores_crosscheck": {
+      "available": true,
+      "source": "data/reports/predictions/pred_2026-10-21.parquet::score",
+      "codes_in_leg": [
+        "001285.SZ",
+        "002897.SZ",
+        "300868.SZ",
+        "300951.SZ",
+        "301345.SZ",
+        "603115.SH",
+        "688020.SH",
+        "688300.SH",
+        "688610.SH",
+        "688629.SH"
+      ],
+      "weights_hash_at_entry_day": [
+        "c2178335be6d"
+      ],
+      "n_compared": 0,
+      "max_abs_diff": null,
+      "tolerance": 1e-09,
+      "verdict": "NO_COMPARABLE_PAIR"
+    },
+    "weights_hash_current": "c2178335be6d",
+    "comparable_with_current_weights": true,
+    "comparability_note": ""
+  },
+  "pool": {
+    "as_of": "2026-10-21",
+    "size": 4935,
+    "method": "当日全池**直接取自 run_daily 的 predict 步骤**（同一份 `build_cross_section` ⇒ 同一套 `aplus/panel.py::_factor_series` 因子实现 ⇒ 与生产逐位一致）；**不建 GB 级面板、不重算全池**",
+    "method_note": "⚠️ 慢路径 `aplus/factor.py::compute_factors` **不是**生产实现（测量台实测：vol20 差 0.0468 ⇒ 合成分差 0.57 ⇒ 涨腿 10 只里 3 只名次不同）⇒ 本路径**不许**用它",
+    "weights": {
+      "mom20": -1.0,
+      "rev5": 0.3,
+      "vol20": -0.5,
+      "vsur": -0.5
+    },
+    "weights_hash": "c2178335be6d",
+    "production_parity": {
+      "checked_against": "data/reports/predictions/pred_2026-10-21.parquet",
+      "available": true,
+      "up_leg": {
+        "codes_match": true,
+        "prod_codes": [
+          "001285.SZ",
+          "002897.SZ",
+          "300868.SZ",
+          "300951.SZ",
+          "301345.SZ",
+          "603115.SH",
+          "688020.SH",
+          "688300.SH",
+          "688610.SH",
+          "688629.SH"
+        ],
+        "recomputed_codes": [
+          "001285.SZ",
+          "002897.SZ",
+          "300868.SZ",
+          "300951.SZ",
+          "301345.SZ",
+          "603115.SH",
+          "688020.SH",
+          "688300.SH",
+          "688610.SH",
+          "688629.SH"
+        ],
+        "max_abs_score_diff": 0.0,
+        "n_common": 10
+      },
+      "down_leg": {
+        "codes_match": true,
+        "prod_codes": [
+          "000530.SZ",
+          "001323.SZ",
+          "002343.SZ",
+          "003029.SZ",
+          "300466.SZ",
+          "301190.SZ",
+          "301313.SZ",
+          "600148.SH",
+          "601811.SH",
+          "688175.SH"
+        ],
+        "recomputed_codes": [
+          "000530.SZ",
+          "001323.SZ",
+          "002343.SZ",
+          "003029.SZ",
+          "300466.SZ",
+          "301190.SZ",
+          "301313.SZ",
+          "600148.SH",
+          "601811.SH",
+          "688175.SH"
+        ],
+        "max_abs_score_diff": 0.0,
+        "n_common": 10
+      },
+      "max_abs_score_diff": 0.0,
+      "tolerance": 1e-09,
+      "verdict": "MATCHES_PRODUCTION"
+    },
+    "cross_section_size": 5445,
+    "filtered": {
+      "stale": 254,
+      "unfillable": 53,
+      "unknown_st": 0
+    },
+    "weights_source": "fallback",
+    "weights_caveat": "回落默认权重，**未经赛马验证**。符号已按实测 IC 校正（63/63 个（因子×年）观测与该因子的全段 IC 同号（turnratio 缺 2019 年，已计入分母）；见 aplus/factor.py 的 DEFAULT_WEIGHTS 注释），但**幅度**沿用旧值未调，更没有任何样本外验收。上一版默认权重 {mom20:+1.0,rev5:+0.3,vol20:+0.5,vsur:+0.5} 在 2026-10-14 的 730 天赛马里排第 81/87 名、测试段超额 −0.74%、t=−3.03 —— 那个数字属于**旧配置**，不能算到这一版头上。当前状态是「方向有证据、效果未验证」，不是「已验收的冠军」。实盘按每 63 个交易日换仓一次执行（名单仍每天出），因为日频换仓的成本量级与毛超额同数量级甚至更大。",
+    "weights_caveat_kind": "unraced"
+  },
+  "criteria": {
+    "bottom_decile_percentile": 0.1,
+    "bottom_quintile_percentile": 0.2,
+    "anchors": {
+      "citation": "石川《因子投资方法与实践》§排序分组（data/books/cn_factor_lines.txt L1325-1341 十分位 L=10；L1493/L1656 五分位 L1=L2=5）"
+    },
+    "rule_order": [
+      "1. 不在当日全池里 ⇒ UNDECIDED（测不出位次）",
+      "2. 缺建仓日合成分 ⇒ UNDECIDED（相对建仓的升降测不出，≠ 没变差）",
+      "3. 相对建仓变差（合成分 < 建仓日合成分）且当前分位 ≤ 最差十分位 ⇒ REDUCE（减持/卖出）",
+      "4. 在最差五分位 或 相对建仓变差 ⇒ WATCH（观察）",
+      "5. 其余 ⇒ HOLD（维持持有）"
+    ],
+    "primary_basis": "relative_to_entry_score（相对建仓日的变化）",
+    "auxiliary_basis": "percentile / is_in_bottom_decile / is_in_bottom_quintile（当日横截面位次）"
+  },
+  "items": [
+    {
+      "code": "001285.SZ",
+      "name": "瑞立科密",
+      "score": 1.9745285175698413,
+      "rank_in_universe": 3,
+      "percentile": 0.9995946493717065,
+      "is_in_bottom_decile": false,
+      "is_in_bottom_quintile": false,
+      "entry_score": 1.9745285175698413,
+      "relative_to_entry_score": 0.0,
+      "relative_to_entry_pct": 0.0,
+      "action": "HOLD",
+      "action_criterion": "001285.SZ：全池分位 0.9996 > 最差五分位阈值 0.2000（锚：石川《因子投资方法与实践》§排序分组（data/books/cn_factor_lines.txt L1325-1341 十分位 L=10；L1493/L1656 五分位 L1=L2=5））**且**合成分 1.9745 ≥ 建仓日合成分 1.9745（相对建仓 +0.0000）⇒ 维持持有"
+    },
+    {
+      "code": "002897.SZ",
+      "name": "意华股份",
+      "score": 1.7751533858867605,
+      "rank_in_universe": 5,
+      "percentile": 0.999189298743413,
+      "is_in_bottom_decile": false,
+      "is_in_bottom_quintile": false,
+      "entry_score": 1.7751533858867605,
+      "relative_to_entry_score": 0.0,
+      "relative_to_entry_pct": 0.0,
+      "action": "HOLD",
+      "action_criterion": "002897.SZ：全池分位 0.9992 > 最差五分位阈值 0.2000（锚：石川《因子投资方法与实践》§排序分组（data/books/cn_factor_lines.txt L1325-1341 十分位 L=10；L1493/L1656 五分位 L1=L2=5））**且**合成分 1.7752 ≥ 建仓日合成分 1.7752（相对建仓 +0.0000）⇒ 维持持有"
+    }
+  ],
+  "summary": {
+    "REDUCE": 0,
+    "WATCH": 0,
+    "HOLD": 2,
+    "UNDECIDED": 0
+  },
+  "defect_measurement": {
+    "question": "跌榜（会跌 10 只）与持仓的交集，逐日",
+    "per_day": [
+      {
+        "pred_date": "2026-10-09",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-10",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-11",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-12",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-13",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-14",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-15",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-16",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 0,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": []
+      },
+      {
+        "pred_date": "2026-10-19",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 1,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": [
+          "001285.SZ"
+        ]
+      },
+      {
+        "pred_date": "2026-10-20",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 2,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": [
+          "001285.SZ",
+          "002897.SZ"
+        ]
+      },
+      {
+        "pred_date": "2026-10-21",
+        "down_leg_x_holdings": 0,
+        "up_leg_x_holdings": 2,
+        "down_leg_x_holdings_codes": [],
+        "up_leg_x_holdings_codes": [
+          "001285.SZ",
+          "002897.SZ"
+        ]
+      }
+    ],
+    "n_days": 11,
+    "n_heldings": 2,
+    "down_leg_x_holdings_total": 0,
+    "up_leg_x_holdings_total": 5,
+    "denominator": 22,
+    "note": "跌榜 = 全池最差的 10 只，持仓来自涨腿（全池最好的 10 只）⚠️ **口径**：同一天两腿在构造上不相交（构造事实）；本块量的是**产品口径**「实际持仓 × 各日跌榜」——**并非恒不相交**，有持仓被跌榜点过名。⇒ 跌榜这一半对 long-only 账户是**边际**的：偶尔点到你手上的票，却不回答「我该卖哪只」。"
+  },
+  "boundaries": [
+    "这不是做空信号：A 股散户融不到券 ⇒ 唯一可执行形态是减持/卖出（跌榜自己的闸门 data/reports/downleg_gate.json::executable 同样写着「不考虑做空限制 ⇒ 会高估因子的收益」）",
+    "这不是涨跌预测：本块只回答横截面位次（今天在全池里排第几），「全池最差十分位」≠「会跌」",
+    "它不改变出单：不改配置权重、不改换仓频率（K=63）、不生成买卖单",
+    "跌榜（会跌 10 只）是全市场榜单，对 long-only 账户是**边际**的：持仓来自涨榜 ⇒ 同一天两腿在构造上就不相交；但「实际持仓 × 各日跌榜」**并非恒不相交**（有持仓被跌榜点过名）⇒ 读数看产物的 defect_measurement，**别把「不相交」当事实念**",
+    "合成分是**横截面相对量**：跨日比较的是「相对位次」而不是价格涨跌，两天的合成分不可当成收益率加减",
+    "「5 万拿不到融资融券额度」是外部常识·本仓未核实 ⇒ 只当口径声明，不当判据"
+  ],
+  "what_this_cannot_prove": [
+    "本块只回答**横截面位次**（「今天它在全池里排第几」），不预测下一个交易日涨跌；「全池最差十分位」≠「会跌」",
+    "合成分是**横截面相对量**：跨日比较的是相对位次，不是价格涨跌；两天的合成分相减**不是**收益率",
+    "阈值来自书里的**切组方式**（十分位 L=10 / 五分位 L1=L2=5），「切到最差十分位 ⇒ 减仓」这一步是**本平台的策略选择**，不是书里的结论",
+    "本块**不改出单**：不改配置权重、不改换仓频率（K=63）、不生成买卖单",
+    "「5 万拿不到融资融券额度」是**外部常识·本仓未核实** ⇒ 只当口径声明",
+    "建仓日若解析不出（或建仓日与当前不是同一组权重）⇒ 相对建仓的变化**测不出**，该条判 UNDECIDED，**不拿别的顶替**",
+    "本块**不产生收益**：它不预测涨跌、不算盈亏、不改权重、不改 K、不生成买卖单——它只把持仓的**相对位置**说清楚"
+  ],
+  "daily_wiring": {
+    "producer": "scripts/run_daily.py",
+    "rule_order_source": "aplus/holdings_entry.py::RULE_ORDER",
+    "entry_scores_source": "建仓日那份预测文件的涨腿落盘分（**不重算建仓日的全池**）",
+    "cost": "**零额外面板**：全池复用 predict 步骤已在内存的那一份；本步骤只排序、定级、写一份 json",
+    "what_it_does_not_do": "**不产生收益**：不改权重、不改 K、不生成买卖单、不预测涨跌、不算盈亏"
+  }
+}
